@@ -19,17 +19,21 @@ import { TagCameraPreview, type TagCameraPreviewRef } from './TagCameraPreview';
 export const SCANNER_FRAME_WIDTH = 240;
 export const SCANNER_FRAME_HEIGHT = 150;
 
-/** Exact camera glyph from the mockup's #capShutterBtn (index.html). */
+/** Exact camera glyph from the mockup's #capShutterBtn (index.html).
+ *  fill="none" is set on every shape explicitly — react-native-svg defaults
+ *  shapes to black fill and does NOT reliably inherit fill from the parent
+ *  <Svg>, so relying on the root fill renders dark blobs on Android. */
 function CapScanIcon() {
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
       <Path
         d="M4 7h2.5l1.2-2h8.6l1.2 2H20a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"
+        fill="none"
         stroke="#FFFFFF"
         strokeWidth={2}
         strokeLinejoin="round"
       />
-      <Circle cx={12} cy={13} r={3.5} stroke="#FFFFFF" strokeWidth={2} />
+      <Circle cx={12} cy={13} r={3.5} fill="none" stroke="#FFFFFF" strokeWidth={2} />
     </Svg>
   );
 }
@@ -38,10 +42,11 @@ function CapScanIcon() {
 function CapUploadIcon() {
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-      <Rect x={3} y={4} width={18} height={16} rx={2} stroke="#FFFFFF" strokeWidth={2} />
+      <Rect x={3} y={4} width={18} height={16} rx={2} fill="none" stroke="#FFFFFF" strokeWidth={2} />
       <Circle cx={8.5} cy={9.5} r={1.5} fill="#FFFFFF" />
       <Path
         d="M21 15l-5-5-9 9"
+        fill="none"
         stroke="#FFFFFF"
         strokeWidth={2}
         strokeLinecap="round"
