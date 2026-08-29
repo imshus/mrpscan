@@ -24,7 +24,8 @@ type DashboardMatrixKey =
   | '14k_rtgs'
   | '14k_cash'
   | '9k_rtgs'
-  | '9k_cash';
+  | '9k_cash'
+  | 'bhaw_source_jmd';
 
 type DashboardMatrixValues = Record<DashboardMatrixKey, boolean>;
 
@@ -93,6 +94,7 @@ const DEFAULT_DASHBOARD_MATRIX_VALUES: DashboardMatrixValues = {
   '14k_cash': true,
   '9k_rtgs': true,
   '9k_cash': true,
+  'bhaw_source_jmd': false,
 };
 
 function normalizeMatrixValues(values: Record<string, boolean> | null | undefined): DashboardMatrixValues {
@@ -100,6 +102,26 @@ function normalizeMatrixValues(values: Record<string, boolean> | null | undefine
     ...DEFAULT_DASHBOARD_MATRIX_VALUES,
     ...(values ?? {}),
   };
+}
+
+/** Radio row for the bhaw rate source (single-select, dot on the right). */
+function RadioRow({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={styles.radioRow}>
+      <Text style={styles.radioLabel}>{label}</Text>
+      <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
+        {selected ? <View style={styles.radioInner} /> : null}
+      </View>
+    </Pressable>
+  );
 }
 
 export default function DashboardMatricesScreen() {
@@ -123,7 +145,9 @@ export default function DashboardMatricesScreen() {
 
     try {
       const updated = await updateDashboardMatrices(nextDraft as Record<string, boolean>);
-      const normalized = normalizeMatrixValues(updated ?? nextDraft);
+      // Merge over the local draft: a backend that predates a setting drops the
+      // unknown key from its response, which would otherwise revert the choice.
+      const normalized = normalizeMatrixValues({ ...nextDraft, ...(updated ?? {}) });
       setDraft(normalized);
       useMatricesStore.setState((state) => ({
         values: {
@@ -145,6 +169,13 @@ export default function DashboardMatricesScreen() {
     void persistToggle(key, nextValue, previousValue);
   };
 
+  const selectBhawSource = (useJmd: boolean) => {
+    const previousValue = draft.bhaw_source_jmd;
+    if (previousValue === useJmd) return;
+    setDraft((current) => ({ ...current, bhaw_source_jmd: useJmd }));
+    void persistToggle('bhaw_source_jmd', useJmd, previousValue);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView
@@ -162,6 +193,23 @@ export default function DashboardMatricesScreen() {
         <Text style={styles.hint}>Choose which gold rates appear on your Home dashboard.</Text>
 
         <View style={styles.card}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionHeaderText}>
+              Bhaw Rate Source — adjusts the gold rate on Home
+            </Text>
+          </View>
+          <RadioRow
+            label="JMD Patil"
+            selected={draft.bhaw_source_jmd}
+            onPress={() => selectBhawSource(true)}
+          />
+          <View style={styles.radioDivider} />
+          <RadioRow
+            label="Mega Bullion"
+            selected={!draft.bhaw_source_jmd}
+            onPress={() => selectBhawSource(false)}
+          />
+
           {DASHBOARD_MATRIX_SECTIONS.map((section) => (
             <View key={section.sectionLabel}>
               <View style={styles.sectionHeader}>
@@ -241,5 +289,43 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
+  },
+  radioRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  radioLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    lineHeight: 20,
+  },
+  radioDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  radioOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioOuterSelected: {
+    borderColor: Colors.metalGold,
+  },
+  radioInner: {
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    backgroundColor: Colors.metalGold,
   },
 });

@@ -16,11 +16,7 @@ export function AccentButton({ title, onPress, loading = false, disabled = false
     <Pressable
       onPress={onPress}
       disabled={isDisabled}
-      style={({ pressed }) => [
-        styles.button,
-        isDisabled && styles.disabled,
-        pressed && !isDisabled && styles.pressed,
-      ]}
+      style={[styles.button, isDisabled && styles.disabled]}
     >
       {loading ? (
         <ActivityIndicator color={Colors.white} size="small" />

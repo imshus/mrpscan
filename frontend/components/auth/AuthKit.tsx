@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { forwardRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -85,7 +85,7 @@ interface AuthFieldProps extends Omit<TextInputProps, 'style'> {
  * Labelled input (mockup `.field`): 50px, radius 14, 1.5px border,
  * red-focus ring, error state, optional eye toggle / inline verify pill.
  */
-export function AuthField({
+export const AuthField = forwardRef<TextInput, AuthFieldProps>(function AuthField({
   label,
   error,
   password,
@@ -95,7 +95,7 @@ export function AuthField({
   prefix,
   containerStyle,
   ...inputProps
-}: AuthFieldProps) {
+}, ref) {
   const [focused, setFocused] = useState(false);
   const [hidden, setHidden] = useState(true);
 
@@ -108,6 +108,7 @@ export function AuthField({
       <View style={[styles.inputWrap, { borderColor }]}>
         {prefix ? <Text style={styles.inputPrefix}>{prefix}</Text> : null}
         <TextInput
+          ref={ref}
           placeholderTextColor={Colors.placeholder}
           {...inputProps}
           secureTextEntry={password ? hidden : inputProps.secureTextEntry}
@@ -143,7 +144,7 @@ export function AuthField({
       {error ? <AuthErrorText>{error}</AuthErrorText> : null}
     </View>
   );
-}
+});
 
 interface AuthPrimaryButtonProps {
   title: string;
@@ -250,7 +251,7 @@ const styles = StyleSheet.create({
   },
   brand: {
     marginBottom: 28,
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     shadowColor: '#15120D',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,

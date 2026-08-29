@@ -11,7 +11,8 @@ export type MatrixKey =
   | '14k_rtgs'
   | '14k_cash'
   | '9k_rtgs'
-  | '9k_cash';
+  | '9k_cash'
+  | 'bhaw_source_jmd';
 
 export interface MatrixRow {
   key: MatrixKey;
@@ -83,4 +84,6 @@ export const DEFAULT_MATRIX_VALUES: Record<MatrixKey, boolean> = {
   '14k_cash': true,
   '9k_rtgs': true,
   '9k_cash': true,
+  // Bhaw rate source: true = JMD Patil live feed, false = Mega Bullion.
+  'bhaw_source_jmd': false,
 };

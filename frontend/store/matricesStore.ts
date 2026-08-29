@@ -30,7 +30,9 @@ export const useMatricesStore = create<MatricesState>()((set) => ({
     try {
       const updated = await updateDashboardMatrices(values);
       if (updated) {
-        set({ values: { ...DEFAULT_MATRIX_VALUES, ...updated } });
+        // Server response wins per key, but keys it doesn't know about keep the
+        // value the user just chose instead of snapping back to the default.
+        set({ values: { ...DEFAULT_MATRIX_VALUES, ...values, ...updated } });
       } else {
         set({ values });
       }
@@ -42,7 +44,10 @@ export const useMatricesStore = create<MatricesState>()((set) => ({
   fetchValues: async () => {
     const fetched = await fetchDashboardMatrices();
     if (fetched) {
-      set({ values: { ...DEFAULT_MATRIX_VALUES, ...fetched }, isLoaded: true });
+      set((state) => ({
+        values: { ...DEFAULT_MATRIX_VALUES, ...state.values, ...fetched },
+        isLoaded: true,
+      }));
     } else {
       set({ isLoaded: true });
     }

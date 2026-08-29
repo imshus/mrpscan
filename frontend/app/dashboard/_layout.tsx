@@ -1,13 +1,22 @@
-import { Stack } from 'expo-router';
+import { Redirect, Stack } from 'expo-router';
 import { useEffect } from 'react';
+import { useAuthStore } from '@/store/authStore';
 import { useMatricesStore } from '@/store/matricesStore';
 
 export default function DashboardLayout() {
   const fetchValues = useMatricesStore((s) => s.fetchValues);
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     void fetchValues();
-  }, [fetchValues]);
+  }, [fetchValues, isAuthenticated]);
+
+  // Declarative guard: rendered inside the navigator, so it can never fire
+  // before the root layout has mounted.
+  if (!hasHydrated) return null;
+  if (!isAuthenticated) return <Redirect href="/login" />;
 
   return (
     <Stack screenOptions={{ headerShown: false }}>

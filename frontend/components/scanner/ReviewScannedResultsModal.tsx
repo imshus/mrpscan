@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Check } from 'lucide-react-native';
 
 import { ScannerFinalTab } from '@/components/scanner/ScannerFinalTab';
 import { PriceCard } from '@/components/scanner/PriceCard';
 import {
-  CardFooter,
   CardHeader,
   FloatingCard,
   PillButton,
@@ -134,8 +132,9 @@ export function ReviewScannedResultsModal({
   const [mcxLiveRate, setMcxLiveRate] = useState(0);
 
   const [karatDropdownMode, setKaratDropdownMode] = useState(false);
-  const [useNetWtFormula, setUseNetWtFormula] = useState(!scanData.netWt);
-  const wasNetWtScanned = useMemo(() => Boolean(scanData.netWt), []);
+  // The Net Wt formula row was removed from the UI; the fallback still applies
+  // whenever the scan itself did not provide a net weight.
+  const [useNetWtFormula] = useState(!scanData.netWt);
 
   useEffect(() => {
     const resolved = resolveStoneEntryArrays(
@@ -365,14 +364,6 @@ export function ReviewScannedResultsModal({
     });
   }, []);
 
-  const handleNetWtFormulaToggle = () => {
-    const next = !useNetWtFormula;
-    setUseNetWtFormula(next);
-    if (!next) {
-      onFieldChange('netWt', '');
-    }
-  };
-
   return (
     <FloatingCard>
       <CardHeader
@@ -382,7 +373,7 @@ export function ReviewScannedResultsModal({
           <Pressable
             onPress={() => useScannerStore.getState().bumpMrpRefresh()}
             hitSlop={8}
-            style={({ pressed }) => [styles.refreshBtn, pressed && styles.refreshBtnPressed]}
+            style={styles.refreshBtn}
           >
             <RefreshCw size={14} color={Colors.textPrimary} />
           </Pressable>
@@ -401,19 +392,6 @@ export function ReviewScannedResultsModal({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {!wasNetWtScanned ? (
-          <Pressable onPress={handleNetWtFormulaToggle} style={styles.netWtRow}>
-            <View
-              style={[styles.checkbox, useNetWtFormula && styles.checkboxChecked]}
-            >
-              {useNetWtFormula ? <Check size={12} color="#FFFFFF" /> : null}
-            </View>
-            <Text style={styles.netWtText}>
-              Use Net Wt = gross wt - 0.2 x (dia wt + colorstone wt)
-            </Text>
-          </Pressable>
-        ) : null}
-
         <ScannerFinalTab
           scanData={scanData}
           structuredData={structuredData}
@@ -442,11 +420,9 @@ export function ReviewScannedResultsModal({
             Resolve rate errors before generating invoice.
           </Text>
         ) : null}
-      </ScrollView>
-
-      <CardFooter>
-        <PillButton variant="rescan" title="ReScan" onPress={onReScan} />
-        <View style={styles.footerRow}>
+        <View style={styles.inlineActions}>
+          <PillButton variant="rescan" title="ReScan" onPress={onReScan} />
+          <View style={styles.footerRow}>
           <PillButton
             variant="alt"
             title={
@@ -463,7 +439,8 @@ export function ReviewScannedResultsModal({
             style={styles.footerBtn}
           />
         </View>
-      </CardFooter>
+        </View>
+      </ScrollView>
     </FloatingCard>
   );
 }
@@ -493,42 +470,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 18,
   },
-  netWtRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    borderRadius: 12,
-    backgroundColor: Colors.backgroundAlt,
-    padding: 12,
-    marginBottom: 12,
-  },
-  checkbox: {
-    marginTop: 2,
-    height: 18,
-    width: 18,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    borderColor: Colors.brand,
-    backgroundColor: Colors.brand,
-  },
-  netWtText: {
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 18,
-    color: Colors.textMuted,
-  },
   rateError: {
     marginTop: 4,
     textAlign: 'center',
     fontSize: 12,
     lineHeight: 18,
     color: Colors.dangerText,
+  },
+  inlineActions: {
+    gap: 8,
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
   footerRow: {
     flexDirection: 'row',

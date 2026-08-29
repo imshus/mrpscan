@@ -18,7 +18,6 @@ import {
   AuthField,
   AuthPrimaryButton,
   AuthSwitch,
-  AuthTitle,
   useShake,
 } from '@/components/auth/AuthKit';
 import { Reveal } from '@/components/auth/Reveal';
@@ -37,8 +36,6 @@ export default function BusinessLoginScreen() {
   const router = useRouter();
   const {
     rememberMe,
-    savedPhone,
-    registration,
     setAuthenticated,
     setAuthToken,
     setRefreshToken,
@@ -49,7 +46,8 @@ export default function BusinessLoginScreen() {
     updateRegistration,
   } = useAuthStore();
 
-  const [userId, setUserId] = useState(savedPhone || registration.phone || '');
+  // Always start blank — never pre-fill the User ID from cached/saved data.
+  const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [invalid, setInvalid] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -114,7 +112,7 @@ export default function BusinessLoginScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -122,10 +120,6 @@ export default function BusinessLoginScreen() {
           contentContainerStyle={styles.scrollContent}
         >
           <AuthBrand />
-
-          <Reveal d={0}>
-            <AuthTitle>Welcome back</AuthTitle>
-          </Reveal>
 
           <Animated.View style={[styles.form, shakeStyle]}>
             <Reveal d={2}>

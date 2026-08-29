@@ -171,10 +171,16 @@ export default function BarcodeScannerScreen() {
     });
   };
 
-  const handlePreviewCalculate = () => {
+  const handlePreviewCalculate = (adjustedUri?: string) => {
     if (!pendingPreview) return;
 
-    const { uri, step, source } = pendingPreview;
+    const { step, source } = pendingPreview;
+    // A reframed capture produces a new cropped file, so the preparation that
+    // was prewarmed for the original image no longer applies.
+    const uri = adjustedUri ?? pendingPreview.uri;
+    if (adjustedUri) {
+      invalidatePrewarmedImagePreparation(pendingPreview.uri);
+    }
     setPendingPreview(null);
 
     if (step === 'first') {
@@ -184,7 +190,7 @@ export default function BarcodeScannerScreen() {
       // upload starts immediately and overlaps navigation/mount. Kept here
       // (not openPreview) because the user can still Delete from the preview.
       const prewarmedSession = scanSessionPrewarmRef.current;
-      if (prewarmedSession && prewarmedSession.jewelleryType === selectedType) {
+      if (!adjustedUri && prewarmedSession && prewarmedSession.jewelleryType === selectedType) {
         startBackgroundSideUpload(prewarmedSession.promise, 'front', uri);
       }
       void startScanOperation(uri, null, source);

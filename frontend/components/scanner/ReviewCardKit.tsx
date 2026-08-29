@@ -54,7 +54,7 @@ export function CardHeader({ title, onBack, accessory, children }: CardHeaderPro
           <Pressable
             onPress={onBack}
             hitSlop={8}
-            style={({ pressed }) => [styles.backBtn, pressed && styles.pressedSmall]}
+            style={styles.backBtn}
           >
             <ChevronLeft size={18} color={Colors.textPrimary} strokeWidth={2.2} />
           </Pressable>
@@ -104,11 +104,7 @@ export function PillButton({ title, onPress, variant, disabled, icon, style }: P
       <Pressable
         onPress={disabled ? undefined : onPress}
         disabled={disabled}
-        style={({ pressed }) => [
-          style,
-          disabled && styles.pillDisabled,
-          pressed && !disabled && styles.pressed,
-        ]}
+        style={[style, disabled && styles.pillDisabled]}
       >
         <GradientView colors={Gradients.brand} borderRadius={Radius.button}>
           <View style={styles.pillInner}>
@@ -124,13 +120,12 @@ export function PillButton({ title, onPress, variant, disabled, icon, style }: P
     <Pressable
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
-      style={({ pressed }) => [
+      style={[
         styles.pillInner,
         styles.pillAltBg,
         variant === 'rescan' && styles.pillRescan,
         style,
         disabled && styles.pillDisabled,
-        pressed && !disabled && styles.pressed,
       ]}
     >
       {icon}

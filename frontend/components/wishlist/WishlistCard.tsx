@@ -26,7 +26,7 @@ export function WishlistCard({ item, onPress, onDelete }: WishlistCardProps) {
   const rateSource = item.calculationRate ?? item.snapshot?.scanData?.calculationRate;
   const rateLabel = formatRateLabel(rateSource);
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [pressed && styles.cardPressed]}>
+    <Pressable onPress={onPress}>
       <View style={styles.card}>
         {/* ─── Header: Title & Timestamp ─── */}
         <View style={styles.headerRow}>

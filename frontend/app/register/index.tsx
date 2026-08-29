@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  type TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,6 +23,7 @@ import {
 import { OtpBox } from '@/components/auth/OtpBox';
 import { Reveal } from '@/components/auth/Reveal';
 import { Colors } from '@/constants/theme';
+import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { useAuthStore } from '@/store/authStore';
 import { sendLoginOtp, verifyLoginOtp } from '@/utils/authApi';
 import { validatePhone } from '@/utils/validation';
@@ -52,6 +54,38 @@ export default function SignupScreen() {
   const [otpError, setOtpError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
+
+  const scrollRef = useRef<ScrollView>(null);
+  const companyRef = useRef<TextInput>(null);
+  const phoneRef = useRef<TextInput>(null);
+  const userIdRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+
+  // Keyboard-avoiding padding alone leaves bottom fields right at the keyboard
+  // edge; nudge the scroll after the keyboard settles so they stay visible.
+  const scrollToBottom = () => {
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
+  };
+
+  // Programmatic focus (Enter → next field) doesn't auto-scroll on Android;
+  // measure the focused input against the scroll content and bring it up.
+  const scrollToInput = (ref: React.RefObject<TextInput | null>, fallbackY: number) => {
+    setTimeout(() => {
+      const scroll = scrollRef.current;
+      const input = ref.current;
+      if (!scroll || !input) return;
+      const inner = (scroll as any).getInnerViewRef?.() ?? (scroll as any).getInnerViewNode?.();
+      try {
+        input.measureLayout(
+          inner,
+          (_x: number, y: number) => scroll.scrollTo({ y: Math.max(0, y - 90), animated: true }),
+          () => scroll.scrollTo({ y: fallbackY, animated: true }),
+        );
+      } catch {
+        scroll.scrollTo({ y: fallbackY, animated: true });
+      }
+    }, 150);
+  };
 
   const normalizedPhone = phone.replace(/\D/g, '').slice(0, 10);
 
@@ -96,15 +130,19 @@ export default function SignupScreen() {
         return;
       }
       setCodeSent(true);
+      scrollToBottom();
     } finally {
       setSending(false);
     }
   };
 
-  const handleOtpChange = async (value: string) => {
-    setOtp(value);
-    setOtpError(null);
-    if (value.length !== OTP_LENGTH || verifying) return;
+  const verifyOtp = async (value: string) => {
+    if (verifying) return;
+    if (value.length !== OTP_LENGTH) {
+      setOtpError('Enter the 6-digit code sent to your phone.');
+      triggerShake();
+      return;
+    }
 
     setVerifying(true);
     try {
@@ -120,15 +158,44 @@ export default function SignupScreen() {
     }
   };
 
-  const submitLabel = codeSent ? 'Sending OTP…' : sending ? 'Sending OTP…' : 'Submit';
+  const handleOtpChange = (value: string) => {
+    setOtp(value);
+    setOtpError(null);
+    if (value.length === OTP_LENGTH) {
+      void verifyOtp(value);
+    }
+  };
+
+  useAndroidOtpAutofill({
+    enabled: codeSent,
+    otpLength: OTP_LENGTH,
+    onCodeDetected: (detectedOtp) => {
+      console.log('[auth] Auto OTP Detected');
+      handleOtpChange(detectedOtp);
+    },
+    onDetectionError: (message) => {
+      console.log('[auth] Auto OTP Detection Failed:', message);
+    },
+  });
+
+  const handlePrimaryPress = () => {
+    if (codeSent) {
+      void verifyOtp(otp);
+      return;
+    }
+    void handleSubmit();
+  };
+
+  const submitLabel = sending ? 'Sending OTP…' : codeSent ? 'Verify OTP' : 'Submit';
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
         <ScrollView
+          ref={scrollRef}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
@@ -148,9 +215,11 @@ export default function SignupScreen() {
                   setFullName(text);
                   clearError('fullName');
                 }}
-                placeholder="Amit Gupta"
-                autoComplete="name"
+                                autoComplete="name"
                 error={errors.fullName}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => companyRef.current?.focus()}
               />
             </Reveal>
 
@@ -162,9 +231,13 @@ export default function SignupScreen() {
                   setCompany(text);
                   clearError('company');
                 }}
-                placeholder="Gupta Jewellers"
-                autoComplete="organization"
+                                autoComplete="organization"
                 error={errors.company}
+                ref={companyRef}
+                onFocus={() => scrollToInput(companyRef, 150)}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => phoneRef.current?.focus()}
               />
             </Reveal>
 
@@ -178,9 +251,13 @@ export default function SignupScreen() {
                   clearError('phone');
                   resetOtpState();
                 }}
-                placeholder="98765 43210"
-                keyboardType="phone-pad"
+                                keyboardType="phone-pad"
                 error={errors.phone}
+                ref={phoneRef}
+                onFocus={() => scrollToInput(phoneRef, 240)}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => userIdRef.current?.focus()}
               />
             </Reveal>
 
@@ -192,10 +269,14 @@ export default function SignupScreen() {
                   setUserId(text);
                   clearError('userId');
                 }}
-                placeholder="Choose a User ID"
-                autoCapitalize="none"
+                                autoCapitalize="none"
                 autoCorrect={false}
                 error={errors.userId}
+                ref={userIdRef}
+                onFocus={scrollToBottom}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => passwordRef.current?.focus()}
               />
             </Reveal>
 
@@ -208,9 +289,12 @@ export default function SignupScreen() {
                   setPassword(text);
                   clearError('password');
                 }}
-                placeholder="••••••••"
-                autoCapitalize="none"
+                                autoCapitalize="none"
                 error={errors.password}
+                ref={passwordRef}
+                onFocus={scrollToBottom}
+                returnKeyType="done"
+                onSubmitEditing={handlePrimaryPress}
               />
             </Reveal>
 
@@ -229,9 +313,8 @@ export default function SignupScreen() {
             <Reveal d={6}>
               <AuthPrimaryButton
                 title={submitLabel}
-                onPress={handleSubmit}
-                loading={sending}
-                disabled={codeSent}
+                onPress={handlePrimaryPress}
+                loading={sending || verifying}
                 style={styles.cta}
               />
             </Reveal>
