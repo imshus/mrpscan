@@ -36,3 +36,7 @@ Thumbs.db
 frontend/android/
 frontend/ios/
 .env.bak*
+
+# Local Expo module build output
+frontend/modules/**/android/build/
+frontend/modules/**/android/.cxx/

@@ -14,11 +14,15 @@ import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-nativ
 
 import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Gradients } from '@/constants/theme';
+import {
+  SCANNER_FRAME_HEIGHT,
+  SCANNER_FRAME_VERTICAL_BIAS,
+  SCANNER_FRAME_WIDTH,
+} from '@/constants/scannerFrame';
 import { TagCameraPreview, type TagCameraPreviewRef } from './TagCameraPreview';
 
-/** Mockup .cap-frame — fixed 240x150 capture frame. */
-export const SCANNER_FRAME_WIDTH = 240;
-export const SCANNER_FRAME_HEIGHT = 150;
+/** Re-exported so existing overlay imports keep working. */
+export { SCANNER_FRAME_HEIGHT, SCANNER_FRAME_WIDTH } from '@/constants/scannerFrame';
 
 // Mockup .cap-action-btn svg: 20x20, stroke-width 2.
 const ACTION_ICON_SIZE = 20;
@@ -120,7 +124,7 @@ export function ScannerScreenLayout({
   };
 
   const frameLeft = Math.round((rootSize.width - SCANNER_FRAME_WIDTH) / 2);
-  const frameTop = Math.round(rootSize.height / 2 - SCANNER_FRAME_HEIGHT * 0.6);
+  const frameTop = Math.round(rootSize.height / 2 - SCANNER_FRAME_HEIGHT * SCANNER_FRAME_VERTICAL_BIAS);
   const frameRight = frameLeft + SCANNER_FRAME_WIDTH;
   const frameBottom = frameTop + SCANNER_FRAME_HEIGHT;
 
@@ -330,7 +334,7 @@ const styles = StyleSheet.create({
     height: SCANNER_FRAME_HEIGHT,
     // Mockup: transform: translate(-50%, -60%)
     marginLeft: -SCANNER_FRAME_WIDTH / 2,
-    marginTop: -SCANNER_FRAME_HEIGHT * 0.6,
+    marginTop: -SCANNER_FRAME_HEIGHT * SCANNER_FRAME_VERTICAL_BIAS,
   },
   frameClip: {
     ...StyleSheet.absoluteFillObject,
