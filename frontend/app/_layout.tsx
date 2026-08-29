@@ -1,7 +1,7 @@
 import '../global.css';
 
 import { useFonts } from 'expo-font';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -84,35 +84,17 @@ interface TextWithDefaults {
   maxFontSizeMultiplier: 1.1,
 };
 
-function AuthGuard({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const segments = useSegments();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const hasHydrated = useAuthStore((s) => s._hasHydrated);
-
-  useEffect(() => {
-    if (!hasHydrated) return;
-
-    const root = segments[0];
-    const inDashboard = root === 'dashboard';
-    const inPublicRoute = !root || root === 'register' || root === 'login';
-
-    if (!isAuthenticated && inDashboard) {
-      router.replace('/');
-    } else if (isAuthenticated && inPublicRoute) {
-      router.replace('/dashboard');
-    }
-  }, [hasHydrated, isAuthenticated, segments, router]);
-
-  if (!hasHydrated) {
-    return null;
-  }
-
-  return <>{children}</>;
-}
+// Auth routing deliberately lives in the route layouts (app/index.tsx,
+// dashboard/_layout.tsx, login|register/_layout.tsx) as declarative
+// <Redirect> elements. Driving it imperatively from here raced the
+// navigator's mount and threw "Attempted to navigate before mounting the
+// Root Layout component" on cold start.
 
 export default function RootLayout() {
-  const [loaded, error] = useFonts({
+  // SpaceMono is only referenced by unused template components, so the app
+  // renders immediately and lets the font finish loading in the background —
+  // blocking the first frame on it only prolonged the native splash.
+  const [, fontError] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
@@ -198,32 +180,30 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (error) throw error;
-  }, [error]);
-
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
+    if (fontError) {
+      // A missing optional font must never block or crash startup.
+      console.warn('Font load failed:', fontError);
     }
-  }, [loaded]);
+  }, [fontError]);
 
-  if (!loaded) {
-    return null;
-  }
+  // Hand off from the native splash to the JS scan-reveal overlay on the very
+  // first frame — the AnimatedSplash renders the same cream immediately, so
+  // there is no gap.
+  useEffect(() => {
+    SplashScreen.hideAsync();
+  }, []);
 
   return (
     <ReduxProvider>
       <StatusBar style="dark" />
       <View style={styles.appRoot}>
         <Animated.View style={[styles.appRoot, contentStyle]}>
-          <AuthGuard>
-            <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="register" />
-              <Stack.Screen name="login" />
-              <Stack.Screen name="dashboard" />
-            </Stack>
-          </AuthGuard>
+          <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="register" />
+            <Stack.Screen name="login" />
+            <Stack.Screen name="dashboard" />
+          </Stack>
         </Animated.View>
         {splashVisible && (
           <AnimatedSplash onReveal={revealContent} onFinish={() => setSplashVisible(false)} />

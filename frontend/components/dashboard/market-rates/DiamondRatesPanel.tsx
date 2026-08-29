@@ -337,11 +337,7 @@ export function DiamondRatesPanel({ onToast }: DiamondRatesPanelProps) {
                 <View style={styles.actionCell}>
                   <Pressable
                     onPress={() => openEdit(rate)}
-                    style={({ pressed }) => [
-                      styles.iconBtn,
-                      styles.editBtn,
-                      pressed && styles.iconBtnPressed,
-                    ]}
+                    style={[styles.iconBtn, styles.editBtn]}
                     hitSlop={8}
                     accessibilityLabel="Edit diamond rate"
                   >
@@ -351,11 +347,7 @@ export function DiamondRatesPanel({ onToast }: DiamondRatesPanelProps) {
                 <View style={[styles.actionCell, styles.deleteActionCell]}>
                   <Pressable
                     onPress={() => setDeletingRate(rate)}
-                    style={({ pressed }) => [
-                      styles.iconBtn,
-                      styles.deleteBtn,
-                      pressed && styles.iconBtnPressed,
-                    ]}
+                    style={[styles.iconBtn, styles.deleteBtn]}
                     hitSlop={8}
                     accessibilityLabel="Delete diamond rate"
                   >

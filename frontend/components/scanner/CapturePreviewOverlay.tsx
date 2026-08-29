@@ -1,5 +1,7 @@
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AdjustableImage, type AdjustableImageRef } from '@/components/scanner/AdjustableImage';
 import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Gradients } from '@/constants/theme';
 
@@ -10,7 +12,8 @@ interface CapturePreviewOverlayProps {
   title?: string;
   showAddMore?: boolean;
   onDelete: () => void;
-  onCalculate: () => void;
+  /** Receives the cropped uri when the user reframed the capture. */
+  onCalculate: (adjustedUri?: string) => void;
   onAddMore?: () => void;
 }
 
@@ -25,9 +28,23 @@ export function CapturePreviewOverlay({
   onCalculate,
   onAddMore,
 }: CapturePreviewOverlayProps) {
+  const adjustableRef = useRef<AdjustableImageRef>(null);
+  const [exporting, setExporting] = useState(false);
+
   if (!visible) {
     return null;
   }
+
+  const handleCalculate = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const adjusted = await adjustableRef.current?.exportAdjusted();
+      onCalculate(adjusted ?? undefined);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <View style={styles.overlay}>
@@ -39,16 +56,14 @@ export function CapturePreviewOverlay({
             <ActivityIndicator size="large" color={Colors.brandDeep} />
           </View>
         ) : uri ? (
-          <View style={styles.thumb}>
-            <Image source={{ uri }} style={styles.thumbImage} resizeMode="contain" />
-          </View>
+          <AdjustableImage ref={adjustableRef} uri={uri} style={styles.thumb} />
         ) : null}
 
         <View style={styles.actions}>
           <View style={styles.actionRow}>
             <Pressable
               onPress={onDelete}
-              style={({ pressed }) => [styles.rowButton, pressed && styles.pressed]}
+              style={styles.rowButton}
             >
               <Text style={styles.deleteLabel}>{loading ? 'Cancel' : 'Delete'}</Text>
             </Pressable>
@@ -56,20 +71,27 @@ export function CapturePreviewOverlay({
             {showAddMore && !loading && uri ? (
               <Pressable
                 onPress={onAddMore}
-                style={({ pressed }) => [styles.rowButton, pressed && styles.pressed]}
+                style={styles.rowButton}
               >
-                <Text style={styles.addMoreLabel}>Add +</Text>
+                <Text style={styles.addMoreLabel}>
+                  Add <Text style={styles.addMorePlus}>+</Text>
+                </Text>
               </Pressable>
             ) : null}
           </View>
 
           {!loading && uri ? (
             <Pressable
-              onPress={onCalculate}
-              style={({ pressed }) => [styles.calcPressable, pressed && styles.pressed]}
+              onPress={handleCalculate}
+              disabled={exporting}
+              style={styles.calcPressable}
             >
               <GradientView colors={Gradients.brand} borderRadius={12} style={styles.calcButton}>
-                <Text style={styles.calcLabel}>Calculate</Text>
+                {exporting ? (
+                  <ActivityIndicator color={Colors.white} />
+                ) : (
+                  <Text style={styles.calcLabel}>Calculate</Text>
+                )}
               </GradientView>
             </Pressable>
           ) : null}
@@ -87,31 +109,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.72)',
   },
+  // Mockup .cap-preview-card: 94% wide, radius 24, padding 26, gap 16.
   card: {
-    width: '86%',
+    width: '94%',
     backgroundColor: Colors.white,
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 24,
+    padding: 26,
     alignItems: 'center',
-    gap: 14,
+    gap: 16,
   },
   title: {
     fontSize: 12.8,
     fontWeight: '700',
     color: Colors.textMuted,
   },
+  // Mockup .cap-preview-thumb: full width, 200 tall, radius 16.
   thumb: {
     width: '100%',
-    height: 140,
-    borderRadius: 14,
+    height: 200,
+    borderRadius: 16,
     backgroundColor: Colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-  },
-  thumbImage: {
-    width: '100%',
-    height: '100%',
   },
   actions: {
     width: '100%',
@@ -138,6 +158,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: Colors.textPrimary,
+  },
+  addMorePlus: {
+    color: Colors.brand,
   },
   calcPressable: {
     width: '100%',

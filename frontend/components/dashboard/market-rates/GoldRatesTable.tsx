@@ -64,10 +64,7 @@ export function GoldRatesTable({
             {showEditAction ? (
               <Pressable
                 onPress={() => onEdit(rate)}
-                style={({ pressed }) => [
-                  styles.inlineEditBtn,
-                  pressed && styles.inlineEditBtnPressed,
-                ]}
+                style={styles.inlineEditBtn}
                 accessibilityLabel="Edit gold karat"
                 accessibilityHint="Opens edit form for this karat"
                 hitSlop={6}
@@ -80,11 +77,7 @@ export function GoldRatesTable({
             {onToggleVisibility ? (
               <Pressable
                 onPress={() => onToggleVisibility(rate)}
-                style={({ pressed }) => [
-                  styles.actionIconBtn,
-                  styles.actionIconBtnGhost,
-                  pressed && styles.actionIconBtnGhostPressed,
-                ]}
+                style={[styles.actionIconBtn, styles.actionIconBtnGhost]}
                 accessibilityLabel={
                   visibilityAction === 'hide' ? 'Hide gold karat' : 'Restore gold karat'
                 }

@@ -194,11 +194,7 @@ export function OtherChargesSection({
         <Pressable
           onPress={openAddCharge}
           disabled={loadingCharges}
-          style={({ pressed }) => [
-            styles.addChargeBtn,
-            loadingCharges && styles.addChargeBtnDisabled,
-            pressed && !loadingCharges && styles.addChargeBtnPressed,
-          ]}
+          style={[styles.addChargeBtn, loadingCharges && styles.addChargeBtnDisabled]}
         >
           <Text style={styles.addChargeBtnText}>+ Add Other Charges</Text>
         </Pressable>

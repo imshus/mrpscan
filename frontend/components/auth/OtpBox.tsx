@@ -7,6 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 
 import { Colors } from '@/constants/theme';
 
@@ -41,6 +42,7 @@ export function OtpBox({
   const inputRef = useRef<TextInput>(null);
   const [remaining, setRemaining] = useState(seconds);
   const [focused, setFocused] = useState(false);
+  const [autofillMsg, setAutofillMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (remaining <= 0) return;
@@ -63,6 +65,23 @@ export function OtpBox({
     if (resendLoading) return;
     onResend?.();
     setRemaining(seconds);
+    inputRef.current?.focus();
+  };
+
+  // Fill the code from the clipboard (e.g. after "Copy" on the SMS notification).
+  const handleAutofill = async () => {
+    try {
+      const text = await Clipboard.getStringAsync();
+      const match = (text || '').match(new RegExp(`\\b(\\d{${OTP_LENGTH}})\\b`));
+      if (match) {
+        setAutofillMsg(null);
+        onChange(match[1]);
+        return;
+      }
+      setAutofillMsg('No code found — copy the OTP SMS, then tap Autofill.');
+    } catch {
+      setAutofillMsg('Could not read the clipboard.');
+    }
     inputRef.current?.focus();
   };
 
@@ -115,7 +134,11 @@ export function OtpBox({
             <Text style={styles.resendLink}>{resendLoading ? 'Sending…' : 'Resend code'}</Text>
           </Pressable>
         )}
+        <Pressable onPress={handleAutofill} hitSlop={6}>
+          <Text style={styles.resendLink}>Autofill</Text>
+        </Pressable>
       </View>
+      {autofillMsg ? <Text style={styles.metaText}>{autofillMsg}</Text> : null}
     </View>
   );
 }

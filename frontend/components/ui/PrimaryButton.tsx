@@ -24,12 +24,7 @@ export function PrimaryButton({
     <Pressable
       onPress={onPress}
       disabled={isDisabled}
-      style={({ pressed }) => [
-        styles.wrapper,
-        isDisabled && styles.disabled,
-        pressed && !isDisabled && styles.pressed,
-        style,
-      ]}
+      style={[styles.wrapper, isDisabled && styles.disabled, style]}
     >
       <GradientView colors={Gradients.brand} borderRadius={999} style={styles.button}>
         {loading ? (

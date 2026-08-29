@@ -2,7 +2,7 @@
   "expo": {
     "name": "pratham",
     "slug": "pratham",
-    "version": "1.0.12",
+    "version": "1.0.41",
     "orientation": "portrait",
     "icon": "./assets/images/app-logo.jpeg",
     "scheme": "pratham",
@@ -25,7 +25,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.amitaashitsolutions",
-      "versionCode": 13
+      "versionCode": 42
     },
     "web": {
       "bundler": "metro",
@@ -37,7 +37,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/app-logo.jpeg",
+          "image": "./assets/images/splash-blank.png",
           "resizeMode": "contain",
           "backgroundColor": "#FBF7F0"
         }
@@ -60,7 +60,10 @@
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true
+            "usesCleartextTraffic": true,
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "-keep class com.razorpay.** { *; } -keep class com.google.android.gms.auth.api.phone.** { *; } -keep class me.furtado.smsretriever.** { *; } -dontwarn com.razorpay.** -dontwarn com.google.android.gms.auth.api.credentials.**"
           }
         }
       ]

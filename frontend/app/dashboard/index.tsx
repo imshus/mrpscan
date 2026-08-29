@@ -19,7 +19,6 @@ import type { GoldRate, SupremeChanges, TaxSettings } from '@/types/rates';
 import type { SubscriptionOverview } from '@/types/subscription';
 import { useAuthStore } from '@/store/authStore';
 import { ApiError } from '@/utils/apiClient';
-import { BHAW_POLL_INTERVAL_MS, fetchBhaw, formatBhaw, type BhawData } from '@/utils/bhawApi';
 import { formatKaratLabel, resolveMcxChangeValue } from '@/utils/goldRateUtils';
 import { fetchGoldRates } from '@/utils/ratesApi';
 import {
@@ -99,7 +98,6 @@ export default function DashboardScreen() {
   const [supremeChanges, setSupremeChanges] = useState<SupremeChanges | undefined>();
   const [subscriptionOverview, setSubscriptionOverview] = useState<SubscriptionOverview | null>(null);
   const [trialActionLoading, setTrialActionLoading] = useState(false);
-  const [bhaw, setBhaw] = useState<BhawData | null>(null);
   const { employee, userRole: settingsUserRole } = useSettingsAccess();
   const globalMatrixValues = useMatricesStore((s) => s.values);
 
@@ -221,30 +219,6 @@ export default function DashboardScreen() {
     }, [loadMarketData]),
   );
 
-  // Live Bhaw tile: fetch immediately and poll every 30s while Home is focused.
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-
-      const refresh = async () => {
-        try {
-          const data = await fetchBhaw();
-          if (!cancelled) setBhaw(data);
-        } catch (error) {
-          console.error('Bhaw live refresh failed', error);
-        }
-      };
-
-      void refresh();
-      const intervalId = setInterval(() => void refresh(), BHAW_POLL_INTERVAL_MS);
-
-      return () => {
-        cancelled = true;
-        clearInterval(intervalId);
-      };
-    }, []),
-  );
-
   useEffect(() => {
     // Auto-refresh the dashboard every 60 seconds
     const intervalId = setInterval(() => {
@@ -353,31 +327,6 @@ export default function DashboardScreen() {
                     ) : null}
                   </View>
                 </View>
-              ) : null}
-
-              {bhaw ? (
-                <GradientView
-                  colors={Gradients.metallic}
-                  borderRadius={14}
-                  sheen={0.55}
-                  topHighlight={0.6}
-                  style={styles.bhawCard}
-                >
-                  <View style={styles.bhawLeft}>
-                    <Text style={styles.mcxTopLabel}>Bhaw</Text>
-                    <Text style={styles.bhawSource}>{bhaw.name}</Text>
-                  </View>
-                  <View style={styles.bhawValues}>
-                    <View style={styles.bhawItem}>
-                      <Text style={styles.bhawItemLabel}>Cash</Text>
-                      <Text style={styles.bhawItemValue}>{formatBhaw(bhaw.cash_bhaw)}</Text>
-                    </View>
-                    <View style={styles.bhawItem}>
-                      <Text style={styles.bhawItemLabel}>RTGS</Text>
-                      <Text style={styles.bhawItemValue}>{formatBhaw(bhaw.rtgs_bhaw)}</Text>
-                    </View>
-                  </View>
-                </GradientView>
               ) : null}
 
               {sortedGoldRates.length > 0 ? (
@@ -537,46 +486,6 @@ const styles = StyleSheet.create({
   },
   mcxTopValue: {
     fontSize: 18.4,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  bhawCard: {
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#786441',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 4,
-  },
-  bhawLeft: {
-    gap: 3,
-  },
-  bhawSource: {
-    fontSize: 11.2,
-    fontWeight: '700',
-    color: Colors.textMuted,
-  },
-  bhawValues: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  bhawItem: {
-    alignItems: 'flex-end',
-    gap: 1,
-  },
-  bhawItemLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: Colors.textMuted,
-  },
-  bhawItemValue: {
-    fontSize: 15.2,
     fontWeight: '800',
     color: Colors.textPrimary,
   },

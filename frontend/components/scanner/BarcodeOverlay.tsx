@@ -13,7 +13,7 @@ import { Colors } from '@/constants/theme';
 import { SCANNER_FRAME_HEIGHT } from './ScannerScreenLayout';
 
 /**
- * Mockup .cap-scanline / @keyframes capScan: a 2px brand-red glowing line
+ * Mockup .cap-scanline / @keyframes capScan: a 2px white line with a red glow
  * sweeping top 6% -> 92% and back over 2s (ease-in-out, infinite) while
  * fading 0.4 -> 1 -> 0.4.
  */
@@ -61,10 +61,10 @@ const styles = StyleSheet.create({
     top: 0,
     height: 2,
     borderRadius: 2,
-    backgroundColor: Colors.brand,
+    backgroundColor: Colors.white,
     shadowColor: Colors.brand,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
+    shadowOpacity: 0.9,
     shadowRadius: 12,
     elevation: 4,
   },

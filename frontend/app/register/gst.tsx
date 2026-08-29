@@ -172,7 +172,7 @@ export default function GstVerificationScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -206,9 +206,6 @@ export default function GstVerificationScreen() {
                 autoCorrect={false}
                 maxLength={15}
                 editable={!loading}
-                verifyLabel={loading ? 'Verifying…' : gstVerified ? 'Verified' : 'Verify'}
-                onVerifyPress={handleVerifyGst}
-                verifyDisabled={loading || gstVerified}
               />
             </Reveal>
           </Animated.View>
