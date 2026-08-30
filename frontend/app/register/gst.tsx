@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -34,6 +34,8 @@ import {
 } from '@/utils/authApi';
 import { normalizeGstNumber, validateGst } from '@/utils/validation';
 
+type GstCheckStatus = 'idle' | 'checking' | 'verified' | 'invalid';
+
 export default function GstVerificationScreen() {
   const router = useRouter();
   const registration = useAuthStore((s) => s.registration);
@@ -53,6 +55,8 @@ export default function GstVerificationScreen() {
   const [businessType, setBusinessType] = useState('');
   const [address, setAddress] = useState('');
   const [gstVerified, setGstVerified] = useState(false);
+  const [gstStatus, setGstStatus] = useState<GstCheckStatus>('idle');
+  const gstCheckSeq = useRef(0);
   // gstError belongs to the GSTIN input; formError covers everything after it
   // (registration, login, server faults) so those never mark the GSTIN red.
   const [gstError, setGstError] = useState<string | null>(null);
@@ -61,39 +65,83 @@ export default function GstVerificationScreen() {
   const [accountCreated, setAccountCreated] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
 
-  const handleVerifyGst = async () => {
-    const error = validateGst(gstNumber);
-    setGstError(error);
-    setFormError(null);
+  const verifyGstCandidate = useCallback(async (candidate: string, seq: number) => {
+    const error = validateGst(candidate);
     if (error) {
-      triggerShake();
-      return;
+      if (seq === gstCheckSeq.current) {
+        setGstError(error);
+        setGstStatus('invalid');
+      }
+      return false;
     }
 
-    setLoading(true);
+    setGstStatus('checking');
+    setGstError(null);
+    setFormError(null);
     setBusinessName('');
     setBusinessType('');
     setAddress('');
     setGstVerified(false);
     try {
-      const result = await verifyBusinessGst(gstNumber);
+      const result = await verifyBusinessGst(candidate);
+      if (seq !== gstCheckSeq.current) return false;
       if (!result.success) {
         setGstError(result.error ?? 'GST verification failed');
-        triggerShake();
-        return;
+        setGstStatus('invalid');
+        return false;
       }
 
       setBusinessName(result.businessName ?? '');
       setBusinessType(result.businessType ?? '');
       setAddress(result.address ?? '');
       setGstVerified(true);
+      setGstStatus('verified');
+      return true;
     } catch (error) {
+      if (seq !== gstCheckSeq.current) return false;
       setGstError(error instanceof Error ? error.message : 'GST verification failed.');
-      triggerShake();
-    } finally {
-      setLoading(false);
+      setGstStatus('invalid');
+      return false;
     }
-  };
+  }, []);
+
+  const normalizedGst = normalizeGstNumber(gstNumber);
+
+  // A complete, structurally valid GSTIN is verified automatically after the
+  // user pauses typing. Sequence invalidation prevents stale responses from
+  // updating a newer value.
+  useEffect(() => {
+    const seq = ++gstCheckSeq.current;
+
+    if (!normalizedGst) {
+      setGstStatus('idle');
+      setGstError(null);
+      return;
+    }
+
+    if (normalizedGst.length < 15) {
+      setGstStatus('idle');
+      setGstError(null);
+      return;
+    }
+
+    const localError = validateGst(normalizedGst);
+    if (localError) {
+      setGstStatus('invalid');
+      setGstError(localError);
+      return;
+    }
+
+    setGstStatus('checking');
+    const timer = setTimeout(() => {
+      void verifyGstCandidate(normalizedGst, seq);
+    }, 500);
+
+    return () => {
+      clearTimeout(timer);
+      if (gstCheckSeq.current === seq) gstCheckSeq.current += 1;
+    };
+  }, [normalizedGst, verifyGstCandidate]);
 
   // The phone number is owned by the "Get started" form. Backend failures about
   // it must be shown there, against that field — never on the GST screen.
@@ -132,7 +180,8 @@ export default function GstVerificationScreen() {
 
   const handleConfirmAndContinue = async () => {
     if (!gstVerified) {
-      await handleVerifyGst();
+      const seq = ++gstCheckSeq.current;
+      await verifyGstCandidate(normalizedGst, seq);
       return;
     }
 
@@ -188,15 +237,15 @@ export default function GstVerificationScreen() {
           router.push('/register/otp-phone');
           return;
         }
-        if (isUserIdProblem(registered.error)) {
+        if (registered.field === 'userId' || isUserIdProblem(registered.error)) {
           sendBackToUserId(registered.error ?? 'This User ID is already taken.');
           return;
         }
-        if (isPhoneProblem(registered.error)) {
+        if (registered.field === 'phone' || isPhoneProblem(registered.error)) {
           sendBackToPhone(registered.error ?? 'This phone number cannot be used.');
           return;
         }
-        if (isPasswordProblem(registered.error)) {
+        if (registered.field === 'password' || isPasswordProblem(registered.error)) {
           sendBackToPassword(registered.error ?? 'Please choose a different password.');
           return;
         }
@@ -205,6 +254,12 @@ export default function GstVerificationScreen() {
         return;
       }
 
+      updateRegistration({
+        password: undefined,
+        phoneError: undefined,
+        userIdError: undefined,
+        passwordError: undefined,
+      });
       setAccountCreated(true);
       setSavedCredentials(phone);
 
@@ -267,11 +322,13 @@ export default function GstVerificationScreen() {
                 label="GSTIN"
                 value={gstNumber}
                 onChangeText={(text) => {
-                  setGstNumber(text.toUpperCase());
+                  gstCheckSeq.current += 1;
+                  setGstNumber(text.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 15));
                   setBusinessName('');
                   setBusinessType('');
                   setAddress('');
                   setGstVerified(false);
+                  setGstStatus('idle');
                   setGstError(null);
                   setFormError(null);
                 }}
@@ -282,6 +339,12 @@ export default function GstVerificationScreen() {
                 editable={!loading}
                 error={gstError}
               />
+              {gstStatus === 'checking' ? (
+                <Text style={styles.checkingText}>Checking GST with the server…</Text>
+              ) : null}
+              {gstStatus === 'verified' ? (
+                <Text style={styles.verifiedText}>✓ GST verified</Text>
+              ) : null}
             </Reveal>
           </Animated.View>
 
@@ -318,7 +381,7 @@ export default function GstVerificationScreen() {
             <AuthPrimaryButton
               title={gstVerified ? 'Confirm & Continue' : 'Verify GST'}
               onPress={handleConfirmAndContinue}
-              loading={loading}
+              loading={loading || gstStatus === 'checking'}
               style={styles.cta}
             />
           )}
@@ -357,6 +420,18 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: 14,
     gap: 10,
+  },
+  checkingText: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textMuted,
+  },
+  verifiedText: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.successText,
   },
   resultRow: {
     flexDirection: 'row',

@@ -76,7 +76,7 @@ export default function CreatePasswordScreen() {
       if (result.success) {
         const phone = registration.phone ?? '';
         updateRegistration({
-          password,
+          password: undefined,
           phone,
           businessName: registration.businessName,
           gstNumber: registration.gstNumber,

@@ -29,6 +29,8 @@ import { checkRegistrationAvailability, sendLoginOtp, verifyLoginOtp } from '@/u
 import { validatePassword, validatePhone, validateUserId } from '@/utils/validation';
 
 const OTP_LENGTH = 6;
+const AVAILABILITY_ERROR = 'Could not check availability. Check your connection and try again.';
+type Availability = 'checking' | 'available' | 'taken' | 'error' | null;
 
 /**
  * Mockup "Get started" signup form (design-mockup #screenSignup):
@@ -52,11 +54,11 @@ export default function SignupScreen() {
   const [codeSent, setCodeSent] = useState(false);
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
 
   // Instant availability feedback for phone and User ID.
-  type Availability = 'checking' | 'available' | 'taken' | null;
   const [phoneStatus, setPhoneStatus] = useState<Availability>(null);
   const [userIdStatus, setUserIdStatus] = useState<Availability>(null);
   const phoneCheckSeq = useRef(0);
@@ -120,17 +122,18 @@ export default function SignupScreen() {
   // Instant backend check: the moment a full phone number is typed, ask
   // whether it is free and say so right on the field.
   useEffect(() => {
+    const seq = ++phoneCheckSeq.current;
     if (normalizedPhone.length !== 10) {
       setPhoneStatus(null);
       return;
     }
-    const seq = ++phoneCheckSeq.current;
     setPhoneStatus('checking');
     const timer = setTimeout(async () => {
       const result = await checkRegistrationAvailability({ mobile: normalizedPhone, userId: '' });
       if (seq !== phoneCheckSeq.current) return;
       if (!result.success) {
-        setPhoneStatus(null);
+        setPhoneStatus('error');
+        setErrors((prev) => ({ ...prev, phone: result.error ?? AVAILABILITY_ERROR }));
         return;
       }
       if (result.phoneTaken) {
@@ -141,25 +144,30 @@ export default function SignupScreen() {
         }));
       } else {
         setPhoneStatus('available');
+        setErrors((prev) => ({ ...prev, phone: null }));
       }
     }, 450);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (phoneCheckSeq.current === seq) phoneCheckSeq.current += 1;
+    };
   }, [normalizedPhone]);
 
   // Same for the User ID, once it reaches the minimum length.
   const trimmedUserId = userId.trim();
   useEffect(() => {
-    if (trimmedUserId.length < 3) {
+    const seq = ++userIdCheckSeq.current;
+    if (!trimmedUserId || validateUserId(trimmedUserId)) {
       setUserIdStatus(null);
       return;
     }
-    const seq = ++userIdCheckSeq.current;
     setUserIdStatus('checking');
     const timer = setTimeout(async () => {
       const result = await checkRegistrationAvailability({ mobile: '', userId: trimmedUserId });
       if (seq !== userIdCheckSeq.current) return;
       if (!result.success) {
-        setUserIdStatus(null);
+        setUserIdStatus('error');
+        setErrors((prev) => ({ ...prev, userId: result.error ?? AVAILABILITY_ERROR }));
         return;
       }
       if (result.userIdTaken) {
@@ -170,9 +178,13 @@ export default function SignupScreen() {
         }));
       } else {
         setUserIdStatus('available');
+        setErrors((prev) => ({ ...prev, userId: null }));
       }
     }, 450);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (userIdCheckSeq.current === seq) userIdCheckSeq.current += 1;
+    };
   }, [trimmedUserId]);
 
   const clearError = (key: string) =>
@@ -184,28 +196,26 @@ export default function SignupScreen() {
     setOtpError(null);
   };
 
+  const invalidateSubmittedSignup = () => {
+    setValidationError(null);
+    resetOtpState();
+  };
+
   const handleSubmit = async () => {
     const nextErrors: Record<string, string | null> = {
       fullName: fullName.trim() ? null : 'Please enter your full name',
       company: company.trim() ? null : 'Please enter your company name',
       phone: validatePhone(normalizedPhone),
-      userId: validateUserId(userId),
+      userId: validateUserId(trimmedUserId),
       password: validatePassword(password),
     };
     setErrors(nextErrors);
+    setValidationError(null);
 
     if (Object.values(nextErrors).some(Boolean)) {
       triggerShake();
       return;
     }
-
-    updateRegistration({
-      fullName: fullName.trim(),
-      companyName: company.trim(),
-      phone: normalizedPhone,
-      userId: userId.trim(),
-      password,
-    });
 
     setSending(true);
     try {
@@ -213,8 +223,21 @@ export default function SignupScreen() {
       // the OTP is ever sent, so taken values error on their own fields here.
       const availability = await checkRegistrationAvailability({
         mobile: normalizedPhone,
-        userId: userId.trim(),
+        userId: trimmedUserId,
       });
+      phoneCheckSeq.current += 1;
+      userIdCheckSeq.current += 1;
+
+      if (!availability.success) {
+        setPhoneStatus('error');
+        setUserIdStatus('error');
+        setValidationError(availability.error ?? AVAILABILITY_ERROR);
+        triggerShake();
+        return;
+      }
+
+      setPhoneStatus(availability.phoneTaken ? 'taken' : 'available');
+      setUserIdStatus(availability.userIdTaken ? 'taken' : 'available');
       if (availability.phoneTaken || availability.userIdTaken) {
         setErrors((prev) => ({
           ...prev,
@@ -228,6 +251,16 @@ export default function SignupScreen() {
         triggerShake();
         return;
       }
+
+      // Persist only a draft that has passed the authoritative backend check.
+      // This prevents known-invalid fields from reaching the GST step.
+      updateRegistration({
+        fullName: fullName.trim(),
+        companyName: company.trim(),
+        phone: normalizedPhone,
+        userId: trimmedUserId,
+        password,
+      });
 
       const result = await sendLoginOtp(normalizedPhone);
       if (!result.success) {
@@ -320,6 +353,7 @@ export default function SignupScreen() {
                 onChangeText={(text) => {
                   setFullName(text);
                   clearError('fullName');
+                  invalidateSubmittedSignup();
                 }}
                                 autoComplete="name"
                 error={errors.fullName}
@@ -336,6 +370,7 @@ export default function SignupScreen() {
                 onChangeText={(text) => {
                   setCompany(text);
                   clearError('company');
+                  invalidateSubmittedSignup();
                 }}
                                 autoComplete="organization"
                 error={errors.company}
@@ -355,7 +390,7 @@ export default function SignupScreen() {
                 onChangeText={(text) => {
                   setPhone(text.replace(/\D/g, '').slice(0, 10));
                   clearError('phone');
-                  resetOtpState();
+                  invalidateSubmittedSignup();
                 }}
                                 keyboardType="phone-pad"
                 error={errors.phone}
@@ -378,8 +413,13 @@ export default function SignupScreen() {
                 label="Create User ID"
                 value={userId}
                 onChangeText={(text) => {
-                  setUserId(text);
-                  clearError('userId');
+                  const nextUserId = text.replace(/\s/g, '');
+                  setUserId(nextUserId);
+                  setErrors((prev) => ({
+                    ...prev,
+                    userId: nextUserId ? validateUserId(nextUserId) : null,
+                  }));
+                  invalidateSubmittedSignup();
                 }}
                                 autoCapitalize="none"
                 autoCorrect={false}
@@ -409,6 +449,7 @@ export default function SignupScreen() {
                     ...prev,
                     password: text ? validatePassword(text) : null,
                   }));
+                  invalidateSubmittedSignup();
                 }}
                                 autoCapitalize="none"
                 error={errors.password}
@@ -417,6 +458,9 @@ export default function SignupScreen() {
                 returnKeyType="done"
                 onSubmitEditing={handlePrimaryPress}
               />
+              {password && !errors.password ? (
+                <Text style={styles.availableText}>✓ Password meets the requirements</Text>
+              ) : null}
             </Reveal>
 
             {codeSent ? (
@@ -429,6 +473,7 @@ export default function SignupScreen() {
             ) : null}
 
             {otpError ? <AuthErrorText>{otpError}</AuthErrorText> : null}
+            {validationError ? <AuthErrorText>{validationError}</AuthErrorText> : null}
             {verifying ? <Text style={styles.verifyingText}>Verifying OTP…</Text> : null}
 
             <Reveal d={6}>
