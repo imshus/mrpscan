@@ -12,6 +12,14 @@ export interface RegistrationData {
   fullName?: string;
   companyName?: string;
   userId?: string;
+  /**
+   * Set when a later step (GST confirm) fails for a reason the Get started
+   * form owns - e.g. the phone number is already registered. The signup
+   * screen shows it against that field and then clears it.
+   */
+  phoneError?: string;
+  /** Same mechanism as phoneError, for the User ID field. */
+  userIdError?: string;
 }
 
 export interface BusinessLoginResponse {

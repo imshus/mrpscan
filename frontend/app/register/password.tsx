@@ -64,6 +64,7 @@ export default function CreatePasswordScreen() {
       const result = await registerBusiness({
         mobile: registration.phone,
         password,
+        userId: registration.userId,
         businessDetails: {
           businessId: registration.businessId,
           businessName: registration.businessName,

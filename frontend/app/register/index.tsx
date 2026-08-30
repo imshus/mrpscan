@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -25,8 +25,8 @@ import { Reveal } from '@/components/auth/Reveal';
 import { Colors } from '@/constants/theme';
 import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { useAuthStore } from '@/store/authStore';
-import { sendLoginOtp, verifyLoginOtp } from '@/utils/authApi';
-import { validatePhone } from '@/utils/validation';
+import { checkRegistrationAvailability, sendLoginOtp, verifyLoginOtp } from '@/utils/authApi';
+import { validatePassword, validatePhone } from '@/utils/validation';
 
 const OTP_LENGTH = 6;
 
@@ -89,6 +89,20 @@ export default function SignupScreen() {
 
   const normalizedPhone = phone.replace(/\D/g, '').slice(0, 10);
 
+  // A later step (GST confirm) can bounce back a phone problem - e.g. the
+  // number is already registered. Show it here, on the field that owns it.
+  const registration = useAuthStore((s) => s.registration);
+  useEffect(() => {
+    if (!registration.phoneError && !registration.userIdError) return;
+    setErrors((prev) => ({
+      ...prev,
+      ...(registration.phoneError ? { phone: registration.phoneError } : {}),
+      ...(registration.userIdError ? { userId: registration.userIdError } : {}),
+    }));
+    triggerShake();
+    updateRegistration({ phoneError: undefined, userIdError: undefined });
+  }, [registration.phoneError, registration.userIdError, triggerShake, updateRegistration]);
+
   const clearError = (key: string) =>
     setErrors((prev) => (prev[key] ? { ...prev, [key]: null } : prev));
 
@@ -103,8 +117,8 @@ export default function SignupScreen() {
       fullName: fullName.trim() ? null : 'Please enter your full name',
       company: company.trim() ? null : 'Please enter your company name',
       phone: validatePhone(normalizedPhone),
-      userId: userId.trim() ? null : 'Please choose a User ID',
-      password: password.trim().length >= 6 ? null : 'Password must be at least 6 characters',
+      userId: userId.trim().length >= 3 ? null : 'User ID must be at least 3 characters',
+      password: validatePassword(password),
     };
     setErrors(nextErrors);
 
@@ -123,6 +137,26 @@ export default function SignupScreen() {
 
     setSending(true);
     try {
+      // Uniqueness lives on this page: verify phone + User ID are free before
+      // the OTP is ever sent, so taken values error on their own fields here.
+      const availability = await checkRegistrationAvailability({
+        mobile: normalizedPhone,
+        userId: userId.trim(),
+      });
+      if (availability.phoneTaken || availability.userIdTaken) {
+        setErrors((prev) => ({
+          ...prev,
+          ...(availability.phoneTaken
+            ? { phone: 'This phone number is already associated with an account.' }
+            : {}),
+          ...(availability.userIdTaken
+            ? { userId: 'This User ID is already taken. Please choose another.' }
+            : {}),
+        }));
+        triggerShake();
+        return;
+      }
+
       const result = await sendLoginOtp(normalizedPhone);
       if (!result.success) {
         setErrors((prev) => ({ ...prev, phone: result.error ?? 'Failed to send OTP.' }));

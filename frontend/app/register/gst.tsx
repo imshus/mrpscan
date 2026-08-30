@@ -53,7 +53,10 @@ export default function GstVerificationScreen() {
   const [businessType, setBusinessType] = useState('');
   const [address, setAddress] = useState('');
   const [gstVerified, setGstVerified] = useState(false);
+  // gstError belongs to the GSTIN input; formError covers everything after it
+  // (registration, login, server faults) so those never mark the GSTIN red.
   const [gstError, setGstError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [accountCreated, setAccountCreated] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
@@ -61,6 +64,7 @@ export default function GstVerificationScreen() {
   const handleVerifyGst = async () => {
     const error = validateGst(gstNumber);
     setGstError(error);
+    setFormError(null);
     if (error) {
       triggerShake();
       return;
@@ -91,6 +95,30 @@ export default function GstVerificationScreen() {
     }
   };
 
+  // The phone number is owned by the "Get started" form. Backend failures about
+  // it must be shown there, against that field — never on the GST screen.
+  const isPhoneProblem = (message?: string | null) => {
+    const text = (message ?? "").toLowerCase();
+    return (
+      text.includes("phone") ||
+      text.includes("mobile") ||
+      text.includes("already associated")
+    );
+  };
+
+  const sendBackToPhone = (message: string) => {
+    updateRegistration({ phoneError: message });
+    router.back();
+  };
+
+  const isUserIdProblem = (message?: string | null) =>
+    (message ?? '').toLowerCase().includes('user id');
+
+  const sendBackToUserId = (message: string) => {
+    updateRegistration({ userIdError: message });
+    router.back();
+  };
+
   const handleConfirmAndContinue = async () => {
     if (!gstVerified) {
       await handleVerifyGst();
@@ -112,10 +140,18 @@ export default function GstVerificationScreen() {
         address,
       });
 
+      // Phone and password are owned by the "Get started" form. If either is
+      // missing, send the user back to the screen that can fix it — showing a
+      // password or phone message under the GSTIN input is wrong.
       const phone = registration.phone?.replace(/\D/g, '').slice(0, 10);
       const password = registration.password;
-      if (!phone || phone.length !== 10 || !password) {
-        router.push('/register/contact');
+      if (!phone || phone.length !== 10) {
+        sendBackToPhone('Enter a valid 10-digit phone number.');
+        return;
+      }
+      if (!password) {
+        // Back to the Get started form, which owns the password field.
+        router.back();
         return;
       }
 
@@ -124,6 +160,7 @@ export default function GstVerificationScreen() {
       const registered = await registerBusiness({
         mobile: phone,
         password,
+        userId: registration.userId,
         businessDetails: {
           businessId: confirmed.businessId,
           businessName,
@@ -140,7 +177,15 @@ export default function GstVerificationScreen() {
           router.push('/register/otp-phone');
           return;
         }
-        setGstError(registered.error ?? 'Registration failed.');
+        if (isUserIdProblem(registered.error)) {
+          sendBackToUserId(registered.error ?? 'This User ID is already taken.');
+          return;
+        }
+        if (isPhoneProblem(registered.error)) {
+          sendBackToPhone(registered.error ?? 'This phone number cannot be used.');
+          return;
+        }
+        setFormError(registered.error ?? 'Registration failed.');
         triggerShake();
         return;
       }
@@ -162,7 +207,16 @@ export default function GstVerificationScreen() {
         setTimeout(() => router.replace('/login'), 1600);
       }
     } catch (error) {
-      setGstError(error instanceof Error ? error.message : 'Failed to confirm GST details.');
+      const message = error instanceof Error ? error.message : 'Failed to confirm GST details.';
+      if (isUserIdProblem(message)) {
+        sendBackToUserId(message);
+        return;
+      }
+      if (isPhoneProblem(message)) {
+        sendBackToPhone(message);
+        return;
+      }
+      setFormError(message);
     } finally {
       setLoading(false);
     }
@@ -200,17 +254,19 @@ export default function GstVerificationScreen() {
                   setAddress('');
                   setGstVerified(false);
                   setGstError(null);
+                  setFormError(null);
                 }}
                 placeholder="22AAAAA0000A1Z5"
                 autoCapitalize="characters"
                 autoCorrect={false}
                 maxLength={15}
                 editable={!loading}
+                error={gstError}
               />
             </Reveal>
           </Animated.View>
 
-          {gstError ? <AuthErrorText>{gstError}</AuthErrorText> : null}
+          {formError ? <AuthErrorText>{formError}</AuthErrorText> : null}
 
           {businessName ? (
             <View style={styles.resultCard}>
