@@ -261,9 +261,42 @@ export async function createBusinessPassword(payload: {
   }
 }
 
+/**
+ * Signup-form pre-check: is the phone or User ID already taken? Fails open
+ * (both false) on network errors — the final register re-checks server-side.
+ */
+export async function checkRegistrationAvailability(payload: {
+  mobile: string;
+  userId: string;
+}): Promise<{ phoneTaken: boolean; userIdTaken: boolean }> {
+  try {
+    const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
+      '/auth/check-availability',
+      {
+        method: 'POST',
+        body: {
+          mobile: payload.mobile.replace(/D/g, '').slice(-10),
+          userId: payload.userId.trim(),
+        },
+      },
+    );
+    const unwrapped = unwrapEnvelope(response);
+    if (!isSuccessfulResponse(response, unwrapped)) {
+      return { phoneTaken: false, userIdTaken: false };
+    }
+    return {
+      phoneTaken: unwrapped?.phoneTaken === true,
+      userIdTaken: unwrapped?.userIdTaken === true,
+    };
+  } catch {
+    return { phoneTaken: false, userIdTaken: false };
+  }
+}
+
 export async function registerBusiness(payload: {
   mobile: string;
   password: string;
+  userId?: string;
   businessDetails: {
     businessId: string;
     businessName?: string;
@@ -277,6 +310,7 @@ export async function registerBusiness(payload: {
       body: {
         mobile: payload.mobile.replace(/\D/g, '').slice(-10),
         password: payload.password,
+        userId: payload.userId?.trim() || undefined,
         businessDetails: payload.businessDetails,
       },
     });
