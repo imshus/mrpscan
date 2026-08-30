@@ -20,6 +20,20 @@ type RequestOptions = Omit<RequestInit, 'body'> & {
 
 const getResponseCache = new Map<string, unknown>();
 
+const SENSITIVE_LOG_KEY = /password|otp|token|secret|authorization/i;
+
+function redactSensitiveLogValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactSensitiveLogValue);
+  if (!value || typeof value !== 'object') return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, nestedValue]) => [
+      key,
+      SENSITIVE_LOG_KEY.test(key) ? '***' : redactSensitiveLogValue(nestedValue),
+    ]),
+  );
+}
+
 function toLoggableBody(
   requestBody: BodyInit | undefined,
   contentType: string | null,
@@ -30,9 +44,9 @@ function toLoggableBody(
 
   if (typeof requestBody === 'string' && contentType?.includes('application/json')) {
     try {
-      return JSON.parse(requestBody);
+      return redactSensitiveLogValue(JSON.parse(requestBody));
     } catch {
-      return requestBody;
+      return '[JSON body]';
     }
   }
 

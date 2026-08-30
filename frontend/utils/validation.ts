@@ -3,6 +3,7 @@ import { z } from 'zod';
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^[6-9]\d{9}$/;
+const USER_ID_REGEX = /^[A-Za-z0-9._-]+$/;
 const PASSWORD_MIN_LENGTH = 6;
 const OTP_REGEX = /^\d{6}$/;
 
@@ -25,7 +26,19 @@ const phoneSchema = z
 const passwordSchema = z
   .string()
   .min(1, 'Password is required')
-  .min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`);
+  .min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`)
+  .max(128, 'Password must be 128 characters or fewer');
+
+const userIdSchema = z
+  .string()
+  .trim()
+  .min(1, 'User ID is required')
+  .min(3, 'User ID must be at least 3 characters')
+  .max(30, 'User ID must be 30 characters or fewer')
+  .regex(
+    USER_ID_REGEX,
+    'User ID can only contain letters, numbers, dots, underscores, and hyphens',
+  );
 
 const confirmPasswordSchema = z
   .string()
@@ -79,6 +92,10 @@ export function validateEmail(email: string): string | null {
 
 export function validatePhone(phone: string): string | null {
   return getValidationError(phoneSchema.safeParse(phone));
+}
+
+export function validateUserId(userId: string): string | null {
+  return getValidationError(userIdSchema.safeParse(userId));
 }
 
 export function validatePassword(password: string): string | null {

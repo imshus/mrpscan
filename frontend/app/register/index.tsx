@@ -26,7 +26,7 @@ import { Colors } from '@/constants/theme';
 import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { useAuthStore } from '@/store/authStore';
 import { checkRegistrationAvailability, sendLoginOtp, verifyLoginOtp } from '@/utils/authApi';
-import { validatePassword, validatePhone } from '@/utils/validation';
+import { validatePassword, validatePhone, validateUserId } from '@/utils/validation';
 
 const OTP_LENGTH = 6;
 
@@ -54,6 +54,13 @@ export default function SignupScreen() {
   const [otpError, setOtpError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
+
+  // Instant availability feedback for phone and User ID.
+  type Availability = 'checking' | 'available' | 'taken' | null;
+  const [phoneStatus, setPhoneStatus] = useState<Availability>(null);
+  const [userIdStatus, setUserIdStatus] = useState<Availability>(null);
+  const phoneCheckSeq = useRef(0);
+  const userIdCheckSeq = useRef(0);
 
   const scrollRef = useRef<ScrollView>(null);
   const companyRef = useRef<TextInput>(null);
@@ -93,15 +100,80 @@ export default function SignupScreen() {
   // number is already registered. Show it here, on the field that owns it.
   const registration = useAuthStore((s) => s.registration);
   useEffect(() => {
-    if (!registration.phoneError && !registration.userIdError) return;
+    if (!registration.phoneError && !registration.userIdError && !registration.passwordError) return;
     setErrors((prev) => ({
       ...prev,
       ...(registration.phoneError ? { phone: registration.phoneError } : {}),
       ...(registration.userIdError ? { userId: registration.userIdError } : {}),
+      ...(registration.passwordError ? { password: registration.passwordError } : {}),
     }));
     triggerShake();
-    updateRegistration({ phoneError: undefined, userIdError: undefined });
-  }, [registration.phoneError, registration.userIdError, triggerShake, updateRegistration]);
+    updateRegistration({ phoneError: undefined, userIdError: undefined, passwordError: undefined });
+  }, [
+    registration.phoneError,
+    registration.userIdError,
+    registration.passwordError,
+    triggerShake,
+    updateRegistration,
+  ]);
+
+  // Instant backend check: the moment a full phone number is typed, ask
+  // whether it is free and say so right on the field.
+  useEffect(() => {
+    if (normalizedPhone.length !== 10) {
+      setPhoneStatus(null);
+      return;
+    }
+    const seq = ++phoneCheckSeq.current;
+    setPhoneStatus('checking');
+    const timer = setTimeout(async () => {
+      const result = await checkRegistrationAvailability({ mobile: normalizedPhone, userId: '' });
+      if (seq !== phoneCheckSeq.current) return;
+      if (!result.success) {
+        setPhoneStatus(null);
+        return;
+      }
+      if (result.phoneTaken) {
+        setPhoneStatus('taken');
+        setErrors((prev) => ({
+          ...prev,
+          phone: 'This phone number is already associated with an account.',
+        }));
+      } else {
+        setPhoneStatus('available');
+      }
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [normalizedPhone]);
+
+  // Same for the User ID, once it reaches the minimum length.
+  const trimmedUserId = userId.trim();
+  useEffect(() => {
+    if (trimmedUserId.length < 3) {
+      setUserIdStatus(null);
+      return;
+    }
+    const seq = ++userIdCheckSeq.current;
+    setUserIdStatus('checking');
+    const timer = setTimeout(async () => {
+      const result = await checkRegistrationAvailability({ mobile: '', userId: trimmedUserId });
+      if (seq !== userIdCheckSeq.current) return;
+      if (!result.success) {
+        setUserIdStatus(null);
+        return;
+      }
+      if (result.userIdTaken) {
+        setUserIdStatus('taken');
+        setErrors((prev) => ({
+          ...prev,
+          userId: 'This User ID is already taken. Please choose another.',
+        }));
+      } else {
+        setUserIdStatus('available');
+      }
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [trimmedUserId]);
 
   const clearError = (key: string) =>
     setErrors((prev) => (prev[key] ? { ...prev, [key]: null } : prev));
@@ -117,7 +189,7 @@ export default function SignupScreen() {
       fullName: fullName.trim() ? null : 'Please enter your full name',
       company: company.trim() ? null : 'Please enter your company name',
       phone: validatePhone(normalizedPhone),
-      userId: userId.trim().length >= 3 ? null : 'User ID must be at least 3 characters',
+      userId: validateUserId(userId),
       password: validatePassword(password),
     };
     setErrors(nextErrors);
@@ -293,6 +365,12 @@ export default function SignupScreen() {
                 submitBehavior="submit"
                 onSubmitEditing={() => userIdRef.current?.focus()}
               />
+              {phoneStatus === 'checking' ? (
+                <Text style={styles.checkingText}>Checking availability…</Text>
+              ) : null}
+              {phoneStatus === 'available' ? (
+                <Text style={styles.availableText}>✓ Phone number available</Text>
+              ) : null}
             </Reveal>
 
             <Reveal d={4}>
@@ -312,6 +390,12 @@ export default function SignupScreen() {
                 submitBehavior="submit"
                 onSubmitEditing={() => passwordRef.current?.focus()}
               />
+              {userIdStatus === 'checking' ? (
+                <Text style={styles.checkingText}>Checking availability…</Text>
+              ) : null}
+              {userIdStatus === 'available' ? (
+                <Text style={styles.availableText}>✓ User ID available</Text>
+              ) : null}
             </Reveal>
 
             <Reveal d={5}>
@@ -321,7 +405,10 @@ export default function SignupScreen() {
                 value={password}
                 onChangeText={(text) => {
                   setPassword(text);
-                  clearError('password');
+                  setErrors((prev) => ({
+                    ...prev,
+                    password: text ? validatePassword(text) : null,
+                  }));
                 }}
                                 autoCapitalize="none"
                 error={errors.password}
@@ -382,6 +469,18 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 16,
+  },
+  checkingText: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textMuted,
+  },
+  availableText: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1F8A4C',
   },
   verifyingText: {
     fontSize: 13,
