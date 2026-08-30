@@ -4,6 +4,17 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { LoginMethod, RegistrationData } from '@/types/auth';
 
+function getPersistedRegistration(
+  registration: Partial<RegistrationData>,
+): Partial<RegistrationData> {
+  const safeRegistration = { ...registration };
+  delete safeRegistration.password;
+  delete safeRegistration.phoneError;
+  delete safeRegistration.userIdError;
+  delete safeRegistration.passwordError;
+  return safeRegistration;
+}
+
 export type UserRole = 'business' | 'employee' | null;
 
 interface AuthState {
@@ -87,7 +98,7 @@ export const useAuthStore = create<AuthState>()(
         savedPhone: state.savedPhone,
         savedEmployeePhone: state.savedEmployeePhone,
         loginMethod: state.loginMethod,
-        registration: state.registration,
+        registration: getPersistedRegistration(state.registration),
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

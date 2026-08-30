@@ -46,6 +46,35 @@ function resolveApiMessage(
   );
 }
 
+export type RegistrationErrorField = 'phone' | 'userId' | 'password';
+
+function classifyRegistrationError(value: unknown): RegistrationErrorField | undefined {
+  let text = '';
+  if (value instanceof ApiError) {
+    const body = value.body;
+    if (body && typeof body === 'object') {
+      const rawCode = (body as { error?: unknown }).error;
+      const rawMessage = (body as { message?: unknown }).message;
+      text = `${typeof rawCode === 'string' ? rawCode : ''} ${typeof rawMessage === 'string' ? rawMessage : ''}`;
+    }
+    text += ` ${value.message}`;
+  } else {
+    text = String(value ?? '');
+  }
+
+  const normalized = text.toLowerCase().replace(/[^a-z]/g, '');
+  if (normalized.includes('userid')) return 'userId';
+  if (normalized.includes('password')) return 'password';
+  if (
+    normalized.includes('phone') ||
+    normalized.includes('mobile') ||
+    normalized.includes('alreadyassociated')
+  ) {
+    return 'phone';
+  }
+  return undefined;
+}
+
 export async function verifyBusinessGst(gstNumber: string): Promise<{
   success: boolean;
   businessName?: string;
@@ -317,7 +346,7 @@ export async function registerBusiness(payload: {
     businessType?: string;
     address?: string;
   };
-}): Promise<{ success: boolean; error?: string }> {
+}): Promise<{ success: boolean; error?: string; field?: RegistrationErrorField }> {
   try {
     const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/register', {
       method: 'POST',
@@ -333,6 +362,7 @@ export async function registerBusiness(payload: {
       return {
         success: false,
         error: resolveApiMessage(response, unwrapped, 'Registration failed.'),
+        field: classifyRegistrationError(resolveApiMessage(response, unwrapped, '')),
       };
     }
     return { success: true };
@@ -340,6 +370,7 @@ export async function registerBusiness(payload: {
     return {
       success: false,
       error: error instanceof ApiError ? error.message : 'Registration failed.',
+      field: classifyRegistrationError(error),
     };
   }
 }

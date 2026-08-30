@@ -39,6 +39,7 @@ export default function OtpPhoneScreen() {
   const router = useRouter();
   const registration = useAuthStore((s) => s.registration);
   const {
+    updateRegistration,
     setAuthenticated,
     setAuthToken,
     setRefreshToken,
@@ -109,6 +110,7 @@ export default function OtpPhoneScreen() {
       const registered = await registerBusiness({
         mobile: phone,
         password,
+        userId: registration.userId,
         businessDetails: {
           businessId,
           businessName: registration.businessName,
@@ -122,6 +124,12 @@ export default function OtpPhoneScreen() {
         return;
       }
 
+      updateRegistration({
+        password: undefined,
+        phoneError: undefined,
+        userIdError: undefined,
+        passwordError: undefined,
+      });
       setAccountCreated(true);
       setSavedCredentials(phone);
 
