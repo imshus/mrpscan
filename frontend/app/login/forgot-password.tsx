@@ -24,16 +24,25 @@ import { OtpBox } from '@/components/auth/OtpBox';
 import { Reveal } from '@/components/auth/Reveal';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
-import { changeUserPassword, loginBusinessWithOtp, sendLoginOtp } from '@/utils/authApi';
-import { validatePhone } from '@/utils/validation';
+import {
+  requestPasswordReset,
+  resetForgottenPassword,
+  verifyPasswordResetOtp,
+} from '@/utils/authApi';
+import {
+  validateConfirmPassword,
+  validatePassword,
+  validatePhone,
+  validateUserId,
+} from '@/utils/validation';
 
 const OTP_LENGTH = 6;
 
 /**
  * Mockup "Forgot Password?" flow (design-mockup #screenForgotPassword):
- * User ID → Send code → 6-digit OTP → new password + confirm → success toast.
- * OTP ownership is proven via the real login-OTP API; the reset then runs
- * against /auth/change-password using the OTP-issued session token.
+ * User ID/phone → Send code → 6-digit OTP → new password + confirm → success.
+ * This uses the dedicated password-recovery routes, so the normal
+ * current-password requirement is never applied to a verified recovery.
  */
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -43,10 +52,11 @@ export default function ForgotPasswordScreen() {
   const [userIdError, setUserIdError] = useState<string | null>(null);
   const [codeSent, setCodeSent] = useState(false);
   const [sending, setSending] = useState(false);
+  const [deliveryHint, setDeliveryHint] = useState<string | null>(null);
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
-  const [otpToken, setOtpToken] = useState<string | null>(null);
+  const [resetToken, setResetToken] = useState<string | null>(null);
   const [password1, setPassword1] = useState('');
   const [password2, setPassword2] = useState('');
   const [password1Error, setPassword1Error] = useState<string | null>(null);
@@ -55,24 +65,37 @@ export default function ForgotPasswordScreen() {
   const [resetDone, setResetDone] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
 
-  const normalizedId = userId.replace(/\D/g, '').slice(0, 10);
+  const normalizeIdentifier = (value: string) => {
+    const raw = value.trim();
+    const digits = raw.replace(/\D/g, '');
+    return /^[+\d\s()-]+$/.test(raw) && digits.length === 10 ? digits : raw;
+  };
+
+  const normalizedId = normalizeIdentifier(userId);
 
   const handleSendCode = async () => {
-    const pErr = validatePhone(normalizedId);
-    setUserIdError(pErr ? 'Please enter your registered User ID (mobile number)' : null);
-    if (pErr) {
+    const identifierError = /^\d{10}$/.test(normalizedId)
+      ? validatePhone(normalizedId)
+      : validateUserId(normalizedId);
+    setUserIdError(identifierError);
+    if (identifierError) {
       triggerShake();
       return;
     }
 
+    setUserIdError(null);
     setSending(true);
     try {
-      const result = await sendLoginOtp(normalizedId);
+      const result = await requestPasswordReset(normalizedId);
       if (!result.success) {
         setUserIdError(result.error ?? 'Failed to send code.');
         triggerShake();
         return;
       }
+      setOtp('');
+      setOtpError(null);
+      setResetToken(null);
+      setDeliveryHint(result.destination ?? null);
       setCodeSent(true);
     } finally {
       setSending(false);
@@ -86,34 +109,32 @@ export default function ForgotPasswordScreen() {
 
     setVerifying(true);
     try {
-      const result = await loginBusinessWithOtp(normalizedId, value);
-      if (!result.success || !result.data) {
+      const result = await verifyPasswordResetOtp(normalizedId, value);
+      if (!result.success || !result.resetToken) {
         setOtpError(result.error ?? 'Invalid code.');
         triggerShake();
         return;
       }
-      setOtpToken(result.data.accessToken);
+      setResetToken(result.resetToken);
     } finally {
       setVerifying(false);
     }
   };
 
   const handleReset = async () => {
-    const p1Ok = password1.trim().length >= 6;
-    const p2Ok = p1Ok && password2 === password1;
-    setPassword1Error(p1Ok ? null : 'Password must be at least 6 characters');
-    setPassword2Error(p2Ok ? null : p1Ok ? "Passwords don't match" : null);
-    if (!p1Ok || !p2Ok) {
+    const p1Error = validatePassword(password1);
+    const p2Error = validateConfirmPassword(password1, password2);
+    setPassword1Error(p1Error);
+    setPassword2Error(p2Error);
+    if (p1Error || p2Error || !resetToken) {
+      if (!resetToken) setPassword2Error('Please verify the OTP again.');
       triggerShake();
       return;
     }
 
     setResetting(true);
-    const store = useAuthStore.getState();
-    const previousToken = store.authToken;
     try {
-      store.setAuthToken(otpToken);
-      const result = await changeUserPassword('', password1);
+      const result = await resetForgottenPassword(resetToken, password1, password2);
       if (!result.success) {
         setPassword2Error(result.error ?? 'Failed to reset password.');
         triggerShake();
@@ -122,7 +143,6 @@ export default function ForgotPasswordScreen() {
       setResetDone(true);
       setTimeout(() => router.replace('/login'), 1600);
     } finally {
-      useAuthStore.getState().setAuthToken(previousToken);
       setResetting(false);
     }
   };
@@ -144,7 +164,7 @@ export default function ForgotPasswordScreen() {
             <AuthTitle tight>Forgot Password?</AuthTitle>
           </Reveal>
           <Reveal d={1}>
-            <AuthSub>Enter your User ID — we&apos;ll text a code to your registered phone.</AuthSub>
+            <AuthSub>Enter your User ID or phone number — we&apos;ll text a code to your registered phone.</AuthSub>
           </Reveal>
 
           <Animated.View style={[styles.form, shakeStyle]}>
@@ -159,7 +179,7 @@ export default function ForgotPasswordScreen() {
                 placeholder="Enter your User ID"
                 autoCapitalize="none"
                 autoCorrect={false}
-                keyboardType="phone-pad"
+                keyboardType="default"
                 editable={!codeSent}
                 error={userIdError}
                 verifyLabel={codeSent ? 'Sent' : sending ? 'Sending…' : 'Send code'}
@@ -168,7 +188,11 @@ export default function ForgotPasswordScreen() {
               />
             </Reveal>
 
-            {codeSent && !otpToken ? (
+            {codeSent && deliveryHint ? (
+              <Text style={styles.verifyingText}>Code sent to {deliveryHint}</Text>
+            ) : null}
+
+            {codeSent && !resetToken ? (
               <OtpBox
                 value={otp}
                 onChange={handleOtpChange}
@@ -180,7 +204,7 @@ export default function ForgotPasswordScreen() {
             {otpError ? <AuthErrorText>{otpError}</AuthErrorText> : null}
             {verifying ? <Text style={styles.verifyingText}>Verifying code…</Text> : null}
 
-            {otpToken && !resetDone ? (
+            {resetToken && !resetDone ? (
               <>
                 <AuthField
                   label="New Password"
