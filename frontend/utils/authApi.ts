@@ -264,6 +264,99 @@ export async function verifyLoginOtp(
   }
 }
 
+export async function requestPasswordReset(identifier: string): Promise<{
+  success: boolean;
+  destination?: string;
+  error?: string;
+}> {
+  try {
+    const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
+      '/auth/forgot-password/request',
+      {
+        method: 'POST',
+        body: { identifier: identifier.trim() },
+      },
+    );
+    const unwrapped = unwrapEnvelope(response);
+    if (!isSuccessfulResponse(response, unwrapped)) {
+      return {
+        success: false,
+        error: resolveApiMessage(response, unwrapped, 'Failed to send password reset code.'),
+      };
+    }
+    return {
+      success: true,
+      destination: readString(unwrapped, ['destination']),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof ApiError ? error.message : 'Failed to send password reset code.',
+    };
+  }
+}
+
+export async function verifyPasswordResetOtp(
+  identifier: string,
+  otp: string,
+): Promise<{ success: boolean; resetToken?: string; error?: string }> {
+  try {
+    const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
+      '/auth/forgot-password/verify-otp',
+      {
+        method: 'POST',
+        body: { identifier: identifier.trim(), otp: otp.trim() },
+      },
+    );
+    const unwrapped = unwrapEnvelope(response);
+    if (!isSuccessfulResponse(response, unwrapped)) {
+      return {
+        success: false,
+        error: resolveApiMessage(response, unwrapped, 'OTP verification failed.'),
+      };
+    }
+    const resetToken = readString(unwrapped, ['resetToken']);
+    if (!resetToken) {
+      return { success: false, error: 'Password reset response is missing its secure token.' };
+    }
+    return { success: true, resetToken };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof ApiError ? error.message : 'OTP verification failed.',
+    };
+  }
+}
+
+export async function resetForgottenPassword(
+  resetToken: string,
+  newPassword: string,
+  confirmPassword: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
+      '/auth/forgot-password/reset',
+      {
+        method: 'POST',
+        body: { resetToken, newPassword, confirmPassword },
+      },
+    );
+    const unwrapped = unwrapEnvelope(response);
+    if (!isSuccessfulResponse(response, unwrapped)) {
+      return {
+        success: false,
+        error: resolveApiMessage(response, unwrapped, 'Failed to reset password.'),
+      };
+    }
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof ApiError ? error.message : 'Failed to reset password.',
+    };
+  }
+}
+
 export async function createBusinessPassword(payload: {
   businessId: string;
   password: string;
