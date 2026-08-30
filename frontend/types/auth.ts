@@ -20,6 +20,8 @@ export interface RegistrationData {
   phoneError?: string;
   /** Same mechanism as phoneError, for the User ID field. */
   userIdError?: string;
+  /** Same mechanism as phoneError, for the Password field. */
+  passwordError?: string;
 }
 
 export interface BusinessLoginResponse {

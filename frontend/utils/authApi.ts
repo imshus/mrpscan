@@ -261,35 +261,49 @@ export async function createBusinessPassword(payload: {
   }
 }
 
-/**
- * Signup-form pre-check: is the phone or User ID already taken? Fails open
- * (both false) on network errors — the final register re-checks server-side.
- */
+/** Signup-form pre-check. A failed request is never treated as "available". */
 export async function checkRegistrationAvailability(payload: {
   mobile: string;
   userId: string;
-}): Promise<{ phoneTaken: boolean; userIdTaken: boolean }> {
+}): Promise<{
+  success: boolean;
+  phoneTaken: boolean;
+  userIdTaken: boolean;
+  error?: string;
+}> {
   try {
     const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
       '/auth/check-availability',
       {
         method: 'POST',
         body: {
-          mobile: payload.mobile.replace(/D/g, '').slice(-10),
+          mobile: payload.mobile.replace(/\D/g, '').slice(-10),
           userId: payload.userId.trim(),
         },
+        timeoutMs: 10000,
       },
     );
     const unwrapped = unwrapEnvelope(response);
     if (!isSuccessfulResponse(response, unwrapped)) {
-      return { phoneTaken: false, userIdTaken: false };
+      return {
+        success: false,
+        phoneTaken: false,
+        userIdTaken: false,
+        error: resolveApiMessage(response, unwrapped, 'Could not check availability.'),
+      };
     }
     return {
+      success: true,
       phoneTaken: unwrapped?.phoneTaken === true,
       userIdTaken: unwrapped?.userIdTaken === true,
     };
-  } catch {
-    return { phoneTaken: false, userIdTaken: false };
+  } catch (error) {
+    return {
+      success: false,
+      phoneTaken: false,
+      userIdTaken: false,
+      error: error instanceof ApiError ? error.message : 'Could not check availability.',
+    };
   }
 }
 
@@ -343,9 +357,14 @@ export async function loginBusiness(mobile: string, password: string): Promise<{
   error?: string;
 }> {
   try {
+    const rawLoginId = mobile.trim();
+    const digits = rawLoginId.replace(/\D/g, '');
+    const loginId = digits.length === 10 && /^[+\d\s()-]+$/.test(rawLoginId)
+      ? digits
+      : rawLoginId;
     const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/login', {
       method: 'POST',
-      body: { mobile: mobile.replace(/\D/g, '').slice(-10), password },
+      body: { mobile: loginId, password },
     });
     const unwrapped = unwrapEnvelope(response);
     if (!isSuccessfulResponse(response, unwrapped)) {

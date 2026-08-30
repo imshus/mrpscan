@@ -111,11 +111,22 @@ export default function GstVerificationScreen() {
     router.back();
   };
 
-  const isUserIdProblem = (message?: string | null) =>
-    (message ?? '').toLowerCase().includes('user id');
+  const isUserIdProblem = (message?: string | null) => {
+    // Matches "User ID", "userId" and Joi's quoted '"userId"' variants.
+    const text = (message ?? '').toLowerCase().replace(/[^a-z]/g, '');
+    return text.includes('userid');
+  };
 
   const sendBackToUserId = (message: string) => {
     updateRegistration({ userIdError: message });
+    router.back();
+  };
+
+  const isPasswordProblem = (message?: string | null) =>
+    (message ?? '').toLowerCase().includes('password');
+
+  const sendBackToPassword = (message: string) => {
+    updateRegistration({ passwordError: message });
     router.back();
   };
 
@@ -185,6 +196,10 @@ export default function GstVerificationScreen() {
           sendBackToPhone(registered.error ?? 'This phone number cannot be used.');
           return;
         }
+        if (isPasswordProblem(registered.error)) {
+          sendBackToPassword(registered.error ?? 'Please choose a different password.');
+          return;
+        }
         setFormError(registered.error ?? 'Registration failed.');
         triggerShake();
         return;
@@ -214,6 +229,10 @@ export default function GstVerificationScreen() {
       }
       if (isPhoneProblem(message)) {
         sendBackToPhone(message);
+        return;
+      }
+      if (isPasswordProblem(message)) {
+        sendBackToPassword(message);
         return;
       }
       setFormError(message);
