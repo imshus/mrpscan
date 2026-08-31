@@ -7,14 +7,26 @@ import type { BottomNavRoute } from '@/types/scanner';
 import { Colors } from '@/constants/theme';
 
 const NAV_OFFSET = 2;
+/**
+ * Fallback height of the floating pill, used only for the first frame before
+ * onLayout reports the real one. The pill grows with the system font scale, so
+ * anything stacked above it must measure rather than trust this number.
+ */
+export const BOTTOM_NAV_HEIGHT = 72;
+/** Distance from the screen bottom to the pill, matching the clamp below. */
+export function getBottomNavBottom(safeAreaBottom: number): number {
+  return Math.max(safeAreaBottom + NAV_OFFSET, 22);
+}
 const ICON_SIZE = 22;
 
 interface BottomNavProps {
   activeRoute?: BottomNavRoute | 'none';
   scanButtonVariant?: 'gold' | 'green';
+  /** Reports the pill's rendered height so callers can stack content above it. */
+  onHeightChange?: (height: number) => void;
 }
 
-export function BottomNav({ activeRoute = 'home' }: BottomNavProps) {
+export function BottomNav({ activeRoute = 'home', onHeightChange }: BottomNavProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -29,7 +41,14 @@ export function BottomNav({ activeRoute = 'home' }: BottomNavProps) {
   const scanColor = activeRoute === 'scanner' ? Colors.brandDeep : Colors.textMuted;
 
   return (
-    <View style={[styles.wrapper, { bottom: Math.max(insets.bottom + NAV_OFFSET, 22) }]}>
+    <View
+      style={[styles.wrapper, { bottom: Math.max(insets.bottom + NAV_OFFSET, 22) }]}
+      onLayout={
+        onHeightChange
+          ? (event) => onHeightChange(event.nativeEvent.layout.height)
+          : undefined
+      }
+    >
       <View style={styles.navBar}>
         <Pressable style={styles.navItem} onPress={() => router.replace('/dashboard')}>
           <Home size={ICON_SIZE} color={homeColor} strokeWidth={2} />

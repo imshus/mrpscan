@@ -19,7 +19,11 @@ import {
   computeInvoiceSubtotal,
   prepareDisplayGoldRates,
 } from '@/utils/invoiceCalculation';
-import { apiGenerateInvoice, type InvoiceLineItemPayload } from '@/utils/invoiceApi';
+import {
+  apiGenerateInvoice,
+  resolveInvoicePdfUrl,
+  type InvoiceLineItemPayload,
+} from '@/utils/invoiceApi';
 import { amountInWords } from '@/utils/numberToWords';
 import { resolveScannedKarat } from '@/utils/formulaUtils';
 import { parseStoneArraysFromStructuredData } from '@/utils/stoneSequenceUtils';
@@ -167,6 +171,9 @@ export default function InvoicePreviewScreen() {
         description: row.description,
         note: row.note,
         qty: row.qty,
+        // The invoice prints the unit spelled out, so translate the compact
+        // internal codes ('g' / 'Ct') into what the document shows.
+        qty_unit: row.qtyUnit === 'g' ? 'Gms.' : row.qtyUnit === 'Ct' ? 'CT' : row.qtyUnit,
         price: row.price,
         amount: row.amount,
       }));
@@ -189,11 +196,12 @@ export default function InvoicePreviewScreen() {
         terms_and_conditions: '',
       });
 
-      // Navigate to print/success screen with the PDF URL
+      // Navigate to print/success screen with the PDF URL. Prefer our own
+      // durable endpoint over the signed PDFMonkey link, which expires.
       router.push({
         pathname: '/dashboard/scanner/print-invoice',
         params: {
-          pdfUrl: result.pdfUrl,
+          pdfUrl: resolveInvoicePdfUrl(result),
           invoiceNumber: result.invoiceNumber,
           invoiceDate: result.invoiceDate,
         },
