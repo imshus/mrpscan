@@ -18,6 +18,11 @@ export interface BusinessProfileResponse {
   phone: string;
   /** The handle this user signs in with. */
   loginId: string;
+  bankName: string;
+  bankBranch: string;
+  bankAccountNumber: string;
+  bankIfsc: string;
+  invoiceTerms: string[];
 }
 
 /**

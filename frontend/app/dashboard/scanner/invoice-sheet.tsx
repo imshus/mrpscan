@@ -19,6 +19,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useInvoiceStore } from '@/store/invoiceStore';
 import { useInvoiceComputation } from '@/hooks/useInvoiceComputation';
 import { getBusinessProfile } from '@/utils/businessProfile';
+import { fetchBusinessProfile, type BusinessProfileResponse } from '@/utils/businessProfileApi';
 import {
   apiFetchNextInvoiceNumber,
   apiGenerateInvoice,
@@ -59,6 +60,9 @@ export default function InvoiceSheetScreen() {
 
   const registration = useAuthStore((state) => state.registration);
   const profile = getBusinessProfile(registration);
+  // Bank details and terms live only on the server, so the preview reads
+  // them rather than printing a footer the generated PDF will not match.
+  const [business, setBusiness] = useState<BusinessProfileResponse | null>(null);
 
   const customer = useInvoiceStore((state) => state.customer);
   const placeOfSupply = useInvoiceStore((state) => state.placeOfSupply);
@@ -76,6 +80,9 @@ export default function InvoiceSheetScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    void fetchBusinessProfile().then((fresh) => {
+      if (!cancelled && fresh) setBusiness(fresh);
+    });
     apiFetchNextInvoiceNumber()
       .then((next) => {
         if (!cancelled && next) setInvoiceNumber(next);
@@ -86,6 +93,15 @@ export default function InvoiceSheetScreen() {
     };
   }, []);
 
+  const totalUnits = useMemo(
+    () =>
+      lineItemRows
+        .filter((row) => /^(g|gm|gms|gram|grams)\.?$/i.test(row.qtyUnit.trim()))
+        .reduce((sum, row) => sum + row.qty, 0)
+        .toFixed(3),
+    [lineItemRows],
+  );
+
   const sheetData: InvoiceSheetData = useMemo(
     () => ({
       companyName: profile.businessName || 'Your Business',
@@ -95,16 +111,22 @@ export default function InvoiceSheetScreen() {
       invoiceDate: generated?.invoiceDate ?? todayStamp(),
       placeOfSupply,
       reverseCharge: 'N',
+      transport,
       customerName: customer.customerName,
       customerAddress: customer.customerAddress,
       customerGstinOrPan: customer.customerGstin || customer.customerPan,
+      totalUnits,
+      bankName: business?.bankName,
+      bankBranch: business?.bankBranch,
+      bankAccountNumber: business?.bankAccountNumber,
+      bankIfsc: business?.bankIfsc,
       lineItems: lineItemRows,
       subtotal,
       gstRate,
       gstAmount,
       grandTotal,
       amountInWords: grandTotalWords,
-      terms: DEFAULT_TERMS,
+      terms: business?.invoiceTerms?.length ? business.invoiceTerms : DEFAULT_TERMS,
     }),
     [
       profile,
@@ -118,6 +140,9 @@ export default function InvoiceSheetScreen() {
       gstAmount,
       grandTotal,
       grandTotalWords,
+      transport,
+      totalUnits,
+      business,
     ],
   );
 
