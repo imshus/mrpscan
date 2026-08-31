@@ -8,7 +8,8 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
-import { getBusinessProfile, formatProfileValue } from '@/utils/businessProfile';
+import { formatProfileValue } from '@/utils/businessProfile';
+import { useBusinessProfile } from '@/hooks/useBusinessProfile';
 
 interface DetailRowProps {
   label: string;
@@ -33,7 +34,9 @@ function DetailRow({ label, value, multiline, last }: DetailRowProps) {
 
 export default function BusinessProfileScreen() {
   const registration = useAuthStore((s) => s.registration);
-  const profile = getBusinessProfile(registration);
+  // Reads the business identity from the database, falling back to the copy
+  // cached at login while that request is in flight.
+  const profile = useBusinessProfile();
 
   return (
     <SafeAreaView style={screenStyles.safeArea} edges={['top']}>

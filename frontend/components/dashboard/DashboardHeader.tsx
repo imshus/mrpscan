@@ -3,9 +3,13 @@ import { useRouter, type Href } from 'expo-router';
 import { Heart, Menu } from 'lucide-react-native';
 
 import { Colors, Fonts, Spacing } from '@/constants/theme';
+import { useBusinessProfile } from '@/hooks/useBusinessProfile';
+import { formatProfileValue } from '@/utils/businessProfile';
 
 export function DashboardHeader() {
   const router = useRouter();
+  // The signed-in business, read from the database rather than hard-coded.
+  const profile = useBusinessProfile();
 
   return (
     <View style={styles.header}>
@@ -17,7 +21,9 @@ export function DashboardHeader() {
         <Menu size={18} color={Colors.textPrimary} />
       </Pressable>
 
-      <Text style={styles.brandTitle}>Pratham International</Text>
+      <Text style={styles.brandTitle} numberOfLines={1}>
+        {formatProfileValue(profile.businessName, 'Your Business')}
+      </Text>
 
       <Pressable
         style={styles.wishlistBtn}
