@@ -420,24 +420,32 @@ export function ReviewScannedResultsModal({
           </Text>
         ) : null}
         <View style={styles.inlineActions}>
-          <PillButton variant="rescan" title="ReScan" onPress={onReScan} />
+          {/* ReScan and Add to Wishlist share a row; the primary action sits
+              underneath at full width so it reads as the main step. */}
           <View style={styles.footerRow}>
-          <PillButton
-            variant="alt"
-            title={
-              hasAddedToWishlist ? 'Item Added' : addingToWishlist ? 'Adding...' : '♡ Add to Wishlist'
-            }
-            onPress={onAddToWishlist}
-            disabled={hasAddedToWishlist || addingToWishlist}
-            style={styles.footerBtn}
-          />
+            <PillButton
+              variant="rescan"
+              title="ReScan"
+              onPress={onReScan}
+              style={styles.footerBtn}
+            />
+            <PillButton
+              variant="alt"
+              title={
+                hasAddedToWishlist ? 'Item Added' : addingToWishlist ? 'Adding...' : '♡ Add to Wishlist'
+              }
+              onPress={onAddToWishlist}
+              disabled={hasAddedToWishlist || addingToWishlist}
+              style={styles.footerBtn}
+            />
+          </View>
           <PillButton
             variant="brand"
             title="Generate Invoice"
             onPress={onGenerateInvoice}
-            style={styles.footerBtn}
+            large
+            style={styles.primaryAction}
           />
-        </View>
         </View>
       </ScrollView>
     </FloatingCard>
@@ -491,5 +499,11 @@ const styles = StyleSheet.create({
   },
   footerBtn: {
     flex: 1,
+  },
+  // Full width and taller than the pair above it, so Generate Invoice reads as
+  // the primary step rather than a third equal option.
+  primaryAction: {
+    width: '100%',
+    marginTop: 4,
   },
 });

@@ -84,9 +84,11 @@ interface PillButtonProps {
   disabled?: boolean;
   icon?: ReactNode;
   style?: StyleProp<ViewStyle>;
+  /** Taller pill with bigger type, for a screen's primary action. */
+  large?: boolean;
 }
 
-export function PillButton({ title, onPress, variant, disabled, icon, style }: PillButtonProps) {
+export function PillButton({ title, onPress, variant, disabled, icon, style, large }: PillButtonProps) {
   const label = (
     <Text
       style={[
@@ -94,6 +96,7 @@ export function PillButton({ title, onPress, variant, disabled, icon, style }: P
         variant === 'rescan' && styles.pillTextRescan,
         variant === 'alt' && styles.pillTextAlt,
         variant === 'brand' && styles.pillTextBrand,
+        large && styles.pillTextLarge,
       ]}
     >
       {title}
@@ -108,7 +111,7 @@ export function PillButton({ title, onPress, variant, disabled, icon, style }: P
         style={[style, disabled && styles.pillDisabled]}
       >
         <GradientView colors={Gradients.brand} borderRadius={Radius.button}>
-          <View style={styles.pillInner}>
+          <View style={[styles.pillInner, large && styles.pillInnerLarge]}>
             {icon}
             {label}
           </View>
@@ -123,6 +126,7 @@ export function PillButton({ title, onPress, variant, disabled, icon, style }: P
       disabled={disabled}
       style={[
         styles.pillInner,
+        large && styles.pillInnerLarge,
         styles.pillAltBg,
         variant === 'rescan' && styles.pillRescan,
         style,
@@ -425,6 +429,12 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     backgroundColor: Colors.white,
+  },
+  pillInnerLarge: {
+    height: 58,
+  },
+  pillTextLarge: {
+    fontSize: 16,
   },
   pillInner: {
     height: 46,
