@@ -9,6 +9,7 @@ import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
+import { useBhawRates } from '@/hooks/useBhawRates';
 import { useRequireMarketRatesAccess } from '@/hooks/useMarketRatesAccess';
 import { useGetGoldRatesQuery, useUpdateGoldTaxSettingsMutation } from '@/store/goldRatesApi';
 import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
@@ -54,9 +55,17 @@ export default function GoldRateSettingsScreen() {
   const rtgsChange = goldData?.taxSettings?.rtgsChangeBy ?? 0;
   const cashChange = goldData?.taxSettings?.cashChangeBy ?? 0;
 
-  const bhawSource = goldData?.bhawSource;
-  const formatBhaw = (value: number) =>
-    `${value < 0 ? '−' : '+'}${Math.abs(Math.round(value)).toLocaleString('en-IN')}`;
+  const mcxFinalRate = goldData?.taxSettings?.mcxFinalRate ?? mcxLiveRate + mcxChangeBy;
+
+  // Live bhaw for the selected provider, applied to the MCX rate.
+  const bhaw = useBhawRates({
+    mcxBaseRate: mcxFinalRate,
+    businessCashChange: cashChange,
+    businessRtgsChange: rtgsChange,
+    fallbackCashBhaw: supremeCashChange,
+    fallbackRtgsBhaw: supremeRtgsChange,
+  });
+
 
   const isSaving = isUpdatingTaxSettings;
   const showLoading = isGoldLoading && !goldData;
@@ -95,29 +104,6 @@ export default function GoldRateSettingsScreen() {
         <PageHeader title="Gold Rate Settings" />
 
         <View style={screenStyles.screenSection}>
-          {bhawSource ? (
-            <View style={styles.bhawCard}>
-              <View style={styles.bhawHeader}>
-                <Text style={styles.bhawTitle}>{bhawSource.name}</Text>
-                <Text style={styles.bhawTag}>
-                  {bhawSource.live ? 'Live bhaw' : 'Feed unavailable'}
-                </Text>
-              </View>
-              <Text style={styles.bhawHint}>
-                Selected in Dashboard Settings. These rates use this vendor&apos;s bhaw.
-              </Text>
-              <View style={styles.bhawRow}>
-                <Text style={styles.bhawLabel}>Cash</Text>
-                <Text style={styles.bhawValue}>{formatBhaw(supremeCashChange)}</Text>
-              </View>
-              <View style={styles.bhawDivider} />
-              <View style={styles.bhawRow}>
-                <Text style={styles.bhawLabel}>RTGS</Text>
-                <Text style={styles.bhawValue}>{formatBhaw(supremeRtgsChange)}</Text>
-              </View>
-            </View>
-          ) : null}
-
           {showLoading ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator size="large" color={Colors.primary} />
@@ -133,10 +119,13 @@ export default function GoldRateSettingsScreen() {
                 visible
                 mcxLiveRate={mcxLiveRate}
                 mcxChange={mcxChangeBy}
-                supremeRtgsChange={supremeRtgsChange}
-                supremeCashChange={supremeCashChange}
+                supremeRtgsChange={bhaw.rtgsBhaw}
+                supremeCashChange={bhaw.cashBhaw}
                 rtgsChange={rtgsChange}
                 cashChange={cashChange}
+                bhawSourceName={bhaw.vendorName}
+                bhawRtgs={bhaw.rtgsBhaw}
+                bhawCash={bhaw.cashBhaw}
                 onApply={handleApplyTaxSettings}
                 showTitle={false}
                 showClose={false}
@@ -161,59 +150,6 @@ export default function GoldRateSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  bhawCard: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.card,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: Spacing.md,
-  },
-  bhawHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  bhawTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: Colors.textPrimary,
-  },
-  bhawTag: {
-    fontSize: 10.5,
-    fontWeight: "700",
-    color: Colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  bhawHint: {
-    marginTop: 4,
-    marginBottom: 10,
-    fontSize: 11.5,
-    color: Colors.textMuted,
-    lineHeight: 16,
-  },
-  bhawRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-  },
-  bhawLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-  },
-  bhawValue: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: Colors.textPrimary,
-  },
-  bhawDivider: {
-    height: 1,
-    backgroundColor: Colors.border,
-  },
   loadingWrap: { paddingVertical: 48, alignItems: 'center', gap: Spacing.md },
   loadingText: { fontSize: 14, color: Colors.textMuted },
   settingsCard: {

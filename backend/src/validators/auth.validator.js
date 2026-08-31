@@ -8,17 +8,10 @@ const userIdSchema = Joi.string()
   .min(3)
   .max(30)
   .pattern(USER_ID_PATTERN)
-  .custom((value, helpers) => {
-    // Login resolves a 10-digit entry as a phone number first, so a User ID of
-    // that shape could never sign its owner in.
-    if (/^[0-9]{10}$/.test(value)) return helpers.error('userId.phoneShape');
-    return value;
-  })
   .messages({
     'string.min': 'User ID must be at least 3 characters',
     'string.max': 'User ID must be 30 characters or fewer',
     'string.pattern.base': 'User ID can only contain letters, numbers, dots, underscores, and hyphens',
-    'userId.phoneShape': 'User ID cannot be a 10-digit phone number',
   });
 
 const gstVerifySchema = Joi.object({
@@ -87,11 +80,13 @@ const registerSchema = Joi.object({
   }).required(),
 });
 
+// Business sign-in takes a User ID only; the field keeps its legacy `mobile`
+// name so existing clients keep working.
 const loginSchema = Joi.object({
-  mobile: Joi.alternatives().try(
-    Joi.string().pattern(/^[0-9]{10}$/),
-    userIdSchema,
-  ).required(),
+  mobile: userIdSchema.required().messages({
+    'any.required': 'User ID is required',
+    'string.empty': 'User ID is required',
+  }),
   password: Joi.string().required()
 });
 

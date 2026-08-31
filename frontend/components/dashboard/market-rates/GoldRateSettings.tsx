@@ -219,6 +219,10 @@ interface GoldRateSettingsPanelProps {
   supremeCashChange: number;
   rtgsChange: number;
   cashChange: number;
+  /** Provider whose bhaw sets the RTGS/Cash base, e.g. "JMD Patil". */
+  bhawSourceName?: string;
+  bhawRtgs?: number;
+  bhawCash?: number;
   showTitle?: boolean;
   showClose?: boolean;
   onClose?: () => void;
@@ -233,6 +237,9 @@ export function GoldRateSettingsPanel({
   supremeCashChange,
   rtgsChange,
   cashChange,
+  bhawSourceName,
+  bhawRtgs,
+  bhawCash,
   showTitle = true,
   showClose = false,
   onClose,
@@ -270,6 +277,15 @@ export function GoldRateSettingsPanel({
     setCashSign(cashForm.sign);
     setCashAmount(cashForm.amount);
   }, [visible, mcxChange, rtgsChange, cashChange]);
+
+  const signed = (value?: number) =>
+    value === undefined || !Number.isFinite(value)
+      ? ''
+      : `${value < 0 ? '−' : '+'}${Math.abs(Math.round(value)).toLocaleString('en-IN')}`;
+  const bhawNote = (value?: number) =>
+    bhawSourceName && signed(value)
+      ? `Includes ${bhawSourceName} bhaw ${signed(value)}`
+      : '';
 
   const mcxDraftChange = useMemo(() => signedValue(mcxSign, mcxAmount), [mcxSign, mcxAmount]);
   const rtgsDraftChange = useMemo(() => signedValue(rtgsSign, rtgsAmount), [rtgsSign, rtgsAmount]);
@@ -363,7 +379,7 @@ export function GoldRateSettingsPanel({
 
         <RateCard
           title="RTGS Rate"
-          subtitle=""
+          subtitle={bhawNote(bhawRtgs)}
           icon={null}
           sign={rtgsSign}
           amount={rtgsAmount}
@@ -378,7 +394,7 @@ export function GoldRateSettingsPanel({
 
         <RateCard
           title="Cash Rate"
-          subtitle=""
+          subtitle={bhawNote(bhawCash)}
           icon={null}
           sign={cashSign}
           amount={cashAmount}
@@ -438,6 +454,10 @@ interface GoldRateSettingsModalProps {
   supremeCashChange: number;
   rtgsChange: number;
   cashChange: number;
+  /** Provider whose bhaw sets the RTGS/Cash base, e.g. "JMD Patil". */
+  bhawSourceName?: string;
+  bhawRtgs?: number;
+  bhawCash?: number;
   onClose: () => void;
   onApply: (mcxChangeBy: number, rtgsChangeBy: number, cashChangeBy: number) => Promise<void>;
 }
@@ -450,6 +470,9 @@ export function GoldRateSettingsModal({
   supremeCashChange,
   rtgsChange,
   cashChange,
+  bhawSourceName,
+  bhawRtgs,
+  bhawCash,
   onClose,
   onApply,
 }: GoldRateSettingsModalProps) {
@@ -467,6 +490,9 @@ export function GoldRateSettingsModal({
             supremeCashChange={supremeCashChange}
             rtgsChange={rtgsChange}
             cashChange={cashChange}
+            bhawSourceName={bhawSourceName}
+            bhawRtgs={bhawRtgs}
+            bhawCash={bhawCash}
             onClose={onClose}
             onApply={onApply}
             showClose

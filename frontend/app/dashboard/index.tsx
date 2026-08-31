@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { useBhawRates } from '@/hooks/useBhawRates';
 import {
   ActivityIndicator,
   Alert,
@@ -96,7 +98,6 @@ export default function DashboardScreen() {
   const [goldRates, setGoldRates] = useState<GoldRate[]>([]);
   const [goldTaxSettings, setGoldTaxSettings] = useState<TaxSettings | undefined>();
   const [supremeChanges, setSupremeChanges] = useState<SupremeChanges | undefined>();
-  const [bhawSource, setBhawSource] = useState<{ key: string; name: string; live: boolean } | undefined>();
   const [subscriptionOverview, setSubscriptionOverview] = useState<SubscriptionOverview | null>(null);
   const [trialActionLoading, setTrialActionLoading] = useState(false);
   const { employee, userRole: settingsUserRole } = useSettingsAccess();
@@ -118,24 +119,25 @@ export default function DashboardScreen() {
       resolveMcxChangeValue(goldTaxSettings?.mcxChange);
     return goldTaxSettings?.mcxFinalRate ?? live + mcxChangeBy;
   }, [goldTaxSettings?.mcxChange, goldTaxSettings?.mcxChangeBy, goldTaxSettings?.mcxFinalRate, mcxLiveRate]);
+  // Cash/RTGS come from the bhaw provider selected in Dashboard Settings,
+  // applied to the MCX rate. The server's supremeChanges are the fallback for
+  // when the live feed cannot be reached.
+  const bhaw = useBhawRates({
+    mcxBaseRate: mcxFinalRate ?? 0,
+    businessCashChange: goldTaxSettings?.cashChangeBy ?? 0,
+    businessRtgsChange: goldTaxSettings?.rtgsChangeBy ?? 0,
+    fallbackCashBhaw: supremeChanges?.cashChange ?? 0,
+    fallbackRtgsBhaw: supremeChanges?.rtgsChange ?? 0,
+  });
+
   const rtgsFinalRate = useMemo(() => {
     if (mcxLiveRate == null) return goldTaxSettings?.rtgsFinalRate ?? 0;
-    const supremeRtgsBase =
-      supremeChanges?.supremeRtgs ??
-      mcxLiveRate + (supremeChanges?.rtgsChange ?? 0);
-    const supremeRtgsChange = supremeRtgsBase - mcxLiveRate;
-    const rtgsCurrentRate = (mcxFinalRate ?? 0) + supremeRtgsChange;
-    return rtgsCurrentRate + (goldTaxSettings?.rtgsChangeBy ?? 0);
-  }, [goldTaxSettings?.rtgsChangeBy, goldTaxSettings?.rtgsFinalRate, mcxFinalRate, mcxLiveRate, supremeChanges]);
+    return bhaw.rtgsRate;
+  }, [bhaw.rtgsRate, goldTaxSettings?.rtgsFinalRate, mcxLiveRate]);
   const cashFinalRate = useMemo(() => {
     if (mcxLiveRate == null) return goldTaxSettings?.cashFinalRate ?? 0;
-    const supremeCashBase =
-      supremeChanges?.supremeCash ??
-      mcxLiveRate + (supremeChanges?.cashChange ?? 0);
-    const supremeCashChange = supremeCashBase - mcxLiveRate;
-    const cashCurrentRate = (mcxFinalRate ?? 0) + supremeCashChange;
-    return cashCurrentRate + (goldTaxSettings?.cashChangeBy ?? 0);
-  }, [goldTaxSettings?.cashChangeBy, goldTaxSettings?.cashFinalRate, mcxFinalRate, mcxLiveRate, supremeChanges]);
+    return bhaw.cashRate;
+  }, [bhaw.cashRate, goldTaxSettings?.cashFinalRate, mcxLiveRate]);
   const twentyFourKRate = useMemo(() => {
     const matched = sortedGoldRates.find((rate) => {
       const carat = rate.carat.toLowerCase();
@@ -175,7 +177,6 @@ export default function DashboardScreen() {
       setGoldRates(gold.rates);
       setGoldTaxSettings(gold.taxSettings);
       setSupremeChanges(gold.supremeChanges);
-      setBhawSource(gold.bhawSource);
       setSubscriptionOverview(subscription);
     } catch (error) {
       if (authUserRole === 'business') {
@@ -331,35 +332,6 @@ export default function DashboardScreen() {
                 </View>
               ) : null}
 
-              {bhawSource ? (
-                <GradientView
-                  colors={Gradients.metallic}
-                  borderRadius={14}
-                  sheen={0.55}
-                  topHighlight={0.6}
-                  style={styles.bhawCard}
-                >
-                  <View style={styles.bhawLeft}>
-                    <Text style={styles.mcxTopLabel}>Bhaw</Text>
-                    <Text style={styles.bhawSourceName}>{bhawSource.name}</Text>
-                  </View>
-                  <View style={styles.bhawValues}>
-                    <View style={styles.bhawItem}>
-                      <Text style={styles.bhawItemLabel}>Cash</Text>
-                      <Text style={styles.bhawItemValue}>
-                        {formatBhawChange(supremeChanges?.cashChange)}
-                      </Text>
-                    </View>
-                    <View style={styles.bhawItem}>
-                      <Text style={styles.bhawItemLabel}>RTGS</Text>
-                      <Text style={styles.bhawItemValue}>
-                        {formatBhawChange(supremeChanges?.rtgsChange)}
-                      </Text>
-                    </View>
-                  </View>
-                </GradientView>
-              ) : null}
-
               {sortedGoldRates.length > 0 ? (
                 sortedGoldRates
                   .filter((rate) => {
@@ -413,13 +385,6 @@ export default function DashboardScreen() {
       <BottomNav activeRoute="home" />
     </SafeAreaView>
   );
-}
-
-/** Signed bhaw premium/discount, or an em-dash when the feed has no value. */
-function formatBhawChange(value: number | undefined): string {
-  if (value === undefined || !Number.isFinite(value)) return '—';
-  const rounded = Math.round(value);
-  return `${rounded < 0 ? '−' : '+'}${Math.abs(rounded).toLocaleString('en-IN')}`;
 }
 
 function formatPurityLabel(purity: number): string {
@@ -524,42 +489,6 @@ const styles = StyleSheet.create({
   },
   mcxTopValue: {
     fontSize: 18.4,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  bhawCard: {
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    elevation: 4,
-  },
-  bhawLeft: {
-    gap: 3,
-  },
-  bhawSourceName: {
-    fontSize: 11.2,
-    fontWeight: '700',
-    color: Colors.textMuted,
-  },
-  bhawValues: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  bhawItem: {
-    alignItems: 'flex-end',
-    gap: 1,
-  },
-  bhawItemLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: Colors.textMuted,
-  },
-  bhawItemValue: {
-    fontSize: 15.2,
     fontWeight: '800',
     color: Colors.textPrimary,
   },

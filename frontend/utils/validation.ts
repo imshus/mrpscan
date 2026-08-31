@@ -38,12 +38,7 @@ const userIdSchema = z
   .regex(
     USER_ID_REGEX,
     'User ID can only contain letters, numbers, dots, underscores, and hyphens',
-  )
-  // Login resolves a 10-digit entry as a phone number first, so a User ID of
-  // that shape could never sign its owner in.
-  .refine((value) => !/^[0-9]{10}$/.test(value), {
-    message: 'User ID cannot be a 10-digit phone number',
-  });
+  );
 
 const confirmPasswordSchema = z
   .string()
