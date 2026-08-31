@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { useBhawRates } from '@/hooks/useBhawRates';
 import {
   ActivityIndicator,
   Alert,
@@ -118,24 +120,25 @@ export default function DashboardScreen() {
       resolveMcxChangeValue(goldTaxSettings?.mcxChange);
     return goldTaxSettings?.mcxFinalRate ?? live + mcxChangeBy;
   }, [goldTaxSettings?.mcxChange, goldTaxSettings?.mcxChangeBy, goldTaxSettings?.mcxFinalRate, mcxLiveRate]);
+  // Cash/RTGS come from the bhaw provider selected in Dashboard Settings,
+  // applied to the MCX rate. The server's supremeChanges are the fallback for
+  // when the live feed cannot be reached.
+  const bhaw = useBhawRates({
+    mcxBaseRate: mcxFinalRate ?? 0,
+    businessCashChange: goldTaxSettings?.cashChangeBy ?? 0,
+    businessRtgsChange: goldTaxSettings?.rtgsChangeBy ?? 0,
+    fallbackCashBhaw: supremeChanges?.cashChange ?? 0,
+    fallbackRtgsBhaw: supremeChanges?.rtgsChange ?? 0,
+  });
+
   const rtgsFinalRate = useMemo(() => {
     if (mcxLiveRate == null) return goldTaxSettings?.rtgsFinalRate ?? 0;
-    const supremeRtgsBase =
-      supremeChanges?.supremeRtgs ??
-      mcxLiveRate + (supremeChanges?.rtgsChange ?? 0);
-    const supremeRtgsChange = supremeRtgsBase - mcxLiveRate;
-    const rtgsCurrentRate = (mcxFinalRate ?? 0) + supremeRtgsChange;
-    return rtgsCurrentRate + (goldTaxSettings?.rtgsChangeBy ?? 0);
-  }, [goldTaxSettings?.rtgsChangeBy, goldTaxSettings?.rtgsFinalRate, mcxFinalRate, mcxLiveRate, supremeChanges]);
+    return bhaw.rtgsRate;
+  }, [bhaw.rtgsRate, goldTaxSettings?.rtgsFinalRate, mcxLiveRate]);
   const cashFinalRate = useMemo(() => {
     if (mcxLiveRate == null) return goldTaxSettings?.cashFinalRate ?? 0;
-    const supremeCashBase =
-      supremeChanges?.supremeCash ??
-      mcxLiveRate + (supremeChanges?.cashChange ?? 0);
-    const supremeCashChange = supremeCashBase - mcxLiveRate;
-    const cashCurrentRate = (mcxFinalRate ?? 0) + supremeCashChange;
-    return cashCurrentRate + (goldTaxSettings?.cashChangeBy ?? 0);
-  }, [goldTaxSettings?.cashChangeBy, goldTaxSettings?.cashFinalRate, mcxFinalRate, mcxLiveRate, supremeChanges]);
+    return bhaw.cashRate;
+  }, [bhaw.cashRate, goldTaxSettings?.cashFinalRate, mcxLiveRate]);
   const twentyFourKRate = useMemo(() => {
     const matched = sortedGoldRates.find((rate) => {
       const carat = rate.carat.toLowerCase();
@@ -331,7 +334,7 @@ export default function DashboardScreen() {
                 </View>
               ) : null}
 
-              {bhawSource ? (
+              {bhaw.isLive || bhawSource ? (
                 <GradientView
                   colors={Gradients.metallic}
                   borderRadius={14}
@@ -341,19 +344,19 @@ export default function DashboardScreen() {
                 >
                   <View style={styles.bhawLeft}>
                     <Text style={styles.mcxTopLabel}>Bhaw</Text>
-                    <Text style={styles.bhawSourceName}>{bhawSource.name}</Text>
+                    <Text style={styles.bhawSourceName}>{bhaw.vendorName}</Text>
                   </View>
                   <View style={styles.bhawValues}>
                     <View style={styles.bhawItem}>
                       <Text style={styles.bhawItemLabel}>Cash</Text>
                       <Text style={styles.bhawItemValue}>
-                        {formatBhawChange(supremeChanges?.cashChange)}
+                        {formatBhawChange(bhaw.cashBhaw)}
                       </Text>
                     </View>
                     <View style={styles.bhawItem}>
                       <Text style={styles.bhawItemLabel}>RTGS</Text>
                       <Text style={styles.bhawItemValue}>
-                        {formatBhawChange(supremeChanges?.rtgsChange)}
+                        {formatBhawChange(bhaw.rtgsBhaw)}
                       </Text>
                     </View>
                   </View>
