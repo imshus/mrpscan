@@ -25,11 +25,13 @@ import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { loginBusiness } from '@/utils/authApi';
 
-/** The mockup's User ID is the registered mobile number — normalize digits when it looks like one. */
+/**
+ * Sign-in is by User ID only, so the value is used exactly as typed. It is
+ * never reinterpreted as a phone number: a User ID made of digits belongs to
+ * whoever registered it.
+ */
 function toLoginId(raw: string): string {
-  const trimmed = raw.trim();
-  const digits = trimmed.replace(/\D/g, '');
-  return digits.length === 10 ? digits : trimmed;
+  return raw.trim();
 }
 
 export default function BusinessLoginScreen() {
@@ -94,7 +96,11 @@ export default function BusinessLoginScreen() {
         gstNumber: payload.gstNumber || '',
         businessType: payload.businessType || '',
         address: payload.address || '',
-        phone: payload.phone || loginId,
+        // Only ever the real phone number. Falling back to the login ID here
+        // stored a User ID in the phone field, which then surfaced anywhere
+        // the app shows the user's number.
+        phone: payload.phone || '',
+        userId: payload.loginId || loginId,
       });
 
       if (rememberMe) {

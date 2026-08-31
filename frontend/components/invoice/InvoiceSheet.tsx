@@ -20,9 +20,28 @@ export interface InvoiceSheetData {
   invoiceDate: string;
   placeOfSupply: string;
   reverseCharge: string;
+  /** Consignment block, as on the printed invoice. */
+  grRrNumber?: string;
+  transport?: string;
+  vehicleNumber?: string;
+  station?: string;
   customerName: string;
   customerAddress: string;
   customerGstinOrPan: string;
+  /** Shipped-to falls back to the billed-to party when not supplied. */
+  shippedToName?: string;
+  shippedToAddress?: string;
+  shippedToGstinOrPan?: string;
+  /** Government e-invoice reference; the band hides when irn is blank. */
+  irn?: string;
+  ackNumber?: string;
+  ackDate?: string;
+  /** Metal weight in grams, printed beside the grand total. */
+  totalUnits?: string;
+  bankName?: string;
+  bankBranch?: string;
+  bankAccountNumber?: string;
+  bankIfsc?: string;
   lineItems: InvoiceLineItemRow[];
   subtotal: number;
   gstRate: number;
@@ -110,17 +129,67 @@ export function InvoiceSheet({ data }: { data: InvoiceSheetData }) {
         </View>
       </View>
 
-      {/* Billed To */}
-      <View style={styles.block}>
-        <Text style={styles.blockLabel}>Billed To</Text>
-        <Text style={styles.billedName}>{data.customerName || '—'}</Text>
-        {data.customerAddress ? (
-          <Text style={styles.billedLine}>{data.customerAddress}</Text>
-        ) : null}
-        <Text style={styles.billedLine}>
-          GSTIN/Pan: {data.customerGstinOrPan || '—'}
-        </Text>
+      {/* Consignment */}
+      <View style={styles.metaRow}>
+        <View style={[styles.metaCol, styles.metaColDivider]}>
+          <View style={styles.metaItem}>
+            <Text style={styles.metaKey}>GR/RR No.</Text>
+            <Text style={styles.metaValue}>{data.grRrNumber || '—'}</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Text style={styles.metaKey}>Transport</Text>
+            <Text style={styles.metaValue}>{data.transport || '—'}</Text>
+          </View>
+        </View>
+        <View style={styles.metaCol}>
+          <View style={styles.metaItem}>
+            <Text style={styles.metaKey}>Vehicle No.</Text>
+            <Text style={styles.metaValue}>{data.vehicleNumber || '—'}</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Text style={styles.metaKey}>Station</Text>
+            <Text style={styles.metaValue}>{data.station || '—'}</Text>
+          </View>
+        </View>
       </View>
+
+      {/* Billed To | Shipped To */}
+      <View style={styles.partyRow}>
+        <View style={[styles.partyCol, styles.metaColDivider]}>
+          <Text style={styles.blockLabel}>Billed To</Text>
+          <Text style={styles.billedName}>{data.customerName || '—'}</Text>
+          {data.customerAddress ? (
+            <Text style={styles.billedLine}>{data.customerAddress}</Text>
+          ) : null}
+          <Text style={styles.billedLine}>
+            GSTIN/Pan: {data.customerGstinOrPan || '—'}
+          </Text>
+        </View>
+        <View style={styles.partyCol}>
+          <Text style={styles.blockLabel}>Shipped To</Text>
+          <Text style={styles.billedName}>
+            {data.shippedToName || data.customerName || '—'}
+          </Text>
+          {data.shippedToAddress || data.customerAddress ? (
+            <Text style={styles.billedLine}>
+              {data.shippedToAddress || data.customerAddress}
+            </Text>
+          ) : null}
+          <Text style={styles.billedLine}>
+            GSTIN/Pan: {data.shippedToGstinOrPan || data.customerGstinOrPan || '—'}
+          </Text>
+        </View>
+      </View>
+
+      {/* e-Invoice reference */}
+      {data.irn ? (
+        <View style={styles.irnBand}>
+          <Text style={styles.irnText}>IRN : {data.irn}</Text>
+          <Text style={styles.irnText}>
+            Ack.No. : {data.ackNumber || '—'}     Ack.Date : {data.ackDate || '—'}
+          </Text>
+        </View>
+      ) : null}
 
       {/* Items table */}
       <View style={styles.tableHeader}>
@@ -182,12 +251,29 @@ export function InvoiceSheet({ data }: { data: InvoiceSheetData }) {
         </View>
         <View style={[styles.totalsRow, styles.grandRow]}>
           <Text style={styles.grandKey}>Grand Total</Text>
+          {data.totalUnits ? (
+            <Text style={styles.unitsText}>{data.totalUnits} Units</Text>
+          ) : null}
           <Text style={styles.grandValue}>₹ {inr(roundedTotal)}</Text>
         </View>
       </View>
 
       {/* Amount in words */}
       <Text style={styles.words}>{data.amountInWords}</Text>
+
+      {/* Bank details */}
+      {data.bankName ? (
+        <View style={styles.block}>
+          <Text style={styles.blockLabel}>Bank Details</Text>
+          <Text style={styles.billedLine}>
+            {data.bankName}
+            {data.bankBranch ? `, ${data.bankBranch}` : ''}
+          </Text>
+          <Text style={styles.billedLine}>
+            A/C No. {data.bankAccountNumber || '—'} · IFSC: {data.bankIfsc || '—'}
+          </Text>
+        </View>
+      ) : null}
 
       {/* Terms */}
       <View style={styles.block}>
@@ -199,10 +285,16 @@ export function InvoiceSheet({ data }: { data: InvoiceSheetData }) {
         ))}
       </View>
 
-      {/* Signature */}
+      {/* Signatures */}
       <View style={styles.signRow}>
-        <Text style={styles.signFor}>for {data.companyName}</Text>
-        <Text style={styles.signLabel}>Authorised Signatory</Text>
+        <View style={styles.signCol}>
+          <Text style={styles.eoe}>E. &amp; O.E.</Text>
+          <Text style={styles.signLabel}>Receiver&apos;s Signature</Text>
+        </View>
+        <View style={styles.signColRight}>
+          <Text style={styles.signFor}>for {data.companyName}</Text>
+          <Text style={styles.signLabel}>Authorised Signatory</Text>
+        </View>
       </View>
     </View>
   );
@@ -245,6 +337,20 @@ const styles = StyleSheet.create({
   companyName: { fontSize: 17, fontWeight: '800', color: '#000' },
   companyAddress: { fontSize: 9.5, color: '#333', textAlign: 'center', lineHeight: 13 },
   metaRow: { flexDirection: 'row', borderBottomWidth: 1, borderColor: BORDER },
+  partyRow: { flexDirection: 'row', borderBottomWidth: 1, borderColor: BORDER },
+  partyCol: { flex: 1, gap: 2, paddingHorizontal: 10, paddingVertical: 8 },
+  irnBand: {
+    gap: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderColor: BORDER,
+  },
+  irnText: { fontSize: 8, color: '#222' },
+  unitsText: { fontSize: 10.5, color: '#222' },
+  signCol: { flex: 1, gap: 2 },
+  signColRight: { flex: 1, alignItems: 'flex-end', gap: 2 },
+  eoe: { fontSize: 8, color: '#333' },
   metaCol: { flex: 1, gap: 4, paddingHorizontal: 10, paddingVertical: 7 },
   metaColDivider: { borderRightWidth: 1, borderColor: BORDER },
   metaItem: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
@@ -324,7 +430,7 @@ const styles = StyleSheet.create({
   signRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
     paddingHorizontal: 10,
     paddingTop: 26,
     paddingBottom: 10,

@@ -13,6 +13,7 @@ import { RefreshCw } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 import { useFormulaStore } from '@/store/formulaStore';
 import type { ScanItemData, StoneEntry, StructuredScanData } from '@/types/scanner';
+import { resolveItemIdentity } from '@/utils/itemIdentity';
 import { DIAMOND_SHAPE_OPTIONS, type StoneSelectOption } from '@/constants/stoneRateOptions';
 import { fetchDiamondRates, fetchGoldRates } from '@/utils/ratesApi';
 import type { GoldRate, TaxSettings } from '@/types/rates';
@@ -364,6 +365,8 @@ export function ReviewScannedResultsModal({
     });
   }, []);
 
+  const itemIdentity = resolveItemIdentity(scanData);
+
   return (
     <FloatingCard>
       <CardHeader
@@ -383,6 +386,22 @@ export function ReviewScannedResultsModal({
           amount={pricing.ultimateMrpDisplay}
           style={styles.mrpCard}
         />
+
+        {/* Mockup .fin-item-row — what was scanned, named and numbered. */}
+        <View style={styles.itemRow}>
+          <View style={styles.itemTile}>
+            <Text style={styles.itemTileLabel}>Item Name</Text>
+            <Text style={styles.itemTileValue} numberOfLines={1}>
+              {itemIdentity.name}
+            </Text>
+          </View>
+          <View style={styles.itemTile}>
+            <Text style={styles.itemTileLabel}>Item Number</Text>
+            <Text style={styles.itemTileValue} numberOfLines={1}>
+              {itemIdentity.number || '—'}
+            </Text>
+          </View>
+        </View>
       </CardHeader>
 
       {/* Scrollable review content */}
@@ -456,6 +475,26 @@ const styles = StyleSheet.create({
   mrpCard: {
     marginBottom: 0,
   },
+  itemRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  itemTile: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+    backgroundColor: Colors.backgroundAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  itemTileLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    color: Colors.textMuted,
+  },
+  itemTileValue: { fontSize: 13.5, fontWeight: '800', color: Colors.textPrimary },
   refreshBtn: {
     height: 32,
     width: 32,

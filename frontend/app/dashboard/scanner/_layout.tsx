@@ -22,7 +22,6 @@ export default function ScannerLayout() {
       <Stack.Screen name="formula-execution" />
       <Stack.Screen name="calculation-rules" />
       <Stack.Screen name="invoice-preview" />
-      <Stack.Screen name="print-invoice" />
     </Stack>
   );
 }

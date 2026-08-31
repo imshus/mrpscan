@@ -9,7 +9,7 @@ import {
   View,
   Pressable,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Minus, Plus, Search } from 'lucide-react-native';
 
 import { InvoiceSheet, type InvoiceSheetData } from '@/components/invoice/InvoiceSheet';
@@ -17,8 +17,11 @@ import { ScanScreenWrapper } from '@/components/scanner/ScanScreenWrapper';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useInvoiceStore } from '@/store/invoiceStore';
+import { useScannerStore } from '@/store/scannerStore';
 import { useInvoiceComputation } from '@/hooks/useInvoiceComputation';
 import { getBusinessProfile } from '@/utils/businessProfile';
+import { formatItemIdentity, resolveItemIdentity } from '@/utils/itemIdentity';
+import { fetchBusinessProfile, type BusinessProfileResponse } from '@/utils/businessProfileApi';
 import {
   apiFetchNextInvoiceNumber,
   apiGenerateInvoice,
@@ -44,11 +47,13 @@ function todayStamp(): string {
 
 /**
  * Invoice Preview — the tax invoice rendered natively before anything is
- * generated. Download produces the real PDF (this is the moment an invoice
- * number is consumed); Share on WhatsApp sends the durable invoice link.
+ * generated.
+ *
+ * Download generates the PDF (the moment an invoice number is consumed) and
+ * writes it into a folder the user chooses; Share on WhatsApp sends the
+ * durable invoice link instead.
  */
 export default function InvoiceSheetScreen() {
-  const router = useRouter();
   const [zoomIndex, setZoomIndex] = useState(1);
   const [invoiceNumber, setInvoiceNumber] = useState('—');
   const [working, setWorking] = useState<null | 'download' | 'share'>(null);
@@ -57,7 +62,11 @@ export default function InvoiceSheetScreen() {
 
   const registration = useAuthStore((state) => state.registration);
   const profile = getBusinessProfile(registration);
+  // Bank details and terms live only on the server, so the preview reads
+  // them rather than printing a footer the generated PDF will not match.
+  const [business, setBusiness] = useState<BusinessProfileResponse | null>(null);
 
+  const scanData = useScannerStore((state) => state.scanData);
   const customer = useInvoiceStore((state) => state.customer);
   const placeOfSupply = useInvoiceStore((state) => state.placeOfSupply);
   const transport = useInvoiceStore((state) => state.transport);
@@ -74,6 +83,9 @@ export default function InvoiceSheetScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    void fetchBusinessProfile().then((fresh) => {
+      if (!cancelled && fresh) setBusiness(fresh);
+    });
     apiFetchNextInvoiceNumber()
       .then((next) => {
         if (!cancelled && next) setInvoiceNumber(next);
@@ -84,6 +96,21 @@ export default function InvoiceSheetScreen() {
     };
   }, []);
 
+  // The scanned piece, so the invoice says which item it bills for.
+  const itemLabel = useMemo(
+    () => formatItemIdentity(resolveItemIdentity(scanData)),
+    [scanData],
+  );
+
+  const totalUnits = useMemo(
+    () =>
+      lineItemRows
+        .filter((row) => /^(g|gm|gms|gram|grams)\.?$/i.test(row.qtyUnit.trim()))
+        .reduce((sum, row) => sum + row.qty, 0)
+        .toFixed(3),
+    [lineItemRows],
+  );
+
   const sheetData: InvoiceSheetData = useMemo(
     () => ({
       companyName: profile.businessName || 'Your Business',
@@ -93,16 +120,24 @@ export default function InvoiceSheetScreen() {
       invoiceDate: generated?.invoiceDate ?? todayStamp(),
       placeOfSupply,
       reverseCharge: 'N',
+      transport,
       customerName: customer.customerName,
       customerAddress: customer.customerAddress,
       customerGstinOrPan: customer.customerGstin || customer.customerPan,
-      lineItems: lineItemRows,
+      totalUnits,
+      bankName: business?.bankName,
+      bankBranch: business?.bankBranch,
+      bankAccountNumber: business?.bankAccountNumber,
+      bankIfsc: business?.bankIfsc,
+      lineItems: lineItemRows.map((row, index) =>
+        index === 0 && itemLabel && !row.note ? { ...row, note: itemLabel } : row,
+      ),
       subtotal,
       gstRate,
       gstAmount,
       grandTotal,
       amountInWords: grandTotalWords,
-      terms: DEFAULT_TERMS,
+      terms: business?.invoiceTerms?.length ? business.invoiceTerms : DEFAULT_TERMS,
     }),
     [
       profile,
@@ -116,6 +151,10 @@ export default function InvoiceSheetScreen() {
       gstAmount,
       grandTotal,
       grandTotalWords,
+      transport,
+      totalUnits,
+      itemLabel,
+      business,
     ],
   );
 
@@ -161,22 +200,51 @@ export default function InvoiceSheetScreen() {
     return true;
   };
 
+  /**
+   * Generates the invoice and writes the PDF into a folder the user picks, so
+   * it lands in their own storage rather than reopening the document on screen.
+   */
   const handleDownload = async () => {
     if (!guardTotals() || working) return;
     setWorking('download');
     try {
       const result = await generateOnce();
-      router.push({
-        pathname: '/dashboard/scanner/print-invoice',
-        params: {
-          pdfUrl: resolveInvoicePdfUrl(result),
-          invoiceNumber: result.invoiceNumber,
-          invoiceDate: result.invoiceDate,
-        },
+      const fileName = `Invoice-${String(result.invoiceNumber).replace(/[^\w.-]+/g, '-')}.pdf`;
+
+      // Fetch into app storage first: a failed download must not leave an
+      // empty file sitting in the user's folder.
+      const cached = `${FileSystem.cacheDirectory ?? ''}${fileName}`;
+      const downloaded = await FileSystem.downloadAsync(resolveInvoicePdfUrl(result), cached);
+      if (downloaded.status !== 200) {
+        throw new Error(`Could not fetch the invoice (HTTP ${downloaded.status}).`);
+      }
+
+      const permission =
+        await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          'Saved in the app',
+          `${fileName} was downloaded but not copied out, because no folder was chosen. Tap Download again to pick one.`,
+        );
+        return;
+      }
+
+      const base64 = await FileSystem.readAsStringAsync(downloaded.uri, {
+        encoding: FileSystem.EncodingType.Base64,
       });
+      const target = await FileSystem.StorageAccessFramework.createFileAsync(
+        permission.directoryUri,
+        fileName,
+        'application/pdf',
+      );
+      await FileSystem.writeAsStringAsync(target, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      Alert.alert('Downloaded', `${fileName} has been saved to the folder you chose.`);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Invoice generation failed. Please try again.';
+        err instanceof Error ? err.message : 'Invoice download failed. Please try again.';
       Alert.alert('Error', message);
     } finally {
       setWorking(null);
