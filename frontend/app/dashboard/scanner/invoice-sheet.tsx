@@ -9,7 +9,7 @@ import {
   View,
   Pressable,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Minus, Plus, Search } from 'lucide-react-native';
 
 import { InvoiceSheet, type InvoiceSheetData } from '@/components/invoice/InvoiceSheet';
@@ -44,11 +44,13 @@ function todayStamp(): string {
 
 /**
  * Invoice Preview — the tax invoice rendered natively before anything is
- * generated. Download produces the real PDF (this is the moment an invoice
- * number is consumed); Share on WhatsApp sends the durable invoice link.
+ * generated.
+ *
+ * Download generates the PDF (the moment an invoice number is consumed) and
+ * writes it into a folder the user chooses; Share on WhatsApp sends the
+ * durable invoice link instead.
  */
 export default function InvoiceSheetScreen() {
-  const router = useRouter();
   const [zoomIndex, setZoomIndex] = useState(1);
   const [invoiceNumber, setInvoiceNumber] = useState('—');
   const [working, setWorking] = useState<null | 'download' | 'share'>(null);
@@ -161,22 +163,51 @@ export default function InvoiceSheetScreen() {
     return true;
   };
 
+  /**
+   * Generates the invoice and writes the PDF into a folder the user picks, so
+   * it lands in their own storage rather than reopening the document on screen.
+   */
   const handleDownload = async () => {
     if (!guardTotals() || working) return;
     setWorking('download');
     try {
       const result = await generateOnce();
-      router.push({
-        pathname: '/dashboard/scanner/print-invoice',
-        params: {
-          pdfUrl: resolveInvoicePdfUrl(result),
-          invoiceNumber: result.invoiceNumber,
-          invoiceDate: result.invoiceDate,
-        },
+      const fileName = `Invoice-${String(result.invoiceNumber).replace(/[^\w.-]+/g, '-')}.pdf`;
+
+      // Fetch into app storage first: a failed download must not leave an
+      // empty file sitting in the user's folder.
+      const cached = `${FileSystem.cacheDirectory ?? ''}${fileName}`;
+      const downloaded = await FileSystem.downloadAsync(resolveInvoicePdfUrl(result), cached);
+      if (downloaded.status !== 200) {
+        throw new Error(`Could not fetch the invoice (HTTP ${downloaded.status}).`);
+      }
+
+      const permission =
+        await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          'Saved in the app',
+          `${fileName} was downloaded but not copied out, because no folder was chosen. Tap Download again to pick one.`,
+        );
+        return;
+      }
+
+      const base64 = await FileSystem.readAsStringAsync(downloaded.uri, {
+        encoding: FileSystem.EncodingType.Base64,
       });
+      const target = await FileSystem.StorageAccessFramework.createFileAsync(
+        permission.directoryUri,
+        fileName,
+        'application/pdf',
+      );
+      await FileSystem.writeAsStringAsync(target, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      Alert.alert('Downloaded', `${fileName} has been saved to the folder you chose.`);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Invoice generation failed. Please try again.';
+        err instanceof Error ? err.message : 'Invoice download failed. Please try again.';
       Alert.alert('Error', message);
     } finally {
       setWorking(null);
