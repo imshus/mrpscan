@@ -40,3 +40,9 @@ frontend/ios/
 # Local Expo module build output
 frontend/modules/**/android/build/
 frontend/modules/**/android/.cxx/
+
+# Backups of the live PDFMonkey template, written by scripts/pushInvoiceTemplate.js
+backend/templates/backups/
+
+# The design mockup is its own git repo; not a submodule of this one.
+mrpscan-design-mockup/
