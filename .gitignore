@@ -40,3 +40,6 @@ frontend/ios/
 # Local Expo module build output
 frontend/modules/**/android/build/
 frontend/modules/**/android/.cxx/
+
+# Backups of the live PDFMonkey template, written by scripts/pushInvoiceTemplate.js
+backend/templates/backups/
