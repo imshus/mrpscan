@@ -367,7 +367,6 @@ export function ReviewScannedResultsModal({
   return (
     <FloatingCard>
       <CardHeader
-        title="Scanner Review Result"
         onBack={onBack}
         accessory={
           <Pressable
@@ -380,7 +379,7 @@ export function ReviewScannedResultsModal({
         }
       >
         <PriceCard
-          label="MRP Rate Amount"
+          label="MRP"
           amount={pricing.ultimateMrpDisplay}
           style={styles.mrpCard}
         />
@@ -480,6 +479,8 @@ const styles = StyleSheet.create({
   inlineActions: {
     gap: 8,
     marginTop: 16,
+    // Extra breathing room underneath lifts the actions clear of the bottom nav.
+    marginBottom: 28,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: Colors.border,

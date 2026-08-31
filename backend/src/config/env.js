@@ -35,8 +35,16 @@ const envVarsSchema = joi.object({
   MCX_POLL_INTERVAL_SECONDS: joi.number().integer().min(1).default(140),
   MAX_UPLOAD_MB: joi.number().min(5).max(200).default(80),
   OCR_MAX_EDGE_PX: joi.number().min(1000).max(8000).default(1800),
-  OCR_JPEG_QUALITY: joi.number().min(40).max(95).default(82)
-}).unknown();
+  OCR_JPEG_QUALITY: joi.number().min(40).max(95).default(82),
+  // Invoice PDF rendering; missing config previously surfaced only as a 502 at
+  // request time, so it is declared here to be visible at startup.
+  PDFMONKEY_API_SECRET: joi.string().allow('').default(''),
+  PDFMONKEY_TEMPLATE_ID: joi.string().allow('').default(''),
+  // Origin this API is reachable at from outside. The invoice QR code encodes
+  // a URL under it, so it must be the public address, not localhost.
+  PUBLIC_BASE_URL: joi.string().uri().default('https://amitaash.com')
+})
+  .unknown();
 
 const { value: envVars, error } = envVarsSchema.prefs({ errors: { label: 'key' } }).validate(process.env);
 
@@ -108,5 +116,6 @@ module.exports = {
   ocr: {
     maxEdgePx: envVars.OCR_MAX_EDGE_PX,
     jpegQuality: envVars.OCR_JPEG_QUALITY,
-  }
+  },
+  publicBaseUrl: String(envVars.PUBLIC_BASE_URL).replace(/\/+$/, ''),
 };

@@ -46,6 +46,8 @@ export interface GoldRatesResponse {
   rates: GoldRate[];
   taxSettings?: TaxSettings;
   supremeChanges?: SupremeChanges;
+  /** Which vendor feed supplied the cash/RTGS bhaw for these rates. */
+  bhawSource?: { key: string; name: string; live: boolean };
 }
 
 export interface UpdateGoldRatePayload {

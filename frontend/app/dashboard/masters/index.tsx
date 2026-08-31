@@ -7,16 +7,19 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useMarketRatesAccess } from '@/hooks/useMarketRatesAccess';
 import { useSettingsAccess } from '@/hooks/useSettingsAccess';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
-import { MASTER_SECTION_ITEMS } from '@/constants/settingsMasters';
+import { MASTER_RATES_ITEMS } from '@/constants/settingsMasters';
 import { screenStyles } from '@/constants/screenLayout';
 
 export default function MastersScreen() {
-  const { hasAnyAccess } = useMarketRatesAccess();
+  const access = useMarketRatesAccess();
   useSettingsAccess();
 
-  const visibleItems = MASTER_SECTION_ITEMS.filter(item => {
-    if (item.id === 'section-rates') return hasAnyAccess;
-    return true;
+  const visibleItems = MASTER_RATES_ITEMS.filter((item) => {
+    if (item.id === 'rates-gold') return access.canEditGold;
+    if (item.id === 'rates-diamond') return access.canEditDiamond;
+    if (item.id === 'rates-colorstone') return access.canEditColorstone;
+    if (item.id === 'rates-labour') return access.canEditLabour;
+    return false;
   });
 
   return (

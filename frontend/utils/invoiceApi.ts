@@ -4,6 +4,12 @@ export interface InvoiceLineItemPayload {
   description: string;
   note: string;
   qty: number;
+  /**
+   * Unit of measure for qty, printed in its own column on the invoice. Without
+   * it grams and carats appear as bare numbers in one unlabelled column, and
+   * the server cannot tell them apart to total the weight.
+   */
+  qty_unit: string;
   price: number;
   amount: number;
 }
@@ -14,6 +20,7 @@ export interface GenerateInvoicePayload {
   customer_phone: string;
   customer_email: string;
   customer_gstin: string;
+  customer_pan: string;
   place_of_supply: string;
   transport: string;
   line_items: InvoiceLineItemPayload[];
@@ -28,8 +35,23 @@ export interface GenerateInvoicePayload {
 export interface GenerateInvoiceResponse {
   invoiceNumber: string;
   invoiceDate: string;
+  /** PDFMonkey download link. Signed and short-lived — do not store it. */
   pdfUrl: string;
+  /**
+   * Stable link served by our own API, backed by the invoice record. This is
+   * what the printed QR code points at, and the only URL that still works when
+   * an invoice is reopened days later.
+   */
+  invoiceUrl?: string;
   invoiceId: string;
+}
+
+/** Prefers the durable URL, falling back to the expiring one. */
+export function resolveInvoicePdfUrl(invoice: {
+  invoiceUrl?: string;
+  pdfUrl?: string;
+}): string {
+  return invoice.invoiceUrl || invoice.pdfUrl || '';
 }
 
 /**

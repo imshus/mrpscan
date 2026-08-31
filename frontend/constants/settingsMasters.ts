@@ -7,15 +7,6 @@ export interface MasterNavItem {
   route: string;
 }
 
-export const MASTER_SECTION_ITEMS: MasterNavItem[] = [
-  {
-    id: 'section-rates',
-    title: 'Rates',
-    subtitle: '',
-    route: '/dashboard/masters/rates',
-  },
-];
-
 export const MASTER_RATES_ITEMS: MasterNavItem[] = [
   {
     id: 'rates-gold',

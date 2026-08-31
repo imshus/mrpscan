@@ -12,12 +12,12 @@ export function PrimaryGreenButton({ title, onPress, icon, disabled = false }: P
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      className={`flex-1 flex-row items-center justify-center gap-2 rounded-button bg-primary py-3.5 ${
+      className={`flex-1 flex-row items-center justify-center gap-2 rounded-button bg-primary py-4 ${
         disabled ? 'opacity-60' : 'active:opacity-90'
       }`}
     >
       {icon}
-      <Text className="text-sm font-semibold text-white">{title}</Text>
+      <Text className="text-base font-semibold text-white">{title}</Text>
     </Pressable>
   );
 }

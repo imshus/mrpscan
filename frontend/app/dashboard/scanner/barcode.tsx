@@ -55,7 +55,9 @@ export default function BarcodeScannerScreen() {
   const [confirmedBack, setConfirmedBack] = useState<ConfirmedCapture | null>(null);
   const [captureStep, setCaptureStep] = useState<'first' | 'second'>('first');
 
-  const overlayVisible = isPickingImage || isStartingOperation || Boolean(pendingPreview);
+  // Deliberately excludes isPickingImage: showing the preview card while the
+  // system album loads only delays and flickers in front of the picker.
+  const overlayVisible = isStartingOperation || Boolean(pendingPreview);
 
   const instruction =
     captureStep === 'second'
@@ -259,7 +261,7 @@ export default function BarcodeScannerScreen() {
   };
 
   const handleUpload = async () => {
-    if (overlayVisible) return;
+    if (overlayVisible || isPickingImage) return;
 
     setIsPickingImage(true);
     try {
@@ -291,7 +293,7 @@ export default function BarcodeScannerScreen() {
 
       <CapturePreviewOverlay
         visible={overlayVisible}
-        loading={isPickingImage || isStartingOperation}
+        loading={isStartingOperation}
         uri={pendingPreview?.uri}
         title="Captured Image"
         showAddMore={pendingPreview?.step === 'first'}
