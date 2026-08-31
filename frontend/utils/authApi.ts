@@ -97,7 +97,10 @@ export async function verifyBusinessGst(gstNumber: string): Promise<{
         error: resolveApiMessage(response, unwrapped, 'GST verification failed.'),
       };
     }
-    const businessName = readString(unwrapped, ['businessName', 'legalName', 'tradeName', 'name']);
+    // Trade name first: it is the name the business actually trades under.
+    // The legal name of a proprietorship is the proprietor's own name, so
+    // reading it first showed a person where the shop's name belongs.
+    const businessName = readString(unwrapped, ['businessName', 'tradeName', 'legalName', 'name']);
     const address = readString(unwrapped, ['address', 'registeredAddress', 'principalAddress']);
     const businessType = readString(unwrapped, ['businessType', 'companyType', 'type']);
     return { success: true, businessName, address, businessType };

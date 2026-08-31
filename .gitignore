@@ -46,3 +46,6 @@ backend/templates/backups/
 
 # The design mockup is its own git repo; not a submodule of this one.
 mrpscan-design-mockup/
+
+# Generated PDF previews
+output/
