@@ -223,7 +223,9 @@ export function RawMaterialSection({
         />
         {calculationRateAccess === 'both' ? (
           <MetalFieldSlot label="Gold Rate" fullWidth>
-            <SearchableSelectDropdown compact
+            <SearchableSelectDropdown
+              compact
+              anchored
               value={calculationMode ?? 'rtgs'}
               options={rateOptions}
               onChange={(value) => onFieldChange?.('calculationRate', value)}

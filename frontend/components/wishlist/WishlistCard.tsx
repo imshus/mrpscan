@@ -94,9 +94,11 @@ const styles = StyleSheet.create({
   },
   fields: {
     flex: 1,
+    flexDirection: 'row',
     gap: 8,
   },
   field: {
+    flex: 1,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 12,
