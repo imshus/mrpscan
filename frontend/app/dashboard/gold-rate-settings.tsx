@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
@@ -11,8 +11,6 @@ import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useBhawRates } from '@/hooks/useBhawRates';
 import { useRequireMarketRatesAccess } from '@/hooks/useMarketRatesAccess';
-import { useMatricesStore } from '@/store/matricesStore';
-import { BHAW_PROVIDERS, formatBhaw as formatBhawValue } from '@/utils/bhawApi';
 import { useGetGoldRatesQuery, useUpdateGoldTaxSettingsMutation } from '@/store/goldRatesApi';
 import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
 
@@ -68,15 +66,6 @@ export default function GoldRateSettingsScreen() {
     fallbackRtgsBhaw: supremeRtgsChange,
   });
 
-  const useJmd = useMatricesStore((state) => state.values.bhaw_source_jmd);
-  const applyMatrixValues = useMatricesStore((state) => state.applyValues);
-  const matrixValues = useMatricesStore((state) => state.values);
-
-  const selectProvider = (provider: string) => {
-    const nextUseJmd = provider === BHAW_PROVIDERS.JMD_PATIL;
-    if (nextUseJmd === Boolean(useJmd)) return;
-    void applyMatrixValues({ ...matrixValues, bhaw_source_jmd: nextUseJmd });
-  };
 
   const isSaving = isUpdatingTaxSettings;
   const showLoading = isGoldLoading && !goldData;
@@ -115,53 +104,6 @@ export default function GoldRateSettingsScreen() {
         <PageHeader title="Gold Rate Settings" />
 
         <View style={screenStyles.screenSection}>
-          <View style={styles.bhawCard}>
-            <View style={styles.bhawHeader}>
-              <Text style={styles.bhawTitle}>Bhaw Provider</Text>
-              <Text style={styles.bhawTag}>
-                {bhaw.isLive ? 'Live' : 'Feed unavailable'}
-              </Text>
-            </View>
-            <Text style={styles.bhawHint}>
-              Cash and RTGS rates are the MCX rate plus this provider&apos;s bhaw.
-            </Text>
-
-            <View style={styles.providerRow}>
-              {[
-                { key: BHAW_PROVIDERS.JMD_PATIL, label: 'JMD Patil' },
-                { key: BHAW_PROVIDERS.MEGA_BULLION, label: 'Mega Bullion' },
-              ].map((option) => {
-                const active =
-                  (option.key === BHAW_PROVIDERS.JMD_PATIL) === Boolean(useJmd);
-                return (
-                  <Pressable
-                    key={option.key}
-                    onPress={() => selectProvider(option.key)}
-                    style={active ? styles.providerChipActive : styles.providerChip}
-                  >
-                    <Text style={active ? styles.providerTextActive : styles.providerText}>
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <View style={styles.bhawRow}>
-              <Text style={styles.bhawLabel}>Cash</Text>
-              <Text style={styles.bhawValue}>
-                {formatBhawValue(bhaw.cashBhaw)}  ·  ₹ {bhaw.cashRate.toLocaleString('en-IN')}
-              </Text>
-            </View>
-            <View style={styles.bhawDivider} />
-            <View style={styles.bhawRow}>
-              <Text style={styles.bhawLabel}>RTGS</Text>
-              <Text style={styles.bhawValue}>
-                {formatBhawValue(bhaw.rtgsBhaw)}  ·  ₹ {bhaw.rtgsRate.toLocaleString('en-IN')}
-              </Text>
-            </View>
-          </View>
-
           {showLoading ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator size="large" color={Colors.primary} />
@@ -177,10 +119,13 @@ export default function GoldRateSettingsScreen() {
                 visible
                 mcxLiveRate={mcxLiveRate}
                 mcxChange={mcxChangeBy}
-                supremeRtgsChange={supremeRtgsChange}
-                supremeCashChange={supremeCashChange}
+                supremeRtgsChange={bhaw.rtgsBhaw}
+                supremeCashChange={bhaw.cashBhaw}
                 rtgsChange={rtgsChange}
                 cashChange={cashChange}
+                bhawSourceName={bhaw.vendorName}
+                bhawRtgs={bhaw.rtgsBhaw}
+                bhawCash={bhaw.cashBhaw}
                 onApply={handleApplyTaxSettings}
                 showTitle={false}
                 showClose={false}
@@ -205,82 +150,6 @@ export default function GoldRateSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  bhawCard: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.card,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: Spacing.md,
-  },
-  bhawHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  bhawTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: Colors.textPrimary,
-  },
-  bhawTag: {
-    fontSize: 10.5,
-    fontWeight: "700",
-    color: Colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  bhawHint: {
-    marginTop: 4,
-    marginBottom: 10,
-    fontSize: 11.5,
-    color: Colors.textMuted,
-    lineHeight: 16,
-  },
-  bhawRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-  },
-  bhawLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: Colors.textPrimary,
-  },
-  bhawValue: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: Colors.textPrimary,
-  },
-  providerRow: { flexDirection: 'row', gap: 8, marginTop: 10, marginBottom: 4 },
-  providerChip: {
-    flex: 1,
-    height: 38,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  providerChipActive: {
-    flex: 1,
-    height: 38,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Colors.brandDeep,
-    backgroundColor: Colors.brandDeep,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  providerText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
-  providerTextActive: { fontSize: 13, fontWeight: '700', color: Colors.white },
-  bhawDivider: {
-    height: 1,
-    backgroundColor: Colors.border,
-  },
   loadingWrap: { paddingVertical: 48, alignItems: 'center', gap: Spacing.md },
   loadingText: { fontSize: 14, color: Colors.textMuted },
   settingsCard: {
