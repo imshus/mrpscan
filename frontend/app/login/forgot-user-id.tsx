@@ -23,7 +23,7 @@ import {
 import { OtpBox } from '@/components/auth/OtpBox';
 import { Reveal } from '@/components/auth/Reveal';
 import { Colors, Fonts } from '@/constants/theme';
-import { loginBusinessWithOtp, sendLoginOtp } from '@/utils/authApi';
+import { recoverUserId, sendLoginOtp } from '@/utils/authApi';
 import { validatePhone } from '@/utils/validation';
 
 const OTP_LENGTH = 6;
@@ -31,8 +31,10 @@ const OTP_LENGTH = 6;
 /**
  * Mockup "Forgot User ID?" flow (design-mockup #screenForgotId):
  * phone → Send code → 6-digit OTP → recovered User ID card → back to Log In.
- * OTP is verified against the real login-OTP API; auth state is NOT applied —
- * the verified payload is only used to reveal the registered User ID.
+ *
+ * The code is verified by /auth/forgot-user-id, which looks the phone number
+ * up in the database and returns that account's User ID and nothing else — no
+ * session is issued, since recovering a username should not grant access.
  */
 export default function ForgotUserIdScreen() {
   const router = useRouter();
@@ -78,21 +80,15 @@ export default function ForgotUserIdScreen() {
 
     setVerifying(true);
     try {
-      const result = await loginBusinessWithOtp(normalizedPhone, value);
-      if (!result.success || !result.data) {
+      // Looks the User ID up against the phone number in the database. Returns
+      // the ID only — no session is issued for recovering a username.
+      const result = await recoverUserId(normalizedPhone, value);
+      if (!result.success || !result.userId) {
         setOtpError(result.error ?? 'Invalid code.');
         triggerShake();
         return;
       }
-      // Show the User ID they sign in with — not their phone number, which is
-      // what they already typed in to get here.
-      const loginId = result.data.loginId?.trim();
-      if (!loginId) {
-        setOtpError('No User ID is set on this account. Please sign in with your phone number and set one.');
-        triggerShake();
-        return;
-      }
-      setRecoveredId(loginId);
+      setRecoveredId(result.userId);
     } finally {
       setVerifying(false);
     }
@@ -130,7 +126,7 @@ export default function ForgotUserIdScreen() {
                   setPhone(text.replace(/\D/g, '').slice(0, 10));
                   setPhoneError(null);
                 }}
-                placeholder="Enter your number here"
+                placeholder="Enter your number"
                 keyboardType="phone-pad"
                 editable={!codeSent}
                 error={phoneError}

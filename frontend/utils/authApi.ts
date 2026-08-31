@@ -533,6 +533,45 @@ export async function loginBusiness(mobile: string, password: string): Promise<{
   }
 }
 
+/**
+ * Recovers the User ID registered against a phone number.
+ *
+ * POST /auth/forgot-user-id verifies the OTP and returns only the User ID —
+ * unlike the OTP login it issues no session, so recovering a username never
+ * hands out credentials.
+ */
+export async function recoverUserId(
+  mobile: string,
+  otp: string,
+): Promise<{ success: boolean; userId?: string; error?: string }> {
+  try {
+    const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/forgot-user-id', {
+      method: 'POST',
+      body: {
+        mobile: mobile.replace(/\D/g, '').slice(-10),
+        otp: otp.trim(),
+      },
+    });
+    const unwrapped = unwrapEnvelope(response);
+    if (!isSuccessfulResponse(response, unwrapped)) {
+      return {
+        success: false,
+        error: resolveApiMessage(response, unwrapped, 'Could not recover your User ID.'),
+      };
+    }
+    const userId = readString(unwrapped, ['userId', 'loginId']);
+    if (!userId) {
+      return { success: false, error: 'No User ID is set on this account.' };
+    }
+    return { success: true, userId };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof ApiError ? error.message : 'Could not recover your User ID.',
+    };
+  }
+}
+
 export async function loginBusinessWithOtp(mobile: string, otp: string): Promise<{
   success: boolean;
   data?: BusinessLoginResponse & {
