@@ -221,9 +221,12 @@ export function RawMaterialSection({
           label="Pure Weight"
           value={pureWeightGrams > 0 ? formatWeightGrams(pureWeightGrams) : '—'}
         />
+        {/* Half-width so it pairs with Pure Weight on the same grid row. */}
         {calculationRateAccess === 'both' ? (
-          <MetalFieldSlot label="Gold Rate" fullWidth>
-            <SearchableSelectDropdown compact
+          <MetalFieldSlot label="Gold Rate">
+            <SearchableSelectDropdown
+              compact
+              anchored
               value={calculationMode ?? 'rtgs'}
               options={rateOptions}
               onChange={(value) => onFieldChange?.('calculationRate', value)}
@@ -232,7 +235,7 @@ export function RawMaterialSection({
             />
           </MetalFieldSlot>
         ) : (
-          <MetalValueBox label="Gold Rate" value={fixedRateLabel} fullWidth />
+          <MetalValueBox label="Gold Rate" value={fixedRateLabel} />
         )}
         <MetalValueBox label="Current Gold Rate" value={currentGoldRateDisplay} />
         <MetalValueBox
