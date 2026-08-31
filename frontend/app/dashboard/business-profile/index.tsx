@@ -93,7 +93,7 @@ export default function BusinessProfileScreen() {
           </View>
 
           <View style={styles.detailsBody}>
-            <DetailRow label="Name of Buisness" value={formatProfileValue(profile.businessName)} />
+            <DetailRow label="Name of Business" value={formatProfileValue(profile.businessName)} />
             <DetailRow label="GST No." value={formatProfileValue(profile.gstNumber)} />
             <DetailRow
               label="Phone No."
