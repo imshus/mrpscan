@@ -38,7 +38,8 @@ export function FloatingCard({ children }: { children: ReactNode }) {
 /* ==================== .rev-sticky-head / .rev-sticky-top ==================== */
 
 interface CardHeaderProps {
-  title: string;
+  /** Optional: omitted on screens that show only the amount card. */
+  title?: string;
   onBack?: () => void;
   /** Optional control rendered at the right end of the title row. */
   accessory?: ReactNode;
@@ -59,7 +60,7 @@ export function CardHeader({ title, onBack, accessory, children }: CardHeaderPro
             <ChevronLeft size={18} color={Colors.textPrimary} strokeWidth={2.2} />
           </Pressable>
         ) : null}
-        <Text style={styles.stickyTitle}>{title}</Text>
+        {title ? <Text style={styles.stickyTitle}>{title}</Text> : null}
         {accessory}
       </View>
       {children}

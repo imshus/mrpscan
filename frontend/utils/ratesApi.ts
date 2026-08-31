@@ -186,7 +186,16 @@ export function normalizeGoldRatesResponse(response: unknown): GoldRatesResponse
     };
   }
 
-  return { mcxLiveRate, rates, taxSettings, supremeChanges };
+  const rawBhaw = unwrapped.bhawSource as Record<string, unknown> | undefined;
+  const bhawSource = rawBhaw
+    ? {
+        key: readString(rawBhaw.key) || '',
+        name: readString(rawBhaw.name) || '',
+        live: rawBhaw.live === true,
+      }
+    : undefined;
+
+  return { mcxLiveRate, rates, taxSettings, supremeChanges, bhawSource };
 }
 
 export function normalizeStoneRatesResponse(response: unknown): StoneRate[] {

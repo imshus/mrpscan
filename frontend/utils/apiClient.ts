@@ -155,6 +155,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     controller.abort();
   }, timeoutMs);
 
+  const startedAt = Date.now();
   try {
     response = await fetch(url, {
       ...rest,
@@ -162,10 +163,20 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       body: requestBody,
       signal: controller.signal,
     });
+    // Responses were previously never logged, so a failing or slow call looked
+    // like "nothing happened" with no way to diagnose it from the device.
+    console.log('[API] Response', {
+      url,
+      status: response.status,
+      ms: Date.now() - startedAt,
+    });
   } catch (error) {
+    const ms = Date.now() - startedAt;
     if ((error as Error)?.name === 'AbortError') {
+      console.error('[API] Timeout', { url, ms });
       throw new ApiError(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
     }
+    console.error('[API] Network error', { url, ms, message: (error as Error)?.message });
     throw new ApiError(getNetworkErrorMessage());
   } finally {
     clearTimeout(timeoutId);

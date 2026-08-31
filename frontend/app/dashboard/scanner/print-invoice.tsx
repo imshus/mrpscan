@@ -1,11 +1,15 @@
-import { useState } from 'react';
-import { Alert, Linking, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Dimensions, Linking, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CheckCircle2, Download, ExternalLink, Home } from 'lucide-react-native';
+import { ExternalLink, Home } from 'lucide-react-native';
+import Pdf from 'react-native-pdf';
+import * as FileSystem from 'expo-file-system/legacy';
 
-import { PrimaryGreenButton } from '@/components/scanner/PrimaryGreenButton';
 import { ScanScreenWrapper } from '@/components/scanner/ScanScreenWrapper';
-import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
+
+// A ScrollView parent gives children no intrinsic height, so the PDF is sized
+// against the viewport instead of flexing.
+const VIEWER_HEIGHT = Math.round(Dimensions.get('window').height * 0.68);
 
 export default function PrintInvoiceScreen() {
   const router = useRouter();
@@ -15,118 +19,138 @@ export default function PrintInvoiceScreen() {
     invoiceDate?: string;
   }>();
 
-  const [opening, setOpening] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [localUri, setLocalUri] = useState<string | null>(null);
 
   const pdfUrl = params.pdfUrl ?? '';
   const invoiceNumber = params.invoiceNumber ?? '—';
-  const invoiceDate = params.invoiceDate ?? '—';
 
-  const handleOpenPdf = async () => {
-    if (!pdfUrl) {
-      Alert.alert('Error', 'PDF URL not available.');
-      return;
-    }
-    setOpening(true);
-    try {
-      const supported = await Linking.canOpenURL(pdfUrl);
-      if (supported) {
-        await Linking.openURL(pdfUrl);
-      } else {
-        Alert.alert('Cannot Open', 'Unable to open the PDF on this device. Try copying the URL manually.');
+  // PDFMonkey serves a signed link that redirects to storage. react-native-pdf
+  // fetches it with its own downloader, which gives up on that redirect
+  // ("Download interrupted."), so the file is fetched here first and the
+  // viewer is pointed at the local copy.
+  useEffect(() => {
+    if (!pdfUrl) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const target = `${FileSystem.cacheDirectory ?? ''}invoice-${Date.now()}.pdf`;
+        const result = await FileSystem.downloadAsync(pdfUrl, target);
+        if (cancelled) return;
+        if (result.status !== 200) {
+          setError(`The invoice could not be downloaded (HTTP ${result.status}).`);
+          setLoading(false);
+          return;
+        }
+        setLocalUri(result.uri);
+      } catch (downloadError) {
+        if (cancelled) return;
+        setError(
+          downloadError instanceof Error
+            ? downloadError.message
+            : 'The invoice could not be downloaded.',
+        );
+        setLoading(false);
       }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfUrl]);
+
+  const handleOpenExternally = async () => {
+    if (!pdfUrl) return;
+    try {
+      await Linking.openURL(pdfUrl);
     } catch {
       Alert.alert('Error', 'Failed to open the PDF. Please try again.');
-    } finally {
-      setOpening(false);
     }
   };
 
   return (
     <ScanScreenWrapper
-      title="Invoice Generated"
+      title={`Invoice ${invoiceNumber}`}
       className="bg-surface-muted"
       scanButtonVariant="green"
-      footer={
-        <View className="gap-3">
-          <PrimaryGreenButton
-            title={opening ? 'Opening...' : 'Open PDF'}
-            onPress={handleOpenPdf}
-            icon={<ExternalLink size={18} color="#FFFFFF" />}
-          />
-          <TouchableOpacity
-            onPress={() => router.replace('/dashboard')}
-            className="flex-row items-center justify-center gap-2 rounded-button border border-border bg-white py-3"
-          >
-            <Home size={18} color="#A81F17" />
-            <Text className="text-sm font-semibold text-text-primary">Back to Home</Text>
-          </TouchableOpacity>
-        </View>
-      }
     >
-      <BackgroundPattern />
+      {/* Actions sit above the document so they stay reachable while the PDF
+          is zoomed and panned. */}
+      <View className="mb-3 flex-row gap-3">
+        <TouchableOpacity
+          onPress={handleOpenExternally}
+          className="flex-1 flex-row items-center justify-center gap-2 rounded-button border border-border bg-white py-3"
+        >
+          <ExternalLink size={18} color="#A81F17" />
+          <Text className="text-sm font-semibold text-text-primary">Open externally</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => router.replace('/dashboard')}
+          className="flex-1 flex-row items-center justify-center gap-2 rounded-button border border-border bg-white py-3"
+        >
+          <Home size={18} color="#A81F17" />
+          <Text className="text-sm font-semibold text-text-primary">Home</Text>
+        </TouchableOpacity>
+      </View>
 
-      {/* Success Card */}
-      <View className="mb-4 overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
-        {/* Header */}
-        <View className="items-center bg-primary px-6 pb-6 pt-8">
-          <View className="mb-4 h-20 w-20 items-center justify-center rounded-full bg-white/15">
-            <CheckCircle2 size={44} color="#FFFFFF" />
+      <View
+        style={{ height: VIEWER_HEIGHT }}
+        className="overflow-hidden rounded-2xl border border-border bg-white"
+      >
+        {!pdfUrl ? (
+          <View className="flex-1 items-center justify-center p-6">
+            <Text className="text-center text-sm text-red-600">
+              PDF is not available. Please generate the invoice again.
+            </Text>
           </View>
-          <Text className="text-2xl font-bold text-white">Invoice Ready!</Text>
-          <Text className="mt-1 text-center text-sm text-white/70">
-            Your PDF has been generated successfully
-          </Text>
-        </View>
-
-        <View className="h-1 bg-accent-gold" />
-
-        {/* Invoice Details */}
-        <View className="gap-4 p-5">
-          <View className="rounded-xl border border-border bg-surface-muted p-4">
-            <View className="mb-3 border-b border-border pb-3">
-              <Text className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-label">
-                Invoice Number
-              </Text>
-              <Text className="text-base font-bold text-text-primary">{invoiceNumber}</Text>
-            </View>
-            <View>
-              <Text className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-label">
-                Generated On
-              </Text>
-              <Text className="text-sm text-text-primary">{invoiceDate}</Text>
-            </View>
-          </View>
-
-          {/* PDF URL pill */}
-          {pdfUrl ? (
-            <View className="rounded-xl border border-green-200 bg-green-50 p-4">
-              <View className="mb-2 flex-row items-center gap-2">
-                <Download size={16} color="#16A34A" />
-                <Text className="text-[10px] font-bold uppercase tracking-wide text-success-text">
-                  PDF Download Link
-                </Text>
+        ) : (
+          <>
+            {/*
+              Rendered natively rather than in a WebView: PDFMonkey hands back a
+              signed, time-limited S3 link, which Android's WebView cannot show
+              and Google's document viewer silently renders as a blank page.
+            */}
+            {localUri ? (
+              <Pdf
+                source={{ uri: localUri }}
+                trustAllCerts={false}
+                style={{ flex: 1, width: '100%', backgroundColor: '#FFFFFF' }}
+                fitPolicy={0}
+                minScale={1}
+                maxScale={5}
+                scale={1}
+                enablePaging={false}
+                enableDoubleTapZoom
+                enableAntialiasing
+                onLoadComplete={() => setLoading(false)}
+                onError={(err) => {
+                  setLoading(false);
+                  setError(err instanceof Error ? err.message : 'The invoice could not be displayed.');
+                }}
+              />
+            ) : null}
+            {loading && !error ? (
+              <View className="absolute inset-0 items-center justify-center bg-white">
+                <ActivityIndicator size="large" color="#A81F17" />
+                <Text className="mt-3 text-xs text-text-secondary">Loading invoice…</Text>
               </View>
-              <Text
-                className="text-xs leading-5 text-text-secondary"
-                numberOfLines={3}
-                ellipsizeMode="middle"
-              >
-                {pdfUrl}
-              </Text>
-            </View>
-          ) : (
-            <View className="rounded-xl border border-red-200 bg-red-50 p-4">
-              <Text className="text-sm text-red-600">
-                PDF URL not available. Please try generating again.
-              </Text>
-            </View>
-          )}
-
-          <Text className="text-center text-xs leading-5 text-text-muted">
-            The PDF link is hosted by PDFMonkey and will be available for a limited time.
-            Tap "Open PDF" to view or download your invoice.
-          </Text>
-        </View>
+            ) : null}
+            {error ? (
+              <View className="absolute inset-0 items-center justify-center gap-3 bg-white p-6">
+                <Text className="text-center text-sm text-text-secondary">{error}</Text>
+                <TouchableOpacity
+                  onPress={handleOpenExternally}
+                  className="flex-row items-center gap-2 rounded-button bg-primary px-5 py-3"
+                >
+                  <ExternalLink size={16} color="#FFFFFF" />
+                  <Text className="text-sm font-semibold text-white">Open the PDF</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </>
+        )}
       </View>
     </ScanScreenWrapper>
   );

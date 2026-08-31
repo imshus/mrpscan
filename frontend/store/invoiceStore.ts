@@ -8,6 +8,7 @@ export interface InvoiceCustomerForm {
   customerPhone: string;
   customerEmail: string;
   customerGstin: string;
+  customerPan: string;
 }
 
 interface InvoiceState {
@@ -28,6 +29,7 @@ const DEFAULT_CUSTOMER: InvoiceCustomerForm = {
   customerPhone: '',
   customerEmail: '',
   customerGstin: '',
+  customerPan: '',
 };
 
 export const useInvoiceStore = create<InvoiceState>((set) => ({

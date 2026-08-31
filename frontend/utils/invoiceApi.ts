@@ -14,6 +14,7 @@ export interface GenerateInvoicePayload {
   customer_phone: string;
   customer_email: string;
   customer_gstin: string;
+  customer_pan: string;
   place_of_supply: string;
   transport: string;
   line_items: InvoiceLineItemPayload[];

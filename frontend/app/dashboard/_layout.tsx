@@ -26,7 +26,6 @@ export default function DashboardLayout() {
       <Stack.Screen name="dashboard-matrices" />
       <Stack.Screen name="market-rates" />
       <Stack.Screen name="masters/index" />
-      <Stack.Screen name="masters/rates" />
       <Stack.Screen name="inventory" options={{ headerShown: false }} />
       <Stack.Screen name="employees" options={{ headerShown: false }} />
       <Stack.Screen name="password-manager" />

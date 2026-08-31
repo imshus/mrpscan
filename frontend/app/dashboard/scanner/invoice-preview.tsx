@@ -146,8 +146,18 @@ export default function InvoicePreviewScreen() {
       Alert.alert('Missing Info', 'Please enter the customer name before generating.');
       return;
     }
-    if (!customer.customerAddress.trim()) {
-      Alert.alert('Missing Info', 'Please enter the customer address before generating.');
+    if (!customer.customerPhone.trim()) {
+      Alert.alert('Missing Info', 'Please enter the customer phone number before generating.');
+      return;
+    }
+    // Gold rates load asynchronously. Generating before they arrive (or after a
+    // failed fetch) produces a zero-value tax invoice AND consumes an invoice
+    // number on the server, so refuse rather than bill nothing.
+    if (grandTotal <= 0) {
+      Alert.alert(
+        'Rates not ready',
+        'Gold rates have not loaded yet, so the invoice total would be zero. Please wait a moment and try again.',
+      );
       return;
     }
 
@@ -167,6 +177,7 @@ export default function InvoicePreviewScreen() {
         customer_phone: customer.customerPhone,
         customer_email: customer.customerEmail,
         customer_gstin: customer.customerGstin,
+        customer_pan: customer.customerPan,
         place_of_supply: placeOfSupply,
         transport,
         line_items: lineItemsPayload,
@@ -197,12 +208,12 @@ export default function InvoicePreviewScreen() {
 
   return (
     <ScanScreenWrapper
-      title="Invoice Generation & Billing"
+      title="Invoice Generation"
       className="bg-surface-muted"
       scanButtonVariant="green"
       footer={
         <PrimaryGreenButton
-          title={generating ? 'Generating PDF...' : 'Generate Invoice'}
+          title={generating ? 'Preparing preview...' : 'Preview Invoice'}
           onPress={handleGenerateInvoice}
           icon={
             generating

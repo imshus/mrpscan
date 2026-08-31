@@ -409,55 +409,25 @@ export function InvoiceGenerationBilling({
   const grandTotalWords = useMemo(() => amountInWords(grandTotal), [grandTotal]);
 
   const phoneError =
-    touched.phone && customer.customerPhone.length > 0 && customer.customerPhone.length !== 10
-      ? 'Phone must be exactly 10 digits'
-      : undefined;
+    touched.phone && !customer.customerPhone.trim()
+      ? 'Customer phone is required'
+      : touched.phone && customer.customerPhone.length !== 10
+        ? 'Phone must be exactly 10 digits'
+        : undefined;
   const emailError =
     touched.email && customer.customerEmail.length > 0 && !EMAIL_PATTERN.test(customer.customerEmail)
       ? 'Enter a valid email address'
       : undefined;
   const nameError =
     touched.name && !customer.customerName.trim() ? 'Customer name is required' : undefined;
-  const addressError =
-    touched.address && !customer.customerAddress.trim()
-      ? 'Customer address is required'
-      : undefined;
+  // Only name and phone are compulsory; address, email, GSTIN and PAN are optional.
+  const addressError = undefined;
 
   const companyName = formatProfileValue(profile.businessName, 'Your Business');
 
   return (
     <View className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
-      <View className="items-center bg-primary px-5 pb-5 pt-6">
-        <View className="mb-2 rounded-full bg-accent-gold/20 px-3 py-1">
-          <Text className="text-[10px] font-bold uppercase tracking-[1.5px] text-accent-gold">
-            Tax Invoice
-          </Text>
-        </View>
-        <Text className="text-center text-xl font-bold text-white">{companyName}</Text>
-        <Text className="mt-1 text-center text-xs leading-5 text-white/70">
-          {formatProfileValue(profile.address, 'Company address not set')}
-        </Text>
-        <Text className="mt-1 text-center text-xs text-white/60">
-          GSTIN: {formatProfileValue(profile.gstNumber, 'Not set')}
-        </Text>
-      </View>
-
-      <View className="h-1 bg-accent-gold" />
-
       <View className="gap-4 p-4">
-        <View className={isWideLayout ? 'flex-row gap-3' : 'gap-3'}>
-          <View className={`rounded-xl border border-border bg-surface-muted p-4 ${isWideLayout ? 'flex-1' : 'w-full'}`}>
-            <SectionHeader title="Company Profile" icon={<Building2 size={14} color="#A81F17" />} />
-            <ReadOnlyRow label="Company Name" value={formatProfileValue(profile.businessName, '—')} />
-            <ReadOnlyRow
-              label="Company Address"
-              value={formatProfileValue(profile.address, '—')}
-              multiline
-            />
-            <ReadOnlyRow label="GSTIN Number" value={formatProfileValue(profile.gstNumber, '—')} />
-          </View>
-        </View>
-
         <View className="rounded-xl border border-border bg-white p-4">
           <SectionHeader title="Customer Details" icon={<UserRound size={14} color="#A81F17" />} />
 
@@ -474,6 +444,7 @@ export function InvoiceGenerationBilling({
                   multiline
                 />
                 <ReadOnlyRow label="Customer Email" value={customer.customerEmail || '—'} />
+                <ReadOnlyRow label="PAN Number" value={customer.customerPan || '—'} />
                 <ReadOnlyRow label="GSTIN Number" value={customer.customerGstin || '—'} />
               </View>
             </View>
@@ -500,6 +471,7 @@ export function InvoiceGenerationBilling({
                   }}
                   placeholder="10-digit mobile number"
                   keyboardType="phone-pad"
+                  required
                   error={phoneError}
                 />
               </View>
@@ -512,7 +484,6 @@ export function InvoiceGenerationBilling({
                     setTouched((current) => ({ ...current, address: true }));
                   }}
                   placeholder="Enter full address"
-                  required
                   error={addressError}
                 />
                 <ValidatedInput
@@ -534,82 +505,28 @@ export function InvoiceGenerationBilling({
                   placeholder="Optional GSTIN"
                   autoCapitalize="characters"
                 />
+                <ValidatedInput
+                  label="PAN Number"
+                  value={customer.customerPan}
+                  onChangeText={(text) =>
+                    updateCustomer({ customerPan: text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) })
+                  }
+                  placeholder="Optional PAN"
+                  autoCapitalize="characters"
+                />
               </View>
             </View>
           )}
         </View>
 
-        <FormSection title="Supply Details" variant="card">
-          <View className={isWideLayout ? 'flex-row gap-3' : 'gap-1'}>
-            {readOnly ? (
-              <>
-                <View className={isWideLayout ? 'flex-1' : 'w-full'}>
-                  <ReadOnlyRow label="Place of Supply" value={placeOfSupply || '—'} />
-                </View>
-                <View className={isWideLayout ? 'flex-1' : 'w-full'}>
-                  <ReadOnlyRow label="Transport" value={transport || '—'} />
-                </View>
-              </>
-            ) : (
-              <>
-                <InvoiceSelectDropdown
-                  label="Place of Supply"
-                  value={placeOfSupply}
-                  options={PLACE_OF_SUPPLY_OPTIONS}
-                  onChange={setPlaceOfSupply}
-                  placeholder="Select state"
-                  containerClassName={isWideLayout ? 'flex-1' : 'w-full'}
-                />
-                <InvoiceSelectDropdown
-                  label="Transport"
-                  value={transport}
-                  options={TRANSPORT_OPTIONS}
-                  onChange={setTransport}
-                  placeholder="Select transport mode"
-                  containerClassName={isWideLayout ? 'flex-1' : 'w-full'}
-                />
-              </>
-            )}
-          </View>
-        </FormSection>
-
-        <FormSection title="Line Items Billing Grid">
-          {ratesLoading ? (
-            <View className="items-center rounded-xl border border-border bg-surface-muted py-8">
-              <ActivityIndicator size="small" color="#A81F17" />
-              <Text className="mt-2 text-xs text-text-secondary">Loading gold rates...</Text>
+        <View className="w-full">
+          <View className="overflow-hidden rounded-2xl bg-primary">
+            <View className="px-4 py-3">
+              <SummaryRow label="Subtotal" value={formatIndianCurrency(subtotal)} />
+              <SummaryRow label="GST Amount" value={formatIndianCurrency(gstAmount)} isLast />
             </View>
-          ) : (
-            <View className="overflow-hidden rounded-xl border border-border">
-              <LineItemsTable rows={lineItemRows} />
-            </View>
-          )}
-        </FormSection>
-
-        <View className={isWideLayout ? 'flex-row items-start justify-between gap-4' : 'gap-4'}>
-          <View className={`rounded-xl border border-dashed border-accent-gold/50 bg-accent-gold/10 p-4 ${isWideLayout ? 'flex-1' : 'w-full'}`}>
-            <Text className="mb-2 text-[11px] font-bold uppercase tracking-wider text-text-muted">
-              Amount in Words
-            </Text>
-            <Text className="text-sm font-medium leading-6 text-text-primary">{grandTotalWords}</Text>
-          </View>
-
-          <View className={`${isWideLayout ? 'w-[300px]' : 'w-full'}`}>
-            {!readOnly ? (
-              <View className="mb-3 rounded-xl border border-border bg-white p-4">
-                <GstRatePills value={gstRate} onChange={setGstRate} />
-              </View>
-            ) : null}
-
-            <View className="overflow-hidden rounded-2xl bg-primary">
-              <View className="px-4 py-3">
-                <SummaryRow label="Subtotal" value={formatIndianCurrency(subtotal)} />
-                {readOnly ? <SummaryRow label="GST Rate (%)" value={`${gstRate}%`} /> : null}
-                <SummaryRow label="GST Amount" value={formatIndianCurrency(gstAmount)} isLast />
-              </View>
-              <View className="border-t border-white/20 bg-primary-dark px-4 py-3">
-                <SummaryRow label="Grand Total" value={formatIndianCurrency(grandTotal)} emphasized />
-              </View>
+            <View className="border-t border-white/20 bg-primary-dark px-4 py-3">
+              <SummaryRow label="Grand Total" value={formatIndianCurrency(grandTotal)} emphasized />
             </View>
           </View>
         </View>

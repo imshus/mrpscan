@@ -33,15 +33,15 @@ export function PriceCard({ label, amount, subtitle, style }: PriceCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   inner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
   },
   labelColumn: {
     flexShrink: 1,
@@ -64,12 +64,12 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   rupee: {
-    fontSize: 20.8,
+    fontSize: 16,
     fontWeight: '800',
     color: 'rgba(255,255,255,0.95)',
   },
   value: {
-    fontSize: 38,
+    fontSize: 27,
     fontWeight: '900',
     letterSpacing: 0,
     color: Colors.white,

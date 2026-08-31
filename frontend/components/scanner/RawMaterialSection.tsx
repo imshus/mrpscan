@@ -3,11 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useFormulaStore } from '@/store/formulaStore';
 
 import {
-  InlineOptionList,
   MetalFieldSlot,
   MetalGrid,
   MetalInput,
-  MetalSelectTrigger,
   MetalTile,
   MetalValueBox,
 } from '@/components/scanner/ReviewCardKit';
@@ -79,14 +77,11 @@ export function RawMaterialSection({
   calculationRateAccess = 'both',
   backendGoldAmount,
 }: RawMaterialSectionProps) {
-  const [rateOpen, setRateOpen] = useState(false);
   const [isPurityEditing, setIsPurityEditing] = useState(false);
   const rateOptions: Array<{ value: 'rtgs' | 'cash'; label: string }> = [
     { value: 'rtgs', label: 'RTGS' },
     { value: 'cash', label: 'Cash' },
   ];
-  const selectedRateLabel =
-    rateOptions.find((option) => option.value === calculationMode)?.label ?? 'RTGS';
   const fixedRateLabel = calculationRateAccess === 'cash' ? 'Cash Rate' : 'RTGS Rate';
   const activeFormula = useFormulaStore((s) => s.activeFormula);
   const formula2Rules = useFormulaStore((s) => s.formula2Rules);
@@ -227,24 +222,17 @@ export function RawMaterialSection({
           value={pureWeightGrams > 0 ? formatWeightGrams(pureWeightGrams) : '—'}
         />
         {calculationRateAccess === 'both' ? (
-          <MetalFieldSlot label="Gold Rate">
-            <MetalSelectTrigger
-              value={selectedRateLabel}
-              onPress={() => setRateOpen((prev) => !prev)}
+          <MetalFieldSlot label="Gold Rate" fullWidth>
+            <SearchableSelectDropdown compact
+              value={calculationMode ?? 'rtgs'}
+              options={rateOptions}
+              onChange={(value) => onFieldChange?.('calculationRate', value)}
+              placeholder="Select gold rate"
+              containerClassName="w-full"
             />
-            {rateOpen ? (
-              <InlineOptionList
-                options={rateOptions}
-                selected={calculationMode}
-                onSelect={(value) => {
-                  onFieldChange?.('calculationRate', value);
-                  setRateOpen(false);
-                }}
-              />
-            ) : null}
           </MetalFieldSlot>
         ) : (
-          <MetalValueBox label="Gold Rate" value={fixedRateLabel} />
+          <MetalValueBox label="Gold Rate" value={fixedRateLabel} fullWidth />
         )}
         <MetalValueBox label="Current Gold Rate" value={currentGoldRateDisplay} />
         <MetalValueBox
