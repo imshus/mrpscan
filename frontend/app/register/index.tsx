@@ -26,7 +26,7 @@ import { Colors } from '@/constants/theme';
 import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { useAuthStore } from '@/store/authStore';
 import { checkRegistrationAvailability, sendLoginOtp, verifyLoginOtp } from '@/utils/authApi';
-import { validatePassword, validatePhone, validateUserId } from '@/utils/validation';
+import { validatePassword, validatePhone } from '@/utils/validation';
 
 const OTP_LENGTH = 6;
 const AVAILABILITY_ERROR = 'Could not check availability. Check your connection and try again.';
@@ -157,8 +157,12 @@ export default function SignupScreen() {
   const trimmedUserId = userId.trim();
   useEffect(() => {
     const seq = ++userIdCheckSeq.current;
-    if (!trimmedUserId || validateUserId(trimmedUserId)) {
+    // The database is the authority on a User ID: it owns both the format
+    // rules and uniqueness. Anything non-empty goes to the server, and its
+    // reply is what the user sees.
+    if (!trimmedUserId) {
       setUserIdStatus(null);
+      setErrors((prev) => ({ ...prev, userId: null }));
       return;
     }
     setUserIdStatus('checking');
@@ -206,7 +210,7 @@ export default function SignupScreen() {
       fullName: fullName.trim() ? null : 'Please enter your full name',
       company: company.trim() ? null : 'Please enter your company name',
       phone: validatePhone(normalizedPhone),
-      userId: validateUserId(trimmedUserId),
+      userId: trimmedUserId ? null : 'User ID is required',
       password: validatePassword(password),
     };
     setErrors(nextErrors);
@@ -415,10 +419,8 @@ export default function SignupScreen() {
                 onChangeText={(text) => {
                   const nextUserId = text.replace(/\s/g, '');
                   setUserId(nextUserId);
-                  setErrors((prev) => ({
-                    ...prev,
-                    userId: nextUserId ? validateUserId(nextUserId) : null,
-                  }));
+                  // No local rule here: the pending server check decides.
+                  setErrors((prev) => ({ ...prev, userId: null }));
                   invalidateSubmittedSignup();
                 }}
                                 autoCapitalize="none"
