@@ -477,15 +477,15 @@ export async function loginBusiness(mobile: string, password: string): Promise<{
     address?: string;
     phone?: string;
     role?: string;
+    /** The handle the user signs in with — distinct from the account's id. */
+    loginId?: string;
   };
   error?: string;
 }> {
   try {
-    const rawLoginId = mobile.trim();
-    const digits = rawLoginId.replace(/\D/g, '');
-    const loginId = digits.length === 10 && /^[+\d\s()-]+$/.test(rawLoginId)
-      ? digits
-      : rawLoginId;
+    // Sign-in is by User ID only, so send exactly what was typed. Stripping
+    // formatting would corrupt IDs containing dots, underscores or hyphens.
+    const loginId = mobile.trim();
     const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/login', {
       method: 'POST',
       body: { mobile: loginId, password },
@@ -505,6 +505,7 @@ export async function loginBusiness(mobile: string, password: string): Promise<{
     const address = readString(unwrapped, ['address']);
     const phone = readString(unwrapped, ['phone']);
     const role = readString(unwrapped, ['role']);
+    const resolvedLoginId = readString(unwrapped, ['loginId']);
 
     if (!accessToken) {
       return { success: false, error: 'Login response missing access token.' };
@@ -521,6 +522,7 @@ export async function loginBusiness(mobile: string, password: string): Promise<{
         address,
         phone,
         role,
+        loginId: resolvedLoginId,
       },
     };
   } catch (error) {
@@ -540,6 +542,8 @@ export async function loginBusinessWithOtp(mobile: string, otp: string): Promise
     address?: string;
     phone?: string;
     role?: string;
+    /** The handle the user signs in with — distinct from the account's id. */
+    loginId?: string;
   };
   error?: string;
 }> {
@@ -567,6 +571,7 @@ export async function loginBusinessWithOtp(mobile: string, otp: string): Promise
     const address = readString(unwrapped, ['address']);
     const phone = readString(unwrapped, ['phone']);
     const role = readString(unwrapped, ['role']);
+    const loginId = readString(unwrapped, ['loginId']);
 
     if (!accessToken) {
       return { success: false, error: 'Login response missing access token.' };
@@ -583,6 +588,7 @@ export async function loginBusinessWithOtp(mobile: string, otp: string): Promise
         address,
         phone,
         role,
+        loginId,
       },
     };
   } catch (error) {

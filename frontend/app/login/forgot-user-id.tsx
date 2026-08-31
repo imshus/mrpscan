@@ -84,7 +84,15 @@ export default function ForgotUserIdScreen() {
         triggerShake();
         return;
       }
-      setRecoveredId(result.data.phone || normalizedPhone);
+      // Show the User ID they sign in with — not their phone number, which is
+      // what they already typed in to get here.
+      const loginId = result.data.loginId?.trim();
+      if (!loginId) {
+        setOtpError('No User ID is set on this account. Please sign in with your phone number and set one.');
+        triggerShake();
+        return;
+      }
+      setRecoveredId(loginId);
     } finally {
       setVerifying(false);
     }
