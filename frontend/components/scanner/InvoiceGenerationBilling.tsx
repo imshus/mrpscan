@@ -90,6 +90,7 @@ function ValidatedInput({
   error,
   keyboardType = 'default',
   autoCapitalize = 'sentences',
+  maxLength,
 }: {
   label: string;
   value: string;
@@ -99,6 +100,8 @@ function ValidatedInput({
   error?: string;
   keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
   autoCapitalize?: 'none' | 'sentences' | 'characters';
+  /** Hard cap on typed characters, e.g. a 10-digit mobile number. */
+  maxLength?: number;
 }) {
   return (
     <View className="mb-3">
@@ -109,6 +112,7 @@ function ValidatedInput({
         placeholder={placeholder}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
+        maxLength={maxLength}
         placeholderTextColor={Colors.placeholder}
         className={`h-11 rounded-input border px-3.5 text-sm text-text-primary ${
           error ? 'border-danger-text bg-danger-bg' : 'border-border bg-surface-input'
@@ -236,7 +240,6 @@ function GstRatePills({
   );
 }
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function sanitizePhoneInput(text: string): string {
   return text.replace(/\D/g, '').slice(0, 10);
@@ -281,7 +284,6 @@ export function InvoiceGenerationBilling({
 
   const [touched, setTouched] = useState({
     phone: false,
-    email: false,
     name: false,
     address: false,
   });
@@ -414,13 +416,9 @@ export function InvoiceGenerationBilling({
       : touched.phone && customer.customerPhone.length !== 10
         ? 'Phone must be exactly 10 digits'
         : undefined;
-  const emailError =
-    touched.email && customer.customerEmail.length > 0 && !EMAIL_PATTERN.test(customer.customerEmail)
-      ? 'Enter a valid email address'
-      : undefined;
   const nameError =
     touched.name && !customer.customerName.trim() ? 'Customer name is required' : undefined;
-  // Only name and phone are compulsory; address, email, GSTIN and PAN are optional.
+  // Only name and phone are compulsory; address, GSTIN and PAN are optional.
   const addressError = undefined;
 
   const companyName = formatProfileValue(profile.businessName, 'Your Business');
@@ -435,17 +433,16 @@ export function InvoiceGenerationBilling({
             <View className={isWideLayout ? 'flex-row flex-wrap gap-3' : ''}>
               <View className={isWideLayout ? 'w-[48%]' : 'w-full'}>
                 <ReadOnlyRow label="Customer Name" value={customer.customerName || '—'} />
-                <ReadOnlyRow label="Customer Phone" value={customer.customerPhone || '—'} />
+                <ReadOnlyRow label="Mobile Number" value={customer.customerPhone || '—'} />
               </View>
               <View className={isWideLayout ? 'w-[48%]' : 'w-full'}>
                 <ReadOnlyRow
-                  label="Customer Address"
+                  label="Address"
                   value={customer.customerAddress || '—'}
                   multiline
                 />
-                <ReadOnlyRow label="Customer Email" value={customer.customerEmail || '—'} />
-                <ReadOnlyRow label="PAN Number" value={customer.customerPan || '—'} />
-                <ReadOnlyRow label="GSTIN Number" value={customer.customerGstin || '—'} />
+                <ReadOnlyRow label="GST No." value={customer.customerGstin || '—'} />
+                <ReadOnlyRow label="PAN" value={customer.customerPan || '—'} />
               </View>
             </View>
           ) : (
@@ -458,60 +455,49 @@ export function InvoiceGenerationBilling({
                     updateCustomer({ customerName: text });
                     setTouched((current) => ({ ...current, name: true }));
                   }}
-                  placeholder="Enter customer name"
+                  placeholder="e.g. Garg Jewellers"
                   required
                   error={nameError}
                 />
                 <ValidatedInput
-                  label="Customer Phone"
+                  label="Mobile Number"
                   value={customer.customerPhone}
                   onChangeText={(text) => {
                     updateCustomer({ customerPhone: sanitizePhoneInput(text) });
                     setTouched((current) => ({ ...current, phone: true }));
                   }}
-                  placeholder="10-digit mobile number"
+                  placeholder="+91 9999999999"
                   keyboardType="phone-pad"
+                  maxLength={10}
                   required
                   error={phoneError}
                 />
               </View>
               <View className={isWideLayout ? 'w-[48%]' : 'w-full'}>
                 <ValidatedInput
-                  label="Customer Address"
+                  label="Address"
                   value={customer.customerAddress}
                   onChangeText={(text) => {
                     updateCustomer({ customerAddress: text });
                     setTouched((current) => ({ ...current, address: true }));
                   }}
-                  placeholder="Enter full address"
+                  placeholder="Shop no., Area, City, State, Pincode"
                   error={addressError}
                 />
                 <ValidatedInput
-                  label="Customer Email"
-                  value={customer.customerEmail}
-                  onChangeText={(text) => {
-                    updateCustomer({ customerEmail: text.trim() });
-                    setTouched((current) => ({ ...current, email: true }));
-                  }}
-                  placeholder="name@example.com"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  error={emailError}
-                />
-                <ValidatedInput
-                  label="GSTIN Number"
+                  label="GST No."
                   value={customer.customerGstin}
                   onChangeText={(text) => updateCustomer({ customerGstin: sanitizeGstinInput(text) })}
-                  placeholder="Optional GSTIN"
+                  placeholder="09AEWPG4525J1Z0"
                   autoCapitalize="characters"
                 />
                 <ValidatedInput
-                  label="PAN Number"
+                  label="PAN"
                   value={customer.customerPan}
                   onChangeText={(text) =>
                     updateCustomer({ customerPan: text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) })
                   }
-                  placeholder="Optional PAN"
+                  placeholder="AEWPG4525J"
                   autoCapitalize="characters"
                 />
               </View>
