@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,6 +10,7 @@ import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { getBusinessProfile, formatProfileValue } from '@/utils/businessProfile';
+import { fetchBusinessProfile } from '@/utils/businessProfileApi';
 
 interface DetailRowProps {
   label: string;
@@ -33,6 +35,31 @@ function DetailRow({ label, value, multiline, last }: DetailRowProps) {
 
 export default function BusinessProfileScreen() {
   const registration = useAuthStore((s) => s.registration);
+  const updateRegistration = useAuthStore((s) => s.updateRegistration);
+
+  // Read the business identity from the database on open. The cached copy from
+  // login renders immediately so nothing flashes empty, and a failed request
+  // leaves it in place rather than blanking the screen.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchBusinessProfile().then((fresh) => {
+      if (cancelled || !fresh) return;
+      updateRegistration({
+        businessId: fresh.businessId,
+        businessName: fresh.businessName,
+        gstNumber: fresh.gstNumber,
+        businessType: fresh.businessType,
+        address: fresh.address,
+        // Only overwrite these when the server actually knows them.
+        ...(fresh.phone ? { phone: fresh.phone } : {}),
+        ...(fresh.loginId ? { userId: fresh.loginId } : {}),
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [updateRegistration]);
+
   const profile = getBusinessProfile(registration);
 
   return (
