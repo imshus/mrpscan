@@ -17,8 +17,10 @@ import { ScanScreenWrapper } from '@/components/scanner/ScanScreenWrapper';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useInvoiceStore } from '@/store/invoiceStore';
+import { useScannerStore } from '@/store/scannerStore';
 import { useInvoiceComputation } from '@/hooks/useInvoiceComputation';
 import { getBusinessProfile } from '@/utils/businessProfile';
+import { formatItemIdentity, resolveItemIdentity } from '@/utils/itemIdentity';
 import { fetchBusinessProfile, type BusinessProfileResponse } from '@/utils/businessProfileApi';
 import {
   apiFetchNextInvoiceNumber,
@@ -64,6 +66,7 @@ export default function InvoiceSheetScreen() {
   // them rather than printing a footer the generated PDF will not match.
   const [business, setBusiness] = useState<BusinessProfileResponse | null>(null);
 
+  const scanData = useScannerStore((state) => state.scanData);
   const customer = useInvoiceStore((state) => state.customer);
   const placeOfSupply = useInvoiceStore((state) => state.placeOfSupply);
   const transport = useInvoiceStore((state) => state.transport);
@@ -93,6 +96,12 @@ export default function InvoiceSheetScreen() {
     };
   }, []);
 
+  // The scanned piece, so the invoice says which item it bills for.
+  const itemLabel = useMemo(
+    () => formatItemIdentity(resolveItemIdentity(scanData)),
+    [scanData],
+  );
+
   const totalUnits = useMemo(
     () =>
       lineItemRows
@@ -120,7 +129,9 @@ export default function InvoiceSheetScreen() {
       bankBranch: business?.bankBranch,
       bankAccountNumber: business?.bankAccountNumber,
       bankIfsc: business?.bankIfsc,
-      lineItems: lineItemRows,
+      lineItems: lineItemRows.map((row, index) =>
+        index === 0 && itemLabel && !row.note ? { ...row, note: itemLabel } : row,
+      ),
       subtotal,
       gstRate,
       gstAmount,
@@ -142,6 +153,7 @@ export default function InvoiceSheetScreen() {
       grandTotalWords,
       transport,
       totalUnits,
+      itemLabel,
       business,
     ],
   );

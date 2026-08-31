@@ -74,13 +74,18 @@ export const useAuthStore = create<AuthState>()(
       updateRegistration: (data) =>
         set((state) => ({ registration: { ...state.registration, ...data } })),
       resetRegistration: () => set({ registration: {} }),
+      // Clears the signed-in business too. Leaving `registration` behind meant
+      // the next account signed in on this device inherited the previous
+      // business's name, GSTIN and address until its own data arrived.
       logout: () =>
         set({
           isAuthenticated: false,
           authToken: null,
           refreshToken: null,
           userRole: null,
+          isSuper: false,
           loggedInEmployeeId: null,
+          registration: {},
         }),
       setHasHydrated: (value) => set({ _hasHydrated: value }),
     }),
