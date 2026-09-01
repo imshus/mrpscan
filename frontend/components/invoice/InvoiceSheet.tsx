@@ -256,9 +256,6 @@ export function InvoiceSheet({ data }: { data: InvoiceSheetData }) {
         </View>
         <View style={[styles.totalsRow, styles.grandRow]}>
           <Text style={styles.grandKey}>Grand Total</Text>
-          {data.totalUnits ? (
-            <Text style={styles.unitsText}>{data.totalUnits} Units</Text>
-          ) : null}
           <Text style={styles.grandValue}>₹ {inr(roundedTotal)}</Text>
         </View>
       </View>
