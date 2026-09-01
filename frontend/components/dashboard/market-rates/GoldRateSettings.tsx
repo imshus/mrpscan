@@ -136,7 +136,7 @@ function isSameNumber(a: number, b: number): boolean {
 
 interface RateCardProps {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   currentLabel?: string;
   finalLabel?: string;
   icon: React.ReactNode;
@@ -278,15 +278,6 @@ export function GoldRateSettingsPanel({
     setCashAmount(cashForm.amount);
   }, [visible, mcxChange, rtgsChange, cashChange]);
 
-  const signed = (value?: number) =>
-    value === undefined || !Number.isFinite(value)
-      ? ''
-      : `${value < 0 ? '−' : '+'}${Math.abs(Math.round(value)).toLocaleString('en-IN')}`;
-  const bhawNote = (value?: number) =>
-    bhawSourceName && signed(value)
-      ? `Includes ${bhawSourceName} bhaw ${signed(value)}`
-      : '';
-
   const mcxDraftChange = useMemo(() => signedValue(mcxSign, mcxAmount), [mcxSign, mcxAmount]);
   const rtgsDraftChange = useMemo(() => signedValue(rtgsSign, rtgsAmount), [rtgsSign, rtgsAmount]);
   const cashDraftChange = useMemo(() => signedValue(cashSign, cashAmount), [cashSign, cashAmount]);
@@ -379,7 +370,6 @@ export function GoldRateSettingsPanel({
 
         <RateCard
           title="RTGS Rate"
-          subtitle={bhawNote(bhawRtgs)}
           icon={null}
           sign={rtgsSign}
           amount={rtgsAmount}
@@ -394,7 +384,6 @@ export function GoldRateSettingsPanel({
 
         <RateCard
           title="Cash Rate"
-          subtitle={bhawNote(bhawCash)}
           icon={null}
           sign={cashSign}
           amount={cashAmount}

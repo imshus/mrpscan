@@ -442,16 +442,16 @@ export function InvoiceGenerationBilling({
   const companyName = formatProfileValue(profile.businessName, 'Your Business');
 
   return (
-    // Glassy champagne fill with a diagonal gloss, matching the rate cards.
+    // Same glassy red fill as the home screen's trial tile — identical
+    // gradient stops, sheen and top highlight.
     <GradientView
-      colors={Gradients.metallic}
+      colors={Gradients.trial}
       borderRadius={16}
-      sheen={0.55}
-      topHighlight={0.35}
-      style={{ borderWidth: 1, borderColor: Colors.border }}
+      sheen={0.16}
+      topHighlight={0.22}
     >
       <View className="gap-4 p-4">
-        <View className="rounded-xl border border-white/50 bg-white/70 p-4">
+        <View className="rounded-xl border border-white/40 bg-white/90 p-4">
           <SectionHeader title="Customer Details" icon={<UserRound size={14} color="#A81F17" />} />
 
           {readOnly ? (
