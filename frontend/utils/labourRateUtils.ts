@@ -1,5 +1,5 @@
 import { DEFAULT_LABOUR_WEIGHT_BASIS, type LabourWeightBasis } from '@/constants/labour';
-import type { LabourChargeType, LabourRate } from '@/types/rates';
+import type { LabourChargeType, LabourRate, UpsertLabourRatePayload } from '@/types/rates';
 
 export interface LabourRateFormErrors {
   amount?: string;
@@ -38,7 +38,7 @@ export function validateLabourRateForm(amount: string): LabourRateFormErrors | n
 export function labourRateFormToPayload(
   amount: string,
   weightBasis: LabourWeightBasis,
-): { chargeType: LabourChargeType; value: number; weightBasis?: LabourWeightBasis } | null {
+): UpsertLabourRatePayload | null {
   if (validateLabourRateForm(amount)) return null;
 
   // An empty box clears the default rate rather than saving a zero.
@@ -52,6 +52,10 @@ export function labourRateFormToPayload(
   return {
     chargeType: 'AMOUNT',
     value: Number(amount.replace(/[^\d.]/g, '')),
+    // The screen no longer offers a per-10-gram rate, but the unit is still a
+    // required field on the server — omitting it is rejected outright. Sent
+    // explicitly so saving works against a server of either vintage.
+    rupeesUnit: 'Per Gram',
     weightBasis,
   };
 }

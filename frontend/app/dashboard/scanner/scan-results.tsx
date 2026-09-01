@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { CheckCircle, Heart } from 'lucide-react-native';
@@ -71,6 +71,13 @@ export default function ScanResultsScreen() {
   const activePricing = isFromWishlist
     ? wishlistItem?.snapshot.pricing ?? livePricing
     : livePricing;
+
+  // Hand these exact figures to the invoice, so the bill prints the price shown
+  // here instead of asking the server for a second opinion.
+  const setPreviewPricing = useScannerStore((state) => state.setPreviewPricing);
+  useEffect(() => {
+    setPreviewPricing(activePricing);
+  }, [activePricing, setPreviewPricing]);
 
   const handleAddToWishlist = async () => {
     if (addingToWishlist) return;

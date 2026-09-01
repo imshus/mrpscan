@@ -13,6 +13,7 @@ import type {
   StructuredScanData,
   UnknownField,
 } from '@/types/scanner';
+import type { FinalTabPricingResult } from '@/utils/scanPriceCalculation';
 
 interface ScannerState {
   selectedType: JewelleryType;
@@ -32,6 +33,15 @@ interface ScannerState {
   error: string | null;
   scanLoading: ScanLoadingState;
   mrpRefreshToken: number;
+  /**
+   * The pricing the scanner preview screen last displayed.
+   *
+   * The invoice bills from this rather than asking the server again, so the
+   * figures on the bill are the very ones the customer was quoted — not a
+   * second answer to the same question.
+   */
+  previewPricing: FinalTabPricingResult | null;
+  setPreviewPricing: (pricing: FinalTabPricingResult | null) => void;
   bumpMrpRefresh: () => void;
   setSelectedType: (type: JewelleryType) => void;
   setScanMode: (mode: ScanMode) => void;
@@ -67,6 +77,7 @@ const initialSessionState = {
     progress: 0,
     message: 'Uploading Tags...',
   } as ScanLoadingState,
+  previewPricing: null as FinalTabPricingResult | null,
 };
 
 export const useScannerStore = create<ScannerState>((set) => ({
@@ -145,5 +156,6 @@ export const useScannerStore = create<ScannerState>((set) => ({
       ...initialSessionState,
     }),
   mrpRefreshToken: 0,
+  setPreviewPricing: (pricing) => set({ previewPricing: pricing }),
   bumpMrpRefresh: () => set((state) => ({ mrpRefreshToken: Date.now() })),
 }));
