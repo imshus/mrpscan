@@ -12,7 +12,7 @@ import {
 import * as FileSystem from 'expo-file-system/legacy';
 import { Minus, Plus, Search } from 'lucide-react-native';
 
-import { InvoiceSheet, type InvoiceSheetData } from '@/components/invoice/InvoiceSheet';
+import { InvoiceHtmlSheet } from '@/components/invoice/InvoiceHtmlSheet';
 import { ScanScreenWrapper } from '@/components/scanner/ScanScreenWrapper';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
@@ -25,6 +25,7 @@ import { fetchBusinessProfile, type BusinessProfileResponse } from '@/utils/busi
 import {
   apiFetchNextInvoiceNumber,
   apiGenerateInvoice,
+  fetchInvoicePreviewHtml,
   reserveInvoiceQr,
   resolveInvoicePdfUrl,
   type GenerateInvoiceResponse,
@@ -63,6 +64,8 @@ export default function InvoiceSheetScreen() {
   const [generated, setGenerated] = useState<GenerateInvoiceResponse | null>(null);
   // Reserved when the preview opens, so the QR on screen is the PDF's QR.
   const [reservedQr, setReservedQr] = useState<ReservedInvoiceQr | null>(null);
+  // The invoice rendered by the server from the template the PDF uses.
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
   const registration = useAuthStore((state) => state.registration);
   const profile = getBusinessProfile(registration);
@@ -119,68 +122,10 @@ export default function InvoiceSheetScreen() {
     [lineItemRows],
   );
 
-  const sheetData: InvoiceSheetData = useMemo(
+  // One payload for both paths: the preview renders it and generation sends
+  // it, so what is shown cannot differ from what is billed.
+  const invoicePayload = useMemo(
     () => ({
-      companyName: profile.businessName || 'Your Business',
-      companyAddress: profile.address,
-      companyGstin: profile.gstNumber,
-      invoiceNumber: generated?.invoiceNumber ?? invoiceNumber,
-      invoiceDate: generated?.invoiceDate ?? todayStamp(),
-      placeOfSupply,
-      reverseCharge: 'N',
-      transport,
-      customerName: customer.customerName,
-      customerAddress: customer.customerAddress,
-      customerGstinOrPan: customer.customerGstin || customer.customerPan,
-      totalUnits,
-      bankName: business?.bankName,
-      bankBranch: business?.bankBranch,
-      bankAccountNumber: business?.bankAccountNumber,
-      bankIfsc: business?.bankIfsc,
-      lineItems: lineItemRows.map((row, index) =>
-        index === 0 && itemLabel && !row.note ? { ...row, note: itemLabel } : row,
-      ),
-      subtotal,
-      gstRate,
-      gstAmount,
-      grandTotal,
-      amountInWords: grandTotalWords,
-      terms: business?.invoiceTerms?.length ? business.invoiceTerms : DEFAULT_TERMS,
-      // The reserved code and the generated one are the same token, so the
-      // preview and the PDF always print an identical QR.
-      qrCodeImage: generated?.qrCodeImage ?? reservedQr?.qrCodeImage,
-    }),
-    [
-      profile,
-      generated,
-      invoiceNumber,
-      placeOfSupply,
-      customer,
-      lineItemRows,
-      subtotal,
-      gstRate,
-      gstAmount,
-      grandTotal,
-      grandTotalWords,
-      transport,
-      totalUnits,
-      itemLabel,
-      business,
-      reservedQr,
-    ],
-  );
-
-  const generateOnce = async (): Promise<GenerateInvoiceResponse> => {
-    if (generated) return generated;
-    const lineItemsPayload: InvoiceLineItemPayload[] = lineItemRows.map((row) => ({
-      description: row.description,
-      note: row.note,
-      qty: row.qty,
-      qty_unit: row.qtyUnit === 'g' ? 'Gms.' : row.qtyUnit === 'Ct' ? 'CT' : row.qtyUnit,
-      price: row.price,
-      amount: row.amount,
-    }));
-    const result = await apiGenerateInvoice({
       customer_name: customer.customerName,
       customer_address: customer.customerAddress,
       customer_phone: customer.customerPhone,
@@ -189,7 +134,15 @@ export default function InvoiceSheetScreen() {
       customer_pan: customer.customerPan,
       place_of_supply: placeOfSupply,
       transport,
-      line_items: lineItemsPayload,
+      line_items: lineItemRows.map((row, index) => ({
+        description: row.description,
+        // The scanned piece is named on the first line.
+        note: index === 0 && itemLabel && !row.note ? itemLabel : row.note,
+        qty: row.qty,
+        qty_unit: row.qtyUnit === 'g' ? 'Gms.' : row.qtyUnit === 'Ct' ? 'CT' : row.qtyUnit,
+        price: row.price,
+        amount: row.amount,
+      })) as InvoiceLineItemPayload[],
       subtotal,
       gst_rate: gstRate,
       gst_amount: gstAmount,
@@ -197,7 +150,38 @@ export default function InvoiceSheetScreen() {
       amount_in_words: grandTotalWords,
       terms_and_conditions: '',
       public_token: reservedQr?.publicToken,
-    });
+    }),
+    [
+      customer,
+      placeOfSupply,
+      transport,
+      lineItemRows,
+      itemLabel,
+      subtotal,
+      gstRate,
+      gstAmount,
+      grandTotal,
+      grandTotalWords,
+      reservedQr,
+    ],
+  );
+
+  // Render the invoice from the server template whenever the figures change.
+  useEffect(() => {
+    if (grandTotal <= 0) return;
+    let cancelled = false;
+    void fetchInvoicePreviewHtml({ ...invoicePayload, invoice_number: invoiceNumber })
+      .then((html) => {
+        if (!cancelled && html) setPreviewHtml(html);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [invoicePayload, invoiceNumber, grandTotal]);
+
+  const generateOnce = async (): Promise<GenerateInvoiceResponse> => {
+    if (generated) return generated;
+    const result = await apiGenerateInvoice(invoicePayload);
     setGenerated(result);
     return result;
   };
@@ -324,15 +308,11 @@ export default function InvoiceSheetScreen() {
         </View>
       ) : (
         <>
-          <ScrollView
-            horizontal={zoom > 1}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.sheetWrap}
-          >
-            <View style={{ width: zoom > 1 ? `${zoom * 100}%` : '100%' }}>
-              <InvoiceSheet data={sheetData} />
+          <View style={styles.sheetWrap}>
+            <View style={styles.sheetFill}>
+              <InvoiceHtmlSheet html={previewHtml} zoom={zoom} />
             </View>
-          </ScrollView>
+          </View>
 
           {/* Zoom bar, as in the mockup: − / magnifier / + */}
           <View style={styles.zoomBar}>
@@ -363,6 +343,9 @@ export default function InvoiceSheetScreen() {
 const styles = StyleSheet.create({
   loadingWrap: { alignItems: 'center', gap: 10, paddingVertical: 60 },
   loadingText: { fontSize: 13, color: Colors.textSecondary },
+  // The rendered document fills the space above the zoom bar so pinch-zoom
+  // has room to work.
+  sheetFill: { flex: 1, minHeight: 420 },
   sheetWrap: { paddingTop: 4, paddingBottom: 8, flexGrow: 1 },
   zoomBar: {
     flexDirection: 'row',
