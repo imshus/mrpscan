@@ -139,6 +139,8 @@ interface RateCardProps {
   subtitle?: string;
   currentLabel?: string;
   finalLabel?: string;
+  /** MCX shows its current rate; RTGS and Cash go straight to Change By. */
+  showCurrentRate?: boolean;
   icon: React.ReactNode;
   sign: Sign;
   amount: string;
@@ -154,6 +156,7 @@ function RateCard({
   subtitle,
   currentLabel,
   finalLabel,
+  showCurrentRate = true,
   icon,
   sign,
   amount,
@@ -173,10 +176,12 @@ function RateCard({
         </View>
       </View>
 
-      <View style={styles.currentRatePill}>
-        <Text style={styles.currentRateLabel}>{currentLabel ?? title}</Text>
-        <Text style={styles.currentRateValue}>{formatInr(currentRate)}</Text>
-      </View>
+      {showCurrentRate ? (
+        <View style={styles.currentRatePill}>
+          <Text style={styles.currentRateLabel}>{currentLabel ?? title}</Text>
+          <Text style={styles.currentRateValue}>{formatInr(currentRate)}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.changeSection}>
         <Text style={styles.fieldLabel}>Change By</Text>
@@ -391,6 +396,7 @@ export function GoldRateSettingsPanel({
         <RateCard
           title="RTGS Rate"
           subtitle={bhawNote(bhawRtgs)}
+          showCurrentRate={false}
           icon={null}
           sign={rtgsSign}
           amount={rtgsAmount}
@@ -406,6 +412,7 @@ export function GoldRateSettingsPanel({
         <RateCard
           title="Cash Rate"
           subtitle={bhawNote(bhawCash)}
+          showCurrentRate={false}
           icon={null}
           sign={cashSign}
           amount={cashAmount}
