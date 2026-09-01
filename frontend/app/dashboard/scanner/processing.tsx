@@ -221,6 +221,10 @@ export default function ProcessingScreen() {
               labourChargeAmount: String(labourRate.value ?? ''),
               labourChargeUnit:
                 labourRate.rupeesUnit ?? adjustedScanData.labourChargeUnit,
+              // The rate is set against a chosen weight, so the scan has to
+              // charge it against the same one.
+              labourWeightBasis:
+                labourRate.weightBasis ?? adjustedScanData.labourWeightBasis,
               labourPurityPercent: '',
             };
           }

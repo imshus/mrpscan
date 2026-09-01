@@ -237,10 +237,9 @@ export default function PurchaseLicenseScreen() {
                     <Feature text={`${trialDays} day free trial`} tone="trial" />
                     <Feature text={`Free ${trialCredits} credits`} tone="trial" />
                   </View>
-                  <View style={styles.panelSpacer} />
                   <Pressable
                     onPress={() => router.replace('/dashboard')}
-                    style={styles.keepBtn}
+                    style={[styles.keepBtn, styles.panelAction]}
                   >
                     <Text style={styles.keepBtnText}>Keep Using</Text>
                   </Pressable>
@@ -262,11 +261,10 @@ export default function PurchaseLicenseScreen() {
                     <Feature text={`${rupees(bonusCredits)} wallet credits included`} tone="paid" />
                     <Feature text="Credit recharge when low" tone="paid" />
                   </View>
-                  <View style={styles.panelSpacer} />
                   <Pressable
                     disabled={busy}
                     onPress={handlePurchase}
-                    style={[styles.purchaseBtn, busy && styles.btnDisabled]}
+                    style={[styles.purchaseBtn, styles.panelAction, busy && styles.btnDisabled]}
                   >
                     <Text style={styles.purchaseBtnText}>
                       {busy ? 'Processing…' : 'Purchase Now'}
@@ -338,7 +336,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     overflow: 'hidden',
   },
-  panelSpacer: { flex: 1, minHeight: 8 },
+  // Pins each panel's button to the bottom, so the two line up whatever
+  // number of bullets sits above them.
+  panelAction: { marginTop: 'auto' },
   panel: {
     flex: 1,
     minWidth: 0,

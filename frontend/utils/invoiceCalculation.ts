@@ -1,15 +1,12 @@
 import type { GoldRate } from '@/types/rates';
-import type { OtherChargeItem, ScanItemData, StoneEntry } from '@/types/scanner';
-import { normalizeKarat, parseWeightValue } from '@/utils/formulaUtils';
+import type { OtherChargeItem, StoneEntry } from '@/types/scanner';
+import { parseWeightValue } from '@/utils/formulaUtils';
 import {
   deriveActiveBaseRate,
   type ScannerCalculationUse,
 } from '@/utils/goldRateUtils';
-import { hasActiveLabourPurity, parseNumericLabourValue } from '@/utils/labourUtils';
 import { buildQuality } from '@/utils/qualityUtils';
-import { resolveEffectivePurityPercent } from '@/utils/scanPriceCalculation';
 import {
-  computeLabourAmount,
   computeStoneAmountWithDiscount,
   parseNumericValue,
 } from '@/utils/scanPriceCalculation';
@@ -27,76 +24,14 @@ export interface InvoiceLineItemRow {
   amount: number;
 }
 
-export interface InvoiceGoldPriceInput {
-  scanData: ScanItemData;
-  goldRates: GoldRate[];
-  activeBaseRate: number;
-  selectedKarat: string;
-}
-
-export function computeGoldPerGramPrice(input: InvoiceGoldPriceInput): number {
-  // Purity is resolved exactly as the scanner review resolves it — an edited
-  // purity, then the tag's tunch, then the karat table. Reading the karat
-  // table alone billed a different gold amount from the MRP the customer was
-  // shown whenever either override applied.
-  const { percent } = resolveEffectivePurityPercent({
-    scanData: input.scanData,
-    selectedKarat: input.selectedKarat,
-    goldRates: input.goldRates,
-  });
-
-  if (percent > 0 && input.activeBaseRate > 0) {
-    return (input.activeBaseRate * (percent / 100)) / 10;
-  }
-
-  const fromScan = parseNumericValue(input.scanData.goldRate);
-  if (fromScan > 0) return fromScan;
-
-  return 0;
-}
-
-export function buildGoldLineItemRow(input: InvoiceGoldPriceInput): InvoiceLineItemRow {
-  const netWtGrams = parseWeightValue(input.scanData.netWt);
-  const pricePerGram = computeGoldPerGramPrice(input);
-  const amount = netWtGrams * pricePerGram;
-
-  return {
-    key: 'gold-base-metal',
-    description: 'Gold (in grams)',
-    note: input.selectedKarat || '—',
-    qty: netWtGrams,
-    qtyUnit: 'g',
-    price: pricePerGram,
-    amount,
-  };
-}
-
-/**
- * Labour as an invoice line.
+/*
+ * Gold and labour are no longer priced here.
  *
- * Labour is part of the MRP the customer is quoted, so it has to appear on the
- * invoice and in its subtotal; without a row here the invoice totalled less
- * than the price the scanner had shown. Returns null when no labour applies,
- * so a piece sold without it prints no empty row.
+ * They come from the backend MRP breakdown via useInvoiceComputation, which
+ * is the same breakdown the scanner preview screen displays. Recomputing
+ * either one on the device is what made the invoice disagree with the price
+ * the customer had already been quoted.
  */
-export function buildLabourLineItemRow(
-  scanData: ScanItemData,
-  netWtGrams: number,
-  grossWtGrams: number,
-): InvoiceLineItemRow | null {
-  const labour = computeLabourAmount(scanData, netWtGrams, grossWtGrams);
-  if (!(labour.amount > 0)) return null;
-
-  return {
-    key: 'labour-charge',
-    description: 'Labour Charge',
-    note: labour.display || '',
-    qty: 1,
-    qtyUnit: '',
-    price: labour.amount,
-    amount: labour.amount,
-  };
-}
 
 const STONE_TYPE_LABELS: Record<StoneEntry['stoneType'], string> = {
   diamond: 'Diamond',
