@@ -37,7 +37,6 @@ export interface InvoiceSheetData {
   ackNumber?: string;
   ackDate?: string;
   /** Metal weight in grams, printed beside the grand total. */
-  totalUnits?: string;
   bankName?: string;
   bankBranch?: string;
   bankAccountNumber?: string;

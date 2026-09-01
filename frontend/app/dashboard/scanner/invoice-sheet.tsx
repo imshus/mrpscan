@@ -119,14 +119,6 @@ export default function InvoiceSheetScreen() {
     [scanData],
   );
 
-  const totalUnits = useMemo(
-    () =>
-      lineItemRows
-        .filter((row) => /^(g|gm|gms|gram|grams)\.?$/i.test(row.qtyUnit.trim()))
-        .reduce((sum, row) => sum + row.qty, 0)
-        .toFixed(3),
-    [lineItemRows],
-  );
 
   // One payload for both paths: the preview renders it and generation sends
   // it, so what is shown cannot differ from what is billed.
