@@ -138,6 +138,9 @@ export default function InvoiceSheetScreen() {
       grandTotal,
       amountInWords: grandTotalWords,
       terms: business?.invoiceTerms?.length ? business.invoiceTerms : DEFAULT_TERMS,
+      // Known only once the invoice exists: the code encodes that invoice's
+      // own download URL, so there is nothing to show before generating it.
+      qrCodeImage: generated?.qrCodeImage,
     }),
     [
       profile,

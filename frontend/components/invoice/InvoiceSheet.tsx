@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import type { InvoiceLineItemRow } from '@/utils/invoiceCalculation';
 
@@ -42,6 +42,11 @@ export interface InvoiceSheetData {
   bankBranch?: string;
   bankAccountNumber?: string;
   bankIfsc?: string;
+  /**
+   * Data URI of the QR printed on the PDF. Only known once the invoice has
+   * been generated, because the code encodes that invoice's download URL.
+   */
+  qrCodeImage?: string;
   lineItems: InvoiceLineItemRow[];
   subtotal: number;
   gstRate: number;
@@ -275,24 +280,40 @@ export function InvoiceSheet({ data }: { data: InvoiceSheetData }) {
         </View>
       ) : null}
 
-      {/* Terms */}
-      <View style={styles.block}>
-        <Text style={styles.blockLabel}>Terms &amp; Conditions</Text>
-        {data.terms.map((term, index) => (
-          <Text key={term} style={styles.billedLine}>
-            {index + 1}. {term}
-          </Text>
-        ))}
-      </View>
-
-      {/* Signatures */}
-      <View style={styles.signRow}>
-        <View style={styles.signCol}>
+      {/* Terms | QR | Signatures — the printed footer */}
+      <View style={styles.footerRow}>
+        <View style={[styles.footerCol, styles.footerDivider]}>
+          <Text style={styles.blockLabel}>Terms &amp; Conditions</Text>
           <Text style={styles.eoe}>E. &amp; O.E.</Text>
-          <Text style={styles.signLabel}>Receiver&apos;s Signature</Text>
+          {data.terms.map((term, index) => (
+            <Text key={term} style={styles.termLine}>
+              {index + 1}. {term}
+            </Text>
+          ))}
         </View>
-        <View style={styles.signColRight}>
-          <Text style={styles.signFor}>for {data.companyName}</Text>
+
+        <View style={[styles.qrCol, styles.footerDivider]}>
+          {data.qrCodeImage ? (
+            <>
+              <Text style={styles.qrCaption}>Scan to download invoice</Text>
+              <Image
+                source={{ uri: data.qrCodeImage }}
+                style={styles.qrImage}
+                resizeMode="contain"
+              />
+            </>
+          ) : (
+            <View style={styles.qrPlaceholder}>
+              <Text style={styles.qrPlaceholderText}>
+                QR appears once the invoice is generated
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.signCol}>
+          <Text style={styles.signLabel}>Receiver&apos;s Signature</Text>
+          <Text style={[styles.signFor, styles.signForSpaced]}>for {data.companyName}</Text>
           <Text style={styles.signLabel}>Authorised Signatory</Text>
         </View>
       </View>
@@ -348,7 +369,26 @@ const styles = StyleSheet.create({
   },
   irnText: { fontSize: 8, color: '#222' },
   unitsText: { fontSize: 10.5, color: '#222' },
-  signCol: { flex: 1, gap: 2 },
+  footerRow: { flexDirection: 'row', alignItems: 'stretch' },
+  footerCol: { flex: 1.1, gap: 2, paddingHorizontal: 10, paddingVertical: 8 },
+  footerDivider: { borderRightWidth: 1, borderColor: BORDER },
+  termLine: { fontSize: 8, color: '#222', lineHeight: 12 },
+  qrCol: { width: 96, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, gap: 4 },
+  qrCaption: { fontSize: 6.5, color: '#333', textAlign: 'center' },
+  qrImage: { width: 74, height: 74 },
+  qrPlaceholder: {
+    width: 74,
+    height: 74,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: BORDER,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  qrPlaceholderText: { fontSize: 6, color: '#888', textAlign: 'center' },
+  signForSpaced: { marginTop: 14 },
+  signCol: { flex: 1, gap: 2, alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8 },
   signColRight: { flex: 1, alignItems: 'flex-end', gap: 2 },
   eoe: { fontSize: 8, color: '#333' },
   metaCol: { flex: 1, gap: 4, paddingHorizontal: 10, paddingVertical: 7 },

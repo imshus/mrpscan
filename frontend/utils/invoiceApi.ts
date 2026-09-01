@@ -44,6 +44,8 @@ export interface GenerateInvoiceResponse {
    */
   invoiceUrl?: string;
   invoiceId: string;
+  /** Data URI of the QR printed on the PDF, so the app shows the same code. */
+  qrCodeImage?: string;
 }
 
 /** Prefers the durable URL, falling back to the expiring one. */
