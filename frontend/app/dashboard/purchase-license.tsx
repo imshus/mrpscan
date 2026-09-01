@@ -71,6 +71,9 @@ function toPurchaseState(overview: SubscriptionOverview | null): 'LOADING' | 'PE
   return 'CAN_PURCHASE';
 }
 
+/** Cream-to-tan wash behind the free-trial panel. */
+const TRIAL_PANEL_GRADIENT = ['#F5EEDC', '#E3D6B4'];
+
 export default function PurchaseLicenseScreen() {
   const router = useRouter();
   const allowed = useRequireSettingsAccess('subscription');
@@ -182,7 +185,7 @@ export default function PurchaseLicenseScreen() {
           <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
             <ChevronLeft size={22} color={Colors.textPrimary} strokeWidth={2.2} />
           </Pressable>
-          <Text style={styles.headerTitle}>License Purchase</Text>
+          <Text style={styles.headerTitle}>Subscription</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -202,12 +205,17 @@ export default function PurchaseLicenseScreen() {
           <View style={styles.contentWrap}>
             <Text style={styles.title}>Unlock Full Access</Text>
             <Text style={styles.subtitle}>
-              Compare your current plan against lifetime access.
+              Compare your current plan against{' '}
+              <Text style={styles.subtitleAccent}>lifetime access</Text>.
             </Text>
 
             <View style={styles.compareRow}>
               {/* Free trial — what they have now */}
-              <View style={styles.trialPanel}>
+              <GradientView
+                colors={TRIAL_PANEL_GRADIENT}
+                borderRadius={18}
+                style={styles.trialPanel}
+              >
                 <Text style={styles.trialHeading}>Free Trial</Text>
                 <Feature text={`${trialDays} day free trial`} tone="trial" />
                 <Feature text={`Free ${trialCredits} credits`} tone="trial" />
@@ -218,10 +226,16 @@ export default function PurchaseLicenseScreen() {
                 >
                   <Text style={styles.keepBtnText}>Keep Using</Text>
                 </Pressable>
-              </View>
+              </GradientView>
 
               {/* Paid licence */}
-              <GradientView colors={Gradients.brand} borderRadius={18} style={styles.paidPanel}>
+              <GradientView
+                colors={Gradients.trial}
+                borderRadius={18}
+                sheen={0.16}
+                topHighlight={0.22}
+                style={styles.paidPanel}
+              >
                 <Text style={styles.paidHeading}>Subscription</Text>
                 <Feature text={displayPrice} sub="(one time purchase)" tone="paid" />
                 <Feature text="Lifetime application validity" tone="paid" />
@@ -280,9 +294,9 @@ function Feature({ text, sub, tone }: FeatureProps) {
 const styles = StyleSheet.create({
   // Two panels sharing an edge, with an OR badge sitting over the seam.
   compareRow: { flexDirection: 'row', marginTop: 18, position: 'relative' },
+  subtitleAccent: { color: Colors.primary, fontWeight: '600' },
   trialPanel: {
     flex: 1,
-    backgroundColor: '#EFE7D2',
     borderTopLeftRadius: 18,
     borderBottomLeftRadius: 18,
     paddingVertical: 18,
