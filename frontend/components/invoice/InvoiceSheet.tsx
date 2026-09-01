@@ -43,8 +43,8 @@ export interface InvoiceSheetData {
   bankAccountNumber?: string;
   bankIfsc?: string;
   /**
-   * Data URI of the QR printed on the PDF. Only known once the invoice has
-   * been generated, because the code encodes that invoice's download URL.
+   * Data URI of the QR printed on the PDF. Reserved when the preview opens so
+   * the code on screen is the one the generated PDF carries.
    */
   qrCodeImage?: string;
   lineItems: InvoiceLineItemRow[];

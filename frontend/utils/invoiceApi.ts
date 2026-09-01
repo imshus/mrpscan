@@ -30,6 +30,8 @@ export interface GenerateInvoicePayload {
   grand_total: number;
   amount_in_words: string;
   terms_and_conditions: string;
+  /** Token reserved for the preview, so the PDF prints that same QR. */
+  public_token?: string;
 }
 
 export interface GenerateInvoiceResponse {
@@ -61,6 +63,33 @@ export function resolveInvoicePdfUrl(invoice: {
  * Sends the invoice payload to the backend, which saves it to MongoDB,
  * calls PDFMonkey, and returns the PDF download URL.
  */
+export interface ReservedInvoiceQr {
+  publicToken: string;
+  invoiceUrl: string;
+  qrCodeImage: string;
+}
+
+/**
+ * POST /invoices/reserve-qr — the token and QR image the next invoice will
+ * carry.
+ *
+ * The QR encodes that invoice's download URL, so it cannot be drawn until the
+ * token exists. Reserving one up front lets the preview show the very code the
+ * PDF will print. Returns null on failure; the preview then shows a
+ * placeholder and generation falls back to a fresh token.
+ */
+export async function reserveInvoiceQr(): Promise<ReservedInvoiceQr | null> {
+  try {
+    const res = await apiRequest<{ success: boolean; data: ReservedInvoiceQr }>(
+      '/invoices/reserve-qr',
+      { method: 'POST' },
+    );
+    return res.success && res.data?.qrCodeImage ? res.data : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function apiGenerateInvoice(
   payload: GenerateInvoicePayload,
 ): Promise<GenerateInvoiceResponse> {
