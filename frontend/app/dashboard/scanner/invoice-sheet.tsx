@@ -254,25 +254,63 @@ export default function InvoiceSheetScreen() {
     }
   };
 
+  /**
+   * Opens WhatsApp straight away and generates the invoice alongside it.
+   *
+   * The link is known before the invoice exists — it carries the token
+   * reserved when this screen opened, and generation claims that same token.
+   * Waiting for the PDF first meant staring at a spinner for the seconds
+   * PDFMonkey takes, before even choosing a contact.
+   */
   const handleShare = async () => {
     if (!guardTotals() || working) return;
-    setWorking('share');
-    try {
-      const result = await generateOnce();
-      const link = result.invoiceUrl || result.pdfUrl;
-      const text =
-        `Invoice ${result.invoiceNumber} from ${profile.businessName || 'us'} — ` +
-        `₹ ${Math.round(grandTotal).toLocaleString('en-IN')}\n${link}`;
-      await Linking.openURL(`whatsapp://send?text=${encodeURIComponent(text)}`).catch(() =>
-        Linking.openURL(`https://wa.me/?text=${encodeURIComponent(text)}`),
-      );
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Could not share the invoice. Please try again.';
-      Alert.alert('Error', message);
-    } finally {
-      setWorking(null);
+
+    const reservedLink = reservedQr
+      ? `${reservedQr.invoiceUrl}?download=1`
+      : null;
+
+    // Without a reservation there is no link yet, so fall back to waiting.
+    if (!reservedLink) {
+      setWorking('share');
+      try {
+        const result = await generateOnce();
+        await openWhatsApp(result.invoiceNumber, resolveInvoicePdfUrl(result));
+      } catch (err) {
+        Alert.alert(
+          'Error',
+          err instanceof Error ? err.message : 'Could not share the invoice.',
+        );
+      } finally {
+        setWorking(null);
+      }
+      return;
     }
+
+    void openWhatsApp(generated?.invoiceNumber ?? invoiceNumber, reservedLink);
+
+    // Generation continues while the sender picks a contact; the link resolves
+    // by the time the recipient opens it. A failure is surfaced rather than
+    // leaving a dead link unexplained.
+    generateOnce().catch((err) => {
+      Alert.alert(
+        'Invoice not generated',
+        err instanceof Error
+          ? `${err.message}
+
+The link you shared will not open until this succeeds.`
+          : 'The link you shared will not open until the invoice is generated.',
+      );
+    });
+  };
+
+  const openWhatsApp = async (number: string, link: string) => {
+    const text =
+      `Invoice ${number} from ${profile.businessName || 'us'} — ` +
+      `₹ ${Math.round(grandTotal).toLocaleString('en-IN')}
+${link}`;
+    await Linking.openURL(`whatsapp://send?text=${encodeURIComponent(text)}`).catch(() =>
+      Linking.openURL(`https://wa.me/?text=${encodeURIComponent(text)}`),
+    );
   };
 
   const zoom = ZOOM_STEPS[zoomIndex];
