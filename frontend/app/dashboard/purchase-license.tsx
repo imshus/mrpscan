@@ -200,16 +200,20 @@ export default function PurchaseLicenseScreen() {
           <View style={styles.loadingWrap}>
             <ActivityIndicator color={Colors.primary} />
           </View>
-        ) : purchaseState === 'PERMANENT' ? (
-          <View style={styles.centerStateWrap}>
-            <Text style={styles.doneTitle}>Application License Active</Text>
-            <Text style={styles.doneSubtitle}>No purchase is required for this organization.</Text>
-            <Pressable onPress={() => router.back()} style={styles.primaryBtn}>
-              <Text style={styles.primaryBtnText}>Go Back</Text>
-            </Pressable>
-          </View>
         ) : (
           <View style={styles.contentWrap}>
+            {/* An active licence used to replace this whole page, which left the
+                licence details unreadable once one had been bought. The notice
+                sits above the page instead. */}
+            {purchaseState === 'PERMANENT' ? (
+              <View style={styles.activeNotice}>
+                <Text style={styles.activeNoticeTitle}>Application License Active</Text>
+                <Text style={styles.activeNoticeText}>
+                  No purchase is required for this organization.
+                </Text>
+              </View>
+            ) : null}
+
             <View>
               <Text style={styles.title}>Own Your MRP Scanner</Text>
               <Text style={styles.subtitle}>One-time application license</Text>
@@ -230,8 +234,21 @@ export default function PurchaseLicenseScreen() {
 
             <View style={styles.ctaWrap}>
               <Text style={styles.ctaPrice}>{displayPrice} One-Time Purchase</Text>
-              <Pressable disabled={busy} onPress={handlePurchase} style={[styles.primaryBtn, busy && styles.btnDisabled]}>
-                <Text style={styles.primaryBtnText}>{busy ? 'Processing...' : 'Purchase Now'}</Text>
+              <Pressable
+                disabled={busy || purchaseState === 'PERMANENT'}
+                onPress={handlePurchase}
+                style={[
+                  styles.primaryBtn,
+                  (busy || purchaseState === 'PERMANENT') && styles.btnDisabled,
+                ]}
+              >
+                <Text style={styles.primaryBtnText}>
+                  {busy
+                    ? 'Processing...'
+                    : purchaseState === 'PERMANENT'
+                      ? 'Already Purchased'
+                      : 'Purchase Now'}
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -292,23 +309,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  centerStateWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-    gap: 10,
+  activeNotice: {
+    borderRadius: Radius.input,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 2,
   },
-  doneTitle: {
-    fontSize: 22,
+  activeNoticeTitle: {
+    fontSize: 14,
     fontWeight: '800',
     color: Colors.textPrimary,
-    textAlign: 'center',
   },
-  doneSubtitle: {
-    fontSize: 13,
+  activeNoticeText: {
+    fontSize: 12,
     color: Colors.textSecondary,
-    textAlign: 'center',
   },
   contentWrap: {
     flex: 1,
