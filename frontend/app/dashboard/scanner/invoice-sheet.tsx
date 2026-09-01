@@ -25,8 +25,10 @@ import { fetchBusinessProfile, type BusinessProfileResponse } from '@/utils/busi
 import {
   apiFetchNextInvoiceNumber,
   apiGenerateInvoice,
+  reserveInvoiceQr,
   resolveInvoicePdfUrl,
   type GenerateInvoiceResponse,
+  type ReservedInvoiceQr,
   type InvoiceLineItemPayload,
 } from '@/utils/invoiceApi';
 
@@ -59,6 +61,8 @@ export default function InvoiceSheetScreen() {
   const [working, setWorking] = useState<null | 'download' | 'share'>(null);
   // One generation per visit: Share after Download (or vice versa) reuses it.
   const [generated, setGenerated] = useState<GenerateInvoiceResponse | null>(null);
+  // Reserved when the preview opens, so the QR on screen is the PDF's QR.
+  const [reservedQr, setReservedQr] = useState<ReservedInvoiceQr | null>(null);
 
   const registration = useAuthStore((state) => state.registration);
   const profile = getBusinessProfile(registration);
@@ -85,6 +89,10 @@ export default function InvoiceSheetScreen() {
     let cancelled = false;
     void fetchBusinessProfile().then((fresh) => {
       if (!cancelled && fresh) setBusiness(fresh);
+    });
+    // Reserve the token now so the preview shows the same QR the PDF prints.
+    void reserveInvoiceQr().then((reserved) => {
+      if (!cancelled && reserved) setReservedQr(reserved);
     });
     apiFetchNextInvoiceNumber()
       .then((next) => {
@@ -138,6 +146,9 @@ export default function InvoiceSheetScreen() {
       grandTotal,
       amountInWords: grandTotalWords,
       terms: business?.invoiceTerms?.length ? business.invoiceTerms : DEFAULT_TERMS,
+      // The reserved code and the generated one are the same token, so the
+      // preview and the PDF always print an identical QR.
+      qrCodeImage: generated?.qrCodeImage ?? reservedQr?.qrCodeImage,
     }),
     [
       profile,
@@ -155,6 +166,7 @@ export default function InvoiceSheetScreen() {
       totalUnits,
       itemLabel,
       business,
+      reservedQr,
     ],
   );
 
@@ -184,6 +196,7 @@ export default function InvoiceSheetScreen() {
       grand_total: grandTotal,
       amount_in_words: grandTotalWords,
       terms_and_conditions: '',
+      public_token: reservedQr?.publicToken,
     });
     setGenerated(result);
     return result;
