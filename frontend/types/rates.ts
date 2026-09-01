@@ -1,3 +1,5 @@
+import type { LabourWeightBasis } from '@/constants/labour';
+
 export type GoldIncreaseByType = 'FLAT' | 'PERCENTAGE';
 
 export type GoldCarat = '22Kt' | '20Kt' | '18Kt' | '14Kt' | '9Kt';
@@ -110,6 +112,7 @@ export interface LabourRate {
   chargeType: LabourChargeType;
   value: number;
   rupeesUnit?: 'Per Gram' | 'Per 10 Gram';
+  weightBasis?: LabourWeightBasis;
   updatedAt?: string;
 }
 
@@ -117,4 +120,5 @@ export interface UpsertLabourRatePayload {
   chargeType: LabourChargeType;
   value: number;
   rupeesUnit?: 'Per Gram' | 'Per 10 Gram';
+  weightBasis?: LabourWeightBasis;
 }

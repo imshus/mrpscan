@@ -1,27 +1,45 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import { useInvoiceStore } from '@/store/invoiceStore';
 import { useScannerStore } from '@/store/scannerStore';
-import type { GoldRate } from '@/types/rates';
 import {
-  buildGoldLineItemRow,
-  buildLabourLineItemRow,
   buildOtherChargeLineItemRows,
   buildStoneLineItemRows,
   computeGrandTotal,
   computeGstAmount,
-  computeInvoiceSubtotal,
-  prepareDisplayGoldRates,
   type InvoiceLineItemRow,
 } from '@/utils/invoiceCalculation';
 import { amountInWords } from '@/utils/numberToWords';
-import { parseWeightValue, resolveScannedKarat } from '@/utils/formulaUtils';
+import { resolveScannedKarat } from '@/utils/formulaUtils';
+import {
+  formatIndianCurrency,
+  type FinalTabPricingResult,
+} from '@/utils/scanPriceCalculation';
 import {
   buildDisplayStoneBlocks,
   parseStoneArraysFromStructuredData,
 } from '@/utils/stoneSequenceUtils';
-import { fetchGoldRates } from '@/utils/ratesApi';
-import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
+
+/**
+ * Whole rupees, matching formatIndianCurrency — the scanner preview rounds
+ * every figure it shows, so the invoice has to bill the same rounded number.
+ */
+function roundToRupee(amount: number): number {
+  return Number.isFinite(amount) ? Math.round(amount) : 0;
+}
+
+/** Zero pricing, used only if the invoice is opened without a preview behind it. */
+const EMPTY_PRICING: Pick<
+  FinalTabPricingResult,
+  'netWtGrams' | 'goldBasePrice' | 'selectedKarat' | 'stoneRows' | 'labourAmount' | 'ultimateMrp'
+> = {
+  netWtGrams: 0,
+  goldBasePrice: 0,
+  selectedKarat: '',
+  stoneRows: [],
+  labourAmount: 0,
+  ultimateMrp: 0,
+};
 
 export interface InvoiceComputation {
   lineItemRows: InvoiceLineItemRow[];
@@ -34,126 +52,101 @@ export interface InvoiceComputation {
 }
 
 /**
- * The invoice's line items and totals, computed from the current scan and the
- * live gold rates. Shared by the Invoice Generation form and the native
- * Invoice Preview sheet so both always show identical figures.
+ * The invoice's line items and totals.
+ *
+ * Every figure is the one the scanner preview screen put on the store as it
+ * rendered. The invoice used to re-derive gold, labour and the subtotal on the
+ * device with its own formulas, which disagreed with the preview — the server
+ * prices gold as pure weight × the 24K RTGS/cash rate, while the device was
+ * applying the per-karat table rate and its own markup. Carrying the preview's
+ * own numbers over, rather than asking again or recomputing, is what keeps the
+ * bill and the price the customer was quoted identical.
  */
 export function useInvoiceComputation(): InvoiceComputation {
-  const [goldRates, setGoldRates] = useState<GoldRate[]>([]);
-  const [mcxLiveRate, setMcxLiveRate] = useState(0);
-  const [mcxFinalRate, setMcxFinalRate] = useState(0);
-  const [supremeRtgsChange, setSupremeRtgsChange] = useState(0);
-  const [supremeCashChange, setSupremeCashChange] = useState(0);
-  const [rtgsChange, setRtgsChange] = useState(0);
-  const [cashChange, setCashChange] = useState(0);
-  const [ratesLoaded, setRatesLoaded] = useState(false);
-
   const scanData = useScannerStore((state) => state.scanData);
   const structuredData = useScannerStore((state) => state.structuredData);
+  const storedPricing = useScannerStore((state) => state.previewPricing);
   const gstRate = useInvoiceStore((state) => state.gstRate);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchGoldRates()
-      .then((response) => {
-        if (cancelled) return;
-        setGoldRates(response.rates);
-        setMcxLiveRate(response.mcxLiveRate);
-        const mcxChangeBy =
-          response.taxSettings?.mcxChangeBy ??
-          resolveMcxChangeValue(response.taxSettings?.mcxChange);
-        setMcxFinalRate(
-          response.taxSettings?.mcxFinalRate ?? response.mcxLiveRate + mcxChangeBy,
-        );
-        const supremeRtgsBase =
-          response.supremeChanges?.supremeRtgs ??
-          response.mcxLiveRate + (response.supremeChanges?.rtgsChange ?? 0);
-        const supremeCashBase =
-          response.supremeChanges?.supremeCash ??
-          response.mcxLiveRate + (response.supremeChanges?.cashChange ?? 0);
-        setSupremeRtgsChange(supremeRtgsBase - response.mcxLiveRate);
-        setSupremeCashChange(supremeCashBase - response.mcxLiveRate);
-        setRtgsChange(response.taxSettings?.rtgsChangeBy ?? 0);
-        setCashChange(response.taxSettings?.cashChangeBy ?? 0);
-        setRatesLoaded(true);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setGoldRates([]);
-        setMcxLiveRate(0);
-        setMcxFinalRate(0);
-        setSupremeRtgsChange(0);
-        setSupremeCashChange(0);
-        setRtgsChange(0);
-        setCashChange(0);
-        setRatesLoaded(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const { diamonds, colorstones } = useMemo(
-    () => parseStoneArraysFromStructuredData(structuredData, scanData),
-    [structuredData, scanData],
-  );
 
   const selectedKarat = useMemo(
     () => resolveScannedKarat(scanData.karat, scanData.tunch) || '14K',
     [scanData.karat, scanData.tunch],
   );
 
+  // Whatever the scanner preview screen last displayed — not a fresh request.
+  // Generate Invoice is only reachable from that screen, so this is always the
+  // pricing the customer was just shown.
+  const pricing = storedPricing ?? EMPTY_PRICING;
+
+  const { diamonds, colorstones } = useMemo(
+    () => parseStoneArraysFromStructuredData(structuredData, scanData),
+    [structuredData, scanData],
+  );
+
   const lineItemRows = useMemo(() => {
-    const { displayRates, activeBaseRate } = prepareDisplayGoldRates(
-      goldRates,
-      mcxLiveRate,
-      supremeRtgsChange + rtgsChange,
-      supremeCashChange + cashChange,
-      scanData.calculationRate || 'rtgs',
-      mcxFinalRate,
-    );
-    const goldRow = buildGoldLineItemRow({
-      scanData,
-      goldRates: displayRates,
-      activeBaseRate,
-      selectedKarat,
-    });
+    const netWtGrams = pricing.netWtGrams;
+    // The preview screen prints whole rupees, so the invoice has to bill whole
+    // rupees — an amount of 9,849.60 next to a quoted ₹9,850 is the customer
+    // reading two prices for one piece.
+    const goldAmount = roundToRupee(pricing.goldBasePrice);
+    const goldRow: InvoiceLineItemRow = {
+      key: 'gold-base-metal',
+      description: 'Gold (in grams)',
+      note: pricing.selectedKarat || selectedKarat || '—',
+      qty: netWtGrams,
+      qtyUnit: 'g',
+      // Derived from the amount so the printed Qty × Price closes to it.
+      price: netWtGrams > 0 ? goldAmount / netWtGrams : 0,
+      amount: goldAmount,
+    };
+
+    // Stone descriptions come from the scanned entries; the amounts come from
+    // the same rows the preview screen prints, matched by position (both are
+    // built from buildDisplayStoneBlocks, so the order is identical).
     const stoneBlocks = buildDisplayStoneBlocks(diamonds, colorstones);
-    const stoneEntries = stoneBlocks.map((block) => block.entry);
-    const stoneRows = buildStoneLineItemRows(stoneEntries);
+    const stoneRows = buildStoneLineItemRows(
+      stoneBlocks.map((block) => block.entry),
+    ).map((row, index) => {
+      const priced = pricing.stoneRows[index];
+      return { ...row, amount: roundToRupee(priced ? priced.amount : row.amount) };
+    });
+
+    const labourAmount = roundToRupee(pricing.labourAmount);
+    const labourRow: InvoiceLineItemRow | null =
+      labourAmount > 0
+        ? {
+            key: 'labour-charge',
+            description: 'Labour Charge',
+            note: formatIndianCurrency(labourAmount),
+            qty: 1,
+            qtyUnit: '',
+            price: labourAmount,
+            amount: labourAmount,
+          }
+        : null;
+
     const otherChargeRows = buildOtherChargeLineItemRows(
       scanData.otherChargesItems || [],
       scanData.otherChargesRemarks,
-    );
-    // Labour is part of the quoted MRP, so it belongs on the invoice and in
-    // its subtotal; leaving it out billed the customer less than the scanner
-    // had shown them.
-    const labourRow = buildLabourLineItemRow(
-      scanData,
-      parseWeightValue(scanData.netWt),
-      parseWeightValue(scanData.grossWt),
-    );
+    ).map((row) => {
+      const amount = roundToRupee(row.amount);
+      return { ...row, price: amount, amount };
+    });
+
     return [
       goldRow,
       ...stoneRows,
       ...(labourRow ? [labourRow] : []),
       ...otherChargeRows,
     ];
-  }, [
-    goldRates,
-    mcxLiveRate,
-    mcxFinalRate,
-    supremeRtgsChange,
-    supremeCashChange,
-    rtgsChange,
-    cashChange,
-    scanData,
-    selectedKarat,
-    diamonds,
-    colorstones,
-  ]);
+  }, [pricing, selectedKarat, diamonds, colorstones, scanData]);
 
-  const subtotal = useMemo(() => computeInvoiceSubtotal(lineItemRows), [lineItemRows]);
+  // The subtotal is the sum of the printed lines, not the unrounded MRP, so
+  // the amount column on paper actually adds up to the figure beneath it.
+  const subtotal = useMemo(
+    () => lineItemRows.reduce((sum, row) => sum + row.amount, 0),
+    [lineItemRows],
+  );
   const gstAmount = useMemo(() => computeGstAmount(subtotal, gstRate), [subtotal, gstRate]);
   const grandTotal = useMemo(
     () => computeGrandTotal(subtotal, gstAmount),
@@ -161,5 +154,13 @@ export function useInvoiceComputation(): InvoiceComputation {
   );
   const grandTotalWords = useMemo(() => amountInWords(grandTotal), [grandTotal]);
 
-  return { lineItemRows, subtotal, gstRate, gstAmount, grandTotal, grandTotalWords, ratesLoaded };
+  return {
+    lineItemRows,
+    subtotal,
+    gstRate,
+    gstAmount,
+    grandTotal,
+    grandTotalWords,
+    ratesLoaded: pricing.ultimateMrp > 0,
+  };
 }

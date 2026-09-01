@@ -12,144 +12,109 @@ import {
 import { ChevronDown, X } from 'lucide-react-native';
 
 import { screenStyles } from '@/constants/screenLayout';
+import { LABOUR_WEIGHT_OPTIONS, type LabourWeightBasis } from '@/constants/labour';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import type { LabourRateFormErrors } from '@/utils/labourRateUtils';
+import { labourWeightBasisLabel } from '@/utils/labourRateUtils';
 
 const BUTTON_GREEN = '#A81F17';
 
 interface LabourRateEditModalProps {
   visible: boolean;
   amount: string;
-  percentage: string;
-  amountDisabled: boolean;
-  percentageDisabled: boolean;
+  weightBasis: LabourWeightBasis;
   errors: LabourRateFormErrors;
-  rupeesUnit: 'Per Gram' | 'Per 10 Gram';
   saving?: boolean;
   onAmountChange: (value: string) => void;
-  onPercentageChange: (value: string) => void;
-  onRupeesUnitChange: (value: 'Per Gram' | 'Per 10 Gram') => void;
+  onWeightBasisChange: (value: LabourWeightBasis) => void;
   onClose: () => void;
   onSave: () => void;
-}
-
-function OrDivider() {
-  return (
-    <View style={styles.orRow}>
-      <View style={styles.orLine} />
-      <Text style={styles.orText}>OR</Text>
-      <View style={styles.orLine} />
-    </View>
-  );
 }
 
 export function LabourRateEditModal({
   visible,
   amount,
-  percentage,
-  amountDisabled,
-  percentageDisabled,
+  weightBasis,
   errors,
-  rupeesUnit,
   saving = false,
   onAmountChange,
-  onPercentageChange,
-  onRupeesUnitChange,
+  onWeightBasisChange,
   onClose,
   onSave,
 }: LabourRateEditModalProps) {
-  const [unitDropdownOpen, setUnitDropdownOpen] = useState(false);
+  const [basisDropdownOpen, setBasisDropdownOpen] = useState(false);
+
+  const closeAndReset = () => {
+    setBasisDropdownOpen(false);
+    onClose();
+  };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={closeAndReset}>
       <View style={screenStyles.modalOverlay}>
         <View style={screenStyles.modalCard}>
-          <Pressable onPress={onClose} hitSlop={8} style={styles.modalClose}>
+          <Pressable onPress={closeAndReset} hitSlop={8} style={styles.modalClose}>
             <X size={20} color={Colors.textSecondary} />
           </Pressable>
 
-          <Text style={styles.modalTitle}>Edit Labour Rates</Text>
-          <Text style={styles.modalHint}>Fill only one field — amount or gold purity %.</Text>
+          <Text style={styles.modalTitle}>Labour Rates</Text>
 
-          <View style={[styles.fieldCard, percentageDisabled && styles.fieldDisabled]}>
-            <Text style={styles.caseTitle}>Case I — % Purity Mode</Text>
-            <Text style={styles.caseHint}>Custom % overrides pure wt; labour charge prints as ₹0</Text>
-            <View style={styles.amountRow}>
+          <View style={styles.fieldRow}>
+            <View style={[styles.amountRow, { flex: 1.4 }]}>
+              <Text style={styles.currencyPrefix}>₹</Text>
               <TextInput
-                value={percentage}
-                onChangeText={(text) => onPercentageChange(text.replace(/[^\d.]/g, ''))}
-                placeholder="Enter %"
-                editable={!percentageDisabled}
+                value={amount}
+                onChangeText={(text) => onAmountChange(text.replace(/[^\d.]/g, ''))}
+                placeholder="Enter amount"
                 placeholderTextColor={Colors.placeholder}
                 keyboardType="decimal-pad"
                 style={styles.input}
               />
             </View>
-            {errors.percentage ? <Text style={styles.errorText}>{errors.percentage}</Text> : null}
-          </View>
 
-          <OrDivider />
-
-          <View style={[styles.fieldCard, amountDisabled && styles.fieldDisabled]}>
-            <Text style={styles.caseTitle}>Case II — Fixed Amount Mode</Text>
-            <Text style={styles.caseHint}>Labour = Net wt (gms) × rate per gram</Text>
-            <View style={styles.amountRowWrapper}>
-              <View style={[styles.amountRow, { flex: 1.5 }]}>
-                <Text style={styles.currencyPrefix}>₹</Text>
-                <TextInput
-                  value={amount}
-                  onChangeText={(text) => onAmountChange(text.replace(/[^\d.]/g, ''))}
-                  placeholder="Enter amount"
-                  editable={!amountDisabled}
-                  placeholderTextColor={Colors.placeholder}
-                  keyboardType="decimal-pad"
-                  style={styles.input}
-                />
-              </View>
-              <View style={{ flex: 1, minWidth: 110 }}>
-                <Pressable
-                  onPress={() => !amountDisabled && setUnitDropdownOpen((v) => !v)}
-                  disabled={amountDisabled}
-                  style={styles.unitDropdown}
-                >
-                  <Text style={styles.unitDropdownText} numberOfLines={1}>
-                    {rupeesUnit}
-                  </Text>
-                  <ChevronDown size={16} color="#857A63" />
-                </Pressable>
-                {unitDropdownOpen && !amountDisabled ? (
-                  <View style={styles.unitDropdownList}>
-                    {['Per Gram', 'Per 10 Gram'].map((option) => (
-                      <Pressable
-                        key={option}
-                        onPress={() => {
-                          onRupeesUnitChange(option as 'Per Gram' | 'Per 10 Gram');
-                          setUnitDropdownOpen(false);
-                        }}
+            <View style={{ flex: 1, minWidth: 112 }}>
+              <Pressable
+                onPress={() => setBasisDropdownOpen((open) => !open)}
+                style={styles.unitDropdown}
+              >
+                <Text style={styles.unitDropdownText} numberOfLines={1}>
+                  {labourWeightBasisLabel(weightBasis)}
+                </Text>
+                <ChevronDown size={16} color="#857A63" />
+              </Pressable>
+              {basisDropdownOpen ? (
+                <View style={styles.unitDropdownList}>
+                  {LABOUR_WEIGHT_OPTIONS.map((option) => (
+                    <Pressable
+                      key={option.value}
+                      onPress={() => {
+                        onWeightBasisChange(option.value);
+                        setBasisDropdownOpen(false);
+                      }}
+                      style={[
+                        styles.unitOption,
+                        option.value === weightBasis && styles.unitOptionSelected,
+                      ]}
+                    >
+                      <Text
                         style={[
-                          styles.unitOption,
-                          option === rupeesUnit && styles.unitOptionSelected,
+                          styles.unitOptionText,
+                          option.value === weightBasis && styles.unitOptionTextSelected,
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.unitOptionText,
-                            option === rupeesUnit && styles.unitOptionTextSelected,
-                          ]}
-                        >
-                          {option}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                ) : null}
-              </View>
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
             </View>
-            {errors.amount ? <Text style={styles.errorText}>{errors.amount}</Text> : null}
           </View>
 
+          {errors.amount ? <Text style={styles.errorText}>{errors.amount}</Text> : null}
+
           <View style={styles.modalActions}>
-            <Pressable onPress={onClose} style={styles.cancelBtn}>
+            <Pressable onPress={closeAndReset} style={styles.cancelBtn}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </Pressable>
             <TouchableOpacity
@@ -174,42 +139,17 @@ export function LabourRateEditModal({
 const styles = StyleSheet.create({
   modalClose: { alignSelf: 'flex-end' },
   modalTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
-  },
-  modalHint: {
-    fontSize: 13,
-    color: Colors.textSecondary,
     marginBottom: Spacing.lg,
-    lineHeight: 18,
   },
-  fieldCard: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.input,
-    padding: Spacing.md,
-    backgroundColor: Colors.white,
-  },
-  fieldDisabled: { opacity: 0.45 },
-  caseTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    marginBottom: 4,
-  },
-  caseHint: {
-    fontSize: 10,
-    lineHeight: 16,
-    color: Colors.textMuted,
-    marginBottom: Spacing.sm,
-  },
-  amountRowWrapper: {
+  fieldRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    zIndex: 10, // Ensure dropdown flows over below items
+    // Keeps the open list above the buttons instead of behind them.
+    zIndex: 10,
   },
   amountRow: {
     flexDirection: 'row',
@@ -219,10 +159,10 @@ const styles = StyleSheet.create({
     borderRadius: Radius.input,
     backgroundColor: Colors.inputBg,
     paddingHorizontal: Spacing.md,
-    height: 44,
+    height: 46,
   },
   unitDropdown: {
-    height: 44,
+    height: 46,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -234,14 +174,14 @@ const styles = StyleSheet.create({
   },
   unitDropdownText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.textPrimary,
   },
   unitDropdownList: {
     position: 'absolute',
     left: 0,
     right: 0,
-    top: 48,
+    top: 50,
     zIndex: 20,
     overflow: 'hidden',
     borderRadius: Radius.input,
@@ -263,7 +203,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(27, 48, 34, 0.1)',
   },
   unitOptionText: {
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.textPrimary,
   },
   unitOptionTextSelected: {
@@ -271,14 +211,14 @@ const styles = StyleSheet.create({
     color: BUTTON_GREEN,
   },
   currencyPrefix: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: Colors.textMuted,
     marginRight: Spacing.xs,
   },
   input: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
     color: Colors.textPrimary,
     paddingVertical: 0,
   },
@@ -287,19 +227,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.dangerText,
     lineHeight: 16,
-  },
-  orRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginVertical: Spacing.md,
-  },
-  orLine: { flex: 1, height: 1, backgroundColor: Colors.border },
-  orText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textMuted,
-    letterSpacing: 0.5,
   },
   modalActions: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.xl },
   cancelBtn: {

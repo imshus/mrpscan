@@ -12,6 +12,10 @@ import { Pencil } from 'lucide-react-native';
 import { LabourRateEditModal } from '@/components/dashboard/market-rates/LabourRateEditModal';
 import type { ToastType } from '@/components/scanner/ToastNotification';
 import { screenStyles } from '@/constants/screenLayout';
+import {
+  DEFAULT_LABOUR_WEIGHT_BASIS,
+  type LabourWeightBasis,
+} from '@/constants/labour';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import type { LabourRate } from '@/types/rates';
 import { ApiError } from '@/utils/apiClient';
@@ -36,8 +40,9 @@ export function LabourRatesPanel({ onToast }: LabourRatesPanelProps) {
   const [saving, setSaving] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [amount, setAmount] = useState('');
-  const [percentage, setPercentage] = useState('');
-  const [rupeesUnit, setRupeesUnit] = useState<'Per Gram' | 'Per 10 Gram'>('Per Gram');
+  const [weightBasis, setWeightBasis] = useState<LabourWeightBasis>(
+    DEFAULT_LABOUR_WEIGHT_BASIS,
+  );
   const [formErrors, setFormErrors] = useState<LabourRateFormErrors>({});
 
   const notify = (message: string, type: ToastType = 'info') => {
@@ -70,8 +75,7 @@ export function LabourRatesPanel({ onToast }: LabourRatesPanelProps) {
   const openEdit = () => {
     const values = labourRateToFormValues(labourRate);
     setAmount(values.amount);
-    setPercentage(values.percentage);
-    setRupeesUnit(values.rupeesUnit);
+    setWeightBasis(values.weightBasis);
     setFormErrors({});
     setModalVisible(true);
   };
@@ -83,32 +87,19 @@ export function LabourRatesPanel({ onToast }: LabourRatesPanelProps) {
 
   const handleAmountChange = (value: string) => {
     setAmount(value);
-    if (value.trim()) {
-      setPercentage('');
-    }
-    if (formErrors.amount || formErrors.percentage) {
-      setFormErrors({});
-    }
-  };
-
-  const handlePercentageChange = (value: string) => {
-    setPercentage(value);
-    if (value.trim()) {
-      setAmount('');
-    }
-    if (formErrors.amount || formErrors.percentage) {
+    if (formErrors.amount) {
       setFormErrors({});
     }
   };
 
   const handleSave = async () => {
-    const errors = validateLabourRateForm(amount, percentage);
+    const errors = validateLabourRateForm(amount);
     if (errors) {
       setFormErrors(errors);
       return;
     }
 
-    const payload = labourRateFormToPayload(amount, percentage, rupeesUnit);
+    const payload = labourRateFormToPayload(amount, weightBasis);
     if (!payload) return;
 
     setSaving(true);
@@ -153,7 +144,7 @@ export function LabourRatesPanel({ onToast }: LabourRatesPanelProps) {
         </View>
         {isEmpty ? (
           <Text style={styles.helperText}>
-            No default labour charge set. Tap Edit to configure amount or purity %.
+            No default labour charge set. Tap Edit to set the rate per gram.
           </Text>
         ) : null}
       </View>
@@ -161,15 +152,11 @@ export function LabourRatesPanel({ onToast }: LabourRatesPanelProps) {
       <LabourRateEditModal
         visible={modalVisible}
         amount={amount}
-        percentage={percentage}
-        rupeesUnit={rupeesUnit}
-        amountDisabled={Boolean(percentage.trim())}
-        percentageDisabled={Boolean(amount.trim())}
+        weightBasis={weightBasis}
         errors={formErrors}
         saving={saving}
         onAmountChange={handleAmountChange}
-        onPercentageChange={handlePercentageChange}
-        onRupeesUnitChange={setRupeesUnit}
+        onWeightBasisChange={setWeightBasis}
         onClose={closeEdit}
         onSave={() => void handleSave()}
       />

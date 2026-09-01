@@ -18,29 +18,21 @@ import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Gradients } from '@/constants/theme';
 import { useInvoiceStore } from '@/store/invoiceStore';
 import { useAuthStore } from '@/store/authStore';
-import type { GoldRate } from '@/types/rates';
+
 import type { ScanItemData, StoneEntry, StructuredScanData } from '@/types/scanner';
 import { getBusinessProfile, formatProfileValue } from '@/utils/businessProfile';
-import { resolveScannedKarat } from '@/utils/formulaUtils';
+import { useInvoiceComputation } from '@/hooks/useInvoiceComputation';
 import {
   GST_RATE_OPTIONS,
-  buildGoldLineItemRow,
-  buildOtherChargeLineItemRows,
-  buildStoneLineItemRows,
-  computeGrandTotal,
-  computeGstAmount,
-  computeInvoiceSubtotal,
   formatInvoiceDateTime,
-  prepareDisplayGoldRates,
   resolveInvoiceNumber,
   type InvoiceLineItemRow,
 } from '@/utils/invoiceCalculation';
-import { amountInWords } from '@/utils/numberToWords';
 import { fetchGoldRates } from '@/utils/ratesApi';
 import { apiFetchNextInvoiceNumber } from '@/utils/invoiceApi';
 import { formatIndianCurrency } from '@/utils/scanPriceCalculation';
-import { buildDisplayStoneBlocks } from '@/utils/stoneSequenceUtils';
-import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
+
+
 
 interface InvoiceGenerationBillingProps {
   scanData: ScanItemData;
@@ -269,6 +261,7 @@ function sanitizeGstinInput(text: string): string {
 
 export function InvoiceGenerationBilling({
   scanData,
+  structuredData,
   diamonds,
   colorstones,
   scanId = null,
@@ -289,13 +282,6 @@ export function InvoiceGenerationBilling({
   const setTransport = useInvoiceStore((state) => state.setTransport);
   const setGstRate = useInvoiceStore((state) => state.setGstRate);
 
-  const [goldRates, setGoldRates] = useState<GoldRate[]>([]);
-  const [mcxLiveRate, setMcxLiveRate] = useState(0);
-  const [mcxFinalRate, setMcxFinalRate] = useState(0);
-  const [supremeRtgsChange, setSupremeRtgsChange] = useState(0);
-  const [supremeCashChange, setSupremeCashChange] = useState(0);
-  const [rtgsChange, setRtgsChange] = useState(0);
-  const [cashChange, setCashChange] = useState(0);
   const [ratesLoading, setRatesLoading] = useState(true);
   const [invoiceDateTime] = useState(() => formatInvoiceDateTime());
   const [previewInvoiceNumber, setPreviewInvoiceNumber] = useState<string>('Loading next number...');
@@ -309,40 +295,15 @@ export function InvoiceGenerationBilling({
   useEffect(() => {
     let cancelled = false;
 
+    // The figures come from the shared computation now; this call only tells
+    // the screen whether the rate service is reachable at all.
     async function loadRates() {
       setRatesLoading(true);
       try {
-        const response = await fetchGoldRates();
-        if (cancelled) return;
-        setGoldRates(response.rates);
-        setMcxLiveRate(response.mcxLiveRate);
-        const mcxChangeBy =
-          response.taxSettings?.mcxChangeBy ??
-          resolveMcxChangeValue(response.taxSettings?.mcxChange);
-        setMcxFinalRate(
-          response.taxSettings?.mcxFinalRate ??
-          response.mcxLiveRate + mcxChangeBy,
-        );
-        const supremeRtgsBase =
-          response.supremeChanges?.supremeRtgs ??
-          response.mcxLiveRate + (response.supremeChanges?.rtgsChange ?? 0);
-        const supremeCashBase =
-          response.supremeChanges?.supremeCash ??
-          response.mcxLiveRate + (response.supremeChanges?.cashChange ?? 0);
-        setSupremeRtgsChange(supremeRtgsBase - response.mcxLiveRate);
-        setSupremeCashChange(supremeCashBase - response.mcxLiveRate);
-        setRtgsChange(response.taxSettings?.rtgsChangeBy ?? 0);
-        setCashChange(response.taxSettings?.cashChangeBy ?? 0);
+        await fetchGoldRates();
       } catch {
-        if (!cancelled) {
-          setGoldRates([]);
-          setMcxLiveRate(0);
-          setMcxFinalRate(0);
-          setSupremeRtgsChange(0);
-          setSupremeCashChange(0);
-          setRtgsChange(0);
-          setCashChange(0);
-        }
+        // A failed fetch leaves the totals at zero, which the screen already
+        // renders as "rates not ready".
       } finally {
         if (!cancelled) setRatesLoading(false);
       }
@@ -373,60 +334,24 @@ export function InvoiceGenerationBilling({
     };
   }, []);
 
-  const selectedKarat = useMemo(
-    () => resolveScannedKarat(scanData.karat, scanData.tunch) || '14K',
-    [scanData.karat, scanData.tunch],
-  );
-
   const invoiceNumber = previewInvoiceNumber;
 
-  const stoneEntries = useMemo(() => {
-    const blocks = buildDisplayStoneBlocks(diamonds, colorstones);
-    return blocks.map((block) => block.entry);
-  }, [diamonds, colorstones]);
+  // Figures come from the shared invoice computation, which reads the same
+  // backend MRP breakdown the scanner preview screen shows. This table used to
+  // price gold on its own and omit labour entirely, so it disagreed with both
+  // the preview and the generated PDF.
+  const {
+    lineItemRows: allLineItemRows,
+    subtotal,
+    gstAmount,
+    grandTotal,
+    grandTotalWords,
+  } = useInvoiceComputation();
 
-  const lineItemRows = useMemo(() => {
-    const { displayRates, activeBaseRate } = prepareDisplayGoldRates(
-      goldRates,
-      mcxLiveRate,
-      supremeRtgsChange + rtgsChange,
-      supremeCashChange + cashChange,
-      scanData.calculationRate || 'rtgs',
-      mcxFinalRate,
-    );
-    const goldRow = buildGoldLineItemRow({
-      scanData,
-      goldRates: displayRates,
-      activeBaseRate,
-      selectedKarat,
-    });
-    const stoneRows = buildStoneLineItemRows(stoneEntries);
-    const otherChargeRows = buildOtherChargeLineItemRows(
-      scanData.otherChargesItems || [],
-      scanData.otherChargesRemarks,
-    );
-    return [goldRow, ...stoneRows, ...otherChargeRows].filter(row => row.price > 0 && row.qty > 0);
-  }, [
-    goldRates,
-    mcxLiveRate,
-    mcxFinalRate,
-    supremeRtgsChange,
-    supremeCashChange,
-    rtgsChange,
-    cashChange,
-    scanData,
-    selectedKarat,
-    stoneEntries,
-    scanData.otherChargesItems,
-  ]);
-
-  const subtotal = useMemo(() => computeInvoiceSubtotal(lineItemRows), [lineItemRows]);
-  const gstAmount = useMemo(() => computeGstAmount(subtotal, gstRate), [subtotal, gstRate]);
-  const grandTotal = useMemo(
-    () => computeGrandTotal(subtotal, gstAmount),
-    [subtotal, gstAmount],
+  const lineItemRows = useMemo(
+    () => allLineItemRows.filter((row) => row.price > 0 && row.qty > 0),
+    [allLineItemRows],
   );
-  const grandTotalWords = useMemo(() => amountInWords(grandTotal), [grandTotal]);
 
   const phoneError =
     touched.phone && !customer.customerPhone.trim()
