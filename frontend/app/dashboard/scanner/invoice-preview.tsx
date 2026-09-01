@@ -166,11 +166,7 @@ export default function InvoicePreviewScreen() {
       className="bg-surface-muted"
       scanButtonVariant="green"
       footer={
-        <PrimaryGreenButton
-          title="Preview Invoice"
-          onPress={handleGenerateInvoice}
-          icon={<FileText size={18} color="#FFFFFF" />}
-        />
+        <PrimaryGreenButton title="Preview Invoice" onPress={handleGenerateInvoice} />
       }
     >
       <BackgroundPattern />

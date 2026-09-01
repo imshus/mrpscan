@@ -9,12 +9,6 @@ function formatWishlistAmount(amount: number) {
   return `₹ ${Math.round(amount).toLocaleString('en-IN')}`;
 }
 
-function formatRateLabel(rate?: 'rtgs' | 'cash') {
-  if (rate === 'rtgs') return 'RTGS Rate';
-  if (rate === 'cash') return 'Cash Rate';
-  return '';
-}
-
 interface WishlistCardProps {
   item: WishlistItem;
   onPress: () => void;
@@ -27,8 +21,6 @@ interface WishlistCardProps {
  * delete control sits at the trailing edge.
  */
 export function WishlistCard({ item, onPress, onDelete }: WishlistCardProps) {
-  const rateSource = item.calculationRate ?? item.snapshot?.scanData?.calculationRate;
-  const rateLabel = formatRateLabel(rateSource);
   // tagCode is the scanned tag/SKU — the number the shop identifies a piece by.
   const itemNo = item.tagCode || item.title;
 
@@ -51,7 +43,6 @@ export function WishlistCard({ item, onPress, onDelete }: WishlistCardProps) {
               <Text style={styles.amountValue} numberOfLines={1}>
                 {formatWishlistAmount(item.totalMrp)}
               </Text>
-              {rateLabel ? <Text style={styles.rateText}>{rateLabel}</Text> : null}
             </View>
           </View>
         </View>
@@ -128,11 +119,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: Colors.textPrimary,
-  },
-  rateText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: Colors.textMuted,
   },
   deleteBtn: {
     width: 40,

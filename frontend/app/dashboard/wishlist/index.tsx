@@ -23,26 +23,15 @@ export default function WishlistScreen() {
     syncFromApi();
   }, [syncFromApi]);
 
-  const handleDeleteItem = (id: string) => {
-    Alert.alert(
-      'Delete Item',
-      'Are you sure you want to remove this item from your wishlist?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await removeItem(id);
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : 'Failed to delete item.';
-              Alert.alert('Error', msg);
-            }
-          },
-        },
-      ]
-    );
+  // Deletes straight away: a wishlist entry is cheap to re-add, so a
+  // confirmation on every bin tap cost more than the mistake it prevented.
+  const handleDeleteItem = async (id: string) => {
+    try {
+      await removeItem(id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete item.';
+      Alert.alert('Error', msg);
+    }
   };
 
   const handleClearWishlist = () => {

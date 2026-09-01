@@ -7,7 +7,7 @@ interface FieldLabelProps {
 
 export function FieldLabel({ label, required = false }: FieldLabelProps) {
   return (
-    <Text className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-label">
+    <Text className="mb-1.5 text-[12px] font-semibold text-text-label">
       {label}
       {required ? <Text className="text-danger-text">*</Text> : null}
     </Text>

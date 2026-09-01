@@ -7,6 +7,7 @@ import {
 } from '@/utils/goldRateUtils';
 import { hasActiveLabourPurity, parseNumericLabourValue } from '@/utils/labourUtils';
 import { buildQuality } from '@/utils/qualityUtils';
+import { resolveEffectivePurityPercent } from '@/utils/scanPriceCalculation';
 import {
   computeLabourAmount,
   computeStoneAmountWithDiscount,
@@ -34,14 +35,18 @@ export interface InvoiceGoldPriceInput {
 }
 
 export function computeGoldPerGramPrice(input: InvoiceGoldPriceInput): number {
-  // Labour purity override removed - no longer supported
-  
-  const normalizedKarat = normalizeKarat(input.selectedKarat);
-  const tableMatch = input.goldRates.find(
-    (rate) => normalizeKarat(rate.carat) === normalizedKarat,
-  );
-  if (tableMatch?.purity && input.activeBaseRate > 0) {
-    return (input.activeBaseRate * (tableMatch.purity / 100)) / 10;
+  // Purity is resolved exactly as the scanner review resolves it — an edited
+  // purity, then the tag's tunch, then the karat table. Reading the karat
+  // table alone billed a different gold amount from the MRP the customer was
+  // shown whenever either override applied.
+  const { percent } = resolveEffectivePurityPercent({
+    scanData: input.scanData,
+    selectedKarat: input.selectedKarat,
+    goldRates: input.goldRates,
+  });
+
+  if (percent > 0 && input.activeBaseRate > 0) {
+    return (input.activeBaseRate * (percent / 100)) / 10;
   }
 
   const fromScan = parseNumericValue(input.scanData.goldRate);

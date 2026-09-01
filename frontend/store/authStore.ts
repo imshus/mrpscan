@@ -1,6 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+
+/**
+ * The build this session belongs to.
+ *
+ * Installing a new APK over an existing one keeps the app's stored data, so a
+ * tester would carry the previous session into the new build without ever
+ * seeing the login screen. Sessions are therefore scoped to the build that
+ * created them and discarded when the version changes.
+ */
+const APP_BUILD = String(Constants.expoConfig?.version ?? 'dev');
 
 import type { LoginMethod, RegistrationData } from '@/types/auth';
 
@@ -104,9 +115,24 @@ export const useAuthStore = create<AuthState>()(
         savedEmployeePhone: state.savedEmployeePhone,
         loginMethod: state.loginMethod,
         registration: getPersistedRegistration(state.registration),
+        appBuild: APP_BUILD,
       }),
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
+      onRehydrateStorage: () => (state, error) => {
+        if (!state) return;
+
+        // A session restored from a different build is not trusted: the new
+        // APK asks for credentials rather than reusing what was cached. The
+        // remembered identifiers go too, so nothing from the previous install
+        // can sign anyone in or be offered back in the login fields.
+        const restoredBuild = (state as { appBuild?: string }).appBuild;
+        if (!error && restoredBuild !== APP_BUILD) {
+          state.logout();
+          state.setSavedCredentials('');
+          state.setSavedEmployeePhone('');
+          state.setRememberMe(false);
+        }
+
+        state.setHasHydrated(true);
       },
     },
   ),

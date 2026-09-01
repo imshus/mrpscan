@@ -110,6 +110,13 @@ export const AuthField = forwardRef<TextInput, AuthFieldProps>(function AuthFiel
         <TextInput
           ref={ref}
           placeholderTextColor={Colors.placeholder}
+          // Credentials are never offered from the keyboard's password manager
+          // or Android autofill: each sign-in is typed in full. Declared before
+          // inputProps so a field can still opt back in deliberately.
+          autoComplete="off"
+          autoCorrect={false}
+          importantForAutofill="no"
+          textContentType="none"
           {...inputProps}
           secureTextEntry={password ? hidden : inputProps.secureTextEntry}
           onFocus={(e) => {

@@ -136,9 +136,11 @@ function isSameNumber(a: number, b: number): boolean {
 
 interface RateCardProps {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   currentLabel?: string;
   finalLabel?: string;
+  /** MCX shows its current rate; RTGS and Cash go straight to Change By. */
+  showCurrentRate?: boolean;
   icon: React.ReactNode;
   sign: Sign;
   amount: string;
@@ -154,6 +156,7 @@ function RateCard({
   subtitle,
   currentLabel,
   finalLabel,
+  showCurrentRate = true,
   icon,
   sign,
   amount,
@@ -173,10 +176,12 @@ function RateCard({
         </View>
       </View>
 
-      <View style={styles.currentRatePill}>
-        <Text style={styles.currentRateLabel}>{currentLabel ?? title}</Text>
-        <Text style={styles.currentRateValue}>{formatInr(currentRate)}</Text>
-      </View>
+      {showCurrentRate ? (
+        <View style={styles.currentRatePill}>
+          <Text style={styles.currentRateLabel}>{currentLabel ?? title}</Text>
+          <Text style={styles.currentRateValue}>{formatInr(currentRate)}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.changeSection}>
         <Text style={styles.fieldLabel}>Change By</Text>
@@ -264,8 +269,9 @@ export function GoldRateSettingsPanel({
     const rtgs = toSafeNumber(rtgsChange, 0);
     const cash = toSafeNumber(cashChange, 0);
     const mcxForm = getSignAndAmount(mcx);
-    const rtgsForm = getSignAndAmount(rtgs);
-    const cashForm = getSignAndAmount(cash);
+    // Shown as "bhaw already applied + this shop's own adjustment".
+    const rtgsForm = getSignAndAmount(rtgs + toSafeNumber(bhawRtgs, 0));
+    const cashForm = getSignAndAmount(cash + toSafeNumber(bhawCash, 0));
 
     setSavedMcxChange(mcx);
     setSavedRtgsChange(rtgs);
@@ -276,20 +282,30 @@ export function GoldRateSettingsPanel({
     setRtgsAmount(rtgsForm.amount);
     setCashSign(cashForm.sign);
     setCashAmount(cashForm.amount);
-  }, [visible, mcxChange, rtgsChange, cashChange]);
+  }, [visible, mcxChange, rtgsChange, cashChange, bhawRtgs, bhawCash]);
 
-  const signed = (value?: number) =>
-    value === undefined || !Number.isFinite(value)
-      ? ''
-      : `${value < 0 ? '−' : '+'}${Math.abs(Math.round(value)).toLocaleString('en-IN')}`;
-  const bhawNote = (value?: number) =>
-    bhawSourceName && signed(value)
-      ? `Includes ${bhawSourceName} bhaw ${signed(value)}`
-      : '';
+  /**
+   * The provider bhaw is already inside the current RTGS/Cash rate, so the
+   * Change By box shows it rather than adding it a second time: typing a
+   * different figure moves the rate by the difference alone.
+   */
+  const bhawIn = (value?: number) => toSafeNumber(value, 0);
+  const bhawNote = (value?: number) => {
+    const amount = bhawIn(value);
+    if (!bhawSourceName || !amount) return undefined;
+    const sign = amount < 0 ? '−' : '+';
+    return `Includes ${bhawSourceName} bhaw ${sign}${Math.abs(Math.round(amount)).toLocaleString('en-IN')}`;
+  };
 
   const mcxDraftChange = useMemo(() => signedValue(mcxSign, mcxAmount), [mcxSign, mcxAmount]);
-  const rtgsDraftChange = useMemo(() => signedValue(rtgsSign, rtgsAmount), [rtgsSign, rtgsAmount]);
-  const cashDraftChange = useMemo(() => signedValue(cashSign, cashAmount), [cashSign, cashAmount]);
+  const rtgsDraftChange = useMemo(
+    () => signedValue(rtgsSign, rtgsAmount) - toSafeNumber(bhawRtgs, 0),
+    [rtgsSign, rtgsAmount, bhawRtgs],
+  );
+  const cashDraftChange = useMemo(
+    () => signedValue(cashSign, cashAmount) - toSafeNumber(bhawCash, 0),
+    [cashSign, cashAmount, bhawCash],
+  );
   const hasChanges =
     !isSameNumber(mcxDraftChange, savedMcxChange) ||
     !isSameNumber(rtgsDraftChange, savedRtgsChange) ||
@@ -327,8 +343,8 @@ export function GoldRateSettingsPanel({
 
   const handleRestore = () => {
     const mcxForm = getSignAndAmount(savedMcxChange);
-    const rtgsForm = getSignAndAmount(savedRtgsChange);
-    const cashForm = getSignAndAmount(savedCashChange);
+    const rtgsForm = getSignAndAmount(savedRtgsChange + toSafeNumber(bhawRtgs, 0));
+    const cashForm = getSignAndAmount(savedCashChange + toSafeNumber(bhawCash, 0));
     setMcxSign(mcxForm.sign);
     setMcxAmount(mcxForm.amount);
     setRtgsSign(rtgsForm.sign);
@@ -380,6 +396,7 @@ export function GoldRateSettingsPanel({
         <RateCard
           title="RTGS Rate"
           subtitle={bhawNote(bhawRtgs)}
+          showCurrentRate={false}
           icon={null}
           sign={rtgsSign}
           amount={rtgsAmount}
@@ -395,6 +412,7 @@ export function GoldRateSettingsPanel({
         <RateCard
           title="Cash Rate"
           subtitle={bhawNote(bhawCash)}
+          showCurrentRate={false}
           icon={null}
           sign={cashSign}
           amount={cashAmount}

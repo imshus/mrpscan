@@ -14,7 +14,8 @@ import { FieldLabel } from '@/components/scanner/FieldLabel';
 import { FormSection } from '@/components/scanner/FormSection';
 import { InvoiceSelectDropdown } from '@/components/scanner/InvoiceSelectDropdown';
 import { PLACE_OF_SUPPLY_OPTIONS, TRANSPORT_OPTIONS } from '@/constants/invoiceData';
-import { Colors } from '@/constants/theme';
+import { GradientView } from '@/components/ui/GradientView';
+import { Colors, Gradients } from '@/constants/theme';
 import { useInvoiceStore } from '@/store/invoiceStore';
 import { useAuthStore } from '@/store/authStore';
 import type { GoldRate } from '@/types/rates';
@@ -241,6 +242,23 @@ function GstRatePills({
 }
 
 
+/**
+ * Strips emoji and other pictographs from a customer name.
+ *
+ * The name is printed on a tax invoice and stored against the sale, so it has
+ * to be text a document can carry. Letters of any script, digits, spaces and
+ * ordinary punctuation are kept.
+ */
+function sanitizeNameInput(text: string): string {
+  return text
+    .replace(/[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Emoji_Modifier}\p{Emoji_Component}]/gu, '')
+    // Zero-width joiners and variation selectors are what glue emoji together;
+    // removing the pictographs alone would leave them behind. Escaped rather
+    // than written literally, so they are visible in the source.
+    .replace(/[‍️︎]/g, '')
+    .replace(/\s{2,}/g, ' ');
+}
+
 function sanitizePhoneInput(text: string): string {
   return text.replace(/\D/g, '').slice(0, 10);
 }
@@ -424,10 +442,15 @@ export function InvoiceGenerationBilling({
   const companyName = formatProfileValue(profile.businessName, 'Your Business');
 
   return (
-    <View className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
-      <View className="gap-4 p-4">
-        <View className="rounded-xl border border-border bg-white p-4">
-          <SectionHeader title="Customer Details" icon={<UserRound size={14} color="#A81F17" />} />
+    <View className="gap-4">
+      {/* One card: a tan strip naming the section, then the fields on white. */}
+      <View className="overflow-hidden rounded-2xl border border-border bg-white">
+        <View className="border-b border-border bg-surface-muted px-4 py-2.5">
+          <Text className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
+            Customer Details
+          </Text>
+        </View>
+        <View className="p-4">
 
           {readOnly ? (
             <View className={isWideLayout ? 'flex-row flex-wrap gap-3' : ''}>
@@ -452,7 +475,7 @@ export function InvoiceGenerationBilling({
                   label="Customer Name"
                   value={customer.customerName}
                   onChangeText={(text) => {
-                    updateCustomer({ customerName: text });
+                    updateCustomer({ customerName: sanitizeNameInput(text) });
                     setTouched((current) => ({ ...current, name: true }));
                   }}
                   placeholder="e.g. Garg Jewellers"
@@ -503,18 +526,6 @@ export function InvoiceGenerationBilling({
               </View>
             </View>
           )}
-        </View>
-
-        <View className="w-full">
-          <View className="overflow-hidden rounded-2xl bg-primary">
-            <View className="px-4 py-3">
-              <SummaryRow label="Subtotal" value={formatIndianCurrency(subtotal)} />
-              <SummaryRow label="GST Amount" value={formatIndianCurrency(gstAmount)} isLast />
-            </View>
-            <View className="border-t border-white/20 bg-primary-dark px-4 py-3">
-              <SummaryRow label="Grand Total" value={formatIndianCurrency(grandTotal)} emphasized />
-            </View>
-          </View>
         </View>
       </View>
     </View>

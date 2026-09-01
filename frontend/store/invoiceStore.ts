@@ -36,7 +36,7 @@ export const useInvoiceStore = create<InvoiceState>((set) => ({
   customer: { ...DEFAULT_CUSTOMER },
   placeOfSupply: '',
   transport: '',
-  gstRate: 18,
+  gstRate: 3,
   updateCustomer: (values) =>
     set((state) => ({
       customer: { ...state.customer, ...values },
@@ -49,6 +49,6 @@ export const useInvoiceStore = create<InvoiceState>((set) => ({
       customer: { ...DEFAULT_CUSTOMER },
       placeOfSupply: '',
       transport: '',
-      gstRate: 18,
+      gstRate: 3,
     }),
 }));
