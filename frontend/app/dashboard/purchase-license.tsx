@@ -11,10 +11,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Check, ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BottomNav } from '@/components/dashboard/BottomNav';
-import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { GradientView } from '@/components/ui/GradientView';
-import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useAuthStore } from '@/store/authStore';
 import type { SubscriptionOverview } from '@/types/subscription';
@@ -59,8 +57,24 @@ function assertRazorpayReady(): void {
   }
 }
 
+/**
+ * True when the checkout closed because the user backed out.
+ *
+ * Razorpay reports this like any other failure, so it has to be told apart
+ * from a real problem: dismissing the sheet should not raise an alert saying
+ * the purchase could not be completed.
+ */
+function isPaymentCancellation(error: unknown): boolean {
+  const raw = error as { code?: unknown; description?: unknown; message?: unknown } | null;
+  // Razorpay's own cancellation code.
+  if (raw?.code === 0 || raw?.code === 'PAYMENT_CANCELLED') return true;
+
+  const text = `${String(raw?.description ?? '')} ${String(raw?.message ?? '')}`.toLowerCase();
+  return text.includes('cancel') || text.includes('dismiss') || text.includes('user closed');
+}
+
 function rupees(value: number): string {
-  return `₹${Number(value || 0).toLocaleString('en-IN')}`;
+  return `₹ ${Number(value || 0).toLocaleString('en-IN')}`;
 }
 
 function toPurchaseState(overview: SubscriptionOverview | null): 'LOADING' | 'PERMANENT' | 'CAN_PURCHASE' {
@@ -71,8 +85,9 @@ function toPurchaseState(overview: SubscriptionOverview | null): 'LOADING' | 'PE
   return 'CAN_PURCHASE';
 }
 
-/** Cream-to-tan wash behind the free-trial panel. */
-const TRIAL_PANEL_GRADIENT = ['#F5EEDC', '#E3D6B4'];
+/** Exact gradients from mrpscan-design-mockup/styles.css. */
+const TRIAL_PANEL_GRADIENT = ['#F5EFE0', '#DDD0B0', '#C2B28C'];
+const PREMIUM_PANEL_GRADIENT = ['#E6947F', '#C25F4E', '#8F2F22'];
 
 export default function PurchaseLicenseScreen() {
   const router = useRouter();
@@ -133,6 +148,7 @@ export default function PurchaseLicenseScreen() {
       await verifyPayment(payment.razorpay_order_id, payment.razorpay_payment_id, payment.razorpay_signature);
     } catch (error) {
       const failureMessage = error instanceof Error ? error.message : 'Payment cancelled or failed.';
+      // The order is still closed out on the server, cancelled or not.
       await markPaymentFailure(order.orderId, null, failureMessage);
       throw error;
     }
@@ -163,8 +179,11 @@ export default function PurchaseLicenseScreen() {
         [{ text: 'Continue', onPress: () => router.back() }],
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to complete purchase.';
-      Alert.alert('License Purchase', message);
+      // Backing out of the payment sheet is not a failure to announce.
+      if (!isPaymentCancellation(error)) {
+        const message = error instanceof Error ? error.message : 'Unable to complete purchase.';
+        Alert.alert('License Purchase', message);
+      }
     } finally {
       setBusy(false);
     }
@@ -174,19 +193,16 @@ export default function PurchaseLicenseScreen() {
   const displayPrice = rupees(overview?.applicationPrice || 12000);
   const bonusCredits = overview?.purchasedBonusCreditsConfigured || 1000;
   const trialDays = overview?.trialDaysConfigured || 10;
-  const trialCredits = overview?.trialCredits || 10;
+  const trialCredits = overview?.freeTrialCreditsConfigured || overview?.trialCredits || 10;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <BackgroundPattern />
-
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <View style={styles.screen}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
-            <ChevronLeft size={22} color={Colors.textPrimary} strokeWidth={2.2} />
+            <ChevronLeft size={18} color={Colors.textPrimary} strokeWidth={2.2} />
           </Pressable>
           <Text style={styles.headerTitle}>Subscription</Text>
-          <View style={styles.headerSpacer} />
         </View>
 
         {!allowed || loading || purchaseState === 'LOADING' ? (
@@ -203,60 +219,65 @@ export default function PurchaseLicenseScreen() {
           </View>
         ) : (
           <View style={styles.contentWrap}>
-            <Text style={styles.title}>Unlock Full Access</Text>
-            <Text style={styles.subtitle}>
-              Compare your current plan against{' '}
-              <Text style={styles.subtitleAccent}>lifetime access</Text>.
-            </Text>
+            <View style={styles.hero}>
+              <Text style={styles.title}>Unlock Full Access</Text>
+              <Text style={styles.subtitle}>Compare your current plan against lifetime access.</Text>
+            </View>
 
-            <View style={styles.compareRow}>
-              {/* Free trial — what they have now */}
-              <GradientView
-                colors={TRIAL_PANEL_GRADIENT}
-                borderRadius={18}
-                style={styles.trialPanel}
-              >
-                <Text style={styles.trialHeading}>Free Trial</Text>
-                <Feature text={`${trialDays} day free trial`} tone="trial" />
-                <Feature text={`Free ${trialCredits} credits`} tone="trial" />
-                <View style={styles.panelSpacer} />
-                <Pressable
-                  onPress={() => router.replace('/dashboard')}
-                  style={styles.keepBtn}
+            <View style={styles.compareShadow}>
+              <View style={styles.compareRow}>
+                {/* Free trial — what they have now */}
+                <GradientView
+                  colors={TRIAL_PANEL_GRADIENT}
+                  sheen={0.6}
+                  style={styles.panel}
                 >
-                  <Text style={styles.keepBtnText}>Keep Using</Text>
-                </Pressable>
-              </GradientView>
+                  <Text style={styles.trialHeading}>Free Trial</Text>
+                  <View style={styles.featureList}>
+                    <Feature text={`${trialDays} day free trial`} tone="trial" />
+                    <Feature text={`Free ${trialCredits} credits`} tone="trial" />
+                  </View>
+                  <View style={styles.panelSpacer} />
+                  <Pressable
+                    onPress={() => router.replace('/dashboard')}
+                    style={styles.keepBtn}
+                  >
+                    <Text style={styles.keepBtnText}>Keep Using</Text>
+                  </Pressable>
+                </GradientView>
 
-              {/* Paid licence */}
-              <GradientView
-                colors={Gradients.trial}
-                borderRadius={18}
-                sheen={0.16}
-                topHighlight={0.22}
-                style={styles.paidPanel}
-              >
-                <Text style={styles.paidHeading}>Subscription</Text>
-                <Feature text={displayPrice} sub="(one time purchase)" tone="paid" />
-                <Feature text="Lifetime application validity" tone="paid" />
-                <Feature text="Pay per scan usage" tone="paid" />
-                <Feature text={`${rupees(bonusCredits)} wallet credits included`} tone="paid" />
-                <Feature text="Credit recharge when low" tone="paid" />
-                <View style={styles.panelSpacer} />
-                <Pressable
-                  disabled={busy}
-                  onPress={handlePurchase}
-                  style={[styles.purchaseBtn, busy && styles.btnDisabled]}
+                <View style={styles.divider} />
+
+                {/* Paid licence */}
+                <GradientView
+                  colors={PREMIUM_PANEL_GRADIENT}
+                  sheen={0.3}
+                  style={styles.panel}
                 >
-                  <Text style={styles.purchaseBtnText}>
-                    {busy ? 'Processing…' : 'Purchase Now'}
-                  </Text>
-                </Pressable>
-              </GradientView>
+                  <Text style={styles.paidHeading}>Subscription</Text>
+                  <View style={styles.featureList}>
+                    <Feature text={displayPrice} sub="(one time purchase)" tone="paid" />
+                    <Feature text="Lifetime application validity" tone="paid" />
+                    <Feature text="Pay per scan usage" tone="paid" />
+                    <Feature text={`${rupees(bonusCredits)} wallet credits included`} tone="paid" />
+                    <Feature text="Credit recharge when low" tone="paid" />
+                  </View>
+                  <View style={styles.panelSpacer} />
+                  <Pressable
+                    disabled={busy}
+                    onPress={handlePurchase}
+                    style={[styles.purchaseBtn, busy && styles.btnDisabled]}
+                  >
+                    <Text style={styles.purchaseBtnText}>
+                      {busy ? 'Processing…' : 'Purchase Now'}
+                    </Text>
+                  </Pressable>
+                </GradientView>
 
-              {/* Sits over the seam between the two panels */}
-              <View style={styles.orBadge} pointerEvents="none">
-                <Text style={styles.orText}>OR</Text>
+                {/* Sits exactly over the seam between the two panels. */}
+                <View style={styles.orBadge} pointerEvents="none">
+                  <Text style={styles.orText}>OR</Text>
+                </View>
               </View>
             </View>
 
@@ -266,8 +287,6 @@ export default function PurchaseLicenseScreen() {
           </View>
         )}
       </View>
-
-      <BottomNav activeRoute="home" />
     </SafeAreaView>
   );
 }
@@ -282,9 +301,22 @@ function Feature({ text, sub, tone }: FeatureProps) {
   const paid = tone === 'paid';
   return (
     <View style={styles.featureRow}>
-      <Check size={13} color={paid ? Colors.white : Colors.primary} strokeWidth={3} />
+      <Check
+        size={14}
+        color={paid ? Colors.white : Colors.metalGold}
+        strokeWidth={3}
+        style={styles.featureCheck}
+      />
       <View style={styles.featureTextWrap}>
-        <Text style={[styles.featureText, paid && styles.featureTextPaid]}>{text}</Text>
+        <Text
+          style={[
+            styles.featureText,
+            paid && styles.featureTextPaid,
+            sub && styles.featurePrice,
+          ]}
+        >
+          {text}
+        </Text>
         {sub ? <Text style={styles.featureSub}>{sub}</Text> : null}
       </View>
     </View>
@@ -292,91 +324,141 @@ function Feature({ text, sub, tone }: FeatureProps) {
 }
 
 const styles = StyleSheet.create({
-  // Two panels sharing an edge, with an OR badge sitting over the seam.
-  compareRow: { flexDirection: 'row', marginTop: 18, position: 'relative' },
-  subtitleAccent: { color: Colors.primary, fontWeight: '600' },
-  trialPanel: {
+  compareShadow: {
+    borderRadius: 22,
+    shadowColor: '#15120D',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  compareRow: {
+    flexDirection: 'row',
+    position: 'relative',
+    borderRadius: 22,
+    overflow: 'hidden',
+  },
+  panelSpacer: { flex: 1, minHeight: 8 },
+  panel: {
     flex: 1,
-    borderTopLeftRadius: 18,
-    borderBottomLeftRadius: 18,
-    paddingVertical: 18,
-    paddingLeft: 16,
-    paddingRight: 22,
-    gap: 10,
+    minWidth: 0,
+    paddingVertical: 26,
+    paddingHorizontal: 18,
+    gap: 18,
   },
-  paidPanel: { flex: 1.06, paddingVertical: 18, paddingHorizontal: 16, gap: 10 },
-  trialHeading: { fontSize: 17, fontWeight: '700', color: Colors.brandDeep, marginBottom: 2 },
-  paidHeading: { fontSize: 17, fontWeight: '700', color: Colors.white, marginBottom: 2 },
-  panelSpacer: { flex: 1, minHeight: 12 },
+  divider: {
+    width: 1,
+    backgroundColor: 'rgba(0,0,0,0.16)',
+    zIndex: 2,
+  },
+  trialHeading: {
+    fontFamily: Fonts.display,
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  paidHeading: {
+    fontFamily: Fonts.display,
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: '800',
+    color: Colors.white,
+  },
   keepBtn: {
-    backgroundColor: Colors.white,
+    height: 46,
+    backgroundColor: 'rgba(255,255,255,0.62)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.75)',
     borderRadius: 999,
-    paddingVertical: 11,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  keepBtnText: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+  keepBtnText: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
   purchaseBtn: {
+    height: 46,
     backgroundColor: Colors.white,
     borderRadius: 999,
-    paddingVertical: 11,
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 9,
+    elevation: 5,
   },
-  purchaseBtnText: { fontSize: 13, fontWeight: '800', color: Colors.primary },
+  purchaseBtnText: { fontSize: 13, fontWeight: '800', color: Colors.brandDeep },
   orBadge: {
     position: 'absolute',
-    left: '46%',
-    top: '44%',
+    left: '50%',
+    top: '50%',
+    marginLeft: -17,
+    marginTop: -17,
     width: 34,
     height: 34,
     borderRadius: 17,
     backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    zIndex: 5,
+    elevation: 6,
+    shadowColor: '#15120D',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
   },
-  orText: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary },
+  orText: { fontSize: 10, fontWeight: '800', color: Colors.textSecondary },
   featureTextWrap: { flex: 1 },
   featureTextPaid: { color: Colors.white },
-  featureSub: { fontSize: 10, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
+  featurePrice: { fontSize: 16, lineHeight: 19, fontWeight: '900' },
+  featureSub: {
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 2,
+  },
   footnote: {
     marginTop: 16,
-    fontSize: 11,
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '600',
     color: Colors.textSecondary,
     textAlign: 'center',
   },
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.background,
   },
   screen: {
     flex: 1,
     paddingHorizontal: Spacing.screenHorizontal,
-    paddingBottom: 94,
+    paddingTop: 8,
+    paddingBottom: 96,
   },
   header: {
-    paddingTop: Spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 18,
   },
   backBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 18,
+    lineHeight: 22,
     fontWeight: '700',
     color: Colors.textPrimary,
-  },
-  headerSpacer: {
-    width: 32,
   },
   loadingWrap: {
     flex: 1,
@@ -402,27 +484,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   contentWrap: {
-    flex: 1,
-    marginTop: 14,
-    backgroundColor: '#FFF9EF',
-    borderRadius: Radius.card,
-    borderWidth: 1,
-    borderColor: '#E6D7B8',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    justifyContent: 'space-between',
+    width: '100%',
+  },
+  hero: {
+    alignItems: 'center',
+    marginBottom: 16,
   },
   title: {
-    fontSize: 29,
-    lineHeight: 33,
-    color: '#201A11',
+    fontFamily: Fonts.display,
+    fontSize: 21,
+    lineHeight: 26,
+    color: Colors.textPrimary,
     fontWeight: '800',
+    textAlign: 'center',
   },
   subtitle: {
     marginTop: 4,
     fontSize: 13,
-    color: '#6E5A3C',
+    lineHeight: 17,
+    color: Colors.textSecondary,
     fontWeight: '600',
+    textAlign: 'center',
   },
   priceBlock: {
     marginTop: 8,
@@ -441,20 +523,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   featureList: {
-    gap: 8,
-    marginTop: 2,
+    gap: 15,
   },
   featureRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    alignItems: 'flex-start',
+    gap: 7,
+  },
+  featureCheck: {
+    marginTop: 2,
   },
   featureText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 17,
-    color: '#2D2D2D',
-    fontWeight: '600',
+    fontSize: 12,
+    lineHeight: 16,
+    color: Colors.textPrimary,
+    fontWeight: '700',
   },
   ctaWrap: {
     marginTop: 6,
