@@ -297,13 +297,18 @@ export function DiamondRatesPanel({ onToast }: DiamondRatesPanelProps) {
       ) : (
         <View style={styles.table}>
           <View style={[styles.row, styles.headerRow]}>
-            <Text style={[styles.headerCell, styles.packetCell]}>PKT Code</Text>
-            <Text style={[styles.headerCell, styles.shapeCell]}>Shape</Text>
-            <Text style={[styles.headerCell, styles.colorCell]}>Color</Text>
-            <Text style={[styles.headerCell, styles.clarityCell]}>Clarity</Text>
-            <Text style={[styles.headerCell, styles.rateCell]}>Rate</Text>
-            <Text style={[styles.headerCell, styles.actionCell]}>Edit</Text>
-            <Text style={[styles.headerCell, styles.actionCell, styles.deleteHeaderCell]}>
+            {/* Each title stays on one line; the narrow columns would
+                otherwise wrap "PKT Code" and "Delete" onto two. */}
+            <Text style={[styles.headerCell, styles.packetCell]} numberOfLines={1}>PKT Code</Text>
+            <Text style={[styles.headerCell, styles.shapeCell]} numberOfLines={1}>Shape</Text>
+            <Text style={[styles.headerCell, styles.colorCell]} numberOfLines={1}>Color</Text>
+            <Text style={[styles.headerCell, styles.clarityCell]} numberOfLines={1}>Clarity</Text>
+            <Text style={[styles.headerCell, styles.rateCell]} numberOfLines={1}>Rate</Text>
+            <Text style={[styles.headerCell, styles.actionCell]} numberOfLines={1}>Edit</Text>
+            <Text
+              style={[styles.headerCell, styles.actionCell, styles.deleteHeaderCell]}
+              numberOfLines={1}
+            >
               Delete
             </Text>
           </View>
@@ -465,6 +470,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 10,
     lineHeight: 12,
+    // Keeps a one-line title readable when the column is tight.
+    flexShrink: 1,
   },
   cell: {
     ...screenStyles.tableCell,

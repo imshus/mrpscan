@@ -61,7 +61,9 @@ export function CardHeader({ title, onBack, accessory, children }: CardHeaderPro
           </Pressable>
         ) : null}
         {title ? <Text style={styles.stickyTitle}>{title}</Text> : null}
-        {accessory}
+        {/* Pushed to the trailing edge so it sits top-right whether or not
+            this header carries a title. */}
+        {accessory ? <View style={styles.headAccessory}>{accessory}</View> : null}
       </View>
       {children}
     </View>
@@ -406,6 +408,7 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 12,
   },
+  headAccessory: { marginLeft: 'auto' },
   backBtn: {
     width: 32,
     height: 32,

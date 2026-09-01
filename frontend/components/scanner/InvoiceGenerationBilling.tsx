@@ -14,7 +14,8 @@ import { FieldLabel } from '@/components/scanner/FieldLabel';
 import { FormSection } from '@/components/scanner/FormSection';
 import { InvoiceSelectDropdown } from '@/components/scanner/InvoiceSelectDropdown';
 import { PLACE_OF_SUPPLY_OPTIONS, TRANSPORT_OPTIONS } from '@/constants/invoiceData';
-import { Colors } from '@/constants/theme';
+import { GradientView } from '@/components/ui/GradientView';
+import { Colors, Gradients } from '@/constants/theme';
 import { useInvoiceStore } from '@/store/invoiceStore';
 import { useAuthStore } from '@/store/authStore';
 import type { GoldRate } from '@/types/rates';
@@ -441,9 +442,16 @@ export function InvoiceGenerationBilling({
   const companyName = formatProfileValue(profile.businessName, 'Your Business');
 
   return (
-    <View className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
+    // Glassy champagne fill with a diagonal gloss, matching the rate cards.
+    <GradientView
+      colors={Gradients.metallic}
+      borderRadius={16}
+      sheen={0.55}
+      topHighlight={0.35}
+      style={{ borderWidth: 1, borderColor: Colors.border }}
+    >
       <View className="gap-4 p-4">
-        <View className="rounded-xl border border-border bg-white p-4">
+        <View className="rounded-xl border border-white/50 bg-white/70 p-4">
           <SectionHeader title="Customer Details" icon={<UserRound size={14} color="#A81F17" />} />
 
           {readOnly ? (
@@ -534,6 +542,6 @@ export function InvoiceGenerationBilling({
           </View>
         </View>
       </View>
-    </View>
+    </GradientView>
   );
 }

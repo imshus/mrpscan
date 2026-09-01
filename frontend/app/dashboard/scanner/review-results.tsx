@@ -232,7 +232,7 @@ export default function ReviewResultsScreen() {
       });
       await addWishlistItem(item);
       setHasAddedToWishlist(true);
-      Alert.alert('Wishlist', 'Item added to your wishlist.');
+      // The button switches to "Item Added", so a popup adds a tap for nothing.
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to add item. Please try again.';
