@@ -241,6 +241,23 @@ function GstRatePills({
 }
 
 
+/**
+ * Strips emoji and other pictographs from a customer name.
+ *
+ * The name is printed on a tax invoice and stored against the sale, so it has
+ * to be text a document can carry. Letters of any script, digits, spaces and
+ * ordinary punctuation are kept.
+ */
+function sanitizeNameInput(text: string): string {
+  return text
+    .replace(/[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Emoji_Modifier}\p{Emoji_Component}]/gu, '')
+    // Zero-width joiners and variation selectors are what glue emoji together;
+    // removing the pictographs alone would leave them behind. Escaped rather
+    // than written literally, so they are visible in the source.
+    .replace(/[‍️︎]/g, '')
+    .replace(/\s{2,}/g, ' ');
+}
+
 function sanitizePhoneInput(text: string): string {
   return text.replace(/\D/g, '').slice(0, 10);
 }
@@ -452,7 +469,7 @@ export function InvoiceGenerationBilling({
                   label="Customer Name"
                   value={customer.customerName}
                   onChangeText={(text) => {
-                    updateCustomer({ customerName: text });
+                    updateCustomer({ customerName: sanitizeNameInput(text) });
                     setTouched((current) => ({ ...current, name: true }));
                   }}
                   placeholder="e.g. Garg Jewellers"

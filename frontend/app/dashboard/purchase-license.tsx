@@ -13,7 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { GradientView } from '@/components/ui/GradientView';
+import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useAuthStore } from '@/store/authStore';
 import type { SubscriptionOverview } from '@/types/subscription';
@@ -169,6 +170,8 @@ export default function PurchaseLicenseScreen() {
   const purchaseState = useMemo(() => toPurchaseState(overview), [overview]);
   const displayPrice = rupees(overview?.applicationPrice || 12000);
   const bonusCredits = overview?.purchasedBonusCreditsConfigured || 1000;
+  const trialDays = overview?.trialDaysConfigured || 10;
+  const trialCredits = overview?.trialCredits || 10;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -197,30 +200,55 @@ export default function PurchaseLicenseScreen() {
           </View>
         ) : (
           <View style={styles.contentWrap}>
-            <View>
-              <Text style={styles.title}>Own Your MRP Scanner</Text>
-              <Text style={styles.subtitle}>One-time application license</Text>
+            <Text style={styles.title}>Unlock Full Access</Text>
+            <Text style={styles.subtitle}>
+              Compare your current plan against lifetime access.
+            </Text>
+
+            <View style={styles.compareRow}>
+              {/* Free trial — what they have now */}
+              <View style={styles.trialPanel}>
+                <Text style={styles.trialHeading}>Free Trial</Text>
+                <Feature text={`${trialDays} day free trial`} tone="trial" />
+                <Feature text={`Free ${trialCredits} credits`} tone="trial" />
+                <View style={styles.panelSpacer} />
+                <Pressable
+                  onPress={() => router.replace('/dashboard')}
+                  style={styles.keepBtn}
+                >
+                  <Text style={styles.keepBtnText}>Keep Using</Text>
+                </Pressable>
+              </View>
+
+              {/* Paid licence */}
+              <GradientView colors={Gradients.brand} borderRadius={18} style={styles.paidPanel}>
+                <Text style={styles.paidHeading}>Subscription</Text>
+                <Feature text={displayPrice} sub="(one time purchase)" tone="paid" />
+                <Feature text="Lifetime application validity" tone="paid" />
+                <Feature text="Pay per scan usage" tone="paid" />
+                <Feature text={`${rupees(bonusCredits)} wallet credits included`} tone="paid" />
+                <Feature text="Credit recharge when low" tone="paid" />
+                <View style={styles.panelSpacer} />
+                <Pressable
+                  disabled={busy}
+                  onPress={handlePurchase}
+                  style={[styles.purchaseBtn, busy && styles.btnDisabled]}
+                >
+                  <Text style={styles.purchaseBtnText}>
+                    {busy ? 'Processing…' : 'Purchase Now'}
+                  </Text>
+                </Pressable>
+              </GradientView>
+
+              {/* Sits over the seam between the two panels */}
+              <View style={styles.orBadge} pointerEvents="none">
+                <Text style={styles.orText}>OR</Text>
+              </View>
             </View>
 
-            <View style={styles.priceBlock}>
-              <Text style={styles.priceValue}>{displayPrice}</Text>
-              <Text style={styles.priceCaption}>One-time purchase</Text>
-            </View>
-
-            <View style={styles.featureList}>
-              <Feature text="One-time application license" />
-              <Feature text="Lifetime application validity" />
-              <Feature text="Pay per scan usage" />
-              <Feature text={`${rupees(bonusCredits)} wallet credits included`} />
-              <Feature text="Credit recharge facility available" />
-            </View>
-
-            <View style={styles.ctaWrap}>
-              <Text style={styles.ctaPrice}>{displayPrice} One-Time Purchase</Text>
-              <Pressable disabled={busy} onPress={handlePurchase} style={[styles.primaryBtn, busy && styles.btnDisabled]}>
-                <Text style={styles.primaryBtnText}>{busy ? 'Processing...' : 'Purchase Now'}</Text>
-              </Pressable>
-            </View>
+            <Text style={styles.footnote}>
+              One-time payment · No recurring charges · Instant activation
+            </Text>
           </View>
         )}
       </View>
@@ -232,18 +260,80 @@ export default function PurchaseLicenseScreen() {
 
 type FeatureProps = {
   text: string;
+  sub?: string;
+  tone: 'trial' | 'paid';
 };
 
-function Feature({ text }: FeatureProps) {
+function Feature({ text, sub, tone }: FeatureProps) {
+  const paid = tone === 'paid';
   return (
     <View style={styles.featureRow}>
-      <Check size={15} color={Colors.primary} strokeWidth={2.5} />
-      <Text style={styles.featureText}>{text}</Text>
+      <Check size={13} color={paid ? Colors.white : Colors.primary} strokeWidth={3} />
+      <View style={styles.featureTextWrap}>
+        <Text style={[styles.featureText, paid && styles.featureTextPaid]}>{text}</Text>
+        {sub ? <Text style={styles.featureSub}>{sub}</Text> : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // Two panels sharing an edge, with an OR badge sitting over the seam.
+  compareRow: { flexDirection: 'row', marginTop: 18, position: 'relative' },
+  trialPanel: {
+    flex: 1,
+    backgroundColor: '#EFE7D2',
+    borderTopLeftRadius: 18,
+    borderBottomLeftRadius: 18,
+    paddingVertical: 18,
+    paddingLeft: 16,
+    paddingRight: 22,
+    gap: 10,
+  },
+  paidPanel: { flex: 1.06, paddingVertical: 18, paddingHorizontal: 16, gap: 10 },
+  trialHeading: { fontSize: 17, fontWeight: '700', color: Colors.brandDeep, marginBottom: 2 },
+  paidHeading: { fontSize: 17, fontWeight: '700', color: Colors.white, marginBottom: 2 },
+  panelSpacer: { flex: 1, minHeight: 12 },
+  keepBtn: {
+    backgroundColor: Colors.white,
+    borderRadius: 999,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  keepBtnText: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+  purchaseBtn: {
+    backgroundColor: Colors.white,
+    borderRadius: 999,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  purchaseBtnText: { fontSize: 13, fontWeight: '800', color: Colors.primary },
+  orBadge: {
+    position: 'absolute',
+    left: '46%',
+    top: '44%',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  orText: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary },
+  featureTextWrap: { flex: 1 },
+  featureTextPaid: { color: Colors.white },
+  featureSub: { fontSize: 10, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
+  footnote: {
+    marginTop: 16,
+    fontSize: 11,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
   safeArea: {
     flex: 1,
     backgroundColor: Colors.white,
