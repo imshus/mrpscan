@@ -442,17 +442,15 @@ export function InvoiceGenerationBilling({
   const companyName = formatProfileValue(profile.businessName, 'Your Business');
 
   return (
-    // Same glassy red fill as the home screen's trial tile — identical
-    // gradient stops, sheen and top highlight.
-    <GradientView
-      colors={Gradients.trial}
-      borderRadius={16}
-      sheen={0.16}
-      topHighlight={0.22}
-    >
-      <View className="gap-4 p-4">
-        <View className="rounded-xl border border-white/40 bg-white/90 p-4">
-          <SectionHeader title="Customer Details" icon={<UserRound size={14} color="#A81F17" />} />
+    <View className="gap-4">
+      {/* One card: a tan strip naming the section, then the fields on white. */}
+      <View className="overflow-hidden rounded-2xl border border-border bg-white">
+        <View className="border-b border-border bg-surface-muted px-4 py-2.5">
+          <Text className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
+            Customer Details
+          </Text>
+        </View>
+        <View className="p-4">
 
           {readOnly ? (
             <View className={isWideLayout ? 'flex-row flex-wrap gap-3' : ''}>
@@ -529,19 +527,7 @@ export function InvoiceGenerationBilling({
             </View>
           )}
         </View>
-
-        <View className="w-full">
-          <View className="overflow-hidden rounded-2xl bg-primary">
-            <View className="px-4 py-3">
-              <SummaryRow label="Subtotal" value={formatIndianCurrency(subtotal)} />
-              <SummaryRow label="GST Amount" value={formatIndianCurrency(gstAmount)} isLast />
-            </View>
-            <View className="border-t border-white/20 bg-primary-dark px-4 py-3">
-              <SummaryRow label="Grand Total" value={formatIndianCurrency(grandTotal)} emphasized />
-            </View>
-          </View>
-        </View>
       </View>
-    </GradientView>
+    </View>
   );
 }
