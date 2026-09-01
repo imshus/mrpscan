@@ -90,6 +90,25 @@ export async function reserveInvoiceQr(): Promise<ReservedInvoiceQr | null> {
   }
 }
 
+/**
+ * POST /invoices/preview-html — the invoice rendered from the same template
+ * the PDF is made from, so the preview is the document rather than a
+ * lookalike. Persists nothing and spends no invoice number.
+ */
+export async function fetchInvoicePreviewHtml(
+  payload: GenerateInvoicePayload & { invoice_number?: string },
+): Promise<string | null> {
+  try {
+    const res = await apiRequest<{ success: boolean; data: { html: string } }>(
+      '/invoices/preview-html',
+      { method: 'POST', body: payload as unknown as Record<string, unknown> },
+    );
+    return res.success && res.data?.html ? res.data.html : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function apiGenerateInvoice(
   payload: GenerateInvoicePayload,
 ): Promise<GenerateInvoiceResponse> {
