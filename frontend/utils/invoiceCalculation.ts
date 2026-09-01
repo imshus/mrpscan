@@ -7,7 +7,11 @@ import {
 } from '@/utils/goldRateUtils';
 import { hasActiveLabourPurity, parseNumericLabourValue } from '@/utils/labourUtils';
 import { buildQuality } from '@/utils/qualityUtils';
-import { computeStoneAmountWithDiscount, parseNumericValue } from '@/utils/scanPriceCalculation';
+import {
+  computeLabourAmount,
+  computeStoneAmountWithDiscount,
+  parseNumericValue,
+} from '@/utils/scanPriceCalculation';
 
 export const GST_RATE_OPTIONS = [0, 3, 5, 9, 18, 28] as const;
 export type GstRateOption = (typeof GST_RATE_OPTIONS)[number];
@@ -59,6 +63,33 @@ export function buildGoldLineItemRow(input: InvoiceGoldPriceInput): InvoiceLineI
     qtyUnit: 'g',
     price: pricePerGram,
     amount,
+  };
+}
+
+/**
+ * Labour as an invoice line.
+ *
+ * Labour is part of the MRP the customer is quoted, so it has to appear on the
+ * invoice and in its subtotal; without a row here the invoice totalled less
+ * than the price the scanner had shown. Returns null when no labour applies,
+ * so a piece sold without it prints no empty row.
+ */
+export function buildLabourLineItemRow(
+  scanData: ScanItemData,
+  netWtGrams: number,
+  grossWtGrams: number,
+): InvoiceLineItemRow | null {
+  const labour = computeLabourAmount(scanData, netWtGrams, grossWtGrams);
+  if (!(labour.amount > 0)) return null;
+
+  return {
+    key: 'labour-charge',
+    description: 'Labour Charge',
+    note: labour.display || '',
+    qty: 1,
+    qtyUnit: '',
+    price: labour.amount,
+    amount: labour.amount,
   };
 }
 

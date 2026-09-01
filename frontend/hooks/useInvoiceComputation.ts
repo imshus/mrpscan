@@ -5,6 +5,7 @@ import { useScannerStore } from '@/store/scannerStore';
 import type { GoldRate } from '@/types/rates';
 import {
   buildGoldLineItemRow,
+  buildLabourLineItemRow,
   buildOtherChargeLineItemRows,
   buildStoneLineItemRows,
   computeGrandTotal,
@@ -14,7 +15,7 @@ import {
   type InvoiceLineItemRow,
 } from '@/utils/invoiceCalculation';
 import { amountInWords } from '@/utils/numberToWords';
-import { resolveScannedKarat } from '@/utils/formulaUtils';
+import { parseWeightValue, resolveScannedKarat } from '@/utils/formulaUtils';
 import {
   buildDisplayStoneBlocks,
   parseStoneArraysFromStructuredData,
@@ -124,7 +125,20 @@ export function useInvoiceComputation(): InvoiceComputation {
       scanData.otherChargesItems || [],
       scanData.otherChargesRemarks,
     );
-    return [goldRow, ...stoneRows, ...otherChargeRows];
+    // Labour is part of the quoted MRP, so it belongs on the invoice and in
+    // its subtotal; leaving it out billed the customer less than the scanner
+    // had shown them.
+    const labourRow = buildLabourLineItemRow(
+      scanData,
+      parseWeightValue(scanData.netWt),
+      parseWeightValue(scanData.grossWt),
+    );
+    return [
+      goldRow,
+      ...stoneRows,
+      ...(labourRow ? [labourRow] : []),
+      ...otherChargeRows,
+    ];
   }, [
     goldRates,
     mcxLiveRate,
