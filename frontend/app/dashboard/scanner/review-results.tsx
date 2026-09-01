@@ -103,6 +103,14 @@ export default function ReviewResultsScreen() {
     selectedType,
   });
 
+  // This is the screen the scanner lands on and the one Generate Invoice is
+  // pressed from, so it is what hands the invoice its figures. Without this the
+  // invoice reads an empty store and bills zero.
+  const setPreviewPricing = useScannerStore((state) => state.setPreviewPricing);
+  useEffect(() => {
+    setPreviewPricing(livePricing);
+  }, [livePricing, setPreviewPricing]);
+
   const { diamonds, colorstones } = useMemo(
     () => parseStoneArraysFromStructuredData(structuredData, scanData),
     [structuredData, scanData],

@@ -4,21 +4,17 @@ import { useInvoiceStore } from '@/store/invoiceStore';
 import { useScannerStore } from '@/store/scannerStore';
 import {
   buildOtherChargeLineItemRows,
-  buildStoneLineItemRows,
   computeGrandTotal,
   computeGstAmount,
   type InvoiceLineItemRow,
 } from '@/utils/invoiceCalculation';
 import { amountInWords } from '@/utils/numberToWords';
-import { resolveScannedKarat } from '@/utils/formulaUtils';
+import { parseWeightValue, resolveScannedKarat } from '@/utils/formulaUtils';
 import {
   formatIndianCurrency,
+  parseNumericValue,
   type FinalTabPricingResult,
 } from '@/utils/scanPriceCalculation';
-import {
-  buildDisplayStoneBlocks,
-  parseStoneArraysFromStructuredData,
-} from '@/utils/stoneSequenceUtils';
 
 /**
  * Whole rupees, matching formatIndianCurrency — the scanner preview rounds
@@ -64,7 +60,6 @@ export interface InvoiceComputation {
  */
 export function useInvoiceComputation(): InvoiceComputation {
   const scanData = useScannerStore((state) => state.scanData);
-  const structuredData = useScannerStore((state) => state.structuredData);
   const storedPricing = useScannerStore((state) => state.previewPricing);
   const gstRate = useInvoiceStore((state) => state.gstRate);
 
@@ -73,15 +68,10 @@ export function useInvoiceComputation(): InvoiceComputation {
     [scanData.karat, scanData.tunch],
   );
 
-  // Whatever the scanner preview screen last displayed — not a fresh request.
-  // Generate Invoice is only reachable from that screen, so this is always the
-  // pricing the customer was just shown.
+  // Whatever the review screen last displayed — not a fresh request. Generate
+  // Invoice is only reachable from a screen that publishes its pricing here, so
+  // this is the figure the customer was just shown.
   const pricing = storedPricing ?? EMPTY_PRICING;
-
-  const { diamonds, colorstones } = useMemo(
-    () => parseStoneArraysFromStructuredData(structuredData, scanData),
-    [structuredData, scanData],
-  );
 
   const lineItemRows = useMemo(() => {
     const netWtGrams = pricing.netWtGrams;
@@ -100,16 +90,20 @@ export function useInvoiceComputation(): InvoiceComputation {
       amount: goldAmount,
     };
 
-    // Stone descriptions come from the scanned entries; the amounts come from
-    // the same rows the preview screen prints, matched by position (both are
-    // built from buildDisplayStoneBlocks, so the order is identical).
-    const stoneBlocks = buildDisplayStoneBlocks(diamonds, colorstones);
-    const stoneRows = buildStoneLineItemRows(
-      stoneBlocks.map((block) => block.entry),
-    ).map((row, index) => {
-      const priced = pricing.stoneRows[index];
-      return { ...row, amount: roundToRupee(priced ? priced.amount : row.amount) };
-    });
+    // Stone lines come wholly from the preview's own rows — description, carats,
+    // rate and amount together. Zipping them against a fresh read of the scan
+    // let the two lists disagree in length: a stone the preview had priced could
+    // be dropped from the bill, or an amount could land on another stone's line.
+    const stoneRows: InvoiceLineItemRow[] = pricing.stoneRows.map((stone, index) => ({
+      key: `stone-${stone.stoneType}-${index}`,
+      description:
+        stone.stoneType === 'diamond' ? 'Diamond (in carats)' : 'Colorstone (in carats)',
+      note: stone.quality && stone.quality !== '—' ? stone.quality : '',
+      qty: parseWeightValue(stone.weight),
+      qtyUnit: 'Ct',
+      price: parseNumericValue(stone.rate),
+      amount: roundToRupee(stone.amount),
+    }));
 
     const labourAmount = roundToRupee(pricing.labourAmount);
     const labourRow: InvoiceLineItemRow | null =
@@ -139,7 +133,7 @@ export function useInvoiceComputation(): InvoiceComputation {
       ...(labourRow ? [labourRow] : []),
       ...otherChargeRows,
     ];
-  }, [pricing, selectedKarat, diamonds, colorstones, scanData]);
+  }, [pricing, selectedKarat, scanData]);
 
   // The subtotal is the sum of the printed lines, not the unrounded MRP, so
   // the amount column on paper actually adds up to the figure beneath it.
