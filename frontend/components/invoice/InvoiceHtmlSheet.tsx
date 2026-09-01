@@ -27,9 +27,9 @@ export function InvoiceHtmlSheet({ html, zoom }: InvoiceHtmlSheetProps) {
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=820, initial-scale=${zoom}, minimum-scale=0.3, maximum-scale=5, user-scalable=yes" />
+    <meta name="viewport" content="width=760, initial-scale=${zoom}, minimum-scale=0.3, maximum-scale=6, user-scalable=yes" />
     <style>
-      html, body { margin: 0; padding: 8px; background: #fff; }
+      html, body { margin: 0; padding: 4px; background: #fff; }
     </style>
   </head>
   <body>${html}</body>

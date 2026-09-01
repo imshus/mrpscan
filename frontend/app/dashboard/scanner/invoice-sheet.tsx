@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
   Pressable,
 } from 'react-native';
@@ -58,6 +59,10 @@ function todayStamp(): string {
  */
 export default function InvoiceSheetScreen() {
   const [zoomIndex, setZoomIndex] = useState(1);
+  // The sheet sits inside the wrapper's ScrollView, where flex:1 collapses, so
+  // its height is taken from the window instead of the parent.
+  const { height: windowHeight } = useWindowDimensions();
+  const sheetHeight = Math.max(520, Math.round(windowHeight * 0.74));
   const [invoiceNumber, setInvoiceNumber] = useState('—');
   const [working, setWorking] = useState<null | 'download' | 'share'>(null);
   // One generation per visit: Share after Download (or vice versa) reuses it.
@@ -309,7 +314,7 @@ export default function InvoiceSheetScreen() {
       ) : (
         <>
           <View style={styles.sheetWrap}>
-            <View style={styles.sheetFill}>
+            <View style={[styles.sheetFill, { height: sheetHeight }]}>
               <InvoiceHtmlSheet html={previewHtml} zoom={zoom} />
             </View>
           </View>
@@ -345,14 +350,15 @@ const styles = StyleSheet.create({
   loadingText: { fontSize: 13, color: Colors.textSecondary },
   // The rendered document fills the space above the zoom bar so pinch-zoom
   // has room to work.
-  sheetFill: { flex: 1, minHeight: 420 },
-  sheetWrap: { paddingTop: 4, paddingBottom: 8, flexGrow: 1 },
+  // Height is set at the call site from the window; see sheetHeight.
+  sheetFill: { width: '100%' },
+  sheetWrap: { paddingTop: 4, paddingBottom: 4 },
   zoomBar: {
     flexDirection: 'row',
     alignSelf: 'center',
     alignItems: 'center',
     gap: 14,
-    marginTop: 10,
+    marginTop: 6,
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 999,
