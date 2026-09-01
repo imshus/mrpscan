@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   Alert,
   Linking,
-  ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
   Pressable,
 } from 'react-native';
@@ -14,7 +13,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Minus, Plus, Search } from 'lucide-react-native';
 
 import { InvoiceHtmlSheet } from '@/components/invoice/InvoiceHtmlSheet';
-import { ScanScreenWrapper } from '@/components/scanner/ScanScreenWrapper';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { BottomNav, BOTTOM_NAV_HEIGHT, getBottomNavBottom } from '@/components/dashboard/BottomNav';
+import { ScreenBackHeader } from '@/components/scanner/ScreenBackHeader';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useInvoiceStore } from '@/store/invoiceStore';
@@ -59,10 +61,9 @@ function todayStamp(): string {
  */
 export default function InvoiceSheetScreen() {
   const [zoomIndex, setZoomIndex] = useState(1);
-  // The sheet sits inside the wrapper's ScrollView, where flex:1 collapses, so
-  // its height is taken from the window instead of the parent.
-  const { height: windowHeight } = useWindowDimensions();
-  const sheetHeight = Math.max(520, Math.round(windowHeight * 0.74));
+  // Controls clear the floating nav using its own geometry, not a guess.
+  const insets = useSafeAreaInsets();
+  const controlsBottom = getBottomNavBottom(insets.bottom) + BOTTOM_NAV_HEIGHT + 12;
   const [invoiceNumber, setInvoiceNumber] = useState('—');
   const [working, setWorking] = useState<null | 'download' | 'share'>(null);
   // One generation per visit: Share after Download (or vice versa) reuses it.
@@ -277,11 +278,44 @@ export default function InvoiceSheetScreen() {
   const zoom = ZOOM_STEPS[zoomIndex];
 
   return (
-    <ScanScreenWrapper
-      title="Invoice Preview"
-      className="bg-surface-muted"
-      scanButtonVariant="green"
-      footer={
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <ScreenBackHeader title="Invoice Preview" />
+
+      {/* The document fills every pixel between the header and the controls. */}
+      <View style={styles.viewer}>
+        {!ratesLoaded && grandTotal <= 0 ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.loadingText}>Preparing preview…</Text>
+          </View>
+        ) : (
+          <InvoiceHtmlSheet html={previewHtml} zoom={zoom} />
+        )}
+      </View>
+
+      {/* Controls sit outside the document, so panning or pinching the invoice
+          never moves them. */}
+      <View style={[styles.controls, { paddingBottom: controlsBottom }]}>
+        <View style={styles.zoomBar}>
+          <Pressable
+            onPress={() => setZoomIndex((current) => Math.max(0, current - 1))}
+            style={styles.zoomBtn}
+            accessibilityLabel="Zoom out"
+          >
+            <Minus size={16} color={Colors.textPrimary} />
+          </Pressable>
+          <Search size={16} color={Colors.textMuted} />
+          <Pressable
+            onPress={() =>
+              setZoomIndex((current) => Math.min(ZOOM_STEPS.length - 1, current + 1))
+            }
+            style={styles.zoomBtn}
+            accessibilityLabel="Zoom in"
+          >
+            <Plus size={16} color={Colors.textPrimary} />
+          </Pressable>
+        </View>
+
         <View style={styles.footerRow}>
           <Pressable
             onPress={handleShare}
@@ -304,55 +338,22 @@ export default function InvoiceSheetScreen() {
             <Text style={styles.footerBtnText}>Download</Text>
           </Pressable>
         </View>
-      }
-    >
-      {!ratesLoaded && grandTotal <= 0 ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Preparing preview…</Text>
-        </View>
-      ) : (
-        <>
-          <View style={styles.sheetWrap}>
-            <View style={[styles.sheetFill, { height: sheetHeight }]}>
-              <InvoiceHtmlSheet html={previewHtml} zoom={zoom} />
-            </View>
-          </View>
+      </View>
 
-          {/* Zoom bar, as in the mockup: − / magnifier / + */}
-          <View style={styles.zoomBar}>
-            <Pressable
-              onPress={() => setZoomIndex((current) => Math.max(0, current - 1))}
-              style={styles.zoomBtn}
-              accessibilityLabel="Zoom out"
-            >
-              <Minus size={16} color={Colors.textPrimary} />
-            </Pressable>
-            <Search size={16} color={Colors.textMuted} />
-            <Pressable
-              onPress={() =>
-                setZoomIndex((current) => Math.min(ZOOM_STEPS.length - 1, current + 1))
-              }
-              style={styles.zoomBtn}
-              accessibilityLabel="Zoom in"
-            >
-              <Plus size={16} color={Colors.textPrimary} />
-            </Pressable>
-          </View>
-        </>
-      )}
-    </ScanScreenWrapper>
+      <BottomNav activeRoute="scanner" scanButtonVariant="green" />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  loadingWrap: { alignItems: 'center', gap: 10, paddingVertical: 60 },
+  screen: { flex: 1, backgroundColor: Colors.background },
+  // Takes all remaining height, so the invoice is shown full screen.
+  viewer: { flex: 1, marginHorizontal: 12, borderRadius: 10, overflow: 'hidden' },
+  controls: { paddingHorizontal: 16, paddingTop: 8, gap: 10 },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
   loadingText: { fontSize: 13, color: Colors.textSecondary },
   // The rendered document fills the space above the zoom bar so pinch-zoom
   // has room to work.
-  // Height is set at the call site from the window; see sheetHeight.
-  sheetFill: { width: '100%' },
-  sheetWrap: { paddingTop: 4, paddingBottom: 4 },
   zoomBar: {
     flexDirection: 'row',
     alignSelf: 'center',

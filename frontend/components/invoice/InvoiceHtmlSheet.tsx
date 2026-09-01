@@ -1,13 +1,22 @@
 import { useMemo } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { WebView } from 'react-native-webview';
 
 import { Colors } from '@/constants/theme';
 
+/** CSS width the invoice template is laid out at. */
+const SHEET_WIDTH_PX = 760;
+
 interface InvoiceHtmlSheetProps {
   /** The invoice rendered from the same template the PDF is made from. */
   html: string | null;
-  /** Applied on top of the reader's own pinch zoom. */
+  /** Multiplies the fit-to-width scale; 1 shows the whole sheet. */
   zoom: number;
 }
 
@@ -19,6 +28,11 @@ interface InvoiceHtmlSheetProps {
  * because the page is a real document; the zoom buttons set the initial scale.
  */
 export function InvoiceHtmlSheet({ html, zoom }: InvoiceHtmlSheetProps) {
+  const { width } = useWindowDimensions();
+  // Open showing the whole invoice, as the finished PDF does, rather than at
+  // 1:1 where a fixed-width A4 sheet arrives already zoomed in.
+  const fitScale = Math.min(1, (width - 24) / SHEET_WIDTH_PX);
+
   const document = useMemo(() => {
     if (!html) return null;
     // The template is written for A4. Scale it to the phone's width and let
@@ -27,14 +41,14 @@ export function InvoiceHtmlSheet({ html, zoom }: InvoiceHtmlSheetProps) {
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=760, initial-scale=${zoom}, minimum-scale=0.3, maximum-scale=6, user-scalable=yes" />
+    <meta name="viewport" content="width=${SHEET_WIDTH_PX}, initial-scale=${fitScale * zoom}, minimum-scale=${fitScale * 0.75}, maximum-scale=${fitScale * 6}, user-scalable=yes" />
     <style>
       html, body { margin: 0; padding: 4px; background: #fff; }
     </style>
   </head>
   <body>${html}</body>
 </html>`;
-  }, [html, zoom]);
+  }, [html, zoom, fitScale]);
 
   if (!document) {
     return (
