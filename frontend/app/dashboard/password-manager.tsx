@@ -97,6 +97,9 @@ export default function PasswordManagerScreen() {
                   value={currentPassword}
                   onChangeText={setCurrentPassword}
                   secureTextEntry={!showCurrent}
+                  autoComplete="off"
+                  importantForAutofill="no"
+                  textContentType="none"
                   autoCapitalize="none"
                 />
                 <Pressable onPress={() => setShowCurrent(!showCurrent)} style={styles.eyeBtn}>
@@ -115,6 +118,9 @@ export default function PasswordManagerScreen() {
                   value={newPassword}
                   onChangeText={setNewPassword}
                   secureTextEntry={!showNew}
+                  autoComplete="off"
+                  importantForAutofill="no"
+                  textContentType="none"
                   autoCapitalize="none"
                 />
                 <Pressable onPress={() => setShowNew(!showNew)} style={styles.eyeBtn}>
@@ -133,6 +139,9 @@ export default function PasswordManagerScreen() {
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showConfirm}
+                  autoComplete="off"
+                  importantForAutofill="no"
+                  textContentType="none"
                   autoCapitalize="none"
                 />
                 <Pressable onPress={() => setShowConfirm(!showConfirm)} style={styles.eyeBtn}>

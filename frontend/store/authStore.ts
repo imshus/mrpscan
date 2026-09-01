@@ -121,10 +121,15 @@ export const useAuthStore = create<AuthState>()(
         if (!state) return;
 
         // A session restored from a different build is not trusted: the new
-        // APK asks for credentials rather than reusing what was cached.
+        // APK asks for credentials rather than reusing what was cached. The
+        // remembered identifiers go too, so nothing from the previous install
+        // can sign anyone in or be offered back in the login fields.
         const restoredBuild = (state as { appBuild?: string }).appBuild;
         if (!error && restoredBuild !== APP_BUILD) {
           state.logout();
+          state.setSavedCredentials('');
+          state.setSavedEmployeePhone('');
+          state.setRememberMe(false);
         }
 
         state.setHasHydrated(true);

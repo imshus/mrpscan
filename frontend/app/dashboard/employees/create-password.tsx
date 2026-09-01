@@ -112,6 +112,9 @@ export default function CreateEmployeePasswordScreen() {
                 placeholder="PASSWORD"
                 placeholderTextColor={Colors.placeholder}
                 secureTextEntry={!showPassword}
+                autoComplete="off"
+                importantForAutofill="no"
+                textContentType="none"
                 autoCapitalize="none"
                 autoCorrect={false}
                 style={styles.input}
@@ -134,6 +137,9 @@ export default function CreateEmployeePasswordScreen() {
                 placeholder="••••••••"
                 placeholderTextColor={Colors.placeholder}
                 secureTextEntry={!showConfirm}
+                autoComplete="off"
+                importantForAutofill="no"
+                textContentType="none"
                 autoCapitalize="none"
                 autoCorrect={false}
                 style={styles.input}
