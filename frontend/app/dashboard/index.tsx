@@ -253,6 +253,14 @@ export default function DashboardScreen() {
     router.push('/dashboard/purchase-license');
   }, [router]);
 
+  const showTopBanner = subscriptionOverview
+    && (
+      subscriptionOverview.status === 'NO_LICENSE'
+      || subscriptionOverview.status === 'FREE_TRIAL_LICENSE'
+      || subscriptionOverview.status === 'FREE_TRIAL'
+      || subscriptionOverview.status === 'EXPIRED'
+    );
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView
@@ -271,19 +279,15 @@ export default function DashboardScreen() {
           ) : (
             <>
               <View style={styles.topRow}>
-                {/* Licences belong to the business, so only a business login is
-                    offered one — but it is offered in every licence state, an
-                    active one included, so Purchase License is always reachable
-                    from the home screen. */}
-                {authUserRole === 'business' ? (
+                {showTopBanner ? (
                   <SubscriptionBanner
-                    licenseStatus={subscriptionOverview?.status ?? 'NO_LICENSE'}
-                    trialDaysRemaining={subscriptionOverview?.trialDaysRemaining || 0}
-                    trialHoursRemaining={subscriptionOverview?.trialHoursRemaining || 0}
-                    trialEndDate={subscriptionOverview?.trialEndDate || null}
+                    licenseStatus={subscriptionOverview!.status}
+                    trialDaysRemaining={subscriptionOverview!.trialDaysRemaining || 0}
+                    trialHoursRemaining={subscriptionOverview!.trialHoursRemaining || 0}
+                    trialEndDate={subscriptionOverview!.trialEndDate || null}
                     onStartTrial={handleStartTrial}
                     onPurchase={handlePurchaseLicense}
-                    trialExpiredAt={subscriptionOverview?.trialExpiredAt || null}
+                    trialExpiredAt={subscriptionOverview!.trialExpiredAt || null}
                     loading={trialActionLoading}
                   />
                 ) : (
