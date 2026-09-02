@@ -3,7 +3,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   StyleSheet,
   Text,
   View,
@@ -257,66 +256,38 @@ export default function InvoiceSheetScreen() {
     }
   };
 
-  /**
-   * Opens WhatsApp straight away and generates the invoice alongside it.
-   *
-   * The link is known before the invoice exists — it carries the token
-   * reserved when this screen opened, and generation claims that same token.
-   * Waiting for the PDF first meant staring at a spinner for the seconds
-   * PDFMonkey takes, before even choosing a contact.
-   */
+  // WHATSAPP — the PDF itself, never a link. The document is fetched into the
+  // cache and handed to the system share sheet, where WhatsApp is one tap
+  // away; the recipient gets the file, not a URL to open. That means waiting
+  // for generation before the sheet appears, which is what the spinner is for.
   const handleShare = async () => {
     if (!guardTotals() || working) return;
-
-    const reservedLink = reservedQr
-      ? `${reservedQr.invoiceUrl}?download=1`
-      : null;
-
-    // Without a reservation there is no link yet, so fall back to waiting.
-    if (!reservedLink) {
-      setWorking('whatsapp');
-      try {
-        const result = await generateOnce();
-        await openWhatsApp(result.invoiceNumber, resolveInvoicePdfUrl(result));
-      } catch (err) {
-        Alert.alert(
-          'Error',
-          err instanceof Error ? err.message : 'Could not share the invoice.',
-        );
-      } finally {
-        setWorking(null);
+    setWorking('whatsapp');
+    try {
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error('Sharing is not available on this device.');
       }
-      return;
-    }
-
-    void openWhatsApp(generated?.invoiceNumber ?? invoiceNumber, reservedLink);
-
-    // Generation continues while the sender picks a contact; the link resolves
-    // by the time the recipient opens it. A failure is surfaced rather than
-    // leaving a dead link unexplained.
-    generateOnce().catch((err) => {
+      const { uri, fileName } = await fetchPdfToCache();
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: `Send ${fileName}`,
+        UTI: 'com.adobe.pdf',
+      });
+    } catch (err) {
       Alert.alert(
-        'Invoice not generated',
-        err instanceof Error
-          ? `${err.message}
-
-The link you shared will not open until this succeeds.`
-          : 'The link you shared will not open until the invoice is generated.',
+        'Error',
+        err instanceof Error ? err.message : 'Could not share the invoice.',
       );
-    });
+    } finally {
+      setWorking(null);
+    }
   };
 
-  const shareText = (number: string, link: string) =>
+  // Accompanying text for the email body. No link: the PDF travels as the
+  // attachment, so there is nothing for the recipient to open elsewhere.
+  const shareText = (number: string) =>
     `Invoice ${number} from ${profile.businessName || 'us'} — ` +
-    `₹ ${Math.round(grandTotal).toLocaleString('en-IN')}
-${link}`;
-
-  const openWhatsApp = async (number: string, link: string) => {
-    const text = shareText(number, link);
-    await Linking.openURL(`whatsapp://send?text=${encodeURIComponent(text)}`).catch(() =>
-      Linking.openURL(`https://wa.me/?text=${encodeURIComponent(text)}`),
-    );
-  };
+    `₹ ${Math.round(grandTotal).toLocaleString('en-IN')}. The invoice is attached as a PDF.`;
 
   // DRIVE — system share sheet; the user taps "Drive"/"Save to Drive". expo-sharing
   // hands Android a FileProvider content:// URI with a Parcelable EXTRA_STREAM, which
@@ -341,22 +312,25 @@ ${link}`;
     }
   };
 
-  // EMAIL — native mail composer with the PDF attached; mailto: (link only) if no composer.
+  // EMAIL — native mail composer with the PDF attached. Without a composer the
+  // file goes through the share sheet instead of a mailto: link, since a
+  // mailto: cannot carry an attachment and a bare link is not the invoice.
   const handleEmail = async () => {
     if (!guardTotals() || working) return;
     setWorking('email');
     try {
-      const { result, uri } = await fetchPdfToCache();
-      const link = resolveInvoicePdfUrl(result);
+      const { result, uri, fileName } = await fetchPdfToCache();
       const subject = `Invoice ${result.invoiceNumber} from ${profile.businessName || 'us'}`;
-      const body = shareText(result.invoiceNumber, link);
+      const body = shareText(result.invoiceNumber);
       const recipients = customer.customerEmail.trim() ? [customer.customerEmail.trim()] : [];
       if (await MailComposer.isAvailableAsync()) {
         await MailComposer.composeAsync({ recipients, subject, body, attachments: [uri] });
       } else {
-        await Linking.openURL(
-          `mailto:${recipients[0] ?? ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
-        );
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Email ${fileName}`,
+          UTI: 'com.adobe.pdf',
+        });
       }
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Could not open email.');
