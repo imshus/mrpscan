@@ -29,6 +29,8 @@ import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 // Billing is finalized server-side in the background and never blocks this.
 const TICK_MS = 50;
 const COMPLETE_HOLD_MS = 150;
+/** The review screen opens after this long even if the analysis is still running. */
+const EARLY_REVIEW_MS = 3000;
 
 type ProgressSegment = { floor: number; ceiling: number; expectedMs: number; startedAt: number };
 const SEGMENTS = {
@@ -48,6 +50,7 @@ export default function ProcessingScreen() {
   const updateScanData = useScannerStore((s) => s.updateScanData);
   const scanLoading = useScannerStore((s) => s.scanLoading);
   const setScanLoading = useScannerStore((s) => s.setScanLoading);
+  const setAnalysisPending = useScannerStore((s) => s.setAnalysisPending);
   const resetScanLoading = useScannerStore((s) => s.resetScanLoading);
   const progressRef = useRef(0);
   const stageRef = useRef<ScanStage | null>(null);
@@ -127,6 +130,7 @@ export default function ProcessingScreen() {
   useEffect(
     () => () => {
       if (tickerRef.current) clearInterval(tickerRef.current);
+      if (earlyNavRef.current) clearTimeout(earlyNavRef.current);
     },
     [],
   );
@@ -330,6 +334,15 @@ export default function ProcessingScreen() {
         });
       }
       console.info('[LOADER_PROGRESS]', { scanId, progress: 100, timestamp: Date.now(), stage: 'completed' });
+      if (earlyNavRef.current) {
+        clearTimeout(earlyNavRef.current);
+        earlyNavRef.current = null;
+      }
+      if (navigatedRef.current) {
+        // Already on the review screen; the store write above filled it in.
+        return;
+      }
+      navigatedRef.current = true;
       // Let the 100% frame paint before leaving the screen.
       await new Promise((resolve) => setTimeout(resolve, COMPLETE_HOLD_MS));
       router.replace('/dashboard/scanner/review-results' as Href);
@@ -337,6 +350,11 @@ export default function ProcessingScreen() {
       clearInterval(ticker);
       tickerRef.current = null;
       analysisRunKeyRef.current = null;
+      if (earlyNavRef.current) {
+        clearTimeout(earlyNavRef.current);
+        earlyNavRef.current = null;
+      }
+      setAnalysisPending(false);
       const message =
         error instanceof ApiError
           ? error.message

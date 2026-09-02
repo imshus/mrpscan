@@ -201,15 +201,31 @@ export default function InvoiceSheetScreen() {
   };
 
   /** Generates once, then fetches the PDF into app cache. Returns a file:// uri. */
+  // One download per invoice: WhatsApp, then Drive, then Email all reuse it.
+  const [pdfCache] = useState<{ current: { result: Awaited<ReturnType<typeof generateOnce>>; fileName: string; uri: string } | null }>(
+    { current: null },
+  );
+
   const fetchPdfToCache = async () => {
     const result = await generateOnce();
+    if (pdfCache.current && pdfCache.current.result.invoiceNumber === result.invoiceNumber) {
+      const info = await FileSystem.getInfoAsync(pdfCache.current.uri);
+      if (info.exists) return pdfCache.current;
+    }
     const fileName = `Invoice-${String(result.invoiceNumber).replace(/[^\w.-]+/g, '-')}.pdf`;
     const cached = `${FileSystem.cacheDirectory ?? ''}${fileName}`;
-    const downloaded = await FileSystem.downloadAsync(resolveInvoicePdfUrl(result), cached);
+    // The renderer answers 409/425 until the PDF is ready; poll instead of failing.
+    let downloaded = await FileSystem.downloadAsync(resolveInvoicePdfUrl(result), cached);
+    for (let attempt = 0; attempt < 30 && (downloaded.status === 409 || downloaded.status === 425); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      downloaded = await FileSystem.downloadAsync(resolveInvoicePdfUrl(result), cached);
+    }
     if (downloaded.status !== 200) {
       throw new Error(`Could not fetch the invoice (HTTP ${downloaded.status}).`);
     }
-    return { result, fileName, uri: downloaded.uri };
+    const entry = { result, fileName, uri: downloaded.uri };
+    pdfCache.current = entry;
+    return entry;
   };
 
   /**
