@@ -9,7 +9,13 @@ interface ScreenBackHeaderProps {
   fallbackHref?: Href;
   light?: boolean;
   iconColor?: string;
-  /** Rendered on the title row, after the title (e.g. quick-share icons). */
+  /**
+   * Header actions, rendered opposite the back arrow (e.g. quick-share icons).
+   *
+   * They sit on the arrow's row rather than the title's: five 44dp targets and
+   * the 28px title cannot share one line on a 360dp screen without the title
+   * truncating, and that row is otherwise empty.
+   */
   right?: ReactNode;
 }
 
@@ -40,21 +46,20 @@ export function ScreenBackHeader({
 
   return (
     <View className={`px-screen pt-2 ${title ? 'pb-3' : ''}`}>
-      <Pressable onPress={handleBack} hitSlop={12} className="h-10 w-10 items-center justify-center">
-        <ArrowLeft size={24} color={arrowColor} />
-      </Pressable>
+      <View className="flex-row items-center">
+        <Pressable onPress={handleBack} hitSlop={12} className="h-10 w-10 items-center justify-center">
+          <ArrowLeft size={24} color={arrowColor} />
+        </Pressable>
+        <View className="flex-1" />
+        {right}
+      </View>
       {title ? (
-        <View className="mt-2 flex-row items-center">
-          <Text
-            className="flex-1 text-[28px] font-bold leading-[34px] text-text-primary"
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.7}
-          >
-            {title}
-          </Text>
-          {right}
-        </View>
+        <Text
+          className="mt-2 text-[28px] font-bold leading-[34px] text-text-primary"
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
       ) : null}
     </View>
   );

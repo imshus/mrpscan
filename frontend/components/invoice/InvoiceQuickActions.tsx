@@ -19,7 +19,7 @@ const ACTIONS: { key: InvoiceAction; label: string; color: string }[] = [
   { key: 'print', label: 'Print', color: Colors.brandDeep },
 ];
 
-const ICON_SIZE = 21;
+const ICON_SIZE = 24;
 
 function WhatsAppIcon() {
   return (
@@ -61,7 +61,13 @@ function ActionIcon({ action, color }: { action: InvoiceAction; color: string })
   return <PrinterCheck size={ICON_SIZE} color={color} strokeWidth={2.2} />;
 }
 
-/** Five 38x38 round buttons spaced 9dp apart; hitSlop 6 makes every target 50x50. */
+/**
+ * Five round quick-share buttons on the header's back-arrow row.
+ *
+ * The tiles are a real 44dp rather than a smaller circle padded out with
+ * hitSlop: slop is clipped to the parent's bounds, so it bought no height at
+ * all here and the neighbouring slop regions overlapped each other.
+ */
 export function InvoiceQuickActions({ busy, onPress }: Props) {
   return (
     <View style={styles.row}>
@@ -70,7 +76,6 @@ export function InvoiceQuickActions({ busy, onPress }: Props) {
           key={key}
           onPress={() => onPress(key)}
           disabled={busy !== null}
-          hitSlop={6}
           accessibilityRole="button"
           accessibilityLabel={label}
           style={({ pressed }) => [
@@ -91,11 +96,11 @@ export function InvoiceQuickActions({ busy, onPress }: Props) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 9, marginLeft: 8 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   btn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.white,

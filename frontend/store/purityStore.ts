@@ -13,6 +13,9 @@ interface PurityState {
 export const usePurityStore = create<PurityState>()(
   persist(
     (set) => ({
+      // Standard industry purities (99.60 / 91.60 / 75.00 / 58.50 / 99.99) the
+      // shop is expected to edit — a real default, not sample data, so a build
+      // wipe deliberately restores these rather than leaving the list empty.
       items: DEFAULT_PURITY_ITEMS,
       updateValue: (id, value) =>
         set((state) => ({
