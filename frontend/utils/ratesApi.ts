@@ -59,7 +59,16 @@ function normalizeGoldRate(raw: Record<string, unknown>): GoldRate | null {
       raw.rate,
   );
 
-  if (!carat || purity == null || finalRate == null) {
+  const mcxRate = readNumber(raw.mcxRate);
+  const cashRate = readNumber(raw.cashRate);
+  const rtgsRate = readNumber(raw.rtgsRate);
+  // finalRate is the legacy single figure; the dashboard renders cashRate and
+  // rtgsRate. A row whose legacy field arrives null used to be discarded here
+  // even when it carried live figures, taking its whole karat card with it.
+  // Fall back to whatever the row does carry; drop it only when it has none.
+  const resolvedFinalRate = finalRate ?? rtgsRate ?? cashRate ?? mcxRate;
+
+  if (!carat || purity == null || resolvedFinalRate == null) {
     return null;
   }
 
@@ -71,7 +80,7 @@ function normalizeGoldRate(raw: Record<string, unknown>): GoldRate | null {
     id: readString(raw.id ?? raw._id),
     carat,
     purity,
-    finalRate,
+    finalRate: resolvedFinalRate,
     baseRate: readNumber(raw.baseRate ?? raw.base_rate),
     increaseByAmount: readNumber(raw.increaseByAmount ?? raw.increase_by_amount),
     increaseByType: normalizedIncreaseByType,
@@ -83,9 +92,9 @@ function normalizeGoldRate(raw: Record<string, unknown>): GoldRate | null {
           : typeof raw.hidden === 'boolean'
             ? raw.hidden
             : undefined,
-    mcxRate: readNumber(raw.mcxRate),
-    cashRate: readNumber(raw.cashRate),
-    rtgsRate: readNumber(raw.rtgsRate),
+    mcxRate,
+    cashRate,
+    rtgsRate,
   };
 }
 

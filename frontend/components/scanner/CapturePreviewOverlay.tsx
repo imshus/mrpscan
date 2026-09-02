@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AdjustableImage, type AdjustableImageRef } from '@/components/scanner/AdjustableImage';
 import { GradientView } from '@/components/ui/GradientView';
@@ -46,7 +46,22 @@ export function CapturePreviewOverlay({
     }
   };
 
+  // The card lives in its own window. As a sibling of the camera it was being
+  // composited beneath the CameraView's SurfaceView on some Android devices,
+  // so the live feed bled through the card, its buttons and the scrim alike —
+  // no opacity anywhere in the tree, just the surface drawn over the top. A
+  // Modal is a separate window and always lands above that surface.
+  // AdjustableImage's reframe uses PanResponder, which needs no gesture root.
   return (
+    <Modal
+      visible
+      transparent
+      statusBarTranslucent
+      animationType="fade"
+      onRequestClose={() => {
+        if (!loading) onDelete();
+      }}
+    >
     <View style={styles.overlay}>
       <View style={styles.card}>
         <Text style={styles.title}>{title}</Text>
@@ -98,6 +113,7 @@ export function CapturePreviewOverlay({
         </View>
       </View>
     </View>
+    </Modal>
   );
 }
 
