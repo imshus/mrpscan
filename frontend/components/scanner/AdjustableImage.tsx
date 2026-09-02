@@ -19,6 +19,8 @@ export interface AdjustableImageRef {
    * original file (and its prewarmed upload) in the common case.
    */
   exportAdjusted: () => Promise<string | null>;
+  /** Scales the framing by `factor` about the centre; clamped to the pinch range. */
+  zoomBy: (factor: number) => void;
 }
 
 interface AdjustableImageProps {
@@ -131,6 +133,14 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
     );
 
     useImperativeHandle(ref, () => ({
+      // Button-driven zoom: the same state the pinch writes, so export sees
+      // one framing however it was reached. Re-clamping the translation keeps
+      // the image inside the frame when zooming back out.
+      zoomBy: (factor: number) => {
+        state.current.scale = clamp(state.current.scale * factor, MIN_SCALE, MAX_SCALE);
+        scaleValue.setValue(state.current.scale);
+        applyTranslation(state.current.tx, state.current.ty);
+      },
       exportAdjusted: async () => {
         const { tx, ty, scale } = state.current;
         const untouched = scale === 1 && tx === 0 && ty === 0;
