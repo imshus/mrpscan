@@ -30,8 +30,23 @@ async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function buildImageFormData(prepared: PreparedUploadImage): FormData {
+export interface UploadImageOptions {
+  /**
+   * Ask the server to start the model call as soon as this image lands,
+   * while the user is still looking at the preview. Billing stays on the
+   * analyze request, so an abandoned preview is never charged.
+   */
+  speculate?: boolean;
+}
+
+function buildImageFormData(
+  prepared: PreparedUploadImage,
+  extraFields?: Record<string, string>,
+): FormData {
   const formData = new FormData();
+  for (const [key, value] of Object.entries(extraFields ?? {})) {
+    formData.append(key, value);
+  }
   formData.append('image', {
     uri: prepared.uri,
     type: prepared.mimeType,
@@ -50,6 +65,7 @@ async function uploadWithRetry(
   path: string,
   prepared: PreparedUploadImage,
   signal?: AbortSignal,
+  extraFields?: Record<string, string>,
 ): Promise<ImageUploadResponse> {
   const startedAt = Date.now();
   let attempt = 0;
@@ -69,7 +85,7 @@ async function uploadWithRetry(
       });
       const response = await apiRequest<ImageUploadResponse>(path, {
         method: 'POST',
-        body: buildImageFormData(prepared),
+        body: buildImageFormData(prepared, extraFields),
         timeoutMs: UPLOAD_TIMEOUT_MS,
         signal,
       });
@@ -179,6 +195,7 @@ export async function uploadFrontImage(
   scanId: string,
   imageUri: string,
   signal?: AbortSignal,
+  options?: UploadImageOptions,
 ): Promise<ImageUploadResponse> {
   if (isDemoScanMode()) {
     return mockScanApi.mockUploadFrontImage(scanId);
@@ -197,13 +214,19 @@ export async function uploadFrontImage(
     timestamp: Date.now(),
   });
   prepared.fileName = prepared.fileName.replace(/^scan-/, 'front-');
-  return uploadWithRetry(`/scans/${scanId}/front-image`, prepared, signal);
+  return uploadWithRetry(
+    `/scans/${scanId}/front-image`,
+    prepared,
+    signal,
+    options?.speculate ? { speculate: '1' } : undefined,
+  );
 }
 
 export async function uploadBackImage(
   scanId: string,
   imageUri: string,
   signal?: AbortSignal,
+  options?: UploadImageOptions,
 ): Promise<ImageUploadResponse> {
   if (isDemoScanMode()) {
     return mockScanApi.mockUploadBackImage(scanId);
@@ -222,7 +245,12 @@ export async function uploadBackImage(
     timestamp: Date.now(),
   });
   prepared.fileName = prepared.fileName.replace(/^scan-/, 'back-');
-  return uploadWithRetry(`/scans/${scanId}/back-image`, prepared, signal);
+  return uploadWithRetry(
+    `/scans/${scanId}/back-image`,
+    prepared,
+    signal,
+    options?.speculate ? { speculate: '1' } : undefined,
+  );
 }
 
 export async function completeDemoCapture(
