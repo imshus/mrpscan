@@ -68,16 +68,13 @@ export function SubscriptionBanner({
   const liftAnim = useRef(new Animated.Value(8)).current;
 
   const showTrialOnboarding = licenseStatus === 'NO_LICENSE' && !trialExpiredAt;
-  const showPurchaseBanner =
-    licenseStatus === 'FREE_TRIAL_LICENSE'
-    || licenseStatus === 'FREE_TRIAL'
-    || licenseStatus === 'EXPIRED'
-    || (licenseStatus === 'NO_LICENSE' && !!trialExpiredAt);
-
-  const shouldRender = showTrialOnboarding || showPurchaseBanner;
+  // A bought licence used to remove this tile, and with it the home screen's
+  // only route to the subscription page. The tile stays for every status now;
+  // only its wording and destination change.
+  const hasLicence =
+    licenseStatus === 'PERMANENT_LICENSE' || licenseStatus === 'PURCHASED';
 
   useEffect(() => {
-    if (!shouldRender) return;
     fadeAnim.setValue(0);
     liftAnim.setValue(8);
     Animated.parallel([
@@ -94,19 +91,29 @@ export function SubscriptionBanner({
         useNativeDriver: true,
       }),
     ]).start();
-  }, [fadeAnim, liftAnim, shouldRender, licenseStatus]);
+  }, [fadeAnim, liftAnim, licenseStatus]);
 
   const headline = useMemo(() => {
     if (showTrialOnboarding) return 'Start Your 10-Day Free Trial';
+    if (hasLicence) return 'Your subscription is active';
     if (trialExpiredAt) {
       return 'Free trial has ended';
     }
     return buildTrialCountdownLabel(trialEndDate, trialDaysRemaining, trialHoursRemaining);
-  }, [showTrialOnboarding, trialDaysRemaining, trialEndDate, trialExpiredAt, trialHoursRemaining]);
+  }, [
+    showTrialOnboarding,
+    hasLicence,
+    trialDaysRemaining,
+    trialEndDate,
+    trialExpiredAt,
+    trialHoursRemaining,
+  ]);
 
-  if (!shouldRender) return null;
-
-  const actionLabel = showTrialOnboarding ? 'Start Free Trial →' : 'Purchase License →';
+  const actionLabel = showTrialOnboarding
+    ? 'Start Free Trial →'
+    : hasLicence
+      ? 'View Subscription →'
+      : 'Purchase License →';
   const handlePress = showTrialOnboarding ? onStartTrial : onPurchase;
 
   return (
