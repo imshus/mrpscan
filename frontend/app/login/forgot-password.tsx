@@ -22,8 +22,8 @@ import {
 } from '@/components/auth/AuthKit';
 import { OtpBox } from '@/components/auth/OtpBox';
 import { Reveal } from '@/components/auth/Reveal';
+import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { Colors } from '@/constants/theme';
-import { useAuthStore } from '@/store/authStore';
 import {
   requestPasswordReset,
   resetForgottenPassword,
@@ -32,7 +32,6 @@ import {
 import {
   validateConfirmPassword,
   validatePassword,
-  validatePhone,
   validateUserId,
 } from '@/utils/validation';
 
@@ -46,9 +45,8 @@ const OTP_LENGTH = 6;
  */
 export default function ForgotPasswordScreen() {
   const router = useRouter();
-  const savedPhone = useAuthStore((s) => s.savedPhone);
 
-  const [userId, setUserId] = useState(savedPhone || '');
+  const [userId, setUserId] = useState('');
   const [userIdError, setUserIdError] = useState<string | null>(null);
   const [codeSent, setCodeSent] = useState(false);
   const [sending, setSending] = useState(false);
@@ -74,9 +72,7 @@ export default function ForgotPasswordScreen() {
   const normalizedId = normalizeIdentifier(userId);
 
   const handleSendCode = async () => {
-    const identifierError = /^\d{10}$/.test(normalizedId)
-      ? validatePhone(normalizedId)
-      : validateUserId(normalizedId);
+    const identifierError = validateUserId(normalizedId);
     setUserIdError(identifierError);
     if (identifierError) {
       triggerShake();
@@ -121,6 +117,16 @@ export default function ForgotPasswordScreen() {
     }
   };
 
+  useAndroidOtpAutofill({
+    enabled: codeSent && !resetToken,
+    otpLength: OTP_LENGTH,
+    onCodeDetected: (code) => {
+      console.log('[auth] Auto OTP Detected');
+      void handleOtpChange(code);
+    },
+    onDetectionError: (message) => console.log('[auth] Auto OTP Detection Failed:', message),
+  });
+
   const handleReset = async () => {
     const p1Error = validatePassword(password1);
     const p2Error = validateConfirmPassword(password1, password2);
@@ -164,7 +170,7 @@ export default function ForgotPasswordScreen() {
             <AuthTitle tight>Forgot Password?</AuthTitle>
           </Reveal>
           <Reveal d={1}>
-            <AuthSub>Enter your User ID or phone number — we&apos;ll text a code to your registered phone.</AuthSub>
+            <AuthSub>Enter your User ID — we&apos;ll text a code to the phone number registered against it.</AuthSub>
           </Reveal>
 
           <Animated.View style={[styles.form, shakeStyle]}>

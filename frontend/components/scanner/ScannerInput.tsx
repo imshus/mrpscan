@@ -14,7 +14,7 @@ export function ScannerInput({
   value,
   onChangeText,
   onSubmit,
-  placeholder = 'Scan or enter tag (e.g. RD|6.28|5000)',
+  placeholder = 'Scan or enter tag',
   disabled = false,
 }: ScannerInputProps) {
   return (

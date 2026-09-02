@@ -8,8 +8,13 @@ import {
 } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
+import { FLAT_SURFACES } from '@/constants/theme';
+
 interface GradientViewProps {
-  /** Gradient stops, first → last (see Gradients in constants/theme). */
+  /**
+   * Gradient stops, first → last (see Gradients in constants/theme).
+   * When FLAT_SURFACES is true only the last stop is used, as a flat fill.
+   */
   colors: readonly string[];
   /** Matches the container's borderRadius so the fill is clipped correctly. */
   borderRadius?: number;
@@ -17,9 +22,13 @@ interface GradientViewProps {
    * Diagonal white gloss overlay strength (mockup's `::before`
    * linear-gradient(120deg, rgba(255,255,255,S) → transparent 58%)).
    * Metallic champagne cards use 0.55, terracotta cards 0.16. Omit for none.
+   * Ignored when FLAT_SURFACES is true.
    */
   sheen?: number;
-  /** 1px bright inner top edge (mockup's `inset 0 1px 0 rgba(255,255,255,…)`). */
+  /**
+   * 1px bright inner top edge (mockup's `inset 0 1px 0 rgba(255,255,255,…)`).
+   * Ignored when FLAT_SURFACES is true.
+   */
   topHighlight?: number;
   style?: StyleProp<ViewStyle>;
   children?: ReactNode;
@@ -59,9 +68,18 @@ export function GradientView({
 
   const ready = size.width > 0 && size.height > 0;
 
-  // Solid mid-gradient fallback so the tile has color before first layout
-  // (and behind any SVG rounding gaps).
-  const fallbackColor = colors[Math.floor((colors.length - 1) / 2)];
+  // Solid last-stop fallback so the tile has color before first layout
+  // (and behind any SVG rounding gaps); the same colour flat mode paints.
+  const fallbackColor = colors[colors.length - 1];
+
+  if (FLAT_SURFACES) {
+    // Flat mode: the tile is the gradient's last (bottom-right) stop, nothing layered on top.
+    return (
+      <View style={[{ borderRadius, overflow: 'hidden', backgroundColor: fallbackColor }, style]}>
+        {children}
+      </View>
+    );
+  }
 
   return (
     <View

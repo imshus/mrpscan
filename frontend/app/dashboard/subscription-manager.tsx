@@ -22,18 +22,16 @@ import type { SubscriptionOverview } from '@/types/subscription';
 import {
   createCreditRechargeOrder,
   fetchSubscriptionOverview,
+  isPaymentCancellation,
   markPaymentFailure,
   startFreeTrial,
+  validateRazorpayPaymentResult,
   verifyPayment,
 } from '@/utils/subscriptionApi';
 import Constants from 'expo-constants';
 
 type RazorpayModule = {
-  open: (options: Record<string, unknown>) => Promise<{
-    razorpay_payment_id: string;
-    razorpay_order_id: string;
-    razorpay_signature: string;
-  }>;
+  open: (options: Record<string, unknown>) => Promise<unknown>;
 };
 
 function getRazorpayCheckout(): RazorpayModule | null {
@@ -103,7 +101,7 @@ export default function SubscriptionManagerScreen() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null);
-  const [rechargeAmount, setRechargeAmount] = useState('500');
+  const [rechargeAmount, setRechargeAmount] = useState('');
   const [selectedAmount, setSelectedAmount] = useState<number>(500);
   const [usingCustomAmount, setUsingCustomAmount] = useState(false);
 
@@ -143,8 +141,9 @@ export default function SubscriptionManagerScreen() {
       throw new Error('Razorpay key id is missing on frontend.');
     }
 
+    let payment;
     try {
-      const data = await RazorpayCheckout.open({
+      const checkoutResult = await RazorpayCheckout.open({
         key,
         amount: order.amountInPaise,
         currency: 'INR',
@@ -153,13 +152,21 @@ export default function SubscriptionManagerScreen() {
         description: 'Credit Recharge',
         theme: { color: Colors.primary },
       });
-
-      await verifyPayment(data.razorpay_order_id, data.razorpay_payment_id, data.razorpay_signature);
+      payment = validateRazorpayPaymentResult(checkoutResult, order.orderId);
     } catch (error) {
-      const failureMessage = error instanceof Error ? error.message : 'Payment cancelled or failed.';
-      await markPaymentFailure(order.orderId, null, failureMessage);
+      const raw = error as { description?: unknown } | null;
+      const failureMessage = error instanceof Error
+        ? error.message
+        : String(raw?.description || 'Payment cancelled or failed.');
+      try {
+        await markPaymentFailure(order.orderId, null, failureMessage);
+      } catch (recordError) {
+        console.warn('Failed to record cancelled Razorpay checkout', recordError);
+      }
       throw error;
     }
+
+    await verifyPayment(order.orderId, payment.razorpay_payment_id, payment.razorpay_signature);
   }, []);
 
   const runAction = async (action: () => Promise<void>) => {
@@ -168,8 +175,10 @@ export default function SubscriptionManagerScreen() {
       await action();
       await loadData();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Action failed.';
-      Alert.alert('Credits & Subscription', message);
+      if (!isPaymentCancellation(error)) {
+        const message = error instanceof Error ? error.message : 'Action failed.';
+        Alert.alert('Credits & Subscription', message);
+      }
     } finally {
       setBusy(false);
     }
@@ -186,7 +195,7 @@ export default function SubscriptionManagerScreen() {
   };
 
   const handleRecharge = async () => {
-    const amount = Number(rechargeAmount || 0);
+    const amount = usingCustomAmount ? Number(rechargeAmount || 0) : selectedAmount;
     if (!Number.isFinite(amount) || amount <= 0) {
       Alert.alert('Recharge Credits', 'Please enter a valid recharge amount.');
       return;
@@ -204,7 +213,7 @@ export default function SubscriptionManagerScreen() {
   const selectQuickAmount = (amount: number) => {
     setUsingCustomAmount(false);
     setSelectedAmount(amount);
-    setRechargeAmount(String(amount));
+    setRechargeAmount('');
   };
 
   const activateCustomAmount = () => {
@@ -224,7 +233,10 @@ export default function SubscriptionManagerScreen() {
   const isTrialActive = overview?.status === 'FREE_TRIAL_LICENSE';
   const showStartTrial = overview?.status === 'NO_LICENSE' && !overview?.trialExpiredAt;
   const isPermanent = overview?.status === 'PERMANENT_LICENSE' || overview?.applicationPurchased;
-  const selectedRechargeAmount = Math.max(0, Number(rechargeAmount || 0));
+  const selectedRechargeAmount = Math.max(
+    0,
+    usingCustomAmount ? Number(rechargeAmount || 0) : selectedAmount,
+  );
   const rechargeButtonLabel = selectedRechargeAmount > 0
     ? `Recharge ${currencyNoDecimal(selectedRechargeAmount)}`
     : 'Continue to Payment';

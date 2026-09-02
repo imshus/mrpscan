@@ -10,9 +10,13 @@ import {
   Pressable,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as MailComposer from 'expo-mail-composer';
 import { Minus, Plus, Search } from 'lucide-react-native';
 
 import { InvoiceHtmlSheet } from '@/components/invoice/InvoiceHtmlSheet';
+import { InvoiceQuickActions, type InvoiceAction } from '@/components/invoice/InvoiceQuickActions';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav, BOTTOM_NAV_HEIGHT, getBottomNavBottom } from '@/components/dashboard/BottomNav';
@@ -52,12 +56,14 @@ function todayStamp(): string {
 }
 
 /**
- * Invoice Preview — the tax invoice rendered natively before anything is
+ * Preview — the tax invoice rendered natively before anything is
  * generated.
  *
- * Download generates the PDF (the moment an invoice number is consumed) and
- * writes it into a folder the user chooses; Share on WhatsApp sends the
- * durable invoice link instead.
+ * The header quick actions all generate the PDF once (the moment an invoice
+ * number is consumed): Download writes it into a folder the user chooses via
+ * SAF; WhatsApp sends the durable invoice link instead; Drive, Email and
+ * Print hand the fetched PDF to the share sheet, mail composer and print
+ * dialog respectively.
  */
 export default function InvoiceSheetScreen() {
   const [zoomIndex, setZoomIndex] = useState(1);
@@ -65,7 +71,7 @@ export default function InvoiceSheetScreen() {
   const insets = useSafeAreaInsets();
   const controlsBottom = getBottomNavBottom(insets.bottom) + BOTTOM_NAV_HEIGHT + 12;
   const [invoiceNumber, setInvoiceNumber] = useState('—');
-  const [working, setWorking] = useState<null | 'download' | 'share'>(null);
+  const [working, setWorking] = useState<InvoiceAction | null>(null);
   // One generation per visit: Share after Download (or vice versa) reuses it.
   const [generated, setGenerated] = useState<GenerateInvoiceResponse | null>(null);
   // Reserved when the preview opens, so the QR on screen is the PDF's QR.
@@ -195,6 +201,18 @@ export default function InvoiceSheetScreen() {
     return true;
   };
 
+  /** Generates once, then fetches the PDF into app cache. Returns a file:// uri. */
+  const fetchPdfToCache = async () => {
+    const result = await generateOnce();
+    const fileName = `Invoice-${String(result.invoiceNumber).replace(/[^\w.-]+/g, '-')}.pdf`;
+    const cached = `${FileSystem.cacheDirectory ?? ''}${fileName}`;
+    const downloaded = await FileSystem.downloadAsync(resolveInvoicePdfUrl(result), cached);
+    if (downloaded.status !== 200) {
+      throw new Error(`Could not fetch the invoice (HTTP ${downloaded.status}).`);
+    }
+    return { result, fileName, uri: downloaded.uri };
+  };
+
   /**
    * Generates the invoice and writes the PDF into a folder the user picks, so
    * it lands in their own storage rather than reopening the document on screen.
@@ -203,16 +221,9 @@ export default function InvoiceSheetScreen() {
     if (!guardTotals() || working) return;
     setWorking('download');
     try {
-      const result = await generateOnce();
-      const fileName = `Invoice-${String(result.invoiceNumber).replace(/[^\w.-]+/g, '-')}.pdf`;
-
       // Fetch into app storage first: a failed download must not leave an
       // empty file sitting in the user's folder.
-      const cached = `${FileSystem.cacheDirectory ?? ''}${fileName}`;
-      const downloaded = await FileSystem.downloadAsync(resolveInvoicePdfUrl(result), cached);
-      if (downloaded.status !== 200) {
-        throw new Error(`Could not fetch the invoice (HTTP ${downloaded.status}).`);
-      }
+      const { fileName, uri } = await fetchPdfToCache();
 
       const permission =
         await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
@@ -224,7 +235,7 @@ export default function InvoiceSheetScreen() {
         return;
       }
 
-      const base64 = await FileSystem.readAsStringAsync(downloaded.uri, {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
       const target = await FileSystem.StorageAccessFramework.createFileAsync(
@@ -263,7 +274,7 @@ export default function InvoiceSheetScreen() {
 
     // Without a reservation there is no link yet, so fall back to waiting.
     if (!reservedLink) {
-      setWorking('share');
+      setWorking('whatsapp');
       try {
         const result = await generateOnce();
         await openWhatsApp(result.invoiceNumber, resolveInvoicePdfUrl(result));
@@ -295,21 +306,98 @@ The link you shared will not open until this succeeds.`
     });
   };
 
-  const openWhatsApp = async (number: string, link: string) => {
-    const text =
-      `Invoice ${number} from ${profile.businessName || 'us'} — ` +
-      `₹ ${Math.round(grandTotal).toLocaleString('en-IN')}
+  const shareText = (number: string, link: string) =>
+    `Invoice ${number} from ${profile.businessName || 'us'} — ` +
+    `₹ ${Math.round(grandTotal).toLocaleString('en-IN')}
 ${link}`;
+
+  const openWhatsApp = async (number: string, link: string) => {
+    const text = shareText(number, link);
     await Linking.openURL(`whatsapp://send?text=${encodeURIComponent(text)}`).catch(() =>
       Linking.openURL(`https://wa.me/?text=${encodeURIComponent(text)}`),
     );
+  };
+
+  // DRIVE — system share sheet; the user taps "Drive"/"Save to Drive". expo-sharing
+  // hands Android a FileProvider content:// URI with a Parcelable EXTRA_STREAM, which
+  // is what Drive's upload activity requires.
+  const handleDrive = async () => {
+    if (!guardTotals() || working) return;
+    setWorking('drive');
+    try {
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error('Sharing is not available on this device.');
+      }
+      const { uri, fileName } = await fetchPdfToCache();
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: `Save ${fileName} to Google Drive`,
+        UTI: 'com.adobe.pdf',
+      });
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Could not open the share sheet.');
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  // EMAIL — native mail composer with the PDF attached; mailto: (link only) if no composer.
+  const handleEmail = async () => {
+    if (!guardTotals() || working) return;
+    setWorking('email');
+    try {
+      const { result, uri } = await fetchPdfToCache();
+      const link = resolveInvoicePdfUrl(result);
+      const subject = `Invoice ${result.invoiceNumber} from ${profile.businessName || 'us'}`;
+      const body = shareText(result.invoiceNumber, link);
+      const recipients = customer.customerEmail.trim() ? [customer.customerEmail.trim()] : [];
+      if (await MailComposer.isAvailableAsync()) {
+        await MailComposer.composeAsync({ recipients, subject, body, attachments: [uri] });
+      } else {
+        await Linking.openURL(
+          `mailto:${recipients[0] ?? ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+        );
+      }
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Could not open email.');
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  // PRINT — Android system print dialog fed the local PDF (most reliable; remote
+  // URLs and HTML re-layout are avoided so the printout is the PDFMonkey document).
+  const handlePrint = async () => {
+    if (!guardTotals() || working) return;
+    setWorking('print');
+    try {
+      const { uri } = await fetchPdfToCache();
+      await Print.printAsync({ uri });
+    } catch (err) {
+      // User-cancelled print dialogs reject on some devices; do not alert for those.
+      const message = err instanceof Error ? err.message : '';
+      if (!/cancel/i.test(message)) Alert.alert('Error', message || 'Could not print the invoice.');
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const handleAction = (action: InvoiceAction) => {
+    if (action === 'whatsapp') void handleShare();
+    else if (action === 'drive') void handleDrive();
+    else if (action === 'download') void handleDownload();
+    else if (action === 'email') void handleEmail();
+    else void handlePrint();
   };
 
   const zoom = ZOOM_STEPS[zoomIndex];
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScreenBackHeader title="Invoice Preview" />
+      <ScreenBackHeader
+        title="Preview"
+        right={<InvoiceQuickActions busy={working} onPress={handleAction} />}
+      />
 
       {/* The document fills every pixel between the header and the controls. */}
       <View style={styles.viewer}>
@@ -345,29 +433,6 @@ ${link}`;
             <Plus size={16} color={Colors.textPrimary} />
           </Pressable>
         </View>
-
-        <View style={styles.footerRow}>
-          <Pressable
-            onPress={handleShare}
-            disabled={working !== null}
-            style={[styles.footerBtn, styles.shareBtn]}
-          >
-            {working === 'share' ? (
-              <ActivityIndicator size={16} color={Colors.white} />
-            ) : null}
-            <Text style={styles.footerBtnText}>Share on WhatsApp</Text>
-          </Pressable>
-          <Pressable
-            onPress={handleDownload}
-            disabled={working !== null}
-            style={[styles.footerBtn, styles.downloadBtn]}
-          >
-            {working === 'download' ? (
-              <ActivityIndicator size={16} color={Colors.white} />
-            ) : null}
-            <Text style={styles.footerBtnText}>Download</Text>
-          </Pressable>
-        </View>
       </View>
 
       <BottomNav activeRoute="scanner" scanButtonVariant="green" />
@@ -379,7 +444,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   // Takes all remaining height, so the invoice is shown full screen.
   viewer: { flex: 1, marginHorizontal: 12, borderRadius: 10, overflow: 'hidden' },
-  controls: { paddingHorizontal: 16, paddingTop: 8, gap: 10 },
+  controls: { paddingHorizontal: 16, paddingTop: 8 },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
   loadingText: { fontSize: 13, color: Colors.textSecondary },
   // The rendered document fills the space above the zoom bar so pinch-zoom
@@ -405,17 +470,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#F4EFE3',
   },
-  footerRow: { flexDirection: 'row', gap: 10 },
-  footerBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 999,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  shareBtn: { backgroundColor: '#1FA855' },
-  downloadBtn: { backgroundColor: Colors.brandDeep },
-  footerBtnText: { fontSize: 14, fontWeight: '700', color: Colors.white },
 });

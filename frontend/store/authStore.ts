@@ -10,6 +10,12 @@ import { createJSONStorage, persist } from 'zustand/middleware';
  * tester would carry the previous session into the new build without ever
  * seeing the login screen. Sessions are therefore scoped to the build that
  * created them and discarded when the version changes.
+ *
+ * This is the second line of defence only. The primary mechanism is
+ * `utils/appBuildReset.ts`, which wipes *every* persisted store before the
+ * navigator mounts; the check below still runs so a failed or skipped wipe
+ * cannot leave the previous build's session signed in. Both read the same
+ * `Constants.expoConfig?.version`, so they agree on what "a new build" means.
  */
 const APP_BUILD = String(Constants.expoConfig?.version ?? 'dev');
 

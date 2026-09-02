@@ -50,8 +50,6 @@ function RateBadge({ value, label }: { value: string; label: string }) {
     <GradientView
       colors={Gradients.metallic}
       borderRadius={10}
-      sheen={0.55}
-      topHighlight={0.6}
       style={styles.rateBadge}
     >
       <Text style={styles.rateBadgeValue}>{value}</Text>
@@ -77,8 +75,6 @@ function TimeTile() {
     <GradientView
       colors={Gradients.metallic}
       borderRadius={16}
-      sheen={0.55}
-      topHighlight={0.6}
       style={styles.timeTile}
     >
       <Text style={styles.timeDay}>{dayLabel}</Text>
@@ -282,9 +278,11 @@ export default function DashboardScreen() {
                     trialDaysRemaining={subscriptionOverview?.trialDaysRemaining || 0}
                     trialHoursRemaining={subscriptionOverview?.trialHoursRemaining || 0}
                     trialEndDate={subscriptionOverview?.trialEndDate || null}
+                    trialDays={subscriptionOverview?.trialDays ?? subscriptionOverview?.trialDaysConfigured ?? 10}
                     onStartTrial={handleStartTrial}
                     onPurchase={handlePurchaseLicense}
                     trialExpiredAt={subscriptionOverview?.trialExpiredAt || null}
+                    creditBalance={subscriptionOverview?.creditBalance}
                     loading={trialActionLoading}
                   />
                 ) : (
@@ -297,8 +295,6 @@ export default function DashboardScreen() {
                 <GradientView
                   colors={Gradients.metallic}
                   borderRadius={14}
-                  sheen={0.55}
-                  topHighlight={0.6}
                   style={styles.mcxTopCard}
                 >
                   <Text style={styles.mcxTopLabel}>MCX Gold Rate (24 Kt)</Text>
@@ -309,7 +305,7 @@ export default function DashboardScreen() {
               {twentyFourKRate && show24kRateCard ? (
                 <View style={styles.rateCard}>
                   <View style={styles.rateCardHeader}>
-                    <Text style={styles.cardKaratLabel}>Gold (24K) 99.9%</Text>
+                    <Text style={styles.cardKaratLabel}>Gold (24K) 99.5%</Text>
                   </View>
 
                   <View style={styles.rateCardBody}>
@@ -434,7 +430,7 @@ const styles = StyleSheet.create({
   timeTile: {
     minWidth: 84,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: 'rgba(0,0,0,0.08)',
     paddingHorizontal: 14,
     paddingVertical: 14,
     alignItems: 'center',
@@ -467,7 +463,7 @@ const styles = StyleSheet.create({
   },
   mcxTopCard: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: 'rgba(0,0,0,0.08)',
     paddingHorizontal: 18,
     paddingVertical: 16,
     flexDirection: 'row',
@@ -482,7 +478,8 @@ const styles = StyleSheet.create({
   mcxTopLabel: {
     fontSize: 13.6,
     fontWeight: '600',
-    color: Colors.textMuted,
+    color: Colors.textPrimary,
+    opacity: 0.7,
   },
   mcxTopValue: {
     fontSize: 18.4,
@@ -515,7 +512,7 @@ const styles = StyleSheet.create({
   rateBadge: {
     flex: 1,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: 'rgba(0,0,0,0.08)',
     paddingVertical: 8,
     paddingHorizontal: 6,
     alignItems: 'center',
@@ -528,7 +525,8 @@ const styles = StyleSheet.create({
   },
   rateBadgeLabel: {
     fontSize: 10.6,
-    color: Colors.textMuted,
+    color: Colors.textPrimary,
+    opacity: 0.7,
     marginTop: 1,
   },
 });

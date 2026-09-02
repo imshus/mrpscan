@@ -100,7 +100,7 @@ export function DiamondSection({
               value={values.weight}
               onChangeText={(weight) => onChange({ weight })}
               editable={!inputsDisabled}
-              placeholder="e.g. 0.46"
+              placeholder="Weight (ct)"
               containerClassName="mb-2.5"
             />
           </FormFieldGridItem>
@@ -120,7 +120,7 @@ export function DiamondSection({
               value={values.color}
               onChangeText={handleColorChange}
               editable={!inputsDisabled}
-              placeholder="e.g. IJ"
+              placeholder="Color"
               containerClassName="mb-2.5"
             />
           </FormFieldGridItem>
@@ -130,7 +130,7 @@ export function DiamondSection({
               value={values.clarity}
               onChangeText={handleClarityChange}
               editable={!inputsDisabled}
-              placeholder="e.g. VVS1"
+              placeholder="Clarity"
               containerClassName="mb-2.5"
             />
           </FormFieldGridItem>
@@ -140,7 +140,7 @@ export function DiamondSection({
               value={values.packetCode ?? ''}
               onChangeText={(packetCode) => onChange({ packetCode })}
               editable={!inputsDisabled}
-              placeholder="e.g. PKT-123"
+              placeholder="Packet code"
               containerClassName="mb-2.5"
             />
           </FormFieldGridItem>

@@ -17,6 +17,12 @@ type ApiEnvelope<T extends Record<string, unknown>> = T & {
   data?: T;
 };
 
+export interface RazorpayPaymentResult {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
 function readString(source: Record<string, unknown>, keys: string[]): string | undefined {
   for (const key of keys) {
     const value = source[key];
@@ -25,6 +31,39 @@ function readString(source: Record<string, unknown>, keys: string[]): string | u
     }
   }
   return undefined;
+}
+
+export function isPaymentCancellation(error: unknown): boolean {
+  const raw = error as { code?: unknown; description?: unknown; message?: unknown } | null;
+  if (raw?.code === 0 || raw?.code === '0' || raw?.code === 'PAYMENT_CANCELLED') return true;
+
+  const text = `${String(raw?.description ?? '')} ${String(raw?.message ?? '')}`.toLowerCase();
+  return text.includes('cancel') || text.includes('dismiss') || text.includes('user closed');
+}
+
+export function validateRazorpayPaymentResult(
+  result: unknown,
+  expectedOrderId: string,
+): RazorpayPaymentResult {
+  const raw = result && typeof result === 'object'
+    ? result as Record<string, unknown>
+    : {};
+  const paymentId = readString(raw, ['razorpay_payment_id']);
+  const orderId = readString(raw, ['razorpay_order_id']);
+  const signature = readString(raw, ['razorpay_signature']);
+
+  if (!paymentId || !orderId || !signature) {
+    throw new Error('Razorpay did not return a completed payment confirmation.');
+  }
+  if (orderId !== expectedOrderId) {
+    throw new Error('Razorpay payment confirmation does not match this order.');
+  }
+
+  return {
+    razorpay_payment_id: paymentId,
+    razorpay_order_id: orderId,
+    razorpay_signature: signature,
+  };
 }
 
 function unwrapEnvelope<T extends Record<string, unknown>>(response: ApiEnvelope<T>): T {
@@ -190,6 +229,17 @@ export async function verifyPayment(orderId: string, paymentId: string, signatur
   const unwrapped = unwrapEnvelope(response);
   if (!isSuccessfulResponse(response, unwrapped)) {
     throw new Error(resolveApiMessage(response, unwrapped, 'Payment verification failed.'));
+  }
+
+  const verifiedStatus = readString(unwrapped, ['status']);
+  const verifiedOrderId = readString(unwrapped, ['orderId']);
+  const verifiedPaymentId = readString(unwrapped, ['paymentId']);
+  if (
+    verifiedStatus !== 'PAYMENT_SUCCESS' ||
+    verifiedOrderId !== orderId ||
+    verifiedPaymentId !== paymentId
+  ) {
+    throw new Error('Payment has not been captured and verified yet.');
   }
 }
 

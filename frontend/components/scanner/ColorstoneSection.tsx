@@ -73,7 +73,7 @@ export function ColorstoneSection({
               value={values.weight}
               onChangeText={(weight) => onChange({ weight })}
               editable={!inputsDisabled}
-              placeholder="e.g. 4.26"
+              placeholder="Weight (ct)"
               containerClassName="mb-2.5"
             />
           </FormFieldGridItem>
@@ -83,7 +83,7 @@ export function ColorstoneSection({
               value={values.color}
               onChangeText={handleColorChange}
               editable={!inputsDisabled}
-              placeholder="e.g. Red"
+              placeholder="Color"
               containerClassName="mb-2.5"
             />
           </FormFieldGridItem>
@@ -93,7 +93,7 @@ export function ColorstoneSection({
               value={values.clarity}
               onChangeText={handleClarityChange}
               editable={!inputsDisabled}
-              placeholder="e.g. VVS"
+              placeholder="Clarity"
               containerClassName="mb-2.5"
             />
           </FormFieldGridItem>

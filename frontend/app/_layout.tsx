@@ -15,7 +15,13 @@ import Animated, {
 
 import { ReduxProvider } from '@/components/ReduxProvider';
 import { AnimatedSplash } from '@/components/splash/AnimatedSplash';
+import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
+import { useEmployeeStore } from '@/store/employeeStore';
+import { useInventoryStore } from '@/store/inventoryStore';
+import { usePurityStore } from '@/store/purityStore';
+import { useWishlistStore } from '@/store/wishlistStore';
+import { resetIfNewBuild } from '@/utils/appBuildReset';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -103,6 +109,10 @@ export default function RootLayout() {
   const [splashVisible, setSplashVisible] = useState(true);
   const contentIn = useSharedValue(0);
 
+  // No screen may read a persisted store until the build check has run — a new
+  // APK must start with the previous install's cached data already gone.
+  const [storageReady, setStorageReady] = useState(false);
+
   const contentStyle = useAnimatedStyle(() => ({
     opacity: contentIn.value,
     transform: [{ translateY: (1 - contentIn.value) * 28 }],
@@ -179,6 +189,54 @@ export default function RootLayout() {
     };
   }, []);
 
+  // Installing a new APK keeps the old install's AsyncStorage, so every
+  // persisted store is wiped here before the navigator mounts.
+  //
+  // Clearing storage alone is not enough: zustand's persist middleware starts
+  // hydrating each store as soon as its module is imported, so a store can
+  // already hold the previous build's data in memory by the time this runs.
+  // Every store is therefore rehydrated *after* the wipe — with the keys gone,
+  // rehydrate() resets each one to its code defaults (empty inventory, empty
+  // employees, empty wishlist, signed out, standard purities). The navigator
+  // stays unmounted until this finishes, so no screen can read a store
+  // mid-wipe.
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const wiped = await resetIfNewBuild();
+        if (wiped) {
+          // Deleting the storage keys is not enough: every store hydrated at
+          // import time, and zustand's merge is {...current, ...persisted}, so
+          // rehydrating against an absent key keeps the state already in
+          // memory. Each store is reset to its own initial state instead.
+          useAuthStore.setState(useAuthStore.getInitialState(), true);
+          useEmployeeStore.setState(useEmployeeStore.getInitialState(), true);
+          useInventoryStore.setState(useInventoryStore.getInitialState(), true);
+          usePurityStore.setState(usePurityStore.getInitialState(), true);
+          useWishlistStore.setState(useWishlistStore.getInitialState(), true);
+          await Promise.all([
+            useAuthStore.persist.rehydrate(),
+            useEmployeeStore.persist.rehydrate(),
+            useInventoryStore.persist.rehydrate(),
+            usePurityStore.persist.rehydrate(),
+            useWishlistStore.persist.rehydrate(),
+          ]);
+        }
+      } catch (error) {
+        // Startup must never be blocked by a storage failure.
+        console.warn('Build reset failed:', error);
+      } finally {
+        if (!cancelled) setStorageReady(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (fontError) {
       // A missing optional font must never block or crash startup.
@@ -197,14 +255,16 @@ export default function RootLayout() {
     <ReduxProvider>
       <StatusBar style="dark" />
       <View style={styles.appRoot}>
-        <Animated.View style={[styles.appRoot, contentStyle]}>
-          <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="register" />
-            <Stack.Screen name="login" />
-            <Stack.Screen name="dashboard" />
-          </Stack>
-        </Animated.View>
+        {storageReady && (
+          <Animated.View style={[styles.appRoot, contentStyle]}>
+            <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="register" />
+              <Stack.Screen name="login" />
+              <Stack.Screen name="dashboard" />
+            </Stack>
+          </Animated.View>
+        )}
         {splashVisible && (
           <AnimatedSplash onReveal={revealContent} onFinish={() => setSplashVisible(false)} />
         )}
@@ -216,5 +276,8 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   appRoot: {
     flex: 1,
+    // Painted here too, so the moment before the navigator mounts (while the
+    // build check runs) shows the splash's cream, never a white flash.
+    backgroundColor: Colors.background,
   },
 });

@@ -273,8 +273,10 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     marginBottom: 28,
   },
+  // AuthSub carries marginTop: -18, so this has to clear that before it buys
+  // any gap at all — at 8 the subtitle was pulled 10px up into the title.
   titleTight: {
-    marginBottom: 8,
+    marginBottom: 32,
   },
   sub: {
     fontSize: 15,

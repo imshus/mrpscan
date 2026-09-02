@@ -17,7 +17,7 @@ export function PhoneInput({
   label,
   value,
   onChangeText,
-  placeholder = '9876543210',
+  placeholder = 'Mobile number',
   error,
   editable = true,
 }: PhoneInputProps) {

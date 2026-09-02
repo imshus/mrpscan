@@ -8,7 +8,6 @@ import {
   FloatingCard,
   PillButton,
 } from '@/components/scanner/ReviewCardKit';
-import { useScannerStore } from '@/store/scannerStore';
 import { RefreshCw } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 import { useFormulaStore } from '@/store/formulaStore';
@@ -176,7 +175,7 @@ export function ReviewScannedResultsModal({
           clarity: '',
           quality: '',
           rate: '',
-          discountPercent: '0',
+          discountPercent: '',
           pieces: '',
         };
       }
@@ -373,8 +372,10 @@ export function ReviewScannedResultsModal({
         onBack={onBack}
         accessory={
           <Pressable
-            onPress={() => useScannerStore.getState().bumpMrpRefresh()}
+            onPress={onReScan}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Rescan"
             style={styles.refreshBtn}
           >
             <RefreshCw size={14} color={Colors.textPrimary} />

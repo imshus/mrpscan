@@ -12,24 +12,22 @@ import { Check, ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GradientView } from '@/components/ui/GradientView';
-import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Radius, Spacing, Surfaces } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useAuthStore } from '@/store/authStore';
 import type { SubscriptionOverview } from '@/types/subscription';
 import {
   createApplicationPurchaseOrder,
   fetchSubscriptionOverview,
+  isPaymentCancellation,
   markPaymentFailure,
+  validateRazorpayPaymentResult,
   verifyPayment,
 } from '@/utils/subscriptionApi';
 import Constants from 'expo-constants';
 
 type RazorpayModule = {
-  open: (options: Record<string, unknown>) => Promise<{
-    razorpay_payment_id: string;
-    razorpay_order_id: string;
-    razorpay_signature: string;
-  }>;
+  open: (options: Record<string, unknown>) => Promise<unknown>;
 };
 
 function getRazorpayCheckout(): RazorpayModule | null {
@@ -57,22 +55,6 @@ function assertRazorpayReady(): void {
   }
 }
 
-/**
- * True when the checkout closed because the user backed out.
- *
- * Razorpay reports this like any other failure, so it has to be told apart
- * from a real problem: dismissing the sheet should not raise an alert saying
- * the purchase could not be completed.
- */
-function isPaymentCancellation(error: unknown): boolean {
-  const raw = error as { code?: unknown; description?: unknown; message?: unknown } | null;
-  // Razorpay's own cancellation code.
-  if (raw?.code === 0 || raw?.code === 'PAYMENT_CANCELLED') return true;
-
-  const text = `${String(raw?.description ?? '')} ${String(raw?.message ?? '')}`.toLowerCase();
-  return text.includes('cancel') || text.includes('dismiss') || text.includes('user closed');
-}
-
 function rupees(value: number): string {
   return `₹ ${Number(value || 0).toLocaleString('en-IN')}`;
 }
@@ -85,9 +67,9 @@ function toPurchaseState(overview: SubscriptionOverview | null): 'LOADING' | 'PE
   return 'CAN_PURCHASE';
 }
 
-/** Exact gradients from mrpscan-design-mockup/styles.css. */
-const TRIAL_PANEL_GRADIENT = ['#F5EFE0', '#DDD0B0', '#C2B28C'];
-const PREMIUM_PANEL_GRADIENT = ['#E6947F', '#C25F4E', '#8F2F22'];
+/** Flat panel fills — the right-side stop of each mockup gradient (see Surfaces). */
+const TRIAL_PANEL_GRADIENT = [Surfaces.metallic];
+const PREMIUM_PANEL_GRADIENT = [Surfaces.premium];
 
 export default function PurchaseLicenseScreen() {
   const router = useRouter();
@@ -134,8 +116,9 @@ export default function PurchaseLicenseScreen() {
       throw new Error('Razorpay key id is missing on frontend.');
     }
 
+    let payment;
     try {
-      const payment = await RazorpayCheckout.open({
+      const checkoutResult = await RazorpayCheckout.open({
         key,
         amount: order.amountInPaise,
         currency: 'INR',
@@ -144,14 +127,25 @@ export default function PurchaseLicenseScreen() {
         description: 'Application License Purchase',
         theme: { color: Colors.primary },
       });
-
-      await verifyPayment(payment.razorpay_order_id, payment.razorpay_payment_id, payment.razorpay_signature);
+      payment = validateRazorpayPaymentResult(checkoutResult, order.orderId);
     } catch (error) {
-      const failureMessage = error instanceof Error ? error.message : 'Payment cancelled or failed.';
-      // The order is still closed out on the server, cancelled or not.
-      await markPaymentFailure(order.orderId, null, failureMessage);
+      const raw = error as { description?: unknown } | null;
+      const failureMessage = error instanceof Error
+        ? error.message
+        : String(raw?.description || 'Payment cancelled or failed.');
+      // Recording a cancelled checkout is best-effort and must not replace the
+      // original Razorpay cancellation with a misleading app error.
+      try {
+        await markPaymentFailure(order.orderId, null, failureMessage);
+      } catch (recordError) {
+        console.warn('Failed to record cancelled Razorpay checkout', recordError);
+      }
       throw error;
     }
+
+    // Verify the locally created order, not an unchecked order id supplied by
+    // the SDK callback. The API only accepts a captured payment.
+    await verifyPayment(order.orderId, payment.razorpay_payment_id, payment.razorpay_signature);
   }, []);
 
   const handlePurchase = useCallback(async () => {
@@ -233,7 +227,6 @@ export default function PurchaseLicenseScreen() {
                 {/* Free trial — what they have now */}
                 <GradientView
                   colors={TRIAL_PANEL_GRADIENT}
-                  sheen={0.6}
                   style={styles.panel}
                 >
                   <Text style={styles.trialHeading}>Free Trial</Text>
@@ -259,10 +252,16 @@ export default function PurchaseLicenseScreen() {
                 {/* Paid licence */}
                 <GradientView
                   colors={PREMIUM_PANEL_GRADIENT}
-                  sheen={0.3}
                   style={styles.panel}
                 >
-                  <Text style={styles.paidHeading}>Subscription</Text>
+                  <Text
+                    style={styles.paidHeading}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    Subscription
+                  </Text>
                   <View style={styles.featureList}>
                     <Feature text={displayPrice} sub="(one time purchase)" tone="paid" />
                     <Feature text="Lifetime application validity" tone="paid" />
@@ -318,7 +317,7 @@ function Feature({ text, sub, tone }: FeatureProps) {
     <View style={styles.featureRow}>
       <Check
         size={14}
-        color={paid ? Colors.white : Colors.metalGold}
+        color={paid ? Colors.white : Colors.textPrimary}
         strokeWidth={3}
         style={styles.featureCheck}
       />
@@ -381,12 +380,13 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: '800',
     color: Colors.white,
+    width: '100%',
   },
   keepBtn: {
     height: 46,
-    backgroundColor: 'rgba(255,255,255,0.62)',
+    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.75)',
+    borderColor: Colors.border,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',

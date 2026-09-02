@@ -89,7 +89,8 @@ function getSignAndAmount(value: number): { sign: Sign; amount: string } {
   const absolute = Math.abs(value);
   return {
     sign: value < 0 ? '-' : '+',
-    amount: Number.isInteger(absolute) ? String(absolute) : String(absolute),
+    // Zero shows the "Amount" placeholder instead of a literal "0".
+    amount: absolute ? String(absolute) : '',
   };
 }
 
@@ -178,8 +179,8 @@ export default function RateControlScreen() {
 
   const [rtgsSign, setRtgsSign] = useState<Sign>('+');
   const [cashSign, setCashSign] = useState<Sign>('+');
-  const [rtgsAmount, setRtgsAmount] = useState('0');
-  const [cashAmount, setCashAmount] = useState('0');
+  const [rtgsAmount, setRtgsAmount] = useState('');
+  const [cashAmount, setCashAmount] = useState('');
 
   const [savingAll, setSavingAll] = useState(false);
   const [barAnim] = useState(() => new Animated.Value(0));

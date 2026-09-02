@@ -403,7 +403,7 @@ export function InvoiceGenerationBilling({
                     updateCustomer({ customerName: sanitizeNameInput(text) });
                     setTouched((current) => ({ ...current, name: true }));
                   }}
-                  placeholder="e.g. Garg Jewellers"
+                  placeholder="Customer name"
                   required
                   error={nameError}
                 />
@@ -414,7 +414,7 @@ export function InvoiceGenerationBilling({
                     updateCustomer({ customerPhone: sanitizePhoneInput(text) });
                     setTouched((current) => ({ ...current, phone: true }));
                   }}
-                  placeholder="+91 9999999999"
+                  placeholder="Mobile number"
                   keyboardType="phone-pad"
                   maxLength={10}
                   required
@@ -436,7 +436,7 @@ export function InvoiceGenerationBilling({
                   label="GST No."
                   value={customer.customerGstin}
                   onChangeText={(text) => updateCustomer({ customerGstin: sanitizeGstinInput(text) })}
-                  placeholder="09AEWPG4525J1Z0"
+                  placeholder="GST number"
                   autoCapitalize="characters"
                 />
                 <ValidatedInput
@@ -445,7 +445,7 @@ export function InvoiceGenerationBilling({
                   onChangeText={(text) =>
                     updateCustomer({ customerPan: text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) })
                   }
-                  placeholder="AEWPG4525J"
+                  placeholder="PAN"
                   autoCapitalize="characters"
                 />
               </View>

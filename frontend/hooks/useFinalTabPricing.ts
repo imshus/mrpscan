@@ -54,7 +54,7 @@ const defaultPricing: FinalTabPricingResult = {
   ultimateMrpDisplay: '₹0',
 };
 
-const PRICING_DEBOUNCE_MS = 350;
+const PRICING_EDIT_DEBOUNCE_MS = 350;
 
 function buildPricingStateKey(pricing: FinalTabPricingResult): string {
   return JSON.stringify({
@@ -189,8 +189,13 @@ export function useFinalTabPricing({
       return;
     }
 
-    const timer = setTimeout(() => {
-      lastRequestKeyRef.current = requestKey;
+    // The first calculation for a scan is the price shown when the preview
+    // opens, so start it immediately. Only subsequent field edits need the
+    // debounce that prevents a request on every keystroke.
+    const isFirstRequestForScan = !lastRequestKeyRef.current?.startsWith(`${scanId}|`);
+    lastRequestKeyRef.current = requestKey;
+
+    const requestPricing = () => {
       const { diamonds, colorstones, payload, resolvedKarat } = calculationInput;
 
       calculateScanMrp(scanId, payload)
@@ -323,11 +328,18 @@ export function useFinalTabPricing({
 
         console.error('Failed to calculate MRP via backend', err);
       });
-    }, PRICING_DEBOUNCE_MS);
+    };
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    if (isFirstRequestForScan) {
+      requestPricing();
+    } else {
+      timer = setTimeout(requestPricing, PRICING_EDIT_DEBOUNCE_MS);
+    }
 
     return () => {
       isMounted = false;
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
     };
   }, [scanId, calculationKey, mrpRefreshToken]);
 

@@ -212,7 +212,7 @@ export function RawMaterialSection({
           value={purityDraft}
           onChangeText={handlePurityEdit}
           editable={editable && canEditPurityPercent}
-          placeholder="e.g. 91.6"
+          placeholder="Purity %"
           keyboardType="decimal-pad"
           onFocus={() => setIsPurityEditing(true)}
           onBlur={() => setIsPurityEditing(false)}

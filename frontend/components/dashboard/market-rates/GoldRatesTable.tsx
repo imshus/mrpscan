@@ -143,7 +143,7 @@ export function GoldEditModalFields({
         value={purity}
         onChangeText={onPurityChange}
         keyboardType="decimal-pad"
-        placeholder="91.6"
+        placeholder="Purity %"
         placeholderTextColor={Colors.placeholder}
         style={[styles.input, purityError ? styles.inputError : null]}
       />

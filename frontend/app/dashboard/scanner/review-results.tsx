@@ -216,9 +216,11 @@ export default function ReviewResultsScreen() {
   );
 
 
-  const handleReScan = () => {
+  // Straight back to the camera — no confirmation. This matches the header
+  // back chevron and the hardware back, which have always reset without asking.
+  const handleReScan = useCallback(() => {
     resetCurrentScanOperation('review_rescan');
-  };
+  }, [resetCurrentScanOperation]);
 
   const handleGenerateInvoice = () => {
     router.push('/dashboard/scanner/invoice-preview' as Href);

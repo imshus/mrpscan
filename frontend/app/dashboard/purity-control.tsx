@@ -134,7 +134,7 @@ export default function PurityControlScreen() {
               value={draftValue}
               onChangeText={setDraftValue}
               keyboardType="decimal-pad"
-              placeholder="99.60"
+              placeholder="Purity %"
               placeholderTextColor={Colors.placeholder}
               style={styles.modalInput}
             />
