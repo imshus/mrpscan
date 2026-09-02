@@ -105,7 +105,11 @@ export default function DashboardScreen() {
     : globalMatrixValues;
 
   const sortedGoldRates = useMemo(
-    () => sortGoldRates(goldRates.filter((rate) => !rate.isHidden)),
+    // Dashboard Settings decides what the home screen shows. The rate table's
+    // own "hide" flag used to override it here, so every karat card could
+    // vanish while every matrix toggle was on — with nothing on this screen to
+    // say why. That flag now only affects the rate table.
+    () => sortGoldRates(goldRates),
     [goldRates],
   );
   const mcxFinalRate = useMemo(() => {

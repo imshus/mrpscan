@@ -28,7 +28,7 @@ import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 // milestone's floor so it keeps moving however long the backend takes.
 // Billing is finalized server-side in the background and never blocks this.
 const TICK_MS = 50;
-const COMPLETE_HOLD_MS = 250;
+const COMPLETE_HOLD_MS = 150;
 
 type ProgressSegment = { floor: number; ceiling: number; expectedMs: number; startedAt: number };
 const SEGMENTS = {
