@@ -268,7 +268,9 @@ export default function ProcessingScreen() {
         }
       }
 
-      await Promise.all([formulaSyncPromise, goldRatesWarmupPromise]);
+      // Formulas shape the price the review screen shows, so this one is
+      // still awaited; it was started before the analysis and is normally done.
+      await formulaSyncPromise;
 
       setUnknownFields(result.unknownFields ?? []);
       setStructuredData({ ...flatData, karat: fallbackKarat });
