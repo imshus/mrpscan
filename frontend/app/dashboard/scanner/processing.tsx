@@ -205,15 +205,15 @@ export default function ProcessingScreen() {
       // These requests do not depend on the OCR result. Start them while the
       // tag is being analyzed so the preview does not wait for rate setup.
       const labourRatePromise = fetchLabourRate().catch(() => null);
-      const goldRatesWarmupPromise = isDemoScanMode()
-        ? Promise.resolve()
-        : fetchGoldRates().then(
-            () => undefined,
-            () => {
-              // The calculate endpoint remains the source of truth and can
-              // fetch the rates itself if this warm-up request fails.
-            },
-          );
+      // Cache warm-up only: the calculate endpoint fetches rates itself, so
+      // nothing here waits on it — it used to gate the move to the review
+      // screen, which on a slow rates response added seconds after the OCR
+      // had already come back.
+      if (!isDemoScanMode()) {
+        void fetchGoldRates().catch(() => {
+          // Warm-up failure is harmless; the review screen fetches on demand.
+        });
+      }
       const formulaSyncPromise = isDemoScanMode()
         ? Promise.resolve()
         : syncFormulaStoreFromApi().then(
