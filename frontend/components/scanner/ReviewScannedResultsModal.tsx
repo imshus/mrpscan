@@ -442,6 +442,7 @@ export function ReviewScannedResultsModal({
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <ScannerFinalTab
           scanData={scanData}

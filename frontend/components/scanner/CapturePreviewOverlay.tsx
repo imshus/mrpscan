@@ -86,10 +86,6 @@ export function CapturePreviewOverlay({
           <AdjustableImage ref={adjustableRef} uri={uri} style={thumbStyle} />
         ) : null}
 
-        {uri && !loading ? (
-          <Text style={styles.zoomHint}>Pinch to zoom · drag to reframe</Text>
-        ) : null}
-
         <View style={styles.actions}>
           <View style={styles.actionRow}>
             <Pressable
@@ -208,12 +204,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: Colors.white,
-  },
-  zoomHint: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textMuted,
-    letterSpacing: 0.4,
   },
   pressed: {
     opacity: 0.9,
