@@ -19,7 +19,7 @@ const ACTIONS: { key: InvoiceAction; label: string; color: string }[] = [
   { key: 'print', label: 'Print', color: Colors.brandDeep },
 ];
 
-const ICON_SIZE = 24;
+const ICON_SIZE = 22;
 
 function WhatsAppIcon() {
   return (
@@ -62,11 +62,12 @@ function ActionIcon({ action, color }: { action: InvoiceAction; color: string })
 }
 
 /**
- * Five round quick-share buttons on the header's back-arrow row.
+ * Five round quick-share buttons, sitting on the title's line.
  *
- * The tiles are a real 44dp rather than a smaller circle padded out with
- * hitSlop: slop is clipped to the parent's bounds, so it bought no height at
- * all here and the neighbouring slop regions overlapped each other.
+ * 38dp is the ceiling here: the title measures about 90dp at 28px, which
+ * leaves roughly 222dp for five tiles and their gaps. The size is real rather
+ * than a smaller circle padded out with hitSlop — slop is clipped to the
+ * parent, so it buys no height and neighbouring targets end up overlapping.
  */
 export function InvoiceQuickActions({ busy, onPress }: Props) {
   return (
@@ -96,11 +97,11 @@ export function InvoiceQuickActions({ busy, onPress }: Props) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 6 },
   btn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.white,

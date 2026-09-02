@@ -46,20 +46,21 @@ export function ScreenBackHeader({
 
   return (
     <View className={`px-screen pt-2 ${title ? 'pb-3' : ''}`}>
-      <View className="flex-row items-center">
-        <Pressable onPress={handleBack} hitSlop={12} className="h-10 w-10 items-center justify-center">
-          <ArrowLeft size={24} color={arrowColor} />
-        </Pressable>
-        <View className="flex-1" />
-        {right}
-      </View>
+      <Pressable onPress={handleBack} hitSlop={12} className="h-10 w-10 items-center justify-center">
+        <ArrowLeft size={24} color={arrowColor} />
+      </Pressable>
       {title ? (
-        <Text
-          className="mt-2 text-[28px] font-bold leading-[34px] text-text-primary"
-          numberOfLines={1}
-        >
-          {title}
-        </Text>
+        <View className="mt-2 flex-row items-center">
+          <Text
+            className="flex-1 text-[28px] font-bold leading-[34px] text-text-primary"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
+            {title}
+          </Text>
+          {right}
+        </View>
       ) : null}
     </View>
   );
