@@ -73,6 +73,12 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
         PanResponder.create({
           onStartShouldSetPanResponder: () => true,
           onMoveShouldSetPanResponder: () => true,
+          // Claim both fingers before anything above or below can, and keep
+          // them for the whole gesture: a pinch that loses one finger to a
+          // parent view is a pinch that never scales.
+          onStartShouldSetPanResponderCapture: () => true,
+          onMoveShouldSetPanResponderCapture: () => true,
+          onPanResponderTerminationRequest: () => false,
           onPanResponderGrant: () => {
             gestureStart.current = {
               tx: state.current.tx,

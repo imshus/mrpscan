@@ -1,6 +1,13 @@
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Minus, Plus } from 'lucide-react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import { AdjustableImage, type AdjustableImageRef } from '@/components/scanner/AdjustableImage';
 import { GradientView } from '@/components/ui/GradientView';
@@ -30,6 +37,10 @@ export function CapturePreviewOverlay({
   onAddMore,
 }: CapturePreviewOverlayProps) {
   const adjustableRef = useRef<AdjustableImageRef>(null);
+  // Half the screen: a 200px strip was too small to land two fingers in,
+  // which is why the pinch never seemed to work.
+  const { height: windowHeight } = useWindowDimensions();
+  const thumbStyle = [styles.thumb, { height: Math.round(windowHeight * 0.5) }];
   const [exporting, setExporting] = useState(false);
 
   if (!visible) {
@@ -68,36 +79,15 @@ export function CapturePreviewOverlay({
         <Text style={styles.title}>{title}</Text>
 
         {loading ? (
-          <View style={styles.thumb}>
+          <View style={thumbStyle}>
             <ActivityIndicator size="large" color={Colors.brandDeep} />
           </View>
         ) : uri ? (
-          <AdjustableImage ref={adjustableRef} uri={uri} style={styles.thumb} />
+          <AdjustableImage ref={adjustableRef} uri={uri} style={thumbStyle} />
         ) : null}
 
-        {/* Pinch works too; these give a one-handed, always-available zoom. */}
         {uri && !loading ? (
-          <View style={styles.zoomRow}>
-            <Pressable
-              onPress={() => adjustableRef.current?.zoomBy(0.8)}
-              hitSlop={6}
-              accessibilityRole="button"
-              accessibilityLabel="Zoom out"
-              style={({ pressed }) => [styles.zoomBtn, pressed && styles.pressed]}
-            >
-              <Minus size={18} color={Colors.textPrimary} strokeWidth={2.4} />
-            </Pressable>
-            <Text style={styles.zoomHint}>Zoom</Text>
-            <Pressable
-              onPress={() => adjustableRef.current?.zoomBy(1.25)}
-              hitSlop={6}
-              accessibilityRole="button"
-              accessibilityLabel="Zoom in"
-              style={({ pressed }) => [styles.zoomBtn, pressed && styles.pressed]}
-            >
-              <Plus size={18} color={Colors.textPrimary} strokeWidth={2.4} />
-            </Pressable>
-          </View>
+          <Text style={styles.zoomHint}>Pinch to zoom · drag to reframe</Text>
         ) : null}
 
         <View style={styles.actions}>
@@ -218,22 +208,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: Colors.white,
-  },
-  zoomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-  },
-  zoomBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.backgroundAlt,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   zoomHint: {
     fontSize: 12,
