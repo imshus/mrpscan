@@ -194,6 +194,7 @@ export default function PurchaseLicenseScreen() {
   const bonusCredits = overview?.purchasedBonusCreditsConfigured || 1000;
   const trialDays = overview?.trialDaysConfigured || 10;
   const trialCredits = overview?.freeTrialCreditsConfigured || overview?.trialCredits || 10;
+  const isPurchased = purchaseState === 'PERMANENT';
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -209,20 +210,23 @@ export default function PurchaseLicenseScreen() {
           <View style={styles.loadingWrap}>
             <ActivityIndicator color={Colors.primary} />
           </View>
-        ) : purchaseState === 'PERMANENT' ? (
-          <View style={styles.centerStateWrap}>
-            <Text style={styles.doneTitle}>Application License Active</Text>
-            <Text style={styles.doneSubtitle}>No purchase is required for this organization.</Text>
-            <Pressable onPress={() => router.back()} style={styles.primaryBtn}>
-              <Text style={styles.primaryBtnText}>Go Back</Text>
-            </Pressable>
-          </View>
         ) : (
           <View style={styles.contentWrap}>
             <View style={styles.hero}>
               <Text style={styles.title}>Unlock Full Access</Text>
-              <Text style={styles.subtitle}>Compare your current plan against lifetime access.</Text>
+              <Text style={styles.subtitle}>
+                {isPurchased
+                  ? 'You already own lifetime access.'
+                  : 'Compare your current plan against lifetime access.'}
+              </Text>
             </View>
+
+            {isPurchased ? (
+              <View style={styles.purchasedNotice}>
+                <Check size={13} strokeWidth={3} color={Colors.successText} />
+                <Text style={styles.purchasedNoticeText}>Already Purchased</Text>
+              </View>
+            ) : null}
 
             <View style={styles.compareShadow}>
               <View style={styles.compareRow}>
@@ -238,8 +242,13 @@ export default function PurchaseLicenseScreen() {
                     <Feature text={`Free ${trialCredits} credits`} tone="trial" />
                   </View>
                   <Pressable
+                    disabled={isPurchased}
                     onPress={() => router.replace('/dashboard')}
-                    style={[styles.keepBtn, styles.panelAction]}
+                    style={[
+                      styles.keepBtn,
+                      styles.panelAction,
+                      isPurchased && styles.btnDisabled,
+                    ]}
                   >
                     <Text style={styles.keepBtnText}>Keep Using</Text>
                   </Pressable>
@@ -262,12 +271,20 @@ export default function PurchaseLicenseScreen() {
                     <Feature text="Credit recharge when low" tone="paid" />
                   </View>
                   <Pressable
-                    disabled={busy}
+                    disabled={busy || isPurchased}
                     onPress={handlePurchase}
-                    style={[styles.purchaseBtn, styles.panelAction, busy && styles.btnDisabled]}
+                    style={[
+                      styles.purchaseBtn,
+                      styles.panelAction,
+                      (busy || isPurchased) && styles.btnDisabled,
+                    ]}
                   >
                     <Text style={styles.purchaseBtnText}>
-                      {busy ? 'Processing…' : 'Purchase Now'}
+                      {isPurchased
+                        ? 'Already Purchased'
+                        : busy
+                          ? 'Processing…'
+                          : 'Purchase Now'}
                     </Text>
                   </Pressable>
                 </GradientView>
@@ -420,6 +437,24 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
     marginTop: 2,
   },
+  // Stated inline above the panels, so the plan itself stays readable.
+  purchasedNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: 6,
+    marginTop: 12,
+    borderRadius: Radius.button,
+    backgroundColor: Colors.successBg,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  purchasedNoticeText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: Colors.successText,
+  },
+
   footnote: {
     marginTop: 16,
     fontSize: 12,

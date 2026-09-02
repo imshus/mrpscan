@@ -253,13 +253,10 @@ export default function DashboardScreen() {
     router.push('/dashboard/purchase-license');
   }, [router]);
 
-  const showTopBanner = subscriptionOverview
-    && (
-      subscriptionOverview.status === 'NO_LICENSE'
-      || subscriptionOverview.status === 'FREE_TRIAL_LICENSE'
-      || subscriptionOverview.status === 'FREE_TRIAL'
-      || subscriptionOverview.status === 'EXPIRED'
-    );
+  // Licences belong to the business, so an employee is never shown one. A
+  // business sees the tile in every licence state — a bought subscription
+  // included — because it is the home screen's only route to that page.
+  const showTopBanner = authUserRole === 'business';
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -281,13 +278,13 @@ export default function DashboardScreen() {
               <View style={styles.topRow}>
                 {showTopBanner ? (
                   <SubscriptionBanner
-                    licenseStatus={subscriptionOverview!.status}
-                    trialDaysRemaining={subscriptionOverview!.trialDaysRemaining || 0}
-                    trialHoursRemaining={subscriptionOverview!.trialHoursRemaining || 0}
-                    trialEndDate={subscriptionOverview!.trialEndDate || null}
+                    licenseStatus={subscriptionOverview?.status ?? 'NO_LICENSE'}
+                    trialDaysRemaining={subscriptionOverview?.trialDaysRemaining || 0}
+                    trialHoursRemaining={subscriptionOverview?.trialHoursRemaining || 0}
+                    trialEndDate={subscriptionOverview?.trialEndDate || null}
                     onStartTrial={handleStartTrial}
                     onPurchase={handlePurchaseLicense}
-                    trialExpiredAt={subscriptionOverview!.trialExpiredAt || null}
+                    trialExpiredAt={subscriptionOverview?.trialExpiredAt || null}
                     loading={trialActionLoading}
                   />
                 ) : (
