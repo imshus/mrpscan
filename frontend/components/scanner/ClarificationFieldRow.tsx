@@ -91,7 +91,7 @@ export function ClarificationFieldRow({
         <TextInput
           value={description}
           onChangeText={onDescriptionChange}
-          placeholder="Describe this field (e.g. Colored Stone Weight)"
+          placeholder="Describe this field"
           placeholderTextColor={Colors.placeholder}
           className="mt-3 rounded-input border border-border px-3 py-2.5 text-sm text-text-primary"
         />

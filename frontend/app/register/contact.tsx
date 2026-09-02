@@ -105,7 +105,7 @@ export default function ContactDetailsScreen() {
                   setPhone(text.replace(/\D/g, '').slice(0, 10));
                   setPhoneError(null);
                 }}
-                placeholder="98765 43210"
+                placeholder="Mobile number"
                 keyboardType="phone-pad"
                 error={phoneError}
               />

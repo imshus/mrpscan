@@ -19,17 +19,15 @@ import type { SubscriptionOverview } from '@/types/subscription';
 import {
   createApplicationPurchaseOrder,
   fetchSubscriptionOverview,
+  isPaymentCancellation,
   markPaymentFailure,
+  validateRazorpayPaymentResult,
   verifyPayment,
 } from '@/utils/subscriptionApi';
 import Constants from 'expo-constants';
 
 type RazorpayModule = {
-  open: (options: Record<string, unknown>) => Promise<{
-    razorpay_payment_id: string;
-    razorpay_order_id: string;
-    razorpay_signature: string;
-  }>;
+  open: (options: Record<string, unknown>) => Promise<unknown>;
 };
 
 function getRazorpayCheckout(): RazorpayModule | null {
@@ -55,22 +53,6 @@ function assertRazorpayReady(): void {
   if (!RazorpayCheckout) {
     throw new Error('Razorpay SDK not available in this build. Rebuild the app after installing react-native-razorpay.');
   }
-}
-
-/**
- * True when the checkout closed because the user backed out.
- *
- * Razorpay reports this like any other failure, so it has to be told apart
- * from a real problem: dismissing the sheet should not raise an alert saying
- * the purchase could not be completed.
- */
-function isPaymentCancellation(error: unknown): boolean {
-  const raw = error as { code?: unknown; description?: unknown; message?: unknown } | null;
-  // Razorpay's own cancellation code.
-  if (raw?.code === 0 || raw?.code === 'PAYMENT_CANCELLED') return true;
-
-  const text = `${String(raw?.description ?? '')} ${String(raw?.message ?? '')}`.toLowerCase();
-  return text.includes('cancel') || text.includes('dismiss') || text.includes('user closed');
 }
 
 function rupees(value: number): string {
@@ -134,8 +116,9 @@ export default function PurchaseLicenseScreen() {
       throw new Error('Razorpay key id is missing on frontend.');
     }
 
+    let payment;
     try {
-      const payment = await RazorpayCheckout.open({
+      const checkoutResult = await RazorpayCheckout.open({
         key,
         amount: order.amountInPaise,
         currency: 'INR',
@@ -144,14 +127,25 @@ export default function PurchaseLicenseScreen() {
         description: 'Application License Purchase',
         theme: { color: Colors.primary },
       });
-
-      await verifyPayment(payment.razorpay_order_id, payment.razorpay_payment_id, payment.razorpay_signature);
+      payment = validateRazorpayPaymentResult(checkoutResult, order.orderId);
     } catch (error) {
-      const failureMessage = error instanceof Error ? error.message : 'Payment cancelled or failed.';
-      // The order is still closed out on the server, cancelled or not.
-      await markPaymentFailure(order.orderId, null, failureMessage);
+      const raw = error as { description?: unknown } | null;
+      const failureMessage = error instanceof Error
+        ? error.message
+        : String(raw?.description || 'Payment cancelled or failed.');
+      // Recording a cancelled checkout is best-effort and must not replace the
+      // original Razorpay cancellation with a misleading app error.
+      try {
+        await markPaymentFailure(order.orderId, null, failureMessage);
+      } catch (recordError) {
+        console.warn('Failed to record cancelled Razorpay checkout', recordError);
+      }
       throw error;
     }
+
+    // Verify the locally created order, not an unchecked order id supplied by
+    // the SDK callback. The API only accepts a captured payment.
+    await verifyPayment(order.orderId, payment.razorpay_payment_id, payment.razorpay_signature);
   }, []);
 
   const handlePurchase = useCallback(async () => {
@@ -260,7 +254,14 @@ export default function PurchaseLicenseScreen() {
                   colors={PREMIUM_PANEL_GRADIENT}
                   style={styles.panel}
                 >
-                  <Text style={styles.paidHeading}>Subscription</Text>
+                  <Text
+                    style={styles.paidHeading}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    Subscription
+                  </Text>
                   <View style={styles.featureList}>
                     <Feature text={displayPrice} sub="(one time purchase)" tone="paid" />
                     <Feature text="Lifetime application validity" tone="paid" />
@@ -379,6 +380,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: '800',
     color: Colors.white,
+    width: '100%',
   },
   keepBtn: {
     height: 46,

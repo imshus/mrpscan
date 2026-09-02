@@ -120,7 +120,7 @@ export default function AddEmployeeScreen() {
               onChangeText={(text) =>
                 updateDraft({ phone: text.replace(/\D/g, '').slice(0, 10) })
               }
-              placeholder="+91 9999999999"
+              placeholder="Mobile number"
               placeholderTextColor={Colors.placeholder}
               keyboardType="phone-pad"
               style={[styles.input, errors.phone ? styles.inputError : null]}
@@ -131,7 +131,7 @@ export default function AddEmployeeScreen() {
             <TextInput
               value={draft.email}
               onChangeText={(text) => updateDraft({ email: text })}
-              placeholder="employee@pratham.gmail.com"
+              placeholder="Email address"
               placeholderTextColor={Colors.placeholder}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -167,7 +167,7 @@ export default function AddEmployeeScreen() {
             <TextInput
               value={draft.designation}
               onChangeText={(text) => updateDraft({ designation: text })}
-              placeholder="Sales Manager"
+              placeholder="Designation"
               placeholderTextColor={Colors.placeholder}
               style={[styles.input, errors.designation ? styles.inputError : null]}
             />

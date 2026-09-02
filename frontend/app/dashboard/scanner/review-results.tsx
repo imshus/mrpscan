@@ -216,19 +216,10 @@ export default function ReviewResultsScreen() {
   );
 
 
+  // Straight back to the camera — no confirmation. This matches the header
+  // back chevron and the hardware back, which have always reset without asking.
   const handleReScan = useCallback(() => {
-    Alert.alert(
-      'Rescan Tag',
-      'This will discard the current scan and any edits, and open the camera again.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Rescan',
-          style: 'destructive',
-          onPress: () => resetCurrentScanOperation('review_rescan'),
-        },
-      ],
-    );
+    resetCurrentScanOperation('review_rescan');
   }, [resetCurrentScanOperation]);
 
   const handleGenerateInvoice = () => {

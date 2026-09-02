@@ -21,7 +21,7 @@ import {
 import { analyzeScan, completeDemoCapture, uploadBackImage, uploadFrontImage } from '@/utils/scanApi';
 import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
 import { structuredDataToScanItem } from '@/utils/scanMappers';
-import { fetchLabourRate } from '@/utils/ratesApi';
+import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 
 // Progress is driven by real milestones (upload done, analysis done, results
 // mapped). Between milestones the bar creeps asymptotically toward the next
@@ -202,8 +202,18 @@ export default function ProcessingScreen() {
         timestamp: Date.now(),
       });
 
-      // Kick off independent fetches alongside analysis; their results are awaited later.
+      // These requests do not depend on the OCR result. Start them while the
+      // tag is being analyzed so the preview does not wait for rate setup.
       const labourRatePromise = fetchLabourRate().catch(() => null);
+      const goldRatesWarmupPromise = isDemoScanMode()
+        ? Promise.resolve()
+        : fetchGoldRates().then(
+            () => undefined,
+            () => {
+              // The calculate endpoint remains the source of truth and can
+              // fetch the rates itself if this warm-up request fails.
+            },
+          );
       const formulaSyncPromise = isDemoScanMode()
         ? Promise.resolve()
         : syncFormulaStoreFromApi().then(
@@ -258,7 +268,7 @@ export default function ProcessingScreen() {
         }
       }
 
-      await formulaSyncPromise;
+      await Promise.all([formulaSyncPromise, goldRatesWarmupPromise]);
 
       setUnknownFields(result.unknownFields ?? []);
       setStructuredData({ ...flatData, karat: fallbackKarat });

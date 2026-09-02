@@ -167,7 +167,7 @@ export function StoneTypeRowCard({
             value={values.packetCode ?? ''}
             onChangeText={(packetCode) => onChange?.({ packetCode })}
             editable={editable && !isFetching}
-            placeholder="e.g. PKT-123"
+            placeholder="Packet code"
           />
         ) : null}
         <MetalInput
@@ -175,14 +175,14 @@ export function StoneTypeRowCard({
           value={values.color}
           onChangeText={handleColorChange}
           editable={editable && !isFetching}
-          placeholder="e.g. GH"
+          placeholder="Color"
         />
         <MetalInput
           label="Clarity"
           value={values.clarity}
           onChangeText={handleClarityChange}
           editable={editable && !isFetching}
-          placeholder="e.g. VVS"
+          placeholder="Clarity"
         />
         <MetalInput
           label={labels.weight}
