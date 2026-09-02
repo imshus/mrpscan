@@ -30,7 +30,7 @@ import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 const TICK_MS = 50;
 const COMPLETE_HOLD_MS = 150;
 /** The review screen opens after this long even if the analysis is still running. */
-const EARLY_REVIEW_MS = 3000;
+const EARLY_REVIEW_MS = 4000;
 
 type ProgressSegment = { floor: number; ceiling: number; expectedMs: number; startedAt: number };
 const SEGMENTS = {

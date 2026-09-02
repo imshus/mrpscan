@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   BackHandler,
-  KeyboardAvoidingView,
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
@@ -298,9 +297,6 @@ export default function ReviewResultsScreen() {
   return (
     <View className="flex-1 bg-surface-muted">
       <SafeAreaView className="flex-1" edges={['top']}>
-        {/* Same keyboard handling as the login pages: the card shrinks above
-            the keyboard and the scroll view brings the focused field into view. */}
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         {/* Mockup .rev-card-wrap — 52px top (44 status + 8) / 16 sides / 96 bottom (nav + gap). */}
         <View
           className="flex-1"
@@ -331,7 +327,6 @@ export default function ReviewResultsScreen() {
             calculationRateAccess={calculationRateAccess}
           />
         </View>
-        </KeyboardAvoidingView>
       </SafeAreaView>
 
       <BottomNav activeRoute="scanner" scanButtonVariant="gold" />

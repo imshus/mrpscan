@@ -409,11 +409,6 @@ export function ReviewScannedResultsModal({
           </Pressable>
         }
       >
-        {analysisPending ? (
-          <View style={styles.pendingBanner}>
-            <Text style={styles.pendingBannerText}>Reading the tag… details fill in as they arrive.</Text>
-          </View>
-        ) : null}
         <PriceCard
           label="MRP"
           amount={pricing.ultimateMrpDisplay}
@@ -509,18 +504,6 @@ export function ReviewScannedResultsModal({
 const styles = StyleSheet.create({
   mrpCard: {
     marginBottom: 0,
-  },
-  pendingBanner: {
-    marginBottom: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: '#FDECEA',
-  },
-  pendingBannerText: {
-    fontSize: 12,
-    color: Colors.brandDeep,
-    textAlign: 'center',
   },
   itemRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
   itemTile: {
