@@ -332,7 +332,6 @@ export default function GstVerificationScreen() {
                   setGstError(null);
                   setFormError(null);
                 }}
-                placeholder="GST number"
                 autoCapitalize="characters"
                 autoCorrect={false}
                 maxLength={15}

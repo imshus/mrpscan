@@ -83,6 +83,7 @@ export function useFinalTabPricing({
 }: UseFinalTabPricingOptions): FinalTabPricingResult {
   const scanId = useScannerStore((s) => s.scanId);
   const mrpRefreshToken = useScannerStore((s) => s.mrpRefreshToken);
+  const analysisPending = useScannerStore((s) => s.analysisPending);
   const [pricing, setPricing] = useState<FinalTabPricingResult>(defaultPricing);
 
   const lastRequestKeyRef = useRef<string | null>(null);
@@ -181,7 +182,8 @@ export function useFinalTabPricing({
   }, [calculationKey]);
 
   useEffect(() => {
-    if (!scanId) return;
+    // No point pricing an empty card; the real figures arrive with the result.
+    if (!scanId || analysisPending) return;
 
     let isMounted = true;
     const requestKey = `${scanId}|${calculationKey}|${mrpRefreshToken}`;
@@ -341,7 +343,7 @@ export function useFinalTabPricing({
       isMounted = false;
       if (timer) clearTimeout(timer);
     };
-  }, [scanId, calculationKey, mrpRefreshToken]);
+  }, [scanId, calculationKey, mrpRefreshToken, analysisPending]);
 
   return pricing;
 }

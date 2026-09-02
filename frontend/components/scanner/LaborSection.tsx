@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 
 import {
   AmountTile,
@@ -10,6 +10,8 @@ import {
   MetalTile,
 } from '@/components/scanner/ReviewCardKit';
 import {
+  DEFAULT_LABOUR_CHARGE_UNIT,
+  DEFAULT_LABOUR_WEIGHT_BASIS,
   LABOUR_WEIGHT_OPTIONS,
   type LabourChargeUnit,
   type LabourWeightBasis,
@@ -87,7 +89,7 @@ function formatInr(amount: number): string {
   return `₹${Math.round(amount).toLocaleString('en-IN')}`;
 }
 
-export function LaborSection({
+export const LaborSection = memo(function LaborSection({
   values,
   onChange,
   grossWeightGrams = '',
@@ -123,7 +125,6 @@ export function LaborSection({
             label="Labour Rate"
             value={values.labourChargeAmount}
             onChangeText={handleChargeChange}
-            placeholder="Enter rate"
             keyboardType="number-pad"
             prefix="₹"
           />
@@ -140,7 +141,7 @@ export function LaborSection({
       <AmountTile label="Final Labour Amount" value={formatInr(computedLaborAmount)} />
     </>
   );
-}
+});
 
 export function getLaborValuesFromScanData(
   scanData: Pick<
@@ -151,7 +152,7 @@ export function getLaborValuesFromScanData(
   return {
     labourPurityPercent: scanData.labourPurityPercent || '',
     labourChargeAmount: scanData.labourChargeAmount || '',
-    labourChargeUnit: scanData.labourChargeUnit || 'Per Gram',
-    labourWeightBasis: scanData.labourWeightBasis || 'gross',
+    labourChargeUnit: scanData.labourChargeUnit || DEFAULT_LABOUR_CHARGE_UNIT,
+    labourWeightBasis: scanData.labourWeightBasis || DEFAULT_LABOUR_WEIGHT_BASIS,
   };
 }

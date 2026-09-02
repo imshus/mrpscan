@@ -56,6 +56,9 @@ interface ScannerState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setScanLoading: (payload: Partial<ScanLoadingState>) => void;
+  /** True from the moment a scan is submitted until its result is in the store. */
+  analysisPending: boolean;
+  setAnalysisPending: (value: boolean) => void;
   setScanSessionBootstrapping: (value: boolean) => void;
   resetScanLoading: () => void;
   updateScanData: (data: Partial<ScanItemData>) => void;
@@ -78,6 +81,7 @@ const initialSessionState = {
     message: 'Uploading Tags...',
   } as ScanLoadingState,
   previewPricing: null as FinalTabPricingResult | null,
+  analysisPending: false,
 };
 
 export const useScannerStore = create<ScannerState>((set) => ({
@@ -125,6 +129,7 @@ export const useScannerStore = create<ScannerState>((set) => ({
         ...payload,
       },
     })),
+  setAnalysisPending: (value) => set({ analysisPending: value }),
   resetScanLoading: () =>
     set({
       scanLoading: {

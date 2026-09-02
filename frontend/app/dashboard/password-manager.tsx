@@ -76,7 +76,6 @@ export default function PasswordManagerScreen() {
             </View>
             <View style={styles.cardHeaderContent}>
               <Text style={styles.cardTitle}>Change Password</Text>
-              <Text style={styles.cardSubtitle}>Ensure your account is using a long, random password to stay secure.</Text>
             </View>
           </View>
 
@@ -92,8 +91,7 @@ export default function PasswordManagerScreen() {
               <View style={styles.inputWrap}>
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter current password"
-                  placeholderTextColor={Colors.textMuted}
+                  accessibilityLabel="Current Password"
                   value={currentPassword}
                   onChangeText={setCurrentPassword}
                   secureTextEntry={!showCurrent}
@@ -113,8 +111,7 @@ export default function PasswordManagerScreen() {
               <View style={styles.inputWrap}>
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter new password"
-                  placeholderTextColor={Colors.textMuted}
+                  accessibilityLabel="New Password"
                   value={newPassword}
                   onChangeText={setNewPassword}
                   secureTextEntry={!showNew}
@@ -134,8 +131,7 @@ export default function PasswordManagerScreen() {
               <View style={styles.inputWrap}>
                 <TextInput
                   style={styles.input}
-                  placeholder="Re-enter new password"
-                  placeholderTextColor={Colors.textMuted}
+                  accessibilityLabel="Confirm New Password"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showConfirm}
@@ -190,6 +186,7 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.md,
     marginBottom: Spacing.xl,
   },
@@ -209,13 +206,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textPrimary,
     lineHeight: 24,
-  },
-  cardSubtitle: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    lineHeight: 18,
-    marginTop: 2,
-    paddingRight: 8,
   },
   form: {
     gap: Spacing.lg,

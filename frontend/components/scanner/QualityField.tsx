@@ -15,7 +15,6 @@ export function QualityField({ label, value }: QualityFieldProps) {
         label={label}
         value={value}
         editable={false}
-        placeholder="Auto-generated"
         containerClassName="mb-2.5"
       />
     </FormFieldGridItem>

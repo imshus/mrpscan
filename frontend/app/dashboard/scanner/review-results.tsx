@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   BackHandler,
@@ -29,6 +29,11 @@ import {
   stoneEntriesToStructuredData,
 } from '@/utils/stoneSequenceUtils';
 import { buildWishlistItem } from '@/utils/wishlistUtils';
+
+// How long after the last keystroke the structured-data mirror catches up.
+// Shorter than the pricing hook's 350ms debounce so the price request that
+// follows an edit always sees the synced mirror.
+const STRUCTURED_SYNC_MS = 250;
 
 export default function ReviewResultsScreen() {
   const router = useRouter();
@@ -107,6 +112,7 @@ export default function ReviewResultsScreen() {
   // pressed from, so it is what hands the invoice its figures. Without this the
   // invoice reads an empty store and bills zero.
   const setPreviewPricing = useScannerStore((state) => state.setPreviewPricing);
+  const analysisPending = useScannerStore((state) => state.analysisPending);
   useEffect(() => {
     setPreviewPricing(livePricing);
   }, [livePricing, setPreviewPricing]);
@@ -147,11 +153,36 @@ export default function ReviewResultsScreen() {
       return;
     }
 
-    if (!Object.keys(structuredData).length && !isDemoScanMode()) {
+    // While the analysis is still running behind this screen the data is
+    // legitimately empty. Bouncing back to processing here would remount it
+    // and submit the same scan a second time, spending a second credit.
+    if (!Object.keys(structuredData).length && !isDemoScanMode() && !analysisPending) {
       console.info('[SCANNER_REVIEW_MISSING_STRUCTURED_DATA]', { scanId });
       router.replace('/dashboard/scanner/processing' as Href);
     }
-  }, [scanId, structuredData, router, isFocused]);
+  }, [scanId, structuredData, router, isFocused, analysisPending]);
+
+  // The structured-data mirror feeds the pricing payload and the wishlist,
+  // but rebuilding it on every keystroke doubled the store writes per
+  // character and re-rendered the whole card twice each time — enough for a
+  // controlled field to be reset by a stale value and drop the digit just
+  // typed. scanData now updates at once so the field stays live; the mirror
+  // follows a beat later, and is flushed before anything reads it.
+  const structuredSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const syncStructuredNow = useCallback(() => {
+    const { scanData: latest, structuredData: existing } = useScannerStore.getState();
+    setStructuredData(scanItemToStructuredData(latest, existing));
+  }, [setStructuredData]);
+
+  const flushStructuredSync = useCallback(() => {
+    if (!structuredSyncTimer.current) return;
+    clearTimeout(structuredSyncTimer.current);
+    structuredSyncTimer.current = null;
+    syncStructuredNow();
+  }, [syncStructuredNow]);
+
+  useEffect(() => () => flushStructuredSync(), [flushStructuredSync]);
 
   const handleFieldChange = useCallback(
     (field: keyof ScanItemData, value: ScanItemData[keyof ScanItemData]) => {
@@ -163,16 +194,23 @@ export default function ReviewResultsScreen() {
         return;
       }
 
-      const updated = { ...currentState.scanData, [field]: value };
-      const nextStructuredData = scanItemToStructuredData(updated, currentState.structuredData);
       updateScanData({ [field]: value });
-      setStructuredData(nextStructuredData);
+
       if (field === 'calculationRate') {
-        // Ensure pricing is refreshed immediately when switching RTGS/Cash.
+        // A toggle, not typing: mirror and re-price immediately.
+        flushStructuredSync();
+        syncStructuredNow();
         bumpMrpRefresh();
+        return;
       }
+
+      if (structuredSyncTimer.current) clearTimeout(structuredSyncTimer.current);
+      structuredSyncTimer.current = setTimeout(() => {
+        structuredSyncTimer.current = null;
+        syncStructuredNow();
+      }, STRUCTURED_SYNC_MS);
     },
-    [updateScanData, setStructuredData, bumpMrpRefresh, canEditPurityPercent],
+    [updateScanData, bumpMrpRefresh, canEditPurityPercent, flushStructuredSync, syncStructuredNow],
   );
 
   useEffect(() => {
@@ -191,6 +229,8 @@ export default function ReviewResultsScreen() {
 
   const handleStoneEntriesChange = useCallback(
     (diamonds: StoneEntry[], colorstones: StoneEntry[]) => {
+      // Reads the mirror, so any pending field edit must land in it first.
+      flushStructuredSync();
       const currentScanData = useScannerStore.getState().scanData;
       const currentStructuredData = useScannerStore.getState().structuredData;
       const stoneFields = applyStoneEntriesToScanData(currentScanData, diamonds, colorstones);
@@ -223,11 +263,13 @@ export default function ReviewResultsScreen() {
   }, [resetCurrentScanOperation]);
 
   const handleGenerateInvoice = () => {
+    flushStructuredSync();
     router.push('/dashboard/scanner/invoice-preview' as Href);
   };
 
   const handleAddToWishlist = async () => {
     if (addingToWishlist || hasAddedToWishlist) return;
+    flushStructuredSync();
 
     setAddingToWishlist(true);
     try {
@@ -271,6 +313,10 @@ export default function ReviewResultsScreen() {
             pricing={livePricing}
             onFieldChange={handleFieldChange}
             onStoneEntriesChange={handleStoneEntriesChange}
+            // The card decides on mount whether to trust the scanned net weight
+            // or compute one; remount it once the real data is in.
+            key={analysisPending ? 'pending' : 'ready'}
+            analysisPending={analysisPending}
             onReScan={handleReScan}
             onGenerateInvoice={handleGenerateInvoice}
             onAddToWishlist={handleAddToWishlist}

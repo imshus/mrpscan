@@ -87,7 +87,6 @@ export default function ManualEntryScreen() {
         <FormInput
           label="SKU / Tracking Code"
           value={scanData.sku}
-          placeholder="Item number"
           onChangeText={(sku) => updateScanData({ sku })}
         />
         <View className="mb-3">

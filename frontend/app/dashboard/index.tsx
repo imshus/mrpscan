@@ -105,7 +105,11 @@ export default function DashboardScreen() {
     : globalMatrixValues;
 
   const sortedGoldRates = useMemo(
-    () => sortGoldRates(goldRates.filter((rate) => !rate.isHidden)),
+    // Dashboard Settings decides what the home screen shows. The rate table's
+    // own "hide" flag used to override it here, so every karat card could
+    // vanish while every matrix toggle was on — with nothing on this screen to
+    // say why. That flag now only affects the rate table.
+    () => sortGoldRates(goldRates),
     [goldRates],
   );
   const mcxFinalRate = useMemo(() => {
@@ -368,6 +372,11 @@ export default function DashboardScreen() {
               ) : (
                 <View style={styles.emptyWrap}>
                   <Text style={styles.emptyText}>No gold rates available</Text>
+                  {/* Release builds strip console output, so the state behind an
+                      empty dashboard is otherwise invisible. Shown only here. */}
+                  <Text style={styles.emptyDiag}>
+                    {`mcx ${mcxLiveRate == null ? 'null' : mcxLiveRate} · rows ${goldRates.length} · tax ${goldTaxSettings ? 'y' : 'n'} · 24k ${show24kMcx ? 'M' : '-'}${show24kRtgs ? 'R' : '-'}${show24kCash ? 'C' : '-'} · ${authUserRole}${settingsUserRole === 'employee' && employee ? '/emp' : ''}`}
+                  </Text>
                 </View>
               )}
             </>
@@ -418,6 +427,13 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: Colors.textMuted,
+  },
+  emptyDiag: {
+    marginTop: 6,
+    fontSize: 11,
+    color: Colors.textMuted,
+    opacity: 0.7,
+    textAlign: 'center',
   },
   topRow: {
     flexDirection: 'row',
@@ -504,6 +520,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: Colors.textPrimary,
+    // Centred over the rate badges it heads, on every karat card.
+    textAlign: 'center',
   },
   rateCardBody: {
     flexDirection: 'row',

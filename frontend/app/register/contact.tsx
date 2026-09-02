@@ -105,7 +105,6 @@ export default function ContactDetailsScreen() {
                   setPhone(text.replace(/\D/g, '').slice(0, 10));
                   setPhoneError(null);
                 }}
-                placeholder="Mobile number"
                 keyboardType="phone-pad"
                 error={phoneError}
               />

@@ -75,7 +75,6 @@ export function ColorstoneRateFormModal({
             allowCustom
             customLabel="Custom Color"
             customInputLabel="Enter Color"
-            customPlaceholder="Color"
             onAddCustom={onAddCustomColor}
             normalizeCustomValue={(input) => input.trim()}
             validateCustomValue={(value) => validateCustomValue?.(value, 'color') ?? null}
@@ -91,7 +90,6 @@ export function ColorstoneRateFormModal({
             allowCustom
             customLabel="Custom Clarity"
             customInputLabel="Enter Clarity"
-            customPlaceholder="Clarity"
             onAddCustom={onAddCustomClarity}
             normalizeCustomValue={(input) => input.trim()}
             validateCustomValue={(value) => validateCustomValue?.(value, 'clarity') ?? null}
@@ -103,8 +101,7 @@ export function ColorstoneRateFormModal({
             value={rateValue}
             onChangeText={onRateChange}
             keyboardType="decimal-pad"
-            placeholder="Rate per carat"
-            placeholderTextColor={Colors.placeholder}
+            accessibilityLabel="Rate (₹)"
             style={[styles.input, errors.rate ? styles.inputError : null]}
           />
           {errors.rate ? <Text style={styles.error}>{errors.rate}</Text> : null}

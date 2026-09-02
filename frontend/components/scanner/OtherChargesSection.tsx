@@ -1,5 +1,5 @@
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Trash2 } from 'lucide-react-native';
 
 import { FieldLabel } from '@/components/scanner/FieldLabel';
@@ -25,7 +25,7 @@ function formatInr(amount: number): string {
 
 const ADD_CUSTOM_CHARGE_VALUE = '__ADD_CUSTOM__';
 
-export function OtherChargesSection({
+export const OtherChargesSection = memo(function OtherChargesSection({
   charges,
   onChargesChange,
 }: OtherChargesSectionProps) {
@@ -256,7 +256,6 @@ export function OtherChargesSection({
                     setAmountInput(sanitizeAmountInput(text));
                     if (errors.amount) setErrors((prev) => ({ ...prev, amount: undefined }));
                   }}
-                  placeholder="Enter amount"
                   placeholderTextColor={Colors.placeholder}
                   keyboardType="number-pad"
                   className="flex-1 text-sm text-text-primary"
@@ -306,7 +305,6 @@ export function OtherChargesSection({
                   setCustomChargeInput(text);
                   if (errors.customName) setErrors((prev) => ({ ...prev, customName: undefined }));
                 }}
-                placeholder="Enter charge name"
                 placeholderTextColor={Colors.placeholder}
                 autoFocus
                 className={`h-11 rounded-input border px-3.5 text-sm text-text-primary ${
@@ -341,7 +339,7 @@ export function OtherChargesSection({
       </Modal>
     </View>
   );
-}
+});
 
 /* Mockup .charges-tile / .add-charge-btn / .charge-row (styles.css 1415-1436) */
 const styles = StyleSheet.create({

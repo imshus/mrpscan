@@ -19,11 +19,15 @@ export interface AdjustableImageRef {
    * original file (and its prewarmed upload) in the common case.
    */
   exportAdjusted: () => Promise<string | null>;
+  /** Scales the framing by `factor` about the centre; clamped to the pinch range. */
+  zoomBy: (factor: number) => void;
 }
 
 interface AdjustableImageProps {
   uri: string;
   style?: object;
+  /** Fires when a drag or pinch ends, so the caller can export the framing early. */
+  onAdjustEnd?: () => void;
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -34,7 +38,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
  * adjustment reaches the OCR request, not just the preview.
  */
 export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImageProps>(
-  function AdjustableImage({ uri, style }, ref) {
+  function AdjustableImage({ uri, style, onAdjustEnd }, ref) {
     const [box, setBox] = useState({ width: 0, height: 0 });
     const [natural, setNatural] = useState({ width: 0, height: 0 });
 
@@ -43,6 +47,9 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
     const scaleValue = useRef(new Animated.Value(1)).current;
     const state = useRef({ tx: 0, ty: 0, scale: 1 });
     const gestureStart = useRef({ tx: 0, ty: 0, scale: 1, distance: 0 });
+    // The responder is memoised on the box size; read the callback through a ref.
+    const onAdjustEndRef = useRef(onAdjustEnd);
+    onAdjustEndRef.current = onAdjustEnd;
 
     const handleLayout = (event: LayoutChangeEvent) => {
       const { width, height } = event.nativeEvent.layout;
@@ -71,6 +78,12 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
         PanResponder.create({
           onStartShouldSetPanResponder: () => true,
           onMoveShouldSetPanResponder: () => true,
+          // Claim both fingers before anything above or below can, and keep
+          // them for the whole gesture: a pinch that loses one finger to a
+          // parent view is a pinch that never scales.
+          onStartShouldSetPanResponderCapture: () => true,
+          onMoveShouldSetPanResponderCapture: () => true,
+          onPanResponderTerminationRequest: () => false,
           onPanResponderGrant: () => {
             gestureStart.current = {
               tx: state.current.tx,
@@ -121,9 +134,11 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
           },
           onPanResponderRelease: () => {
             gestureStart.current.distance = 0;
+            onAdjustEndRef.current?.();
           },
           onPanResponderTerminate: () => {
             gestureStart.current.distance = 0;
+            onAdjustEndRef.current?.();
           },
         }),
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -131,6 +146,14 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
     );
 
     useImperativeHandle(ref, () => ({
+      // Button-driven zoom: the same state the pinch writes, so export sees
+      // one framing however it was reached. Re-clamping the translation keeps
+      // the image inside the frame when zooming back out.
+      zoomBy: (factor: number) => {
+        state.current.scale = clamp(state.current.scale * factor, MIN_SCALE, MAX_SCALE);
+        scaleValue.setValue(state.current.scale);
+        applyTranslation(state.current.tx, state.current.ty);
+      },
       exportAdjusted: async () => {
         const { tx, ty, scale } = state.current;
         const untouched = scale === 1 && tx === 0 && ty === 0;

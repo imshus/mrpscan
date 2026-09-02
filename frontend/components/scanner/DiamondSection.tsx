@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { memo, useCallback, useEffect } from 'react';
 
 import { FormFieldGrid, FormFieldGridItem } from '@/components/scanner/FormFieldGrid';
 import { FormInput } from '@/components/scanner/FormInput';
@@ -29,7 +29,7 @@ interface DiamondSectionProps {
   shapeOptions?: readonly StoneSelectOption[];
 }
 
-export function DiamondSection({
+export const DiamondSection = memo(function DiamondSection({
   title = 'Diamond Details',
   values,
   onChange,
@@ -100,7 +100,6 @@ export function DiamondSection({
               value={values.weight}
               onChangeText={(weight) => onChange({ weight })}
               editable={!inputsDisabled}
-              placeholder="Weight (ct)"
               containerClassName="mb-2.5"
             />
           </FormFieldGridItem>
@@ -120,7 +119,6 @@ export function DiamondSection({
               value={values.color}
               onChangeText={handleColorChange}
               editable={!inputsDisabled}
-              placeholder="Color"
               containerClassName="mb-2.5"
             />
           </FormFieldGridItem>
@@ -130,7 +128,6 @@ export function DiamondSection({
               value={values.clarity}
               onChangeText={handleClarityChange}
               editable={!inputsDisabled}
-              placeholder="Clarity"
               containerClassName="mb-2.5"
             />
           </FormFieldGridItem>
@@ -140,7 +137,6 @@ export function DiamondSection({
               value={values.packetCode ?? ''}
               onChangeText={(packetCode) => onChange({ packetCode })}
               editable={!inputsDisabled}
-              placeholder="Packet code"
               containerClassName="mb-2.5"
             />
           </FormFieldGridItem>
@@ -151,4 +147,4 @@ export function DiamondSection({
 
     </>
   );
-}
+});

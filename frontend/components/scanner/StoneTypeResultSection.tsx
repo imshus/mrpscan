@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 import { FinRow, MetalTile } from '@/components/scanner/ReviewCardKit';
 import type { StoneAmountRow } from '@/utils/scanPriceCalculation';
 
@@ -10,7 +12,9 @@ interface StoneTypeResultSectionProps {
   row: StoneAmountRow;
 }
 
-export function StoneTypeResultSection({ row }: StoneTypeResultSectionProps) {
+export const StoneTypeResultSection = memo(function StoneTypeResultSection({
+  row,
+}: StoneTypeResultSectionProps) {
   const stoneLabel = STONE_TYPE_LABELS[row.stoneType];
 
   return (
@@ -24,13 +28,15 @@ export function StoneTypeResultSection({ row }: StoneTypeResultSectionProps) {
       <FinRow label={`${stoneLabel} Amount`} value={row.amountDisplay} amount />
     </MetalTile>
   );
-}
+});
 
 interface StoneTypeSequenceProps {
   rows: StoneAmountRow[];
 }
 
-export function StoneTypeSequence({ rows }: StoneTypeSequenceProps) {
+export const StoneTypeSequence = memo(function StoneTypeSequence({
+  rows,
+}: StoneTypeSequenceProps) {
   if (rows.length === 0) return null;
 
   return (
@@ -40,4 +46,4 @@ export function StoneTypeSequence({ rows }: StoneTypeSequenceProps) {
       ))}
     </>
   );
-}
+});

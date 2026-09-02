@@ -8,7 +8,6 @@ interface PasswordFieldProps {
   label: string;
   value: string;
   onChangeText: (text: string) => void;
-  placeholder?: string;
   error?: string | null;
   visible: boolean;
   onToggleVisible: () => void;
@@ -18,7 +17,6 @@ export function PasswordField({
   label,
   value,
   onChangeText,
-  placeholder,
   error,
   visible,
   onToggleVisible,
@@ -32,7 +30,6 @@ export function PasswordField({
         <TextInput
           value={value}
           onChangeText={onChangeText}
-          placeholder={placeholder}
           placeholderTextColor={Colors.placeholder}
           secureTextEntry={!visible}
           autoCapitalize="none"

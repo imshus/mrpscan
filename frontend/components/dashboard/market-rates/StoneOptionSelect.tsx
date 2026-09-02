@@ -25,7 +25,6 @@ interface StoneOptionSelectProps {
   allowCustom?: boolean;
   customLabel?: string;
   customInputLabel?: string;
-  customPlaceholder?: string;
   onAddCustom?: (value: string) => void;
   normalizeCustomValue?: (value: string) => string;
   validateCustomValue?: (value: string) => string | null;
@@ -43,7 +42,6 @@ export function StoneOptionSelect({
   allowCustom = false,
   customLabel = 'Add Custom',
   customInputLabel,
-  customPlaceholder = 'Enter value',
   onAddCustom,
   normalizeCustomValue = (input) => input.trim(),
   validateCustomValue,
@@ -129,6 +127,7 @@ export function StoneOptionSelect({
                 value={search}
                 onChangeText={setSearch}
                 placeholder="Search"
+                accessibilityLabel="Search"
                 placeholderTextColor={Colors.placeholder}
                 style={styles.searchInput}
               />
@@ -197,8 +196,7 @@ export function StoneOptionSelect({
                 setCustomValue(text);
                 if (customError) setCustomError(null);
               }}
-              placeholder={customPlaceholder}
-              placeholderTextColor={Colors.placeholder}
+              accessibilityLabel={customInputLabel ?? customLabel}
               autoCapitalize={customAutoCapitalize}
               style={[styles.dialogInput, customError ? styles.dialogInputError : null]}
             />

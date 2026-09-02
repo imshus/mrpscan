@@ -90,6 +90,8 @@ interface ScannerScreenLayoutProps {
   cameraRef?: RefObject<TagCameraPreviewRef | null>;
   headerContent?: React.ReactNode;
   controlsHidden?: boolean;
+  /** Releases the camera while the gallery picker is open. */
+  cameraPaused?: boolean;
 }
 
 /**
@@ -106,6 +108,7 @@ export function ScannerScreenLayout({
   cameraRef,
   headerContent,
   controlsHidden = false,
+  cameraPaused = false,
 }: ScannerScreenLayoutProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -154,7 +157,11 @@ export function ScannerScreenLayout({
   return (
     <View style={styles.root} onLayout={handleRootLayout}>
       <View style={StyleSheet.absoluteFill}>
-        <TagCameraPreview ref={cameraRef} onPermissionChange={setCameraPermissionGranted} />
+        <TagCameraPreview
+          ref={cameraRef}
+          paused={cameraPaused}
+          onPermissionChange={setCameraPermissionGranted}
+        />
       </View>
 
       {/* Everything outside the capture frame is blurred and dimmed so only the

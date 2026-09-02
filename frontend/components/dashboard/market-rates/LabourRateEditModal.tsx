@@ -59,14 +59,14 @@ export function LabourRateEditModal({
 
           <Text style={styles.modalTitle}>Labour Rates</Text>
 
+          <Text style={styles.fieldLabel}>Amount (₹)</Text>
           <View style={styles.fieldRow}>
             <View style={[styles.amountRow, { flex: 1.4 }]}>
               <Text style={styles.currencyPrefix}>₹</Text>
               <TextInput
                 value={amount}
                 onChangeText={(text) => onAmountChange(text.replace(/[^\d.]/g, ''))}
-                placeholder="Enter amount"
-                placeholderTextColor={Colors.placeholder}
+                accessibilityLabel="Amount (₹)"
                 keyboardType="decimal-pad"
                 style={styles.input}
               />
@@ -143,6 +143,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textPrimary,
     marginBottom: Spacing.lg,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginBottom: 6,
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   fieldRow: {
     flexDirection: 'row',

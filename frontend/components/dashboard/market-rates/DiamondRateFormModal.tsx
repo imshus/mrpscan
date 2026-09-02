@@ -80,8 +80,7 @@ export function DiamondRateFormModal({
           <TextInput
             value={packetCode}
             onChangeText={onPacketCodeChange}
-            placeholder="Packet code"
-            placeholderTextColor={Colors.placeholder}
+            accessibilityLabel="Packet Code (Optional)"
             autoCapitalize="characters"
             style={[styles.input, errors.packetCode ? styles.inputError : null]}
           />
@@ -98,7 +97,6 @@ export function DiamondRateFormModal({
             allowCustom
             customLabel="Custom Shape"
             customInputLabel="Enter Shape"
-            customPlaceholder="Shape"
             normalizeCustomValue={(input) => input.trim()}
             customAutoCapitalize="none"
           />
@@ -114,7 +112,6 @@ export function DiamondRateFormModal({
             allowCustom
             customLabel="Custom Color"
             customInputLabel="Enter Color"
-            customPlaceholder="Color"
             normalizeCustomValue={(input) => input.trim()}
             customAutoCapitalize="none"
           />
@@ -130,7 +127,6 @@ export function DiamondRateFormModal({
             allowCustom
             customLabel="Custom Clarity"
             customInputLabel="Enter Clarity"
-            customPlaceholder="Clarity"
             normalizeCustomValue={(input) => input.trim()}
             customAutoCapitalize="none"
           />
@@ -140,8 +136,7 @@ export function DiamondRateFormModal({
             value={rateValue}
             onChangeText={onRateChange}
             keyboardType="decimal-pad"
-            placeholder="Rate per carat"
-            placeholderTextColor={Colors.placeholder}
+            accessibilityLabel="Rate (₹)"
             style={[styles.input, errors.rate ? styles.inputError : null]}
           />
           {errors.rate ? <Text style={styles.error}>{errors.rate}</Text> : null}

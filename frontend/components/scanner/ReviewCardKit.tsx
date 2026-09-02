@@ -194,7 +194,6 @@ interface MetalInputProps {
   value: string;
   onChangeText?: (text: string) => void;
   editable?: boolean;
-  placeholder?: string;
   keyboardType?: KeyboardTypeOptions;
   /** .amount-field — bold 17.6/900 in a 42px box. */
   amount?: boolean;
@@ -210,7 +209,6 @@ export function MetalInput({
   value,
   onChangeText,
   editable = true,
-  placeholder,
   keyboardType,
   amount = false,
   prefix,
@@ -222,13 +220,12 @@ export function MetalInput({
     <TextInput
       value={value}
       onChangeText={onChangeText}
-      placeholder={placeholder}
+      accessibilityLabel={label}
       editable={editable}
       showSoftInputOnFocus={editable}
       selectTextOnFocus={editable}
       caretHidden={!editable}
       contextMenuHidden={!editable}
-      placeholderTextColor={Colors.placeholder}
       keyboardType={keyboardType}
       onFocus={onFocus}
       onBlur={onBlur}

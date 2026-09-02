@@ -3,7 +3,6 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { ChevronDown } from 'lucide-react-native';
 
 import { getApiFieldLabel } from '@/utils/scanMappers';
-import { Colors } from '@/constants/theme';
 import { useScannerStore } from '@/store/scannerStore';
 import type { ClarificationField } from '@/types/scanner';
 
@@ -88,13 +87,15 @@ export function ClarificationFieldRow({
       </View>
 
       {mappedField === 'other' ? (
-        <TextInput
-          value={description}
-          onChangeText={onDescriptionChange}
-          placeholder="Describe this field"
-          placeholderTextColor={Colors.placeholder}
-          className="mt-3 rounded-input border border-border px-3 py-2.5 text-sm text-text-primary"
-        />
+        <View className="mt-3">
+          <Text className="mb-1 text-xs text-text-secondary">Description</Text>
+          <TextInput
+            value={description}
+            onChangeText={onDescriptionChange}
+            accessibilityLabel="Description"
+            className="rounded-input border border-border px-3 py-2.5 text-sm text-text-primary"
+          />
+        </View>
       ) : null}
 
       {open && menuPosition ? (

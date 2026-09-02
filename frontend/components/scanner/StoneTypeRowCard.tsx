@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { memo, useCallback, useEffect } from 'react';
 
 import {
   MetalFieldSlot,
@@ -29,10 +29,21 @@ export interface StoneTypeRowValues {
 interface StoneTypeRowCardProps {
   title: string;
   stoneType: StoneKind;
+  /** Position of this row inside its stone type's entries array; echoed back through onChange. */
+  entryIndex: number;
+  /** Position across every stone row (diamonds first); echoed back through onRateErrorChange. */
+  sequenceIndex: number;
   values: StoneTypeRowValues;
   editable?: boolean;
-  onChange?: (values: Partial<StoneTypeRowValues>) => void;
-  onRateErrorChange?: (hasError: boolean) => void;
+  // The row binds its own indices so the parent can hand every row the same
+  // callback instance instead of a fresh closure per render, which is what
+  // lets React.memo skip rows that did not change.
+  onChange?: (
+    stoneType: StoneKind,
+    entryIndex: number,
+    values: Partial<StoneTypeRowValues>,
+  ) => void;
+  onRateErrorChange?: (sequenceIndex: number, hasError: boolean) => void;
   shapeOptions?: { value: string; label?: string }[];
 }
 
@@ -55,9 +66,11 @@ function formatInr(amount: number): string {
   return `₹${Math.round(amount).toLocaleString('en-IN')}`;
 }
 
-export function StoneTypeRowCard({
+export const StoneTypeRowCard = memo(function StoneTypeRowCard({
   title,
   stoneType,
+  entryIndex,
+  sequenceIndex,
   values,
   editable = false,
   onChange,
@@ -65,6 +78,12 @@ export function StoneTypeRowCard({
   shapeOptions,
 }: StoneTypeRowCardProps) {
   const labels = STONE_LABELS[stoneType];
+  const emitChange = useCallback(
+    (next: Partial<StoneTypeRowValues>) => {
+      onChange?.(stoneType, entryIndex, next);
+    },
+    [onChange, stoneType, entryIndex],
+  );
   const amount =
     stoneType === 'diamond'
       ? computeStoneAmountWithDiscount(values.weight, values.rate, values.discountPercent)
@@ -106,9 +125,9 @@ export function StoneTypeRowCard({
   const handleRateFetched = useCallback(
     (fetchedRate: string) => {
       if (!fetchedRate) return;
-      onChange?.({ rate: fetchedRate });
+      emitChange({ rate: fetchedRate });
     },
-    [onChange],
+    [emitChange],
   );
 
   const { isFetching, rateNotFound } = useStoneRateFetch({
@@ -124,27 +143,39 @@ export function StoneTypeRowCard({
   useEffect(() => {
     const rateValue = parseNumericLabourValue(values.rate) ?? 0;
     const isError = rateNotFound && rateValue <= 0;
-    onRateErrorChange?.(isError);
-  }, [rateNotFound, values.rate, onRateErrorChange]);
+    onRateErrorChange?.(sequenceIndex, isError);
+  }, [rateNotFound, values.rate, onRateErrorChange, sequenceIndex]);
 
   const handleColorChange = (color: string) => {
-    onChange?.({ color, quality: buildQuality(color, values.clarity) });
+    emitChange({ color, quality: buildQuality(color, values.clarity) });
   };
 
   const handleClarityChange = (clarity: string) => {
-    onChange?.({ clarity, quality: buildQuality(values.color, clarity) });
+    emitChange({ clarity, quality: buildQuality(values.color, clarity) });
   };
 
   const handleDiscountChange = (text: string) => {
+    // Keep the text as typed (one decimal point at most) rather than
+    // round-tripping it through a number: String(parseFloat('5.')) is '5',
+    // which ate the decimal point the moment it was pressed and made a
+    // fractional discount impossible to enter. Clamp only when out of range.
     const cleaned = text.replace(/[^0-9.]/g, '');
     if (!cleaned) {
-      onChange?.({ discountPercent: '' });
+      emitChange({ discountPercent: '' });
       return;
     }
-    const parsed = Number.parseFloat(cleaned);
-    if (!Number.isFinite(parsed)) return;
-    const clamped = Math.min(100, Math.max(0, parsed));
-    onChange?.({ discountPercent: String(clamped) });
+    const [integerPart = '', ...rest] = cleaned.split('.');
+    const next = cleaned.includes('.') ? `${integerPart}.${rest.join('')}` : integerPart;
+    if (next === '.') {
+      emitChange({ discountPercent: '' });
+      return;
+    }
+    const parsed = Number.parseFloat(next);
+    if (Number.isFinite(parsed) && parsed > 100) {
+      emitChange({ discountPercent: '100' });
+      return;
+    }
+    emitChange({ discountPercent: next });
   };
 
   return (
@@ -155,7 +186,7 @@ export function StoneTypeRowCard({
             <SearchableSelectDropdown compact
               value={resolvedShape}
               options={dropdownOptions}
-              onChange={(shape) => onChange?.({ shape })}
+              onChange={(shape) => emitChange({ shape })}
               placeholder="None"
               containerClassName="w-full"
             />
@@ -165,9 +196,8 @@ export function StoneTypeRowCard({
           <MetalInput
             label="Packet Code"
             value={values.packetCode ?? ''}
-            onChangeText={(packetCode) => onChange?.({ packetCode })}
+            onChangeText={(packetCode) => emitChange({ packetCode })}
             editable={editable && !isFetching}
-            placeholder="Packet code"
           />
         ) : null}
         <MetalInput
@@ -175,28 +205,24 @@ export function StoneTypeRowCard({
           value={values.color}
           onChangeText={handleColorChange}
           editable={editable && !isFetching}
-          placeholder="Color"
         />
         <MetalInput
           label="Clarity"
           value={values.clarity}
           onChangeText={handleClarityChange}
           editable={editable && !isFetching}
-          placeholder="Clarity"
         />
         <MetalInput
           label={labels.weight}
           value={values.weight}
-          onChangeText={(weight) => onChange?.({ weight })}
+          onChangeText={(weight) => emitChange({ weight })}
           editable={editable && !isFetching}
-          placeholder="from scan result"
         />
         <MetalInput
           label={labels.rate}
           value={values.rate}
-          onChangeText={(text) => onChange?.({ rate: text.replace(/[^0-9.]/g, '') })}
+          onChangeText={(text) => emitChange({ rate: text.replace(/[^0-9.]/g, '') })}
           editable={editable && !isFetching}
-          placeholder="Enter rate"
           keyboardType="decimal-pad"
         />
         {stoneType === 'diamond' ? (
@@ -205,7 +231,6 @@ export function StoneTypeRowCard({
             value={values.discountPercent ?? ''}
             onChangeText={handleDiscountChange}
             editable={editable && !isFetching}
-            placeholder="0"
             keyboardType="decimal-pad"
           />
         ) : null}
@@ -213,4 +238,4 @@ export function StoneTypeRowCard({
       </MetalGrid>
     </MetalTile>
   );
-}
+});

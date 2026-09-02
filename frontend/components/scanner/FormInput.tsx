@@ -6,13 +6,11 @@ import {
 import type { ComponentProps } from 'react';
 
 import { FieldLabel } from '@/components/scanner/FieldLabel';
-import { Colors } from '@/constants/theme';
 
 interface FormInputProps {
   label: string;
   value: string;
   onChangeText?: (text: string) => void;
-  placeholder?: string;
   editable?: boolean;
   required?: boolean;
   containerClassName?: string;
@@ -25,7 +23,6 @@ export function FormInput({
   label,
   value,
   onChangeText,
-  placeholder,
   editable = true,
   required = false,
   containerClassName = 'mb-3',
@@ -39,13 +36,12 @@ export function FormInput({
       <TextInput
         value={value}
         onChangeText={onChangeText}
-        placeholder={placeholder}
+        accessibilityLabel={label}
         editable={editable}
         showSoftInputOnFocus={editable}
         selectTextOnFocus={editable}
         caretHidden={!editable}
         contextMenuHidden={!editable}
-        placeholderTextColor={Colors.placeholder}
         keyboardType={keyboardType}
         onFocus={onFocus}
         onBlur={onBlur}

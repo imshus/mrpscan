@@ -373,8 +373,7 @@ export default function SubscriptionManagerScreen() {
                         onChangeText={handleCustomAmountChange}
                         keyboardType="decimal-pad"
                         style={styles.amountInput}
-                        placeholder="Enter recharge value"
-                        placeholderTextColor={Colors.textSecondary}
+                        accessibilityLabel="Custom amount"
                       />
                     </View>
 

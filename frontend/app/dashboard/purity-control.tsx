@@ -134,8 +134,7 @@ export default function PurityControlScreen() {
               value={draftValue}
               onChangeText={setDraftValue}
               keyboardType="decimal-pad"
-              placeholder="Purity %"
-              placeholderTextColor={Colors.placeholder}
+              accessibilityLabel="Purity Value (%)"
               style={styles.modalInput}
             />
             <TouchableOpacity activeOpacity={0.9} onPress={handleSave} style={styles.modalSaveBtn}>

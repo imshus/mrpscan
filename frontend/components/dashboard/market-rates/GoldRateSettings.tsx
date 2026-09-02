@@ -127,7 +127,7 @@ function getSignAndAmount(value: number): { sign: Sign; amount: string } {
   const absolute = Math.abs(value);
   return {
     sign: value < 0 ? '-' : '+',
-    // Zero shows the "Amount" placeholder instead of a literal "0".
+    // Zero leaves the amount field empty instead of showing a literal "0".
     amount: absolute ? String(absolute) : '',
   };
 }
@@ -198,8 +198,7 @@ function RateCard({
               value={amount}
               onChangeText={(value) => onAmountChange(value.replace(/\D/g, ''))}
               keyboardType="number-pad"
-              placeholder="Amount"
-              placeholderTextColor={Colors.placeholder}
+              accessibilityLabel={`Change By (${title})`}
               style={styles.amountInput}
               maxLength={8}
             />
@@ -618,8 +617,7 @@ export function GoldRateChangeEditModal({
             value={amount}
             onChangeText={(value) => setAmount(value.replace(/[^\d.]/g, ''))}
             keyboardType="number-pad"
-            placeholder="₹ Amount"
-            placeholderTextColor={Colors.placeholder}
+            accessibilityLabel="Amount (₹)"
             style={styles.input}
           />
           <View style={styles.modalActions}>

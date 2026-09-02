@@ -278,8 +278,7 @@ export function GoldTaxChangeEditModal({
             value={amount}
             onChangeText={(value) => setAmount(value.replace(/[^\d.]/g, ''))}
             keyboardType="number-pad"
-            placeholder="₹ Amount"
-            placeholderTextColor={Colors.placeholder}
+            accessibilityLabel="Amount (₹)"
             style={styles.input}
           />
           <View style={styles.modalActions}>

@@ -1,5 +1,10 @@
 import { isDemoScanMode } from '@/constants/scanMode';
-import { ApiError, apiRequest } from '@/utils/apiClient';
+import {
+  ApiError,
+  apiRequest,
+  isRequestAbortedError,
+  REQUEST_ABORTED_MESSAGE,
+} from '@/utils/apiClient';
 import { flattenStructuredData, unwrapApiData } from '@/utils/apiResponse';
 import * as mockScanApi from '@/utils/mockScanApi';
 import { prepareImageForUpload, type PreparedUploadImage } from '@/utils/imagePicker';
@@ -44,12 +49,18 @@ function shouldRetryUpload(error: unknown): boolean {
 async function uploadWithRetry(
   path: string,
   prepared: PreparedUploadImage,
+  signal?: AbortSignal,
 ): Promise<ImageUploadResponse> {
   const startedAt = Date.now();
   let attempt = 0;
 
   while (attempt <= UPLOAD_RETRY_DELAYS_MS.length) {
     try {
+      // Aborted while preparing (or between retries): never put the request on
+      // the wire, so a superseded image can never reach the server late.
+      if (signal?.aborted) {
+        throw new ApiError(REQUEST_ABORTED_MESSAGE);
+      }
       console.info('[UPLOAD_HTTP_START]', {
         path,
         attempt: attempt + 1,
@@ -60,6 +71,7 @@ async function uploadWithRetry(
         method: 'POST',
         body: buildImageFormData(prepared),
         timeoutMs: UPLOAD_TIMEOUT_MS,
+        signal,
       });
 
       const durationMs = Date.now() - startedAt;
@@ -74,11 +86,14 @@ async function uploadWithRetry(
       });
       return unwrapImageUploadResponse(response);
     } catch (error) {
-      const canRetry = shouldRetryUpload(error) && attempt < UPLOAD_RETRY_DELAYS_MS.length;
+      const aborted = isRequestAbortedError(error);
+      const canRetry =
+        !aborted && shouldRetryUpload(error) && attempt < UPLOAD_RETRY_DELAYS_MS.length;
       console.warn('[UPLOAD_HTTP_FAILED]', {
         path,
         attempt: attempt + 1,
         canRetry,
+        aborted,
         timeoutMs: UPLOAD_TIMEOUT_MS,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -163,6 +178,7 @@ export async function createScan(
 export async function uploadFrontImage(
   scanId: string,
   imageUri: string,
+  signal?: AbortSignal,
 ): Promise<ImageUploadResponse> {
   if (isDemoScanMode()) {
     return mockScanApi.mockUploadFrontImage(scanId);
@@ -181,12 +197,13 @@ export async function uploadFrontImage(
     timestamp: Date.now(),
   });
   prepared.fileName = prepared.fileName.replace(/^scan-/, 'front-');
-  return uploadWithRetry(`/scans/${scanId}/front-image`, prepared);
+  return uploadWithRetry(`/scans/${scanId}/front-image`, prepared, signal);
 }
 
 export async function uploadBackImage(
   scanId: string,
   imageUri: string,
+  signal?: AbortSignal,
 ): Promise<ImageUploadResponse> {
   if (isDemoScanMode()) {
     return mockScanApi.mockUploadBackImage(scanId);
@@ -205,7 +222,7 @@ export async function uploadBackImage(
     timestamp: Date.now(),
   });
   prepared.fileName = prepared.fileName.replace(/^scan-/, 'back-');
-  return uploadWithRetry(`/scans/${scanId}/back-image`, prepared);
+  return uploadWithRetry(`/scans/${scanId}/back-image`, prepared, signal);
 }
 
 export async function completeDemoCapture(

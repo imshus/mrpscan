@@ -1,5 +1,13 @@
-import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import { AdjustableImage, type AdjustableImageRef } from '@/components/scanner/AdjustableImage';
 import { GradientView } from '@/components/ui/GradientView';
@@ -14,6 +22,8 @@ interface CapturePreviewOverlayProps {
   onDelete: () => void;
   /** Receives the cropped uri when the user reframed the capture. */
   onCalculate: (adjustedUri?: string) => void;
+  /** A cropped export is ready while the user is still looking; its upload can start now. */
+  onAdjusted?: (uri: string) => void;
   onAddMore?: () => void;
 }
 
@@ -26,10 +36,44 @@ export function CapturePreviewOverlay({
   showAddMore = false,
   onDelete,
   onCalculate,
+  onAdjusted,
   onAddMore,
 }: CapturePreviewOverlayProps) {
   const adjustableRef = useRef<AdjustableImageRef>(null);
+  // Half the screen: a 200px strip was too small to land two fingers in,
+  // which is why the pinch never seemed to work.
+  const { height: windowHeight } = useWindowDimensions();
+  const thumbStyle = [styles.thumb, { height: Math.round(windowHeight * 0.5) }];
   const [exporting, setExporting] = useState(false);
+  // A reframed image is a new file, and its upload used to start only on
+  // Calculate. Export the crop shortly after each gesture ends instead, so the
+  // upload runs while the user is still looking at the result. Calculate
+  // reuses that export when nothing has moved since; otherwise it exports fresh.
+  const gestureVersionRef = useRef(0);
+  const exportRef = useRef<{ version: number; uri: string } | null>(null);
+  const exportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    gestureVersionRef.current = 0;
+    exportRef.current = null;
+    return () => {
+      if (exportTimerRef.current) clearTimeout(exportTimerRef.current);
+    };
+  }, [uri]);
+  const handleAdjustEnd = () => {
+    gestureVersionRef.current += 1;
+    const version = gestureVersionRef.current;
+    if (exportTimerRef.current) clearTimeout(exportTimerRef.current);
+    exportTimerRef.current = setTimeout(() => {
+      exportTimerRef.current = null;
+      void (async () => {
+        const exported = await adjustableRef.current?.exportAdjusted();
+        // Another gesture ended meanwhile; its own timer will export again.
+        if (!exported || gestureVersionRef.current !== version) return;
+        exportRef.current = { version, uri: exported };
+        onAdjusted?.(exported);
+      })();
+    }, 350);
+  };
 
   if (!visible) {
     return null;
@@ -39,24 +83,52 @@ export function CapturePreviewOverlay({
     if (exporting) return;
     setExporting(true);
     try {
-      const adjusted = await adjustableRef.current?.exportAdjusted();
+      if (exportTimerRef.current) {
+        clearTimeout(exportTimerRef.current);
+        exportTimerRef.current = null;
+      }
+      const ready = exportRef.current;
+      const adjusted =
+        ready && ready.version === gestureVersionRef.current
+          ? ready.uri
+          : await adjustableRef.current?.exportAdjusted();
       onCalculate(adjusted ?? undefined);
     } finally {
       setExporting(false);
     }
   };
 
+  // The card lives in its own window. As a sibling of the camera it was being
+  // composited beneath the CameraView's SurfaceView on some Android devices,
+  // so the live feed bled through the card, its buttons and the scrim alike —
+  // no opacity anywhere in the tree, just the surface drawn over the top. A
+  // Modal is a separate window and always lands above that surface.
+  // AdjustableImage's reframe uses PanResponder, which needs no gesture root.
   return (
+    <Modal
+      visible
+      transparent
+      statusBarTranslucent
+      animationType="fade"
+      onRequestClose={() => {
+        if (!loading) onDelete();
+      }}
+    >
     <View style={styles.overlay}>
       <View style={styles.card}>
         <Text style={styles.title}>{title}</Text>
 
         {loading ? (
-          <View style={styles.thumb}>
+          <View style={thumbStyle}>
             <ActivityIndicator size="large" color={Colors.brandDeep} />
           </View>
         ) : uri ? (
-          <AdjustableImage ref={adjustableRef} uri={uri} style={styles.thumb} />
+          <AdjustableImage
+            ref={adjustableRef}
+            uri={uri}
+            style={thumbStyle}
+            onAdjustEnd={handleAdjustEnd}
+          />
         ) : null}
 
         <View style={styles.actions}>
@@ -98,6 +170,7 @@ export function CapturePreviewOverlay({
         </View>
       </View>
     </View>
+    </Modal>
   );
 }
 
@@ -107,7 +180,9 @@ const styles = StyleSheet.create({
     zIndex: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.72)',
+    // Solid, not a tint: the live camera feed used to show through a 72%
+    // scrim around the card, which read as a transparent popup.
+    backgroundColor: Colors.scannerBg,
   },
   // Mockup .cap-preview-card: 94% wide, radius 24, padding 26, gap 16.
   card: {

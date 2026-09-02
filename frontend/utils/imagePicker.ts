@@ -106,30 +106,26 @@ async function processImageForUpload(
   let passes = 0;
 
   if (!process) {
-    // Re-encode once (no resize) to bake EXIF orientation so images never reach the AI sideways.
-    passes += 1;
-    const baked = await ImageManipulator.manipulateAsync(sourceUri, [], {
-      compress: 0.9,
-      format: ImageManipulator.SaveFormat.JPEG,
-      base64: false,
-    });
-    const bakedInfo = await FileSystem.getInfoAsync(baked.uri);
-    const bakedSizeBytes =
-      bakedInfo.exists && typeof bakedInfo.size === 'number' ? bakedInfo.size : sizeBytes;
-
-    return {
-      uri: baked.uri,
-      fileName: makeUploadFilename('scan', 'image/jpeg'),
-      mimeType: 'image/jpeg',
-      originalUri: sourceUri,
-      originalSizeBytes: sizeBytes,
-      processedSizeBytes: bakedSizeBytes,
-      width: baked.width ?? width,
-      height: baked.height ?? height,
-      compressed: false,
-      convertedFromHeic: false,
-      passes,
-    };
+    // An image that needs no resize goes up as it is. Re-encoding it here was
+    // a full decode and encode on the phone — the slowest device in the chain
+    // — and a second lossy generation on the pixels the OCR reads. Camera
+    // crops are already upright; a gallery file with EXIF rotation is turned
+    // by the server's sharp().rotate() before the model sees it.
+    {
+      return {
+        uri: sourceUri,
+        fileName: makeUploadFilename('scan', 'image/jpeg'),
+        mimeType: 'image/jpeg',
+        originalUri: sourceUri,
+        originalSizeBytes: sizeBytes,
+        processedSizeBytes: sizeBytes,
+        width,
+        height,
+        compressed: false,
+        convertedFromHeic: false,
+        passes,
+      };
+    }
   }
 
   const resizeAction =
@@ -326,6 +322,9 @@ const GALLERY_PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
   quality: 1, // == RawImageExporter on Android: byte copy, no re-encode. Do NOT lower.
   allowsEditing: false,
   exif: false, // was true; never read, costs an ExifInterface pass per pick
+  // The system Photo Picker is a separate process that cold-starts on every
+  // open; the legacy intent goes straight to the device gallery chooser.
+  legacy: true,
   base64: false,
   allowsMultipleSelection: false,
   selectionLimit: 1,

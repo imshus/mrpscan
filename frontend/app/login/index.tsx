@@ -142,7 +142,6 @@ export default function BusinessLoginScreen() {
                   setUserId(text);
                   setInvalid(false);
                 }}
-                placeholder="Enter your User ID"
                 autoCapitalize="none"
                 autoCorrect={false}
                 error={invalid ? '' : null}
@@ -165,7 +164,6 @@ export default function BusinessLoginScreen() {
                   setPassword(text);
                   setInvalid(false);
                 }}
-                placeholder="••••••••"
                 autoCapitalize="none"
                 error={invalid ? '' : null}
               />
