@@ -195,6 +195,17 @@ export default function BarcodeScannerScreen() {
     });
   };
 
+  // The preview exported a crop while the user is still looking at it: start
+  // uploading that file now. The registry aborts the original's upload for
+  // this side, and processing reuses this one when Calculate hands it the
+  // same uri.
+  const handlePreviewAdjusted = (croppedUri: string) => {
+    if (!pendingPreview) return;
+    const prewarmedSession = scanSessionPrewarmRef.current;
+    if (prewarmedSession && prewarmedSession.jewelleryType === selectedType) {
+      startBackgroundSideUpload(prewarmedSession.promise, 'front', croppedUri);
+    }
+  };
   const handlePreviewCalculate = (adjustedUri?: string) => {
     if (!pendingPreview) return;
 
@@ -329,6 +340,7 @@ export default function BarcodeScannerScreen() {
         showAddMore={pendingPreview?.step === 'first'}
         onDelete={handlePreviewDelete}
         onCalculate={handlePreviewCalculate}
+        onAdjusted={handlePreviewAdjusted}
         onAddMore={handleAddMoreImage}
       />
     </View>

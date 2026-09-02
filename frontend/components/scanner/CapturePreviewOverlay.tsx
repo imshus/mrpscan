@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -22,6 +22,8 @@ interface CapturePreviewOverlayProps {
   onDelete: () => void;
   /** Receives the cropped uri when the user reframed the capture. */
   onCalculate: (adjustedUri?: string) => void;
+  /** A cropped export is ready while the user is still looking; its upload can start now. */
+  onAdjusted?: (uri: string) => void;
   onAddMore?: () => void;
 }
 
@@ -34,6 +36,7 @@ export function CapturePreviewOverlay({
   showAddMore = false,
   onDelete,
   onCalculate,
+  onAdjusted,
   onAddMore,
 }: CapturePreviewOverlayProps) {
   const adjustableRef = useRef<AdjustableImageRef>(null);
@@ -42,6 +45,35 @@ export function CapturePreviewOverlay({
   const { height: windowHeight } = useWindowDimensions();
   const thumbStyle = [styles.thumb, { height: Math.round(windowHeight * 0.5) }];
   const [exporting, setExporting] = useState(false);
+  // A reframed image is a new file, and its upload used to start only on
+  // Calculate. Export the crop shortly after each gesture ends instead, so the
+  // upload runs while the user is still looking at the result. Calculate
+  // reuses that export when nothing has moved since; otherwise it exports fresh.
+  const gestureVersionRef = useRef(0);
+  const exportRef = useRef<{ version: number; uri: string } | null>(null);
+  const exportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    gestureVersionRef.current = 0;
+    exportRef.current = null;
+    return () => {
+      if (exportTimerRef.current) clearTimeout(exportTimerRef.current);
+    };
+  }, [uri]);
+  const handleAdjustEnd = () => {
+    gestureVersionRef.current += 1;
+    const version = gestureVersionRef.current;
+    if (exportTimerRef.current) clearTimeout(exportTimerRef.current);
+    exportTimerRef.current = setTimeout(() => {
+      exportTimerRef.current = null;
+      void (async () => {
+        const exported = await adjustableRef.current?.exportAdjusted();
+        // Another gesture ended meanwhile; its own timer will export again.
+        if (!exported || gestureVersionRef.current !== version) return;
+        exportRef.current = { version, uri: exported };
+        onAdjusted?.(exported);
+      })();
+    }, 350);
+  };
 
   if (!visible) {
     return null;
@@ -51,7 +83,15 @@ export function CapturePreviewOverlay({
     if (exporting) return;
     setExporting(true);
     try {
-      const adjusted = await adjustableRef.current?.exportAdjusted();
+      if (exportTimerRef.current) {
+        clearTimeout(exportTimerRef.current);
+        exportTimerRef.current = null;
+      }
+      const ready = exportRef.current;
+      const adjusted =
+        ready && ready.version === gestureVersionRef.current
+          ? ready.uri
+          : await adjustableRef.current?.exportAdjusted();
       onCalculate(adjusted ?? undefined);
     } finally {
       setExporting(false);
@@ -83,7 +123,12 @@ export function CapturePreviewOverlay({
             <ActivityIndicator size="large" color={Colors.brandDeep} />
           </View>
         ) : uri ? (
-          <AdjustableImage ref={adjustableRef} uri={uri} style={thumbStyle} />
+          <AdjustableImage
+            ref={adjustableRef}
+            uri={uri}
+            style={thumbStyle}
+            onAdjustEnd={handleAdjustEnd}
+          />
         ) : null}
 
         <View style={styles.actions}>

@@ -26,6 +26,8 @@ export interface AdjustableImageRef {
 interface AdjustableImageProps {
   uri: string;
   style?: object;
+  /** Fires when a drag or pinch ends, so the caller can export the framing early. */
+  onAdjustEnd?: () => void;
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -36,7 +38,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
  * adjustment reaches the OCR request, not just the preview.
  */
 export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImageProps>(
-  function AdjustableImage({ uri, style }, ref) {
+  function AdjustableImage({ uri, style, onAdjustEnd }, ref) {
     const [box, setBox] = useState({ width: 0, height: 0 });
     const [natural, setNatural] = useState({ width: 0, height: 0 });
 
@@ -45,6 +47,9 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
     const scaleValue = useRef(new Animated.Value(1)).current;
     const state = useRef({ tx: 0, ty: 0, scale: 1 });
     const gestureStart = useRef({ tx: 0, ty: 0, scale: 1, distance: 0 });
+    // The responder is memoised on the box size; read the callback through a ref.
+    const onAdjustEndRef = useRef(onAdjustEnd);
+    onAdjustEndRef.current = onAdjustEnd;
 
     const handleLayout = (event: LayoutChangeEvent) => {
       const { width, height } = event.nativeEvent.layout;
@@ -129,9 +134,11 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
           },
           onPanResponderRelease: () => {
             gestureStart.current.distance = 0;
+            onAdjustEndRef.current?.();
           },
           onPanResponderTerminate: () => {
             gestureStart.current.distance = 0;
+            onAdjustEndRef.current?.();
           },
         }),
       // eslint-disable-next-line react-hooks/exhaustive-deps
