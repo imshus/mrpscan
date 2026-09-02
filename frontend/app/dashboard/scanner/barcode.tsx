@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, View } from 'react-native';
+import { Alert, InteractionManager, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 
@@ -162,15 +162,17 @@ export default function BarcodeScannerScreen() {
       return;
     }
 
-    // Prewarm upload preparation and the scan session while the user reviews the capture.
-    prewarmImagePreparation(uri);
-    prewarmScanSession();
-
     setPendingPreview({
       uri,
       step: captureStep,
       source,
     });
+    // Prewarm the scan session (network only, cheap) right away, but defer the
+    // full-res decode/encode until the preview overlay has painted its first
+    // frame so it does not jank the card. prepareImageForUpload falls back to
+    // on-demand preparation if the prewarm has not registered yet.
+    prewarmScanSession();
+    InteractionManager.runAfterInteractions(() => prewarmImagePreparation(uri));
   };
 
   const handlePreviewCalculate = (adjustedUri?: string) => {

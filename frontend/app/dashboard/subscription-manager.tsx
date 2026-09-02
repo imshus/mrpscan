@@ -103,7 +103,7 @@ export default function SubscriptionManagerScreen() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null);
-  const [rechargeAmount, setRechargeAmount] = useState('500');
+  const [rechargeAmount, setRechargeAmount] = useState('');
   const [selectedAmount, setSelectedAmount] = useState<number>(500);
   const [usingCustomAmount, setUsingCustomAmount] = useState(false);
 
@@ -186,7 +186,7 @@ export default function SubscriptionManagerScreen() {
   };
 
   const handleRecharge = async () => {
-    const amount = Number(rechargeAmount || 0);
+    const amount = usingCustomAmount ? Number(rechargeAmount || 0) : selectedAmount;
     if (!Number.isFinite(amount) || amount <= 0) {
       Alert.alert('Recharge Credits', 'Please enter a valid recharge amount.');
       return;
@@ -204,7 +204,7 @@ export default function SubscriptionManagerScreen() {
   const selectQuickAmount = (amount: number) => {
     setUsingCustomAmount(false);
     setSelectedAmount(amount);
-    setRechargeAmount(String(amount));
+    setRechargeAmount('');
   };
 
   const activateCustomAmount = () => {
@@ -224,7 +224,10 @@ export default function SubscriptionManagerScreen() {
   const isTrialActive = overview?.status === 'FREE_TRIAL_LICENSE';
   const showStartTrial = overview?.status === 'NO_LICENSE' && !overview?.trialExpiredAt;
   const isPermanent = overview?.status === 'PERMANENT_LICENSE' || overview?.applicationPurchased;
-  const selectedRechargeAmount = Math.max(0, Number(rechargeAmount || 0));
+  const selectedRechargeAmount = Math.max(
+    0,
+    usingCustomAmount ? Number(rechargeAmount || 0) : selectedAmount,
+  );
   const rechargeButtonLabel = selectedRechargeAmount > 0
     ? `Recharge ${currencyNoDecimal(selectedRechargeAmount)}`
     : 'Continue to Payment';

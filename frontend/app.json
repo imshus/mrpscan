@@ -2,7 +2,7 @@
   "expo": {
     "name": "pratham",
     "slug": "pratham",
-    "version": "1.0.124",
+    "version": "1.0.125",
     "orientation": "portrait",
     "icon": "./assets/images/app-logo.jpeg",
     "scheme": "pratham",
@@ -25,7 +25,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.amitaashitsolutions",
-      "versionCode": 125
+      "versionCode": 126
     },
     "web": {
       "bundler": "metro",
@@ -66,7 +66,8 @@
             "extraProguardRules": "-keep class com.razorpay.** { *; } -keep class com.google.android.gms.auth.api.phone.** { *; } -keep class me.furtado.smsretriever.** { *; } -dontwarn com.razorpay.** -dontwarn com.google.android.gms.auth.api.credentials.** -keepattributes InnerClasses,EnclosingMethod"
           }
         }
-      ]
+      ],
+      "expo-mail-composer"
     ],
     "experiments": {
       "typedRoutes": true

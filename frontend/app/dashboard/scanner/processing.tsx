@@ -23,12 +23,19 @@ import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
 import { structuredDataToScanItem } from '@/utils/scanMappers';
 import { fetchLabourRate } from '@/utils/ratesApi';
 
-// The percentage page runs on a fixed 2-second clock: 0 -> 96% over 2s with
-// time-based stage labels, holding at 96% only if the backend needs longer.
+// Progress is driven by real milestones (upload done, analysis done, results
+// mapped). Between milestones the bar creeps asymptotically toward the next
+// milestone's floor so it keeps moving however long the backend takes.
 // Billing is finalized server-side in the background and never blocks this.
-const MIN_PROCESSING_MS = 2000;
 const TICK_MS = 50;
-const HOLD_PROGRESS = 96;
+const COMPLETE_HOLD_MS = 250;
+
+type ProgressSegment = { floor: number; ceiling: number; expectedMs: number; startedAt: number };
+const SEGMENTS = {
+  uploading: { floor: 0, ceiling: 40, expectedMs: 2500 },
+  analyzing: { floor: 40, ceiling: 90, expectedMs: 7000 },
+  finalizing: { floor: 90, ceiling: 98, expectedMs: 800 },
+} as const;
 
 export default function ProcessingScreen() {
   const router = useRouter();
@@ -45,6 +52,8 @@ export default function ProcessingScreen() {
   const progressRef = useRef(0);
   const stageRef = useRef<ScanStage | null>(null);
   const analysisRunKeyRef = useRef<string | null>(null);
+  const segmentRef = useRef<ProgressSegment>({ ...SEGMENTS.uploading, startedAt: Date.now() });
+  const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const applyClientFormulaRules = useMemo(
     () => (data: ScanItemData): ScanItemData => {
@@ -96,6 +105,24 @@ export default function ProcessingScreen() {
     [setScanLoading],
   );
 
+  const enterSegment = useCallback(
+    (segment: { floor: number; ceiling: number; expectedMs: number }, stage: ScanStage, message: string) => {
+      segmentRef.current = { ...segment, startedAt: Date.now() };
+      setProgress(segment.floor);
+      setStage(stage, message);
+    },
+    [setProgress, setStage],
+  );
+
+  // Stop the ticker if the screen unmounts mid-run so nothing writes to the
+  // store after unmount.
+  useEffect(
+    () => () => {
+      if (tickerRef.current) clearInterval(tickerRef.current);
+    },
+    [],
+  );
+
   const runAnalysis = useCallback(async () => {
     if (!isFocused) return;
 
@@ -118,22 +145,19 @@ export default function ProcessingScreen() {
     progressRef.current = 0;
     stageRef.current = null;
     console.info('[LOADER_PROGRESS]', { scanId, progress: 0, timestamp: Date.now(), stage: 'upload_init' });
-    setStage(ScanStage.Uploading, 'Uploading Tags...');
     setScanLoading({ progress: 0 });
+    enterSegment(SEGMENTS.uploading, ScanStage.Uploading, 'Uploading Tags...');
 
-    // Fixed pacing clock (MIN_PROCESSING_MS) — progress and stage labels are
-    // driven purely by elapsed time so the page always animates the same way.
-    const startedAt = Date.now();
+    // Asymptotic creep toward the current segment's ceiling; milestones below
+    // jump the floor. Never freezes, never exceeds the next milestone.
+    if (tickerRef.current) clearInterval(tickerRef.current);
     const ticker = setInterval(() => {
-      const elapsed = Date.now() - startedAt;
-      const target = Math.min(HOLD_PROGRESS, (elapsed / MIN_PROCESSING_MS) * HOLD_PROGRESS);
-      setProgress(target);
-      if (target >= 72) {
-        setStage(ScanStage.PreparingResults, 'Loading Scanned Results...');
-      } else if (target >= 36) {
-        setStage(ScanStage.AIProcessing, 'Processing Tag Details...');
-      }
+      const seg = segmentRef.current;
+      const elapsed = Date.now() - seg.startedAt;
+      const fraction = 1 - Math.exp(-elapsed / seg.expectedMs);
+      setProgress(seg.floor + (seg.ceiling - seg.floor) * fraction);
     }, TICK_MS);
+    tickerRef.current = ticker;
 
     try {
       console.info('[IMAGE_UPLOAD_START]', {
@@ -172,6 +196,7 @@ export default function ProcessingScreen() {
       }
 
       console.info('[LOADER_PROGRESS]', { scanId, timestamp: Date.now(), stage: 'upload_done' });
+      enterSegment(SEGMENTS.analyzing, ScanStage.AIProcessing, 'Processing Tag Details...');
       console.info('[ANALYZE_REQUEST_START]', {
         scanId,
         timestamp: Date.now(),
@@ -193,6 +218,7 @@ export default function ProcessingScreen() {
         scanId,
         timestamp: Date.now(),
       });
+      enterSegment(SEGMENTS.finalizing, ScanStage.PreparingResults, 'Loading Scanned Results...');
       // Billing now completes server-side in the background: `pending` is the
       // normal fast-path response; `billed` covers older backends.
       if (!isDemoScanMode() && !result.billing?.billed && !result.billing?.pending) {
@@ -238,20 +264,17 @@ export default function ProcessingScreen() {
       setStructuredData({ ...flatData, karat: fallbackKarat });
       updateScanData(adjustedScanData);
 
-      // Keep the page on screen for the full fixed 3 seconds even when the
-      // backend finishes earlier, so the animation always completes smoothly.
-      const remainingMs = MIN_PROCESSING_MS - (Date.now() - startedAt);
-      if (remainingMs > 0) {
-        await new Promise((resolve) => setTimeout(resolve, remainingMs));
-      }
-
       clearInterval(ticker);
+      tickerRef.current = null;
       setProgress(100);
-      console.info('[LOADER_PROGRESS]', { scanId, progress: 100, timestamp: Date.now(), stage: 'completed' });
       setStage(ScanStage.Completed, 'Loading Scanned Results...');
+      console.info('[LOADER_PROGRESS]', { scanId, progress: 100, timestamp: Date.now(), stage: 'completed' });
+      // Let the 100% frame paint before leaving the screen.
+      await new Promise((resolve) => setTimeout(resolve, COMPLETE_HOLD_MS));
       router.replace('/dashboard/scanner/review-results' as Href);
     } catch (error) {
       clearInterval(ticker);
+      tickerRef.current = null;
       analysisRunKeyRef.current = null;
       const message =
         error instanceof ApiError
@@ -276,6 +299,7 @@ export default function ProcessingScreen() {
     setScanLoading,
     setProgress,
     setStage,
+    enterSegment,
     applyClientFormulaRules,
     setUnknownFields,
     setStructuredData,

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
@@ -8,6 +9,8 @@ interface ScreenBackHeaderProps {
   fallbackHref?: Href;
   light?: boolean;
   iconColor?: string;
+  /** Rendered on the title row, after the title (e.g. quick-share icons). */
+  right?: ReactNode;
 }
 
 export function ScreenBackHeader({
@@ -16,6 +19,7 @@ export function ScreenBackHeader({
   fallbackHref = '/dashboard' as Href,
   light = false,
   iconColor,
+  right,
 }: ScreenBackHeaderProps) {
   const router = useRouter();
   const arrowColor = iconColor ?? (light ? '#FFFFFF' : '#000000');
@@ -40,7 +44,17 @@ export function ScreenBackHeader({
         <ArrowLeft size={24} color={arrowColor} />
       </Pressable>
       {title ? (
-        <Text className="mt-2 text-[28px] font-bold leading-[34px] text-text-primary">{title}</Text>
+        <View className="mt-2 flex-row items-center">
+          <Text
+            className="flex-1 text-[28px] font-bold leading-[34px] text-text-primary"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
+            {title}
+          </Text>
+          {right}
+        </View>
       ) : null}
     </View>
   );

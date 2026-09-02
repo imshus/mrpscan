@@ -12,7 +12,7 @@ import { Check, ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GradientView } from '@/components/ui/GradientView';
-import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Radius, Spacing, Surfaces } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useAuthStore } from '@/store/authStore';
 import type { SubscriptionOverview } from '@/types/subscription';
@@ -85,9 +85,9 @@ function toPurchaseState(overview: SubscriptionOverview | null): 'LOADING' | 'PE
   return 'CAN_PURCHASE';
 }
 
-/** Exact gradients from mrpscan-design-mockup/styles.css. */
-const TRIAL_PANEL_GRADIENT = ['#F5EFE0', '#DDD0B0', '#C2B28C'];
-const PREMIUM_PANEL_GRADIENT = ['#E6947F', '#C25F4E', '#8F2F22'];
+/** Flat panel fills — the right-side stop of each mockup gradient (see Surfaces). */
+const TRIAL_PANEL_GRADIENT = [Surfaces.metallic];
+const PREMIUM_PANEL_GRADIENT = [Surfaces.premium];
 
 export default function PurchaseLicenseScreen() {
   const router = useRouter();
@@ -233,7 +233,6 @@ export default function PurchaseLicenseScreen() {
                 {/* Free trial — what they have now */}
                 <GradientView
                   colors={TRIAL_PANEL_GRADIENT}
-                  sheen={0.6}
                   style={styles.panel}
                 >
                   <Text style={styles.trialHeading}>Free Trial</Text>
@@ -259,7 +258,6 @@ export default function PurchaseLicenseScreen() {
                 {/* Paid licence */}
                 <GradientView
                   colors={PREMIUM_PANEL_GRADIENT}
-                  sheen={0.3}
                   style={styles.panel}
                 >
                   <Text style={styles.paidHeading}>Subscription</Text>
@@ -318,7 +316,7 @@ function Feature({ text, sub, tone }: FeatureProps) {
     <View style={styles.featureRow}>
       <Check
         size={14}
-        color={paid ? Colors.white : Colors.metalGold}
+        color={paid ? Colors.white : Colors.textPrimary}
         strokeWidth={3}
         style={styles.featureCheck}
       />
@@ -384,9 +382,9 @@ const styles = StyleSheet.create({
   },
   keepBtn: {
     height: 46,
-    backgroundColor: 'rgba(255,255,255,0.62)',
+    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.75)',
+    borderColor: Colors.border,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',

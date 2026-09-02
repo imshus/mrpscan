@@ -30,7 +30,7 @@ export default function ContactDetailsScreen() {
   const registration = useAuthStore((s) => s.registration);
   const updateRegistration = useAuthStore((s) => s.updateRegistration);
 
-  const [phone, setPhone] = useState(registration.phone || '');
+  const [phone, setPhone] = useState('');
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);

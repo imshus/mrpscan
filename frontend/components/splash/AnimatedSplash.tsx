@@ -18,8 +18,8 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 
-import { GradientView } from '@/components/ui/GradientView';
 import { MrpScanTagLogo } from '@/components/splash/MrpScanTagLogo';
+import { Colors } from '@/constants/theme';
 
 /**
  * Native port of the design-mockup splash ("premium light reveal"):
@@ -189,11 +189,8 @@ export function AnimatedSplash({ onReveal, onFinish }: AnimatedSplashProps) {
 
   return (
     <Animated.View style={[StyleSheet.absoluteFill, styles.root, rootStyle]} pointerEvents="auto">
-      {/* linear-gradient(160deg, #fffdf9, var(--bg) 55%, var(--bg-alt)) */}
-      <GradientView
-        colors={['#FFFDF9', '#FBF7F0', '#F4ECDC']}
-        style={StyleSheet.absoluteFill}
-      />
+      {/* Flat page ground — same as the screen it fades into, so no tone step. */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.background }]} />
 
       {/* .splash-glow — soft red radial behind the logo */}
       <Animated.View style={[StyleSheet.absoluteFill, glowStyle]}>

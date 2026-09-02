@@ -138,7 +138,7 @@ export function StoneTypeRowCard({
   const handleDiscountChange = (text: string) => {
     const cleaned = text.replace(/[^0-9.]/g, '');
     if (!cleaned) {
-      onChange?.({ discountPercent: '0' });
+      onChange?.({ discountPercent: '' });
       return;
     }
     const parsed = Number.parseFloat(cleaned);
@@ -202,7 +202,7 @@ export function StoneTypeRowCard({
         {stoneType === 'diamond' ? (
           <MetalInput
             label={labels.discount ?? 'Discount'}
-            value={values.discountPercent ?? '0'}
+            value={values.discountPercent ?? ''}
             onChangeText={handleDiscountChange}
             editable={editable && !isFetching}
             placeholder="0"

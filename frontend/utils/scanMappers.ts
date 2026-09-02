@@ -146,6 +146,8 @@ export function structuredDataToScanItem(data: StructuredScanData): Partial<Scan
   result.clubbedColorstonesBackup = '';
   result.customPurityPercent = '';
   result.goldRate = '';
+  result.sku = '';
+  result.diamondAmount = '';
 
   for (const [apiKey, value] of Object.entries(data)) {
     if (apiKey === 'labour') continue;

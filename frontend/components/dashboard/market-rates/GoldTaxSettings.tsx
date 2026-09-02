@@ -204,20 +204,20 @@ export function GoldTaxChangeEditModal({
   const [direction, setDirection] = useState<TaxChangeDirection>(
     currentChange < 0 ? 'decrease' : 'increase',
   );
-  const [amount, setAmount] = useState(String(Math.abs(currentChange)));
+  const [amount, setAmount] = useState(currentChange ? String(Math.abs(currentChange)) : '');
   const [directionOpen, setDirectionOpen] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setDirection(currentChange < 0 ? 'decrease' : 'increase');
-      setAmount(String(Math.abs(currentChange)));
+      setAmount(currentChange ? String(Math.abs(currentChange)) : '');
       setDirectionOpen(false);
     }
   }, [visible, currentChange, target]);
 
   const resetForm = () => {
     setDirection(currentChange < 0 ? 'decrease' : 'increase');
-    setAmount(String(Math.abs(currentChange)));
+    setAmount(currentChange ? String(Math.abs(currentChange)) : '');
     setDirectionOpen(false);
   };
 

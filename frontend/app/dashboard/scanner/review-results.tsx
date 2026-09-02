@@ -216,9 +216,20 @@ export default function ReviewResultsScreen() {
   );
 
 
-  const handleReScan = () => {
-    resetCurrentScanOperation('review_rescan');
-  };
+  const handleReScan = useCallback(() => {
+    Alert.alert(
+      'Rescan Tag',
+      'This will discard the current scan and any edits, and open the camera again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Rescan',
+          style: 'destructive',
+          onPress: () => resetCurrentScanOperation('review_rescan'),
+        },
+      ],
+    );
+  }, [resetCurrentScanOperation]);
 
   const handleGenerateInvoice = () => {
     router.push('/dashboard/scanner/invoice-preview' as Href);

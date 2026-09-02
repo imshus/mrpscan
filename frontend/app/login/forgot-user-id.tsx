@@ -23,6 +23,7 @@ import {
 } from '@/components/auth/AuthKit';
 import { OtpBox } from '@/components/auth/OtpBox';
 import { Reveal } from '@/components/auth/Reveal';
+import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { Colors, Fonts } from '@/constants/theme';
 import { recoverUserId, sendLoginOtp } from '@/utils/authApi';
 import { validatePhone } from '@/utils/validation';
@@ -95,6 +96,16 @@ export default function ForgotUserIdScreen() {
       setVerifying(false);
     }
   };
+
+  useAndroidOtpAutofill({
+    enabled: codeSent && !recoveredId,
+    otpLength: OTP_LENGTH,
+    onCodeDetected: (code) => {
+      console.log('[auth] Auto OTP Detected');
+      void handleOtpChange(code);
+    },
+    onDetectionError: (message) => console.log('[auth] Auto OTP Detection Failed:', message),
+  });
 
   // Copy, then hand the id straight to the login screen so it is not typed out
   // a second time. Copying can fail on a locked clipboard; the navigation

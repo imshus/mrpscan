@@ -124,9 +124,11 @@ function signedValue(sign: Sign, amount: string): number {
 }
 
 function getSignAndAmount(value: number): { sign: Sign; amount: string } {
+  const absolute = Math.abs(value);
   return {
     sign: value < 0 ? '-' : '+',
-    amount: String(Math.abs(value)),
+    // Zero shows the "Amount" placeholder instead of a literal "0".
+    amount: absolute ? String(absolute) : '',
   };
 }
 
@@ -253,9 +255,9 @@ export function GoldRateSettingsPanel({
   const [mcxSign, setMcxSign] = useState<Sign>('+');
   const [rtgsSign, setRtgsSign] = useState<Sign>('+');
   const [cashSign, setCashSign] = useState<Sign>('+');
-  const [mcxAmount, setMcxAmount] = useState('0');
-  const [rtgsAmount, setRtgsAmount] = useState('0');
-  const [cashAmount, setCashAmount] = useState('0');
+  const [mcxAmount, setMcxAmount] = useState('');
+  const [rtgsAmount, setRtgsAmount] = useState('');
+  const [cashAmount, setCashAmount] = useState('');
   const [savedMcxChange, setSavedMcxChange] = useState(0);
   const [savedRtgsChange, setSavedRtgsChange] = useState(0);
   const [savedCashChange, setSavedCashChange] = useState(0);
@@ -542,20 +544,20 @@ export function GoldRateChangeEditModal({
   onApply,
 }: GoldRateChangeEditModalProps) {
   const [direction, setDirection] = useState<Sign>(currentChange < 0 ? '-' : '+');
-  const [amount, setAmount] = useState(String(Math.abs(currentChange)));
+  const [amount, setAmount] = useState(currentChange ? String(Math.abs(currentChange)) : '');
   const [directionOpen, setDirectionOpen] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setDirection(currentChange < 0 ? '-' : '+');
-      setAmount(String(Math.abs(currentChange)));
+      setAmount(currentChange ? String(Math.abs(currentChange)) : '');
       setDirectionOpen(false);
     }
   }, [visible, currentChange, target]);
 
   const resetForm = () => {
     setDirection(currentChange < 0 ? '-' : '+');
-    setAmount(String(Math.abs(currentChange)));
+    setAmount(currentChange ? String(Math.abs(currentChange)) : '');
     setDirectionOpen(false);
   };
 

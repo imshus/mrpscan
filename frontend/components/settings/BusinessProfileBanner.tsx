@@ -23,8 +23,6 @@ export function BusinessProfileBanner({
     <GradientView
       colors={Gradients.trial}
       borderRadius={20}
-      sheen={0.16}
-      topHighlight={0.22}
       style={styles.profileCard}
     >
       <View style={styles.avatarWrap}>
@@ -59,7 +57,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 94,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    borderColor: 'rgba(0,0,0,0.12)',
     marginHorizontal: 20,
     marginTop: 16,
     padding: 18,

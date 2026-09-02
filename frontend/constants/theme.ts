@@ -70,6 +70,21 @@ export const Gradients = {
   trial: [Colors.trial1, Colors.trial2, Colors.trial3] as string[],
 } as const;
 
+/** Flat surface fills — each is the darkest (bottom-right) stop of the former gradient. */
+export const Surfaces = {
+  /** was Gradients.brand — matches BUTTON_GREEN / GoldRatesTable mcxBanner */
+  brand: Colors.brandDeep, // #A81F17
+  /** was Gradients.metallic — MCX card, time tile, rate badges, free-trial panel */
+  metallic: Colors.metallic3, // #C2B28C
+  /** was Gradients.trial — subscription tile, business profile banner */
+  trial: Colors.trial3, // #A8483A
+  /** purchase-license paid panel */
+  premium: '#8F2F22',
+} as const;
+
+/** true = GradientView paints a flat Surfaces colour (no gradient, sheen or top highlight). */
+export const FLAT_SURFACES = true;
+
 /** Serif display face approximating the mockup's Playfair Display. */
 export const Fonts = {
   display: Platform.select({

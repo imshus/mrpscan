@@ -5,14 +5,18 @@ import * as ImagePicker from 'expo-image-picker';
 
 export const MOCK_SCAN_IMAGE_URI = 'mock://local-scan-image';
 
-const MAX_EDGE_PX = 2200;
+// Matches the backend's OCR_MAX_EDGE_PX default (1800): the model never sees
+// more pixels than this, and staying at/below it lets a baked JPEG hit the
+// backend passthrough branch instead of a second sharp resize + re-encode.
+const MAX_EDGE_PX = 1800;
 const TARGET_MAX_BYTES = 900 * 1024;
 const HARD_WARN_BYTES = 4 * 1024 * 1024;
-// Above this size, converge in a single pass: start at the step-down loops'
-// floor values (quality 0.6+0.1, edge 1800) instead of 0.8/2200 then looping.
+// Above this size, converge in a single pass: start at the step-down loop's
+// floor quality (0.6+0.1) instead of 0.8 then looping. Edge is MAX_EDGE_PX
+// for every pass now that the cap equals the backend's.
 const SINGLE_PASS_BYTES = 2.5 * 1024 * 1024;
 const SINGLE_PASS_QUALITY = 0.7;
-const SINGLE_PASS_MAX_EDGE_PX = 1800;
+const SINGLE_PASS_MAX_EDGE_PX = MAX_EDGE_PX;
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   jpg: 'image/jpeg',
@@ -34,6 +38,8 @@ export interface PreparedUploadImage {
   height: number;
   compressed: boolean;
   convertedFromHeic: boolean;
+  /** Number of manipulateAsync (decode + encode) passes it took to produce `uri`. */
+  passes: number;
 }
 
 function extractExtension(uri: string): string {
@@ -97,8 +103,11 @@ async function processImageForUpload(
     sizeBytes,
   );
 
+  let passes = 0;
+
   if (!process) {
     // Re-encode once (no resize) to bake EXIF orientation so images never reach the AI sideways.
+    passes += 1;
     const baked = await ImageManipulator.manipulateAsync(sourceUri, [], {
       compress: 0.9,
       format: ImageManipulator.SaveFormat.JPEG,
@@ -119,6 +128,7 @@ async function processImageForUpload(
       height: baked.height ?? height,
       compressed: false,
       convertedFromHeic: false,
+      passes,
     };
   }
 
@@ -136,6 +146,7 @@ async function processImageForUpload(
     return width >= height ? [{ resize: { width: maxEdge } }] : [{ resize: { height: maxEdge } }];
   };
 
+  passes += 1;
   let manipulated = await ImageManipulator.manipulateAsync(sourceUri, buildResizeAction(), {
     compress: compressQuality,
     format: ImageManipulator.SaveFormat.JPEG,
@@ -161,6 +172,7 @@ async function processImageForUpload(
   // Keep upload comfortably below common reverse-proxy body limits.
   while (processedSizeBytes > TARGET_MAX_BYTES && compressQuality > 0.6) {
     compressQuality = Math.max(0.6, compressQuality - 0.1);
+    passes += 1;
     manipulated = await ImageManipulator.manipulateAsync(manipulated.uri, [], {
       compress: compressQuality,
       format: ImageManipulator.SaveFormat.JPEG,
@@ -171,8 +183,9 @@ async function processImageForUpload(
       processedInfo.exists && typeof processedInfo.size === 'number' ? processedInfo.size : processedSizeBytes;
   }
 
-  while (processedSizeBytes > TARGET_MAX_BYTES && maxEdge > 1800) {
-    maxEdge = Math.max(1800, Math.floor(maxEdge * 0.85));
+  while (processedSizeBytes > TARGET_MAX_BYTES && maxEdge > MAX_EDGE_PX) {
+    maxEdge = Math.max(MAX_EDGE_PX, Math.floor(maxEdge * 0.85));
+    passes += 1;
     manipulated = await ImageManipulator.manipulateAsync(manipulated.uri, buildIntermediateResizeAction(), {
       compress: compressQuality,
       format: ImageManipulator.SaveFormat.JPEG,
@@ -194,10 +207,12 @@ async function processImageForUpload(
     height: manipulated.height ?? height,
     compressed: true,
     convertedFromHeic: mimeType === 'image/heic' || mimeType === 'image/heif',
+    passes,
   };
 }
 
 async function buildPreparedImage(uri: string): Promise<PreparedUploadImage> {
+  const startedAt = Date.now();
   if (uri.startsWith('mock://')) {
     return {
       uri,
@@ -210,6 +225,7 @@ async function buildPreparedImage(uri: string): Promise<PreparedUploadImage> {
       height: 0,
       compressed: false,
       convertedFromHeic: false,
+      passes: 0,
     };
   }
 
@@ -220,9 +236,11 @@ async function buildPreparedImage(uri: string): Promise<PreparedUploadImage> {
     await FileSystem.copyAsync({ from: uri, to: destination });
   }
 
-  const info = await FileSystem.getInfoAsync(localUri);
+  const [info, { width, height }] = await Promise.all([
+    FileSystem.getInfoAsync(localUri),
+    getImageDimensions(localUri),
+  ]);
   const sizeBytes = info.exists && typeof info.size === 'number' ? info.size : 0;
-  const { width, height } = await getImageDimensions(localUri);
   const mimeType = inferMimeType(localUri);
 
   const prepared = await processImageForUpload(localUri, sizeBytes, width, height, mimeType);
@@ -237,6 +255,8 @@ async function buildPreparedImage(uri: string): Promise<PreparedUploadImage> {
     processedSizeBytes: prepared.processedSizeBytes,
     compressed: prepared.compressed,
     convertedFromHeic: prepared.convertedFromHeic,
+    ms: Date.now() - startedAt,
+    passes: prepared.passes,
   });
 
   return prepared;
@@ -301,18 +321,38 @@ async function ensureCameraPermission(): Promise<boolean> {
   return false;
 }
 
+const GALLERY_PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
+  mediaTypes: ['images'],
+  quality: 1, // == RawImageExporter on Android: byte copy, no re-encode. Do NOT lower.
+  allowsEditing: false,
+  exif: false, // was true; never read, costs an ExifInterface pass per pick
+  base64: false,
+  allowsMultipleSelection: false,
+  selectionLimit: 1,
+};
+
 export async function pickImageFromGallery(): Promise<string | null> {
-  const allowed = await ensureMediaLibraryPermission();
-  if (!allowed) {
-    return null;
+  const startedAt = Date.now();
+  let result: ImagePicker.ImagePickerResult;
+  try {
+    // The system photo picker needs no storage permission, so skip the per-tap
+    // permission round trip / prompt and only fall back to it if the launch fails.
+    result = await ImagePicker.launchImageLibraryAsync(GALLERY_PICKER_OPTIONS);
+  } catch {
+    // Old devices without a photo picker may still need the storage permission: ask once and retry.
+    const allowed = await ensureMediaLibraryPermission();
+    if (!allowed) {
+      return null;
+    }
+    result = await ImagePicker.launchImageLibraryAsync(GALLERY_PICKER_OPTIONS);
   }
 
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'],
-    quality: 1,
-    allowsEditing: false,
-    exif: true,
-    allowsMultipleSelection: false,
+  console.info('[GALLERY_PICK]', {
+    canceled: result.canceled,
+    ms: Date.now() - startedAt,
+    bytes: result.assets?.[0]?.fileSize ?? null,
+    width: result.assets?.[0]?.width ?? null,
+    height: result.assets?.[0]?.height ?? null,
   });
 
   if (result.canceled || !result.assets[0]?.uri) {
@@ -333,7 +373,7 @@ export async function captureWithDeviceCamera(): Promise<string | null> {
     mediaTypes: ['images'],
     quality: 1,
     allowsEditing: false,
-    exif: true,
+    exif: false, // never read; orientation is baked during upload preparation
   });
 
   if (result.canceled || !result.assets[0]?.uri) {
