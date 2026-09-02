@@ -106,8 +106,7 @@ export default function AddEmployeeScreen() {
             <TextInput
               value={draft.fullName}
               onChangeText={(text) => updateDraft({ fullName: text })}
-              placeholder="Employee Name"
-              placeholderTextColor={Colors.placeholder}
+              accessibilityLabel="Full Name"
               style={[styles.input, errors.fullName ? styles.inputError : null]}
             />
             {errors.fullName ? <Text style={styles.error}>{errors.fullName}</Text> : null}
@@ -120,8 +119,7 @@ export default function AddEmployeeScreen() {
               onChangeText={(text) =>
                 updateDraft({ phone: text.replace(/\D/g, '').slice(0, 10) })
               }
-              placeholder="Mobile number"
-              placeholderTextColor={Colors.placeholder}
+              accessibilityLabel="Phone Number"
               keyboardType="phone-pad"
               style={[styles.input, errors.phone ? styles.inputError : null]}
             />
@@ -131,8 +129,7 @@ export default function AddEmployeeScreen() {
             <TextInput
               value={draft.email}
               onChangeText={(text) => updateDraft({ email: text })}
-              placeholder="Email address"
-              placeholderTextColor={Colors.placeholder}
+              accessibilityLabel="Email"
               keyboardType="email-address"
               autoCapitalize="none"
               style={[styles.input, errors.email ? styles.inputError : null]}
@@ -167,8 +164,7 @@ export default function AddEmployeeScreen() {
             <TextInput
               value={draft.designation}
               onChangeText={(text) => updateDraft({ designation: text })}
-              placeholder="Designation"
-              placeholderTextColor={Colors.placeholder}
+              accessibilityLabel="Designation"
               style={[styles.input, errors.designation ? styles.inputError : null]}
             />
             {errors.designation ? <Text style={styles.error}>{errors.designation}</Text> : null}

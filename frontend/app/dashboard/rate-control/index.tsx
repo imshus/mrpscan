@@ -89,7 +89,7 @@ function getSignAndAmount(value: number): { sign: Sign; amount: string } {
   const absolute = Math.abs(value);
   return {
     sign: value < 0 ? '-' : '+',
-    // Zero shows the "Amount" placeholder instead of a literal "0".
+    // Zero leaves the amount field empty instead of showing a literal "0".
     amount: absolute ? String(absolute) : '',
   };
 }
@@ -147,8 +147,7 @@ function RateAdjustmentCard({
               value={amount}
               onChangeText={onAmountChange}
               keyboardType="number-pad"
-              placeholder="Amount"
-              placeholderTextColor={Colors.placeholder}
+              accessibilityLabel={`Change By (${title})`}
               style={styles.amountInput}
               maxLength={8}
             />

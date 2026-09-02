@@ -17,7 +17,6 @@ export function RateField({ label, value, isFetching = false }: RateFieldProps) 
         label={label}
         value={isFetching ? '' : value}
         editable={false}
-        placeholder={isFetching ? '' : 'Auto-filled'}
         containerClassName="mb-2.5"
       />
       {isFetching ? (

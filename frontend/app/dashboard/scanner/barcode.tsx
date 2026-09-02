@@ -40,6 +40,10 @@ export default function BarcodeScannerScreen() {
     jewelleryType: JewelleryType;
     promise: Promise<CreateScanResponse>;
   } | null>(null);
+  // Uri of the capture currently shown in the Delete/Calculate preview. Read by
+  // the deferred early-upload callback so it never (re)starts an upload for a
+  // capture that has since been calculated (possibly cropped) or deleted.
+  const previewUriRef = useRef<string | null>(null);
   const selectedType = useScannerStore((s) => s.selectedType);
   const setScanId = useScannerStore((s) => s.setScanId);
   const setFrontImageUri = useScannerStore((s) => s.setFrontImageUri);
@@ -69,6 +73,7 @@ export default function BarcodeScannerScreen() {
     const state = useScannerStore.getState();
     if (state.scanId || state.frontImageUri || state.backImageUri) return;
     scanSessionPrewarmRef.current = null;
+    previewUriRef.current = null;
     invalidateBackgroundUploads();
     setPendingPreview(null);
     setConfirmedFront(null);
@@ -167,12 +172,27 @@ export default function BarcodeScannerScreen() {
       step: captureStep,
       source,
     });
+    previewUriRef.current = uri;
     // Prewarm the scan session (network only, cheap) right away, but defer the
     // full-res decode/encode until the preview overlay has painted its first
     // frame so it does not jank the card. prepareImageForUpload falls back to
     // on-demand preparation if the prewarm has not registered yet.
     prewarmScanSession();
-    InteractionManager.runAfterInteractions(() => prewarmImagePreparation(uri));
+    InteractionManager.runAfterInteractions(() => {
+      prewarmImagePreparation(uri);
+      // Start the front upload now, while the user is still looking at the
+      // preview, instead of on Calculate. Registered after the preparation
+      // prewarm so it reuses that decode. If the user reframes, Calculate hands
+      // the pipeline the cropped uri, which ABORTS this upload before starting
+      // the cropped one; Delete/reset abort it via invalidateBackgroundUploads.
+      if (previewUriRef.current !== uri) {
+        return;
+      }
+      const prewarmedSession = scanSessionPrewarmRef.current;
+      if (prewarmedSession && prewarmedSession.jewelleryType === selectedType) {
+        startBackgroundSideUpload(prewarmedSession.promise, 'front', uri);
+      }
+    });
   };
 
   const handlePreviewCalculate = (adjustedUri?: string) => {
@@ -186,15 +206,17 @@ export default function BarcodeScannerScreen() {
       invalidatePrewarmedImagePreparation(pendingPreview.uri);
     }
     setPendingPreview(null);
+    previewUriRef.current = null;
 
     if (step === 'first') {
       const frontCapture = { uri, source };
       setConfirmedFront(frontCapture);
-      // The image preparation is already prewarmed at preview open, so this
-      // upload starts immediately and overlaps navigation/mount. Kept here
-      // (not openPreview) because the user can still Delete from the preview.
+      // The front upload was already started when the preview opened. Same
+      // uri: the pipeline is idempotent and reuses it. Cropped uri: the
+      // pipeline aborts the early (uncropped) upload and starts this one, so
+      // the stale image can never overwrite the cropped one on the server.
       const prewarmedSession = scanSessionPrewarmRef.current;
-      if (!adjustedUri && prewarmedSession && prewarmedSession.jewelleryType === selectedType) {
+      if (prewarmedSession && prewarmedSession.jewelleryType === selectedType) {
         startBackgroundSideUpload(prewarmedSession.promise, 'front', uri);
       }
       void startScanOperation(uri, null, source);
@@ -207,10 +229,14 @@ export default function BarcodeScannerScreen() {
   };
 
   const handlePreviewDelete = () => {
+    previewUriRef.current = null;
     if (pendingPreview) {
       // Deleted capture: drop its prewarmed preparation; keep the scan session for the next capture.
       invalidatePrewarmedImagePreparation(pendingPreview.uri);
     }
+    // Abort (not just forget) the early upload of the deleted capture so it can
+    // never land on the server after the next capture's upload.
+    invalidateBackgroundUploads();
     if (pendingPreview?.step === 'second') {
       setConfirmedBack(null);
       setBackImageUri(null);
@@ -226,6 +252,7 @@ export default function BarcodeScannerScreen() {
     const frontCapture = { uri, source };
     setConfirmedFront(frontCapture);
     setPendingPreview(null);
+    previewUriRef.current = null;
     setCaptureStep('second');
 
     // Upload the confirmed front image in the background while the user shoots
@@ -288,6 +315,7 @@ export default function BarcodeScannerScreen() {
         onShutterPress={handleShutter}
         onUploadPress={handleUpload}
         controlsHidden={overlayVisible}
+        cameraPaused={isPickingImage}
         cameraRef={cameraRef}
       >
         <BarcodeOverlay />

@@ -504,6 +504,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: Colors.textPrimary,
+    // Centred over the rate badges it heads, on every karat card.
+    textAlign: 'center',
   },
   rateCardBody: {
     flexDirection: 'row',

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ScannerFinalTab } from '@/components/scanner/ScannerFinalTab';
@@ -341,20 +341,44 @@ export function ReviewScannedResultsModal({
     onFieldChange,
   ]);
 
+  // Every stone row receives this one callback, so it must keep its identity
+  // while the user types — otherwise React.memo on the rows never hits. The
+  // latest entries are read from refs at call time instead of being closed
+  // over, and the ref is advanced immediately so back-to-back edits (a typed
+  // digit followed by a fetched rate) compose instead of clobbering each other.
+  const diamondEntriesRef = useRef(diamondEntries);
+  const colorstoneEntriesRef = useRef(colorstoneEntries);
+  useEffect(() => {
+    diamondEntriesRef.current = diamondEntries;
+  }, [diamondEntries]);
+  useEffect(() => {
+    colorstoneEntriesRef.current = colorstoneEntries;
+  }, [colorstoneEntries]);
+
   const handleStoneEntryChange = useCallback(
     (stoneType: 'diamond' | 'colorstone', sourceIndex: number, values: Partial<StoneEntry>) => {
       if (stoneType === 'diamond') {
-        const nextDiamonds = updateStoneEntryAtIndex(diamondEntries, sourceIndex, values);
+        const nextDiamonds = updateStoneEntryAtIndex(
+          diamondEntriesRef.current,
+          sourceIndex,
+          values,
+        );
+        diamondEntriesRef.current = nextDiamonds;
         setDiamondEntries(nextDiamonds);
-        onStoneEntriesChange(nextDiamonds, colorstoneEntries);
+        onStoneEntriesChange(nextDiamonds, colorstoneEntriesRef.current);
         return;
       }
 
-      const nextColorstones = updateStoneEntryAtIndex(colorstoneEntries, sourceIndex, values);
+      const nextColorstones = updateStoneEntryAtIndex(
+        colorstoneEntriesRef.current,
+        sourceIndex,
+        values,
+      );
+      colorstoneEntriesRef.current = nextColorstones;
       setColorstoneEntries(nextColorstones);
-      onStoneEntriesChange(diamondEntries, nextColorstones);
+      onStoneEntriesChange(diamondEntriesRef.current, nextColorstones);
     },
-    [colorstoneEntries, diamondEntries, onStoneEntriesChange],
+    [onStoneEntriesChange],
   );
 
   const handleStoneRateErrorChange = useCallback((sequenceIndex: number, hasError: boolean) => {

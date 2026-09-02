@@ -7,7 +7,6 @@ interface TextFieldProps {
   label: string;
   value: string;
   onChangeText: (text: string) => void;
-  placeholder?: string;
   error?: string | null;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'number-pad';
@@ -20,7 +19,6 @@ export function TextField({
   label,
   value,
   onChangeText,
-  placeholder,
   error,
   autoCapitalize = 'none',
   keyboardType = 'default',
@@ -37,7 +35,6 @@ export function TextField({
         <TextInput
           value={value}
           onChangeText={onChangeText}
-          placeholder={placeholder}
           placeholderTextColor={Colors.placeholder}
           autoCapitalize={autoCapitalize}
           keyboardType={keyboardType}

@@ -125,7 +125,6 @@ export default function CreatePasswordScreen() {
                   setPassword(text);
                   setPasswordError(null);
                 }}
-                placeholder="••••••••"
                 autoCapitalize="none"
                 autoCorrect={false}
                 error={passwordError}
@@ -141,7 +140,6 @@ export default function CreatePasswordScreen() {
                   setConfirmPassword(text);
                   setConfirmError(null);
                 }}
-                placeholder="••••••••"
                 autoCapitalize="none"
                 error={confirmError}
                 containerStyle={styles.confirmField}

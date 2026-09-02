@@ -12,11 +12,41 @@ export class ApiError extends Error {
   }
 }
 
-type RequestOptions = Omit<RequestInit, 'body'> & {
+type RequestOptions = Omit<RequestInit, 'body' | 'signal'> & {
   body?: BodyInit | Record<string, unknown> | null;
   skipJson?: boolean;
   timeoutMs?: number;
+  /**
+   * Optional caller-owned abort signal. Aborting it cancels the in-flight
+   * request (including the post-refresh retry) and rejects with an ApiError
+   * whose message is REQUEST_ABORTED_MESSAGE. The internal timeout keeps
+   * working independently of this signal.
+   */
+  signal?: AbortSignal;
 };
+
+export const REQUEST_ABORTED_MESSAGE = 'Request aborted';
+
+/** True when `error` came from an aborted request (caller signal or raw AbortError). */
+export function isRequestAbortedError(error: unknown): boolean {
+  if ((error as Error)?.name === 'AbortError') return true;
+  return error instanceof ApiError && error.message === REQUEST_ABORTED_MESSAGE;
+}
+
+/**
+ * Forwards an abort from the caller's signal to the internal controller.
+ * Returns an unlink function that must be called once the request settles.
+ */
+function linkAbortSignal(controller: AbortController, signal?: AbortSignal): () => void {
+  if (!signal) return () => {};
+  if (signal.aborted) {
+    controller.abort();
+    return () => {};
+  }
+  const onAbort = () => controller.abort();
+  signal.addEventListener('abort', onAbort);
+  return () => signal.removeEventListener('abort', onAbort);
+}
 
 const getResponseCache = new Map<string, unknown>();
 
@@ -110,7 +140,14 @@ async function handleTokenRefresh(): Promise<string | null> {
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, skipJson, headers: customHeaders, timeoutMs = 45000, ...rest } = options;
+  const {
+    body,
+    skipJson,
+    headers: customHeaders,
+    timeoutMs = 45000,
+    signal: externalSignal,
+    ...rest
+  } = options;
   const token = useAuthStore.getState().authToken;
 
   const headers = new Headers(customHeaders);
@@ -154,6 +191,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const timeoutId = setTimeout(() => {
     controller.abort();
   }, timeoutMs);
+  const unlinkAbort = linkAbortSignal(controller, externalSignal);
 
   const startedAt = Date.now();
   try {
@@ -173,6 +211,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   } catch (error) {
     const ms = Date.now() - startedAt;
     if ((error as Error)?.name === 'AbortError') {
+      if (externalSignal?.aborted) {
+        console.log('[API] Aborted', { url, ms });
+        throw new ApiError(REQUEST_ABORTED_MESSAGE);
+      }
       console.error('[API] Timeout', { url, ms });
       throw new ApiError(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
     }
@@ -180,6 +222,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     throw new ApiError(getNetworkErrorMessage());
   } finally {
     clearTimeout(timeoutId);
+    unlinkAbort();
   }
 
   if (!response.ok) {
@@ -211,6 +254,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
           const retryTimeoutId = setTimeout(() => {
             retryController.abort();
           }, timeoutMs);
+          const unlinkRetryAbort = linkAbortSignal(retryController, externalSignal);
 
           try {
             response = await fetch(url, {
@@ -221,8 +265,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
             });
           } finally {
             clearTimeout(retryTimeoutId);
+            unlinkRetryAbort();
           }
-          
+
           if (response.ok) {
             if (skipJson || response.status === 204) return undefined as T;
             const parsed = (await response.json()) as T;
@@ -233,6 +278,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
           }
         } catch (error) {
           if ((error as Error)?.name === 'AbortError') {
+            if (externalSignal?.aborted) {
+              throw new ApiError(REQUEST_ABORTED_MESSAGE);
+            }
             throw new ApiError(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
           }
           throw new ApiError(getNetworkErrorMessage());

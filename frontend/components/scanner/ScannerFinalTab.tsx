@@ -1,8 +1,12 @@
-import { useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 
-import { getLaborValuesFromScanData, LaborSection } from '@/components/scanner/LaborSection';
+import {
+  getLaborValuesFromScanData,
+  LaborSection,
+  type LaborSectionValues,
+} from '@/components/scanner/LaborSection';
 import { LabourChargeResultSection } from '@/components/scanner/LabourChargeResultSection';
 import { MrpBreakdownCard } from '@/components/scanner/MrpBreakdownCard';
 import { FinNote, FinRow, MetalTile } from '@/components/scanner/ReviewCardKit';
@@ -12,7 +16,13 @@ import { StoneTypeRowCard } from '@/components/scanner/StoneTypeRowCard';
 import { StoneTypeSequence } from '@/components/scanner/StoneTypeResultSection';
 import type { FinalTabPricingResult } from '@/utils/scanPriceCalculation';
 import type { GoldRate, TaxSettings } from '@/types/rates';
-import type { JewelleryType, ScanItemData, StoneEntry, StructuredScanData } from '@/types/scanner';
+import type {
+  JewelleryType,
+  OtherChargeItem,
+  ScanItemData,
+  StoneEntry,
+  StructuredScanData,
+} from '@/types/scanner';
 import { resolveScannedKarat } from '@/utils/formulaUtils';
 import { formatIndianCurrency } from '@/utils/scanPriceCalculation';
 import { OtherChargesSection } from '@/components/scanner/OtherChargesSection';
@@ -46,7 +56,7 @@ interface ScannerFinalTabProps {
   onToggleClubColorstones?: (enabled: boolean) => void;
 }
 
-export function ScannerFinalTab({
+export const ScannerFinalTab = memo(function ScannerFinalTab({
   scanData,
   structuredData,
   diamonds,
@@ -85,17 +95,96 @@ export function ScannerFinalTab({
     [colorstones],
   );
 
-  const handleKaratChange = (karat: string) => {
-    setSelectedKarat(karat);
-    onFieldChange?.('karat', karat);
-    onFieldChange?.('customPurityPercent', '');
-  };
+  const handleKaratChange = useCallback(
+    (karat: string) => {
+      setSelectedKarat(karat);
+      onFieldChange?.('karat', karat);
+      onFieldChange?.('customPurityPercent', '');
+    },
+    [onFieldChange],
+  );
+
+  // Every prop below that used to be built inline is memoized on exactly the
+  // scanData fields the child reads, so the memoized sections only re-render
+  // when one of their own values moves — not on every keystroke elsewhere.
+  const rawMaterialScanData = useMemo(
+    () => ({
+      grossWt: scanData.grossWt,
+      netWt: scanData.netWt,
+      karat: selectedKarat,
+      tunch: scanData.tunch,
+      customPurityPercent: scanData.customPurityPercent,
+      labourPurityPercent: scanData.labourPurityPercent,
+    }),
+    [
+      scanData.grossWt,
+      scanData.netWt,
+      selectedKarat,
+      scanData.tunch,
+      scanData.customPurityPercent,
+      scanData.labourPurityPercent,
+    ],
+  );
+
+  const handleRawMaterialFieldChange = useCallback(
+    (field: keyof ScanItemData, value: ScanItemData[keyof ScanItemData]) => {
+      if (field === 'karat') {
+        handleKaratChange(String(value));
+        return;
+      }
+      onFieldChange?.(field, value);
+    },
+    [handleKaratChange, onFieldChange],
+  );
+
+  const laborValues = useMemo(
+    () =>
+      getLaborValuesFromScanData({
+        labourPurityPercent: scanData.labourPurityPercent,
+        labourChargeAmount: scanData.labourChargeAmount,
+        labourChargeUnit: scanData.labourChargeUnit,
+        labourWeightBasis: scanData.labourWeightBasis,
+      }),
+    [
+      scanData.labourPurityPercent,
+      scanData.labourChargeAmount,
+      scanData.labourChargeUnit,
+      scanData.labourWeightBasis,
+    ],
+  );
+
+  const handleLaborChange = useCallback(
+    (values: Partial<LaborSectionValues>) => {
+      if (values.labourPurityPercent !== undefined) {
+        onFieldChange?.('labourPurityPercent', values.labourPurityPercent);
+      }
+      if (values.labourChargeAmount !== undefined) {
+        onFieldChange?.('labourChargeAmount', values.labourChargeAmount);
+      }
+      if (values.labourChargeUnit !== undefined) {
+        onFieldChange?.('labourChargeUnit', values.labourChargeUnit);
+      }
+      if (values.labourWeightBasis !== undefined) {
+        onFieldChange?.('labourWeightBasis', values.labourWeightBasis);
+      }
+    },
+    [onFieldChange],
+  );
+
+  const handleOtherChargesChange = useCallback(
+    (items: OtherChargeItem[]) => {
+      const total = items.reduce((sum, item) => sum + (item.amount || 0), 0);
+      onFieldChange?.('otherChargesItems', items);
+      onFieldChange?.('otherChargesAmount', total ? String(total) : '');
+    },
+    [onFieldChange],
+  );
 
   return (
     <View>
       {editable ? (
         <RawMaterialSection
-          scanData={{ ...scanData, karat: selectedKarat }}
+          scanData={rawMaterialScanData}
           goldRates={goldRates}
           goldTaxSettings={goldTaxSettings}
           mcxLiveRate={mcxLiveRate}
@@ -104,13 +193,7 @@ export function ScannerFinalTab({
           calculationRateAccess={calculationRateAccess}
           editable
           canEditPurityPercent={canEditPurityPercent}
-          onFieldChange={(field, value) => {
-            if (field === 'karat') {
-              handleKaratChange(String(value));
-              return;
-            }
-            onFieldChange?.(field, value);
-          }}
+          onFieldChange={handleRawMaterialFieldChange}
         />
       ) : (
         <RawMaterialGoldSectionInteractive
@@ -139,27 +222,21 @@ export function ScannerFinalTab({
             </View>
           ) : null}
 
+          {/* The entry object itself is the values prop: updateStoneEntryAtIndex
+              keeps untouched entries by reference, so sibling rows stay memoized
+              while one row is being typed into. */}
           {diamondBlocks.map((block, idx) => (
             <StoneTypeRowCard
               key={`diamond-${block.index}`}
               title={clubDiamonds ? 'Diamond' : `Diamond ${idx + 1}`}
               stoneType="diamond"
-              values={{
-                weight: block.entry.weight,
-                color: block.entry.color,
-                clarity: block.entry.clarity,
-                quality: block.entry.quality,
-                rate: block.entry.rate,
-                discountPercent: block.entry.discountPercent,
-                shape: block.entry.shape,
-                packetCode: block.entry.packetCode,
-              }}
+              entryIndex={block.index}
+              sequenceIndex={idx}
+              values={block.entry}
               shapeOptions={diamondShapeOptions}
               editable
-              onChange={(values) => onStoneEntryChange?.('diamond', block.index, values)}
-              onRateErrorChange={(hasError) =>
-                onRateErrorChange?.(idx, hasError)
-              }
+              onChange={onStoneEntryChange}
+              onRateErrorChange={onRateErrorChange}
             />
           ))}
 
@@ -186,18 +263,12 @@ export function ScannerFinalTab({
               key={`colorstone-${block.index}`}
               title={clubColorstones ? 'Colorstone' : `Colorstone ${idx + 1}`}
               stoneType="colorstone"
-              values={{
-                weight: block.entry.weight,
-                color: block.entry.color,
-                clarity: block.entry.clarity,
-                quality: block.entry.quality,
-                rate: block.entry.rate,
-              }}
+              entryIndex={block.index}
+              sequenceIndex={diamondBlocks.length + idx}
+              values={block.entry}
               editable
-              onChange={(values) => onStoneEntryChange?.('colorstone', block.index, values)}
-              onRateErrorChange={(hasError) =>
-                onRateErrorChange?.(diamondBlocks.length + idx, hasError)
-              }
+              onChange={onStoneEntryChange}
+              onRateErrorChange={onRateErrorChange}
             />
           ))}
         </>
@@ -207,21 +278,8 @@ export function ScannerFinalTab({
 
       {editable ? (
         <LaborSection
-          values={getLaborValuesFromScanData(scanData)}
-          onChange={(values) => {
-            if (values.labourPurityPercent !== undefined) {
-              onFieldChange?.('labourPurityPercent', values.labourPurityPercent);
-            }
-            if (values.labourChargeAmount !== undefined) {
-              onFieldChange?.('labourChargeAmount', values.labourChargeAmount);
-            }
-            if (values.labourChargeUnit !== undefined) {
-              onFieldChange?.('labourChargeUnit', values.labourChargeUnit);
-            }
-            if (values.labourWeightBasis !== undefined) {
-              onFieldChange?.('labourWeightBasis', values.labourWeightBasis);
-            }
-          }}
+          values={laborValues}
+          onChange={handleLaborChange}
           grossWeightGrams={scanData.grossWt}
           netWeightGrams={scanData.netWt}
           pureWeightDisplay={pricing.pureWtDisplay}
@@ -234,11 +292,7 @@ export function ScannerFinalTab({
       {editable ? (
         <OtherChargesSection
           charges={scanData.otherChargesItems}
-          onChargesChange={(items) => {
-            const total = items.reduce((sum, item) => sum + (item.amount || 0), 0);
-            onFieldChange?.('otherChargesItems', items);
-            onFieldChange?.('otherChargesAmount', total ? String(total) : '');
-          }}
+          onChargesChange={handleOtherChargesChange}
         />
       ) : null}
 
@@ -277,4 +331,4 @@ export function ScannerFinalTab({
       {!editable ? <FinNote>{gstNote}</FinNote> : null}
     </View>
   );
-}
+});

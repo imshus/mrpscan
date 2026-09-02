@@ -98,13 +98,15 @@ export function mapApiPermissionsToEmployee(apiPermissions: Partial<ApiEmployeeP
       const value = apiPermissions[key];
       permissions[key] = typeof value === 'boolean' ? value : DEFAULT_MATRIX_VALUES[key];
     });
-  } else if (apiPermissions.homeDashboardMetricsControls) {
+  } else {
+    // No per-tile keys on the record at all — it predates the matrix
+    // feature, or the admin never opened that section. That is "nothing
+    // decided", not "hide everything": setting every key false here blanked
+    // the whole home screen for such employees, and no Dashboard Settings
+    // change could bring it back because the screen reads these, not the
+    // business-wide values. Show the business defaults instead.
     MATRIX_KEYS.forEach((key) => {
       permissions[key] = DEFAULT_MATRIX_VALUES[key];
-    });
-  } else {
-    MATRIX_KEYS.forEach((key) => {
-      permissions[key] = false;
     });
   }
 

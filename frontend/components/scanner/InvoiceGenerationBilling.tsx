@@ -15,7 +15,7 @@ import { FormSection } from '@/components/scanner/FormSection';
 import { InvoiceSelectDropdown } from '@/components/scanner/InvoiceSelectDropdown';
 import { PLACE_OF_SUPPLY_OPTIONS, TRANSPORT_OPTIONS } from '@/constants/invoiceData';
 import { GradientView } from '@/components/ui/GradientView';
-import { Colors, Gradients } from '@/constants/theme';
+import { Gradients } from '@/constants/theme';
 import { useInvoiceStore } from '@/store/invoiceStore';
 import { useAuthStore } from '@/store/authStore';
 
@@ -78,7 +78,6 @@ function ValidatedInput({
   label,
   value,
   onChangeText,
-  placeholder,
   required,
   error,
   keyboardType = 'default',
@@ -88,7 +87,6 @@ function ValidatedInput({
   label: string;
   value: string;
   onChangeText: (text: string) => void;
-  placeholder?: string;
   required?: boolean;
   error?: string;
   keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
@@ -102,11 +100,10 @@ function ValidatedInput({
       <TextInput
         value={value}
         onChangeText={onChangeText}
-        placeholder={placeholder}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         maxLength={maxLength}
-        placeholderTextColor={Colors.placeholder}
+        accessibilityLabel={label}
         className={`h-11 rounded-input border px-3.5 text-sm text-text-primary ${
           error ? 'border-danger-text bg-danger-bg' : 'border-border bg-surface-input'
         }`}
@@ -403,7 +400,6 @@ export function InvoiceGenerationBilling({
                     updateCustomer({ customerName: sanitizeNameInput(text) });
                     setTouched((current) => ({ ...current, name: true }));
                   }}
-                  placeholder="Customer name"
                   required
                   error={nameError}
                 />
@@ -414,7 +410,6 @@ export function InvoiceGenerationBilling({
                     updateCustomer({ customerPhone: sanitizePhoneInput(text) });
                     setTouched((current) => ({ ...current, phone: true }));
                   }}
-                  placeholder="Mobile number"
                   keyboardType="phone-pad"
                   maxLength={10}
                   required
@@ -429,14 +424,12 @@ export function InvoiceGenerationBilling({
                     updateCustomer({ customerAddress: text });
                     setTouched((current) => ({ ...current, address: true }));
                   }}
-                  placeholder="Shop no., Area, City, State, Pincode"
                   error={addressError}
                 />
                 <ValidatedInput
                   label="GST No."
                   value={customer.customerGstin}
                   onChangeText={(text) => updateCustomer({ customerGstin: sanitizeGstinInput(text) })}
-                  placeholder="GST number"
                   autoCapitalize="characters"
                 />
                 <ValidatedInput
@@ -445,7 +438,6 @@ export function InvoiceGenerationBilling({
                   onChangeText={(text) =>
                     updateCustomer({ customerPan: text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) })
                   }
-                  placeholder="PAN"
                   autoCapitalize="characters"
                 />
               </View>

@@ -8,7 +8,7 @@ export const DEFAULT_LABOUR_CHARGE_UNITS: LabourChargeUnit[] = [
 
 export const DEFAULT_LABOUR_CHARGE_UNIT: LabourChargeUnit = 'Per Gram';
 
-export const DEFAULT_LABOUR_WEIGHT_BASIS: LabourWeightBasis = 'gross';
+export const DEFAULT_LABOUR_WEIGHT_BASIS: LabourWeightBasis = 'net';
 
 export const LABOUR_WEIGHT_OPTIONS: Array<{ value: LabourWeightBasis; label: string }> = [
   { value: 'net', label: 'Net wt' },

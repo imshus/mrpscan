@@ -109,8 +109,7 @@ export default function CreateEmployeePasswordScreen() {
               <TextInput
                 value={draft.password}
                 onChangeText={(text) => updateDraft({ password: text })}
-                placeholder="PASSWORD"
-                placeholderTextColor={Colors.placeholder}
+                accessibilityLabel="Create Password"
                 secureTextEntry={!showPassword}
                 autoComplete="off"
                 importantForAutofill="no"
@@ -134,8 +133,7 @@ export default function CreateEmployeePasswordScreen() {
               <TextInput
                 value={draft.confirmPassword}
                 onChangeText={(text) => updateDraft({ confirmPassword: text })}
-                placeholder="••••••••"
-                placeholderTextColor={Colors.placeholder}
+                accessibilityLabel="Confirm Password"
                 secureTextEntry={!showConfirm}
                 autoComplete="off"
                 importantForAutofill="no"

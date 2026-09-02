@@ -83,10 +83,16 @@ export type TagCameraPreviewRef = {
 
 interface TagCameraPreviewProps {
   onPermissionChange?: (granted: boolean) => void;
+  /**
+   * Unmounts the camera while another activity (the gallery picker) is up.
+   * CameraView's `active` prop is iOS-only, so on Android releasing the
+   * camera means not rendering it.
+   */
+  paused?: boolean;
 }
 
 export const TagCameraPreview = forwardRef<TagCameraPreviewRef, TagCameraPreviewProps>(function TagCameraPreview(
-  { onPermissionChange },
+  { onPermissionChange, paused = false },
   ref,
 ) {
   const cameraRef = useRef<CameraView>(null);
@@ -170,13 +176,17 @@ export const TagCameraPreview = forwardRef<TagCameraPreviewRef, TagCameraPreview
 
   return (
     <View style={StyleSheet.absoluteFill} onLayout={handleLayout}>
-      <CameraView
-        ref={cameraRef}
-        style={StyleSheet.absoluteFill}
-        facing="back"
-        onCameraReady={() => setReady(true)}
-      />
-      {!ready ? (
+      {paused ? (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#0B0906' }]} />
+      ) : (
+        <CameraView
+          ref={cameraRef}
+          style={StyleSheet.absoluteFill}
+          facing="back"
+          onCameraReady={() => setReady(true)}
+        />
+      )}
+      {!ready && !paused ? (
         <View style={StyleSheet.absoluteFill} className="items-center justify-center bg-black/50">
           <ActivityIndicator size="large" color="#B8860B" />
         </View>

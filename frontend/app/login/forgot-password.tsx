@@ -182,7 +182,6 @@ export default function ForgotPasswordScreen() {
                   setUserId(text);
                   setUserIdError(null);
                 }}
-                placeholder="Enter your User ID"
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="default"
@@ -220,7 +219,6 @@ export default function ForgotPasswordScreen() {
                     setPassword1(text);
                     setPassword1Error(null);
                   }}
-                  placeholder="••••••••"
                   autoCapitalize="none"
                   error={password1Error}
                 />
@@ -232,7 +230,6 @@ export default function ForgotPasswordScreen() {
                     setPassword2(text);
                     setPassword2Error(null);
                   }}
-                  placeholder="••••••••"
                   autoCapitalize="none"
                   error={password2Error}
                 />

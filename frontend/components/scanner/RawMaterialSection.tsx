@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 
 import { useFormulaStore } from '@/store/formulaStore';
 
@@ -39,6 +39,11 @@ interface RawMaterialSectionProps {
   backendGoldAmount?: number;
 }
 
+const RATE_OPTIONS: ReadonlyArray<{ value: 'rtgs' | 'cash'; label: string }> = [
+  { value: 'rtgs', label: 'RTGS' },
+  { value: 'cash', label: 'Cash' },
+];
+
 function normalizeRateKarat(carat: string): string {
   return carat.replace(/kt/i, 'k').toUpperCase();
 }
@@ -65,7 +70,7 @@ function sanitizePurityInput(text: string): string {
   return next;
 }
 
-export function RawMaterialSection({
+export const RawMaterialSection = memo(function RawMaterialSection({
   scanData,
   editable = false,
   canEditPurityPercent = true,
@@ -78,10 +83,6 @@ export function RawMaterialSection({
   backendGoldAmount,
 }: RawMaterialSectionProps) {
   const [isPurityEditing, setIsPurityEditing] = useState(false);
-  const rateOptions: Array<{ value: 'rtgs' | 'cash'; label: string }> = [
-    { value: 'rtgs', label: 'RTGS' },
-    { value: 'cash', label: 'Cash' },
-  ];
   const fixedRateLabel = calculationRateAccess === 'cash' ? 'Cash Rate' : 'RTGS Rate';
   const activeFormula = useFormulaStore((s) => s.activeFormula);
   const formula2Rules = useFormulaStore((s) => s.formula2Rules);
@@ -185,14 +186,12 @@ export function RawMaterialSection({
           value={scanData.grossWt}
           onChangeText={(value) => onFieldChange?.('grossWt', value)}
           editable={editable}
-          placeholder="from scanner"
         />
         <MetalInput
           label="Net Weight"
           value={scanData.netWt}
           onChangeText={(value) => onFieldChange?.('netWt', value)}
           editable={editable}
-          placeholder="from scanner"
         />
         {editable ? (
           <MetalFieldSlot label="Karat">
@@ -212,7 +211,6 @@ export function RawMaterialSection({
           value={purityDraft}
           onChangeText={handlePurityEdit}
           editable={editable && canEditPurityPercent}
-          placeholder="Purity %"
           keyboardType="decimal-pad"
           onFocus={() => setIsPurityEditing(true)}
           onBlur={() => setIsPurityEditing(false)}
@@ -228,7 +226,7 @@ export function RawMaterialSection({
               compact
               anchored
               value={calculationMode ?? 'rtgs'}
-              options={rateOptions}
+              options={RATE_OPTIONS}
               onChange={(value) => onFieldChange?.('calculationRate', value)}
               placeholder="Select gold rate"
               containerClassName="w-full"
@@ -246,4 +244,4 @@ export function RawMaterialSection({
       </MetalGrid>
     </MetalTile>
   );
-}
+});

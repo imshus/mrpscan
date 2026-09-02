@@ -107,7 +107,9 @@ const styles = StyleSheet.create({
     zIndex: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.72)',
+    // Solid, not a tint: the live camera feed used to show through a 72%
+    // scrim around the card, which read as a transparent popup.
+    backgroundColor: Colors.scannerBg,
   },
   // Mockup .cap-preview-card: 94% wide, radius 24, padding 26, gap 16.
   card: {

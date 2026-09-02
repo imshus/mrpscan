@@ -326,6 +326,9 @@ const GALLERY_PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
   quality: 1, // == RawImageExporter on Android: byte copy, no re-encode. Do NOT lower.
   allowsEditing: false,
   exif: false, // was true; never read, costs an ExifInterface pass per pick
+  // The system Photo Picker is a separate process that cold-starts on every
+  // open; the legacy intent goes straight to the device gallery chooser.
+  legacy: true,
   base64: false,
   allowsMultipleSelection: false,
   selectionLimit: 1,

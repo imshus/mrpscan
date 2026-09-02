@@ -153,7 +153,6 @@ export default function ForgotUserIdScreen() {
                   setPhone(text.replace(/\D/g, '').slice(0, 10));
                   setPhoneError(null);
                 }}
-                placeholder="Enter your number"
                 keyboardType="phone-pad"
                 editable={!codeSent}
                 error={phoneError}
