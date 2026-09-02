@@ -95,10 +95,19 @@ export enum ScanStage {
   Completed = 'completed',
 }
 
+/** Where the last scan's time went, in milliseconds. */
+export interface ScanTimings {
+  uploadMs: number;
+  analyzeMs: number;
+  totalMs: number;
+}
+
 export interface ScanLoadingState {
   stage: ScanStage;
   progress: number;
   message: string;
+  /** Set when a scan completes; release builds strip logs, so this is how the split is seen. */
+  timings?: ScanTimings;
 }
 
 export type OcrProcessingState = 'scanning' | 'processing' | 'success' | 'error';

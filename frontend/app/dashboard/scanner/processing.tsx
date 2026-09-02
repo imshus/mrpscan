@@ -54,6 +54,14 @@ export default function ProcessingScreen() {
   const analysisRunKeyRef = useRef<string | null>(null);
   const segmentRef = useRef<ProgressSegment>({ ...SEGMENTS.uploading, startedAt: Date.now() });
   const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // The review screen opens after EARLY_REVIEW_MS whether or not the analysis
+  // has returned; these track whether that hand-off already happened.
+  const navigatedRef = useRef(false);
+  const earlyNavRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Wall-clock marks for the timings shown on the review screen.
+  const scanStartRef = useRef(0);
+  const uploadDoneRef = useRef(0);
+  const analyzeDoneRef = useRef(0);
 
   const applyClientFormulaRules = useMemo(
     () => (data: ScanItemData): ScanItemData => {
@@ -146,7 +154,24 @@ export default function ProcessingScreen() {
     stageRef.current = null;
     console.info('[LOADER_PROGRESS]', { scanId, progress: 0, timestamp: Date.now(), stage: 'upload_init' });
     setScanLoading({ progress: 0 });
+    scanStartRef.current = Date.now();
+    navigatedRef.current = false;
+    setAnalysisPending(true);
     enterSegment(SEGMENTS.uploading, ScanStage.Uploading, 'Uploading Tags...');
+
+    // Hand over to the review screen at the deadline; the OCR keeps running
+    // behind it and fills the card in when it lands. The bar completes here
+    // because the user is done waiting on this screen, not because the work is.
+    if (earlyNavRef.current) clearTimeout(earlyNavRef.current);
+    earlyNavRef.current = setTimeout(() => {
+      earlyNavRef.current = null;
+      if (navigatedRef.current) return;
+      if (useScannerStore.getState().scanId !== scanId) return;
+      navigatedRef.current = true;
+      setProgress(100);
+      setStage(ScanStage.Completed, 'Loading Scanned Results...');
+      router.replace('/dashboard/scanner/review-results' as Href);
+    }, EARLY_REVIEW_MS);
 
     // Asymptotic creep toward the current segment's ceiling; milestones below
     // jump the floor. Never freezes, never exceeds the next milestone.
@@ -196,6 +221,7 @@ export default function ProcessingScreen() {
       }
 
       console.info('[LOADER_PROGRESS]', { scanId, timestamp: Date.now(), stage: 'upload_done' });
+      uploadDoneRef.current = Date.now();
       enterSegment(SEGMENTS.analyzing, ScanStage.AIProcessing, 'Processing Tag Details...');
       console.info('[ANALYZE_REQUEST_START]', {
         scanId,
@@ -228,6 +254,7 @@ export default function ProcessingScreen() {
         scanId,
         timestamp: Date.now(),
       });
+      analyzeDoneRef.current = Date.now();
       enterSegment(SEGMENTS.finalizing, ScanStage.PreparingResults, 'Loading Scanned Results...');
       // Billing now completes server-side in the background: `pending` is the
       // normal fast-path response; `billed` covers older backends.
@@ -272,14 +299,36 @@ export default function ProcessingScreen() {
       // still awaited; it was started before the analysis and is normally done.
       await formulaSyncPromise;
 
+      // The user may have rescanned while this ran; never write a stale result
+      // over a newer session.
+      if (useScannerStore.getState().scanId !== scanId) {
+        console.info('[ANALYSIS_RESULT_DROPPED_STALE]', { scanId });
+        setAnalysisPending(false);
+        return;
+      }
       setUnknownFields(result.unknownFields ?? []);
       setStructuredData({ ...flatData, karat: fallbackKarat });
       updateScanData(adjustedScanData);
+      setAnalysisPending(false);
 
       clearInterval(ticker);
       tickerRef.current = null;
       setProgress(100);
       setStage(ScanStage.Completed, 'Loading Scanned Results...');
+      // The split the review screen shows: where this scan's seconds went.
+      {
+        const done = Date.now();
+        const start = scanStartRef.current || done;
+        const upload = uploadDoneRef.current || start;
+        const analyzed = analyzeDoneRef.current || upload;
+        setScanLoading({
+          timings: {
+            uploadMs: Math.max(0, upload - start),
+            analyzeMs: Math.max(0, analyzed - upload),
+            totalMs: Math.max(0, done - start),
+          },
+        });
+      }
       console.info('[LOADER_PROGRESS]', { scanId, progress: 100, timestamp: Date.now(), stage: 'completed' });
       // Let the 100% frame paint before leaving the screen.
       await new Promise((resolve) => setTimeout(resolve, COMPLETE_HOLD_MS));

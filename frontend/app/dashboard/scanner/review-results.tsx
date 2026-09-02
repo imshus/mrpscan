@@ -112,6 +112,7 @@ export default function ReviewResultsScreen() {
   // pressed from, so it is what hands the invoice its figures. Without this the
   // invoice reads an empty store and bills zero.
   const setPreviewPricing = useScannerStore((state) => state.setPreviewPricing);
+  const analysisPending = useScannerStore((state) => state.analysisPending);
   useEffect(() => {
     setPreviewPricing(livePricing);
   }, [livePricing, setPreviewPricing]);
@@ -152,11 +153,14 @@ export default function ReviewResultsScreen() {
       return;
     }
 
-    if (!Object.keys(structuredData).length && !isDemoScanMode()) {
+    // While the analysis is still running behind this screen the data is
+    // legitimately empty. Bouncing back to processing here would remount it
+    // and submit the same scan a second time, spending a second credit.
+    if (!Object.keys(structuredData).length && !isDemoScanMode() && !analysisPending) {
       console.info('[SCANNER_REVIEW_MISSING_STRUCTURED_DATA]', { scanId });
       router.replace('/dashboard/scanner/processing' as Href);
     }
-  }, [scanId, structuredData, router, isFocused]);
+  }, [scanId, structuredData, router, isFocused, analysisPending]);
 
   // The structured-data mirror feeds the pricing payload and the wishlist,
   // but rebuilding it on every keystroke doubled the store writes per
@@ -309,6 +313,7 @@ export default function ReviewResultsScreen() {
             pricing={livePricing}
             onFieldChange={handleFieldChange}
             onStoneEntriesChange={handleStoneEntriesChange}
+            analysisPending={analysisPending}
             onReScan={handleReScan}
             onGenerateInvoice={handleGenerateInvoice}
             onAddToWishlist={handleAddToWishlist}

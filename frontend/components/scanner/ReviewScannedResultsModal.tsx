@@ -11,6 +11,7 @@ import {
 import { RefreshCw } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 import { useFormulaStore } from '@/store/formulaStore';
+import { useScannerStore } from '@/store/scannerStore';
 import type { ScanItemData, StoneEntry, StructuredScanData } from '@/types/scanner';
 import { resolveItemIdentity } from '@/utils/itemIdentity';
 import { DIAMOND_SHAPE_OPTIONS, type StoneSelectOption } from '@/constants/stoneRateOptions';
@@ -389,6 +390,7 @@ export function ReviewScannedResultsModal({
   }, []);
 
   const itemIdentity = resolveItemIdentity(scanData);
+  const scanTimings = useScannerStore((s) => s.scanLoading.timings);
 
   return (
     <FloatingCard>
@@ -411,6 +413,11 @@ export function ReviewScannedResultsModal({
           amount={pricing.ultimateMrpDisplay}
           style={styles.mrpCard}
         />
+        {scanTimings ? (
+          <Text style={styles.scanTimings}>
+            {`Scan ${(scanTimings.totalMs / 1000).toFixed(1)}s · upload ${(scanTimings.uploadMs / 1000).toFixed(1)}s · analysis ${(scanTimings.analyzeMs / 1000).toFixed(1)}s`}
+          </Text>
+        ) : null}
 
         {/* Mockup .fin-item-row — what was scanned, named and numbered. */}
         <View style={styles.itemRow}>
@@ -499,6 +506,12 @@ export function ReviewScannedResultsModal({
 const styles = StyleSheet.create({
   mrpCard: {
     marginBottom: 0,
+  },
+  scanTimings: {
+    marginTop: 6,
+    fontSize: 11,
+    color: Colors.textMuted,
+    textAlign: 'center',
   },
   itemRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
   itemTile: {
