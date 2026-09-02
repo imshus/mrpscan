@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 
@@ -47,6 +48,7 @@ export default function ForgotUserIdScreen() {
   const [otpError, setOtpError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [recoveredId, setRecoveredId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
 
   const normalizedPhone = phone.replace(/\D/g, '').slice(0, 10);
@@ -92,6 +94,20 @@ export default function ForgotUserIdScreen() {
     } finally {
       setVerifying(false);
     }
+  };
+
+  // Copy, then hand the id straight to the login screen so it is not typed out
+  // a second time. Copying can fail on a locked clipboard; the navigation
+  // matters more than the clipboard, so it happens either way.
+  const handleCopyAndLogin = async () => {
+    if (!recoveredId) return;
+    setCopied(true);
+    try {
+      await Clipboard.setStringAsync(recoveredId);
+    } catch {
+      // Ignored: the id still reaches the login field below.
+    }
+    router.replace({ pathname: '/login', params: { userId: recoveredId } });
   };
 
   return (
@@ -155,9 +171,15 @@ export default function ForgotUserIdScreen() {
                   <Text style={styles.recoveredValue}>{recoveredId}</Text>
                 </View>
                 <AuthPrimaryButton
-                  title="Back to Log In"
-                  onPress={() => router.replace('/login')}
+                  title={copied ? 'Copied — Opening Log In…' : 'Copy User ID & Log In'}
+                  disabled={copied}
+                  onPress={() => void handleCopyAndLogin()}
                 />
+                <Text style={styles.copyHint}>
+                  {copied
+                    ? 'Your User ID is on the clipboard.'
+                    : 'Copies your User ID and takes you to log in with it filled in.'}
+                </Text>
               </>
             ) : null}
           </Animated.View>
@@ -199,6 +221,13 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderStyle: 'dashed',
     borderRadius: 14,
+  },
+  copyHint: {
+    marginTop: 10,
+    fontSize: 12,
+    lineHeight: 17,
+    color: Colors.textMuted,
+    textAlign: 'center',
   },
   recoveredLabel: {
     fontSize: 12.5,

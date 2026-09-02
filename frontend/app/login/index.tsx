@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 
@@ -49,7 +49,13 @@ export default function BusinessLoginScreen() {
   } = useAuthStore();
 
   // Always start blank — never pre-fill the User ID from cached/saved data.
-  const [userId, setUserId] = useState('');
+  // The one exception is an id handed over by Forgot User ID in this same
+  // session: the user just recovered it and asked to be taken here with it, so
+  // it comes from the navigation, never from storage.
+  const { userId: recoveredUserId } = useLocalSearchParams<{ userId?: string }>();
+  const [userId, setUserId] = useState(
+    typeof recoveredUserId === 'string' ? recoveredUserId : '',
+  );
   const [password, setPassword] = useState('');
   const [invalid, setInvalid] = useState(false);
   const [loading, setLoading] = useState(false);

@@ -32,7 +32,6 @@ import {
 import {
   validateConfirmPassword,
   validatePassword,
-  validatePhone,
   validateUserId,
 } from '@/utils/validation';
 
@@ -74,9 +73,7 @@ export default function ForgotPasswordScreen() {
   const normalizedId = normalizeIdentifier(userId);
 
   const handleSendCode = async () => {
-    const identifierError = /^\d{10}$/.test(normalizedId)
-      ? validatePhone(normalizedId)
-      : validateUserId(normalizedId);
+    const identifierError = validateUserId(normalizedId);
     setUserIdError(identifierError);
     if (identifierError) {
       triggerShake();
@@ -164,7 +161,7 @@ export default function ForgotPasswordScreen() {
             <AuthTitle tight>Forgot Password?</AuthTitle>
           </Reveal>
           <Reveal d={1}>
-            <AuthSub>Enter your User ID or phone number — we&apos;ll text a code to your registered phone.</AuthSub>
+            <AuthSub>Enter your User ID — we&apos;ll text a code to the phone number registered against it.</AuthSub>
           </Reveal>
 
           <Animated.View style={[styles.form, shakeStyle]}>

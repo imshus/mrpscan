@@ -21,6 +21,7 @@ type Props = {
   onStartTrial: () => void;
   onPurchase: () => void;
   trialExpiredAt?: string | null;
+  creditBalance?: number;
   loading?: boolean;
 };
 
@@ -62,6 +63,7 @@ export function SubscriptionBanner({
   onStartTrial,
   onPurchase,
   trialExpiredAt,
+  creditBalance,
   loading = false,
 }: Props) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -109,12 +111,16 @@ export function SubscriptionBanner({
     trialHoursRemaining,
   ]);
 
-  const actionLabel = showTrialOnboarding
-    ? 'Start Free Trial →'
-    : hasLicence
-      ? 'View Subscription →'
-      : 'Purchase License →';
+  const actionLabel = showTrialOnboarding ? 'Start Free Trial →' : 'Purchase License →';
   const handlePress = showTrialOnboarding ? onStartTrial : onPurchase;
+
+  // A held subscription is billed per scan, so the balance is the number that
+  // actually matters day to day — the tile carries it rather than only saying
+  // the licence is active.
+  const creditsLabel =
+    hasLicence && typeof creditBalance === 'number'
+      ? `${Math.max(0, Math.round(creditBalance)).toLocaleString('en-IN')} credits left`
+      : null;
 
   return (
     <Animated.View
@@ -133,9 +139,18 @@ export function SubscriptionBanner({
         <Text numberOfLines={2} style={styles.headline}>
           {headline}
         </Text>
-        <Pressable disabled={loading} onPress={handlePress} style={styles.cta}>
-          <Text style={styles.ctaText}>{loading ? 'Please wait…' : actionLabel}</Text>
-        </Pressable>
+        {creditsLabel ? (
+          <Text numberOfLines={1} style={styles.credits}>
+            {creditsLabel}
+          </Text>
+        ) : null}
+        {/* Nothing is left to buy or manage once a licence is held, so the
+            tile reports the balance and offers no way through to a page. */}
+        {hasLicence ? null : (
+          <Pressable disabled={loading} onPress={handlePress} style={styles.cta}>
+            <Text style={styles.ctaText}>{loading ? 'Please wait…' : actionLabel}</Text>
+          </Pressable>
+        )}
       </GradientView>
     </Animated.View>
   );
@@ -163,6 +178,13 @@ const styles = StyleSheet.create({
     lineHeight: 16.25,
     color: 'rgba(255,255,255,0.96)',
     fontWeight: '700',
+  },
+  credits: {
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginTop: -2,
   },
   cta: {
     alignSelf: 'flex-start',

@@ -285,6 +285,7 @@ export default function DashboardScreen() {
                     onStartTrial={handleStartTrial}
                     onPurchase={handlePurchaseLicense}
                     trialExpiredAt={subscriptionOverview?.trialExpiredAt || null}
+                    creditBalance={subscriptionOverview?.creditBalance}
                     loading={trialActionLoading}
                   />
                 ) : (
