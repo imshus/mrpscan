@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useBhawRates } from '@/hooks/useBhawRates';
 import {
@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
@@ -17,7 +18,7 @@ import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner';
 import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Gradients, Spacing } from '@/constants/theme';
-import type { GoldRate, SupremeChanges, TaxSettings } from '@/types/rates';
+import type { GoldRate, GoldRatesResponse, SupremeChanges, TaxSettings } from '@/types/rates';
 import type { SubscriptionOverview } from '@/types/subscription';
 import { useAuthStore } from '@/store/authStore';
 import { ApiError } from '@/utils/apiClient';
@@ -86,16 +87,60 @@ function TimeTile() {
   );
 }
 
+// The last market data this phone showed. Home paints it instantly on the
+// next open and refreshes behind the numbers instead of behind a spinner.
+const HOME_SNAPSHOT_KEY = 'pratham-home-market-snapshot';
+interface HomeSnapshot {
+  gold: GoldRatesResponse;
+  subscription: SubscriptionOverview | null;
+}
+async function readHomeSnapshot(): Promise<HomeSnapshot | null> {
+  try {
+    const raw = await AsyncStorage.getItem(HOME_SNAPSHOT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as HomeSnapshot;
+    return parsed && parsed.gold && Array.isArray(parsed.gold.rates) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function writeHomeSnapshot(snapshot: HomeSnapshot): void {
+  AsyncStorage.setItem(HOME_SNAPSHOT_KEY, JSON.stringify(snapshot)).catch(() => {});
+}
+
 export default function DashboardScreen() {
   const router = useRouter();
   const authUserRole = useAuthStore((s) => s.userRole);
   const [loading, setLoading] = useState(true);
+  // True once any market data (snapshot or fresh) is on screen; the blocking
+  // loader shows only before that.
+  const hasDataRef = useRef(false);
+  const subscriptionRef = useRef<SubscriptionOverview | null>(null);
   const [mcxLiveRate, setMcxLiveRate] = useState<number | null>(null);
   const [goldRates, setGoldRates] = useState<GoldRate[]>([]);
   const [goldTaxSettings, setGoldTaxSettings] = useState<TaxSettings | undefined>();
   const [supremeChanges, setSupremeChanges] = useState<SupremeChanges | undefined>();
   const [subscriptionOverview, setSubscriptionOverview] = useState<SubscriptionOverview | null>(null);
   const [trialActionLoading, setTrialActionLoading] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void readHomeSnapshot().then((snapshot) => {
+      if (cancelled || !snapshot || hasDataRef.current) return;
+      setMcxLiveRate(snapshot.gold.mcxLiveRate);
+      setGoldRates(snapshot.gold.rates);
+      setGoldTaxSettings(snapshot.gold.taxSettings);
+      setSupremeChanges(snapshot.gold.supremeChanges);
+      if (snapshot.subscription) {
+        subscriptionRef.current = snapshot.subscription;
+        setSubscriptionOverview(snapshot.subscription);
+      }
+      hasDataRef.current = true;
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const { employee, userRole: settingsUserRole } = useSettingsAccess();
   const globalMatrixValues = useMatricesStore((s) => s.values);
 
@@ -167,31 +212,43 @@ export default function DashboardScreen() {
   const show24kRateCard = show24kRtgs || show24kCash;
 
   const loadMarketData = useCallback(async (showLoader = true) => {
-    if (showLoader) setLoading(true);
-    try {
-      const [gold, subscription] = await Promise.all([
-        fetchGoldRates(),
-        authUserRole === 'business' ? fetchSubscriptionOverview() : Promise.resolve(null),
-      ]);
+    // The blocking loader is for the first paint only; after that the numbers
+    // stay on screen and update in place. Rates and the subscription are
+    // fetched side by side and each lands as soon as it arrives.
+    if (showLoader && !hasDataRef.current) setLoading(true);
+    const goldPromise = fetchGoldRates().then((gold) => {
       setMcxLiveRate(gold.mcxLiveRate);
       setGoldRates(gold.rates);
       setGoldTaxSettings(gold.taxSettings);
       setSupremeChanges(gold.supremeChanges);
-      setSubscriptionOverview(subscription);
-    } catch (error) {
-      if (authUserRole === 'business') {
-        setSubscriptionOverview(null);
-      }
-      if (showLoader) {
-        const message =
-          error instanceof ApiError
-            ? error.message
-            : 'Failed to load market rates. Showing last known values.';
-        Alert.alert('Market Data', message);
-      }
-    } finally {
-      if (showLoader) setLoading(false);
+      hasDataRef.current = true;
+      setLoading(false);
+      return gold;
+    });
+    const subscriptionPromise =
+      authUserRole === 'business'
+        ? fetchSubscriptionOverview().then((subscription) => {
+            subscriptionRef.current = subscription;
+            setSubscriptionOverview(subscription);
+            return subscription;
+          })
+        : Promise.resolve(null);
+    const [goldResult, subscriptionResult] = await Promise.allSettled([goldPromise, subscriptionPromise]);
+    if (subscriptionResult.status === 'rejected' && authUserRole === 'business') {
+      subscriptionRef.current = null;
+      setSubscriptionOverview(null);
     }
+    if (goldResult.status === 'fulfilled') {
+      writeHomeSnapshot({ gold: goldResult.value, subscription: subscriptionRef.current });
+    } else if (showLoader && !hasDataRef.current) {
+      const error = goldResult.reason;
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : 'Failed to load market rates. Showing last known values.';
+      Alert.alert('Market Data', message);
+    }
+    if (showLoader) setLoading(false);
   }, [authUserRole]);
 
   useEffect(() => {
@@ -218,7 +275,8 @@ export default function DashboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void loadMarketData();
+      // Only the very first paint gets the blocking loader.
+      void loadMarketData(!hasDataRef.current);
     }, [loadMarketData]),
   );
 
