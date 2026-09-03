@@ -242,8 +242,9 @@ export default function GoldKaratValuesScreen() {
     <SafeAreaView style={screenStyles.safeArea} edges={['top']}>
       <BackgroundPattern />
 
+      {/* The header stays put; only the content scrolls beneath it. */}
+      <PageHeader title="Gold Karat Values" />
       <ScrollView contentContainerStyle={screenStyles.scrollContent} showsVerticalScrollIndicator={false}>
-        <PageHeader title="Gold Karat Values" />
 
         {showGoldLoading ? (
           <View style={styles.loadingWrap}>

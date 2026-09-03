@@ -178,18 +178,18 @@ export default function DashboardMatricesScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
+      {/* The header stays put; only the settings scroll beneath it. */}
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
+          <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.2} />
+        </Pressable>
+        <Text style={styles.headerTitle}>Dashboard Settings</Text>
+      </View>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
-            <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.2} />
-          </Pressable>
-          <Text style={styles.headerTitle}>Dashboard Settings</Text>
-        </View>
-
         <Text style={styles.hint}>Choose which gold rates appear on your Home dashboard.</Text>
 
         <View style={styles.card}>
@@ -247,6 +247,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    // Outside the scroll view now, so it carries the screen padding itself.
+    paddingHorizontal: Spacing.screenHorizontal,
     paddingTop: 8,
     paddingBottom: 16,
   },
