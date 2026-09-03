@@ -14,6 +14,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { applyUploadSigning } from './apply-upload-signing.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, '..');
@@ -162,6 +163,9 @@ const expoCli = join(projectRoot, 'node_modules', 'expo', 'bin', 'cli');
 run(process.execPath, [expoCli, 'prebuild', '--platform', 'android', '--no-install']);
 
 writeFileSync(join(androidRoot, 'local.properties'), `sdk.dir=${toGradlePath(androidSdk)}\n`);
+// Same signature as the Play bundle when the upload key exists, so a phone can
+// update between a sideloaded APK and the Play build. Debug key otherwise.
+applyUploadSigning(projectRoot);
 
 // Always regenerate the files that were left partially written by the failed
 // concurrent builds reported by Metro's source-map composer.
