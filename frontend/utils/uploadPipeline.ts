@@ -89,7 +89,9 @@ export function startBackgroundSideUpload(
         imageUri,
         failed: false,
         controller,
-        promise: uploadImage(session.scanId, imageUri, controller.signal),
+        // Preview-time upload: the user is still looking, so the server can
+        // start the model call now and have it ready for Calculate.
+        promise: uploadImage(session.scanId, imageUri, controller.signal, { speculate: true }),
       };
       backgroundUploads.set(key, entry);
       entry.promise.catch(() => {
