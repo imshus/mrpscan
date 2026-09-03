@@ -45,12 +45,16 @@ export function applyUploadSigning(projectRoot, { required = false } = {}) {
     const match = /SHA1:\s*([0-9A-F:]+)/i.exec(String(listed.stdout || ''));
     const actual = match ? match[1].toUpperCase() : '(unreadable)';
     if (actual !== expected) {
-      throw new Error(
+      const message =
         `Upload key mismatch. Play expects SHA1 ${expected}; credentials/${props.storeFile || 'upload.keystore'} has SHA1 ${actual}. ` +
-          'Place the keystore Play expects in frontend/credentials/ (see docs/play-upload-key.md) or, after a Play upload-key reset, update expected-upload-sha1.txt.',
-      );
+        'Place the keystore Play expects in frontend/credentials/ (see docs/play-upload-key.md) or, after a Play upload-key reset, update expected-upload-sha1.txt.';
+      // The Play bundle must not be built with the wrong key; a test APK may be,
+      // since it never goes to Play.
+      if (required) throw new Error(message);
+      console.warn(`[UPLOAD_KEY_MISMATCH] ${message} Building the test APK with it anyway.`);
+    } else {
+      console.log(`Release signing: upload key fingerprint verified (${actual})`);
     }
-    console.log(`Release signing: upload key fingerprint verified (${actual})`);
   }
   const buildGradlePath = join(projectRoot, 'android', 'app', 'build.gradle');
   let buildGradle = readFileSync(buildGradlePath, 'utf8');
