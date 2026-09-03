@@ -149,6 +149,12 @@ export function structuredDataToScanItem(data: StructuredScanData): Partial<Scan
   result.sku = '';
   result.diamondAmount = '';
 
+  // The tag's item number (ITEM/STYLE/ST/SR NO) arrives as serialNumber.
+  const serialNumber = data.serialNumber;
+  if (serialNumber != null && String(serialNumber).trim() !== '') {
+    result.sku = String(serialNumber).trim();
+  }
+
   for (const [apiKey, value] of Object.entries(data)) {
     if (apiKey === 'labour') continue;
     const scanKey = API_TO_SCAN_ITEM[apiKey];
@@ -213,6 +219,9 @@ export function scanItemToStructuredData(
   existing: StructuredScanData = {},
 ): StructuredScanData {
   const result: StructuredScanData = { ...existing };
+  if (scanData.sku?.trim()) {
+    result.serialNumber = scanData.sku.trim();
+  }
   for (const [scanKey, apiKey] of Object.entries(SCAN_ITEM_TO_API) as [
     ApiMappedScanItemKey,
     string,
