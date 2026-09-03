@@ -24,7 +24,7 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.amitaashitsolutions",
+      "package": "com.mrpscan",
       "versionCode": 162
     },
     "web": {

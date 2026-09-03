@@ -20,7 +20,7 @@ Both follow the same secure sequence:
 1. **Activate the account (KYC).** Account & Settings → Account activation. Until activation is complete only test mode works. Submit the business PAN, bank account, and the signatory's ID.
 2. **Business website and app.** Account & Settings → Website & app settings (also asked during activation).
    - Website: `https://amitaash.com`. The page must be reachable and describe the business; a landing page with the product name, contact details, and links to a privacy policy, terms, and a refund/cancellation policy is what the reviewers look for.
-   - App: choose "Android app", give the package name `com.amitaashitsolutions` and, once the Play listing is live, its Play Store URL. Until then you can submit the APK/bundle for review if the dashboard asks for it.
+   - App: choose "Android app", give the package name `com.mrpscan` and, once the Play listing is live, its Play Store URL. Until then you can submit the APK/bundle for review if the dashboard asks for it.
 3. **API keys.** Account & Settings → API keys.
    - Test keys (`rzp_test_…`) are what the app and server use today.
    - After activation, click **Generate live key**. You get a live **Key ID** (`rzp_live_…`) and a live **Key Secret** shown once. Store the secret in a password manager immediately.
