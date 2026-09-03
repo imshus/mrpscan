@@ -26,9 +26,15 @@ export interface StoneTypeRowValues {
   packetCode?: string;
 }
 
+/** Row fields the reader was not sure of; each marked one asks for a check. */
+export type StoneRowAttention = Partial<
+  Record<'shape' | 'packetCode' | 'color' | 'clarity' | 'weight' | 'rate' | 'pieces', boolean>
+>;
+
 interface StoneTypeRowCardProps {
   title: string;
   stoneType: StoneKind;
+  attention?: StoneRowAttention;
   /** Position of this row inside its stone type's entries array; echoed back through onChange. */
   entryIndex: number;
   /** Position across every stone row (diamonds first); echoed back through onRateErrorChange. */
@@ -72,6 +78,7 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
   entryIndex,
   sequenceIndex,
   values,
+  attention,
   editable = false,
   onChange,
   onRateErrorChange,
@@ -184,7 +191,7 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
     <MetalTile title={title} tone={stoneType === 'diamond' ? 'diamond' : 'plain'}>
       <MetalGrid>
         {stoneType === 'diamond' ? (
-          <MetalFieldSlot label="Shape">
+          <MetalFieldSlot label="Shape" attention={attention?.shape}>
             <SearchableSelectDropdown compact
               value={resolvedShape}
               options={dropdownOptions}
@@ -200,6 +207,7 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
             value={values.packetCode ?? ''}
             onChangeText={(packetCode) => emitChange({ packetCode })}
             editable={editable}
+            attention={attention?.packetCode}
           />
         ) : null}
         <MetalInput
@@ -207,18 +215,21 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
           value={values.color}
           onChangeText={handleColorChange}
           editable={editable}
+          attention={attention?.color}
         />
         <MetalInput
           label="Clarity"
           value={values.clarity}
           onChangeText={handleClarityChange}
           editable={editable}
+          attention={attention?.clarity}
         />
         <MetalInput
           label={labels.weight}
           value={values.weight}
           onChangeText={(weight) => emitChange({ weight })}
           editable={editable}
+          attention={attention?.weight}
         />
         <MetalInput
           label={labels.rate}
@@ -226,6 +237,7 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
           onChangeText={(text) => emitChange({ rate: text.replace(/[^0-9.]/g, '') })}
           editable={editable}
           keyboardType="decimal-pad"
+          attention={attention?.rate}
         />
         {stoneType === 'diamond' ? (
           <MetalInput

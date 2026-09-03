@@ -5,10 +5,11 @@ import * as ImagePicker from 'expo-image-picker';
 
 export const MOCK_SCAN_IMAGE_URI = 'mock://local-scan-image';
 
-// Matches the backend's OCR_MAX_EDGE_PX default (1800): the model never sees
-// more pixels than this, and staying at/below it lets a baked JPEG hit the
-// backend passthrough branch instead of a second sharp resize + re-encode.
-const MAX_EDGE_PX = 1800;
+// Matches the backend's OCR_MAX_EDGE_PX default (2400): the server cuts
+// magnified parts out of this image for the reader, so the pixels kept here
+// are the pixels the digits are read from. Staying at/below the cap lets a
+// baked JPEG hit the backend passthrough branch instead of a second resize.
+const MAX_EDGE_PX = 2400;
 const TARGET_MAX_BYTES = 900 * 1024;
 const HARD_WARN_BYTES = 4 * 1024 * 1024;
 // Above this size, converge in a single pass: start at the step-down loop's

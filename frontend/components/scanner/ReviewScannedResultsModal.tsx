@@ -38,6 +38,10 @@ interface ReviewScannedResultsModalProps {
   jewelleryType: 'Gold' | 'Diamond';
   onFieldChange: (field: keyof ScanItemData, value: ScanItemData[keyof ScanItemData]) => void;
   onStoneEntriesChange: (diamonds: StoneEntry[], colorstones: StoneEntry[]) => void;
+  /** The user typed into these fields of a stone row. */
+  onStoneFieldEdited?: (stoneType: 'diamond' | 'colorstone', entryIndex: number, fields: string[]) => void;
+  /** Reader confidence per scanned field; low ones are marked for a check. */
+  fieldConfidence?: Record<string, number>;
   /** The analysis is still running behind this card; values fill in when it lands. */
   analysisPending?: boolean;
   onReScan: () => void;
@@ -57,6 +61,8 @@ export function ReviewScannedResultsModal({
   jewelleryType,
   onFieldChange,
   onStoneEntriesChange,
+  onStoneFieldEdited,
+  fieldConfidence,
   analysisPending = false,
   onReScan,
   onGenerateInvoice,
@@ -368,6 +374,7 @@ export function ReviewScannedResultsModal({
 
   const handleStoneEntryChange = useCallback(
     (stoneType: 'diamond' | 'colorstone', sourceIndex: number, values: Partial<StoneEntry>) => {
+      onStoneFieldEdited?.(stoneType, sourceIndex, Object.keys(values));
       if (stoneType === 'diamond') {
         const nextDiamonds = updateStoneEntryAtIndex(
           diamondEntriesRef.current,
@@ -389,7 +396,7 @@ export function ReviewScannedResultsModal({
       setColorstoneEntries(nextColorstones);
       onStoneEntriesChange(diamondEntriesRef.current, nextColorstones);
     },
-    [onStoneEntriesChange],
+    [onStoneEntriesChange, onStoneFieldEdited],
   );
 
   const handleStoneRateErrorChange = useCallback((sequenceIndex: number, hasError: boolean) => {
@@ -458,6 +465,7 @@ export function ReviewScannedResultsModal({
           goldTaxSettings={goldTaxSettings}
           mcxLiveRate={mcxLiveRate}
           diamondShapeOptions={diamondShapeOptions}
+          fieldConfidence={fieldConfidence}
           editable
           canEditPurityPercent={canEditPurityPercent}
           calculationRateAccess={calculationRateAccess}

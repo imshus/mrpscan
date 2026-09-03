@@ -22,7 +22,7 @@ import type { ScanItemData, StoneEntry } from '@/types/scanner';
 import { ApiError } from '@/utils/apiClient';
 import { submitReview } from '@/utils/scanApi';
 import { invalidateBackgroundUploads } from '@/utils/uploadPipeline';
-import { scanItemToStructuredData } from '@/utils/scanMappers';
+import { apiKeyForScanField, scanItemToStructuredData } from '@/utils/scanMappers';
 import {
   applyStoneEntriesToScanData,
   parseStoneArraysFromStructuredData,
@@ -113,6 +113,8 @@ export default function ReviewResultsScreen() {
   // invoice reads an empty store and bills zero.
   const setPreviewPricing = useScannerStore((state) => state.setPreviewPricing);
   const analysisPending = useScannerStore((state) => state.analysisPending);
+  const fieldConfidence = useScannerStore((state) => state.fieldConfidence);
+  const clearFieldConfidence = useScannerStore((state) => state.clearFieldConfidence);
   useEffect(() => {
     setPreviewPricing(livePricing);
   }, [livePricing, setPreviewPricing]);
@@ -195,6 +197,10 @@ export default function ReviewResultsScreen() {
       }
 
       updateScanData({ [field]: value });
+      // Once the user has typed into a field, its reader confidence no longer
+      // applies; the check mark comes off.
+      const confidenceKey = apiKeyForScanField(field);
+      if (confidenceKey) clearFieldConfidence(confidenceKey);
 
       if (field === 'calculationRate') {
         // A toggle, not typing: mirror and re-price immediately.
@@ -210,7 +216,14 @@ export default function ReviewResultsScreen() {
         syncStructuredNow();
       }, STRUCTURED_SYNC_MS);
     },
-    [updateScanData, bumpMrpRefresh, canEditPurityPercent, flushStructuredSync, syncStructuredNow],
+    [
+      updateScanData,
+      bumpMrpRefresh,
+      canEditPurityPercent,
+      flushStructuredSync,
+      syncStructuredNow,
+      clearFieldConfidence,
+    ],
   );
 
   useEffect(() => {
@@ -255,6 +268,15 @@ export default function ReviewResultsScreen() {
     [setStructuredData, updateScanData],
   );
 
+
+  // A stone field the user typed into is no longer the reader's value.
+  const handleStoneFieldEdited = useCallback(
+    (stoneType: 'diamond' | 'colorstone', entryIndex: number, fields: string[]) => {
+      const group = stoneType === 'diamond' ? 'diamonds' : 'colorstones';
+      for (const field of fields) clearFieldConfidence(`${group}.${entryIndex}.${field}`);
+    },
+    [clearFieldConfidence],
+  );
 
   // Straight back to the camera — no confirmation. This matches the header
   // back chevron and the hardware back, which have always reset without asking.
@@ -313,6 +335,8 @@ export default function ReviewResultsScreen() {
             pricing={livePricing}
             onFieldChange={handleFieldChange}
             onStoneEntriesChange={handleStoneEntriesChange}
+            onStoneFieldEdited={handleStoneFieldEdited}
+            fieldConfidence={fieldConfidence}
             analysisPending={analysisPending}
             onReScan={handleReScan}
             onGenerateInvoice={handleGenerateInvoice}
