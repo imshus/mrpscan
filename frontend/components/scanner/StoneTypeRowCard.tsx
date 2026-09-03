@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef } from 'react';
+import { memo, useCallback, useEffect } from 'react';
 
 import {
   MetalFieldSlot,
@@ -122,13 +122,9 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
         )
       : Boolean(values.color.trim() && values.clarity.trim());
 
-  // A lookup that returns after the user has typed a rate must not replace it.
-  const latestRateRef = useRef(values.rate);
-  latestRateRef.current = values.rate;
   const handleRateFetched = useCallback(
     (fetchedRate: string) => {
       if (!fetchedRate) return;
-      if (latestRateRef.current.trim()) return;
       emitChange({ rate: fetchedRate });
     },
     [emitChange],
@@ -142,8 +138,7 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
     clarity: values.clarity,
     shape: stoneType === 'diamond' ? resolvedShape : undefined,
     packetCode: stoneType === 'diamond' ? values.packetCode : undefined,
-    // The rate printed on the tag wins; the table only fills a row without one.
-    enabled: editable && hasLookupCriteria && !values.rate.trim(),
+    enabled: editable && hasLookupCriteria,
     onRateFetched: handleRateFetched,
   });
 

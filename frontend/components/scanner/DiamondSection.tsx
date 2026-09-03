@@ -55,8 +55,7 @@ export const DiamondSection = memo(function DiamondSection({
     clarity: values.clarity,
     shape: values.shape,
     packetCode: values.packetCode,
-    // The rate printed on the tag wins; the table only fills a row without one.
-    enabled: hasLookupCriteria && !disabled && !values.rate.trim(),
+    enabled: hasLookupCriteria && !disabled,
     onRateFetched: handleRateFetched,
   });
 

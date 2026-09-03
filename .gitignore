@@ -49,3 +49,6 @@ mrpscan-design-mockup/
 
 # Generated PDF previews
 output/
+
+# Play Store upload key (never commit)
+frontend/credentials/
