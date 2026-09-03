@@ -45,7 +45,8 @@ export const ColorstoneSection = memo(function ColorstoneSection({
     type: 'colorstone',
     color: values.color,
     clarity: values.clarity,
-    enabled: hasColorClarity && !disabled,
+    // The rate printed on the tag wins; the table only fills a row without one.
+    enabled: hasColorClarity && !disabled && !values.rate.trim(),
     onRateFetched: handleRateFetched,
   });
 

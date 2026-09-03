@@ -137,7 +137,13 @@ export function ReviewScannedResultsModal({
   const [karatDropdownMode, setKaratDropdownMode] = useState(false);
   // The Net Wt formula row was removed from the UI; the fallback still applies
   // whenever the scan itself did not provide a net weight.
-  const [useNetWtFormula] = useState(!scanData.netWt);
+  const [useNetWtFormula, setUseNetWtFormula] = useState(!scanData.netWt);
+  // The card can open before the analysis lands; decide again on the real
+  // data when it does, in place, so a field the user is typing in survives.
+  useEffect(() => {
+    if (!analysisPending) setUseNetWtFormula(!scanData.netWt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisPending]);
 
   useEffect(() => {
     const resolved = resolveStoneEntryArrays(

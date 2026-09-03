@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 
 import {
   MetalFieldSlot,
@@ -122,21 +122,28 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
         )
       : Boolean(values.color.trim() && values.clarity.trim());
 
+  // A lookup that returns after the user has typed a rate must not replace it.
+  const latestRateRef = useRef(values.rate);
+  latestRateRef.current = values.rate;
   const handleRateFetched = useCallback(
     (fetchedRate: string) => {
       if (!fetchedRate) return;
+      if (latestRateRef.current.trim()) return;
       emitChange({ rate: fetchedRate });
     },
     [emitChange],
   );
 
-  const { isFetching, rateNotFound } = useStoneRateFetch({
+  // Fields stay editable while a lookup runs: flipping them to read-only
+  // dropped focus and the keyboard after a single character on Android.
+  const { rateNotFound } = useStoneRateFetch({
     type: stoneType,
     color: values.color,
     clarity: values.clarity,
     shape: stoneType === 'diamond' ? resolvedShape : undefined,
     packetCode: stoneType === 'diamond' ? values.packetCode : undefined,
-    enabled: editable && hasLookupCriteria,
+    // The rate printed on the tag wins; the table only fills a row without one.
+    enabled: editable && hasLookupCriteria && !values.rate.trim(),
     onRateFetched: handleRateFetched,
   });
 
@@ -197,32 +204,32 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
             label="Packet Code"
             value={values.packetCode ?? ''}
             onChangeText={(packetCode) => emitChange({ packetCode })}
-            editable={editable && !isFetching}
+            editable={editable}
           />
         ) : null}
         <MetalInput
           label="Color"
           value={values.color}
           onChangeText={handleColorChange}
-          editable={editable && !isFetching}
+          editable={editable}
         />
         <MetalInput
           label="Clarity"
           value={values.clarity}
           onChangeText={handleClarityChange}
-          editable={editable && !isFetching}
+          editable={editable}
         />
         <MetalInput
           label={labels.weight}
           value={values.weight}
           onChangeText={(weight) => emitChange({ weight })}
-          editable={editable && !isFetching}
+          editable={editable}
         />
         <MetalInput
           label={labels.rate}
           value={values.rate}
           onChangeText={(text) => emitChange({ rate: text.replace(/[^0-9.]/g, '') })}
-          editable={editable && !isFetching}
+          editable={editable}
           keyboardType="decimal-pad"
         />
         {stoneType === 'diamond' ? (
@@ -230,7 +237,7 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
             label={labels.discount ?? 'Discount'}
             value={values.discountPercent ?? ''}
             onChangeText={handleDiscountChange}
-            editable={editable && !isFetching}
+            editable={editable}
             keyboardType="decimal-pad"
           />
         ) : null}

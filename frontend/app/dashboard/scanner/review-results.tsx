@@ -313,9 +313,6 @@ export default function ReviewResultsScreen() {
             pricing={livePricing}
             onFieldChange={handleFieldChange}
             onStoneEntriesChange={handleStoneEntriesChange}
-            // The card decides on mount whether to trust the scanned net weight
-            // or compute one; remount it once the real data is in.
-            key={analysisPending ? 'pending' : 'ready'}
             analysisPending={analysisPending}
             onReScan={handleReScan}
             onGenerateInvoice={handleGenerateInvoice}

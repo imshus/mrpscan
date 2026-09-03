@@ -100,8 +100,9 @@ export default function GoldRateSettingsScreen() {
     <SafeAreaView style={screenStyles.safeArea} edges={['top']}>
       <BackgroundPattern />
 
+      {/* The header stays put; only the content scrolls beneath it. */}
+      <PageHeader title="Gold Rate Settings" />
       <ScrollView contentContainerStyle={screenStyles.scrollContent} showsVerticalScrollIndicator={false}>
-        <PageHeader title="Gold Rate Settings" />
 
         <View style={screenStyles.screenSection}>
           {showLoading ? (

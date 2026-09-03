@@ -53,8 +53,9 @@ export default function MarketRatesScreen() {
     <SafeAreaView style={screenStyles.safeArea} edges={['top']}>
       <BackgroundPattern />
 
+      {/* The header stays put; only the content scrolls beneath it. */}
+      <PageHeader title={TAB_SCREEN_TITLE[activeTab]} />
       <ScrollView contentContainerStyle={screenStyles.scrollContent} showsVerticalScrollIndicator={false}>
-        <PageHeader title={TAB_SCREEN_TITLE[activeTab]} />
 
         {activeTab === 'gold' ? (
           access.canEditGold ? (
