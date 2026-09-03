@@ -30,7 +30,7 @@ import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 const TICK_MS = 50;
 const COMPLETE_HOLD_MS = 150;
 /** The review screen opens after this long even if the analysis is still running. */
-const EARLY_REVIEW_MS = 4000;
+const EARLY_REVIEW_MS = 3000;
 
 type ProgressSegment = { floor: number; ceiling: number; expectedMs: number; startedAt: number };
 const SEGMENTS = {
@@ -177,14 +177,13 @@ export default function ProcessingScreen() {
       router.replace('/dashboard/scanner/review-results' as Href);
     }, EARLY_REVIEW_MS);
 
-    // Asymptotic creep toward the current segment's ceiling; milestones below
-    // jump the floor. Never freezes, never exceeds the next milestone.
+    // Even climb over the hand-off window: the bar is a clock for how long the
+    // user waits on this screen and reaches 100 as the review card opens. The
+    // milestones below still drive the stage message.
     if (tickerRef.current) clearInterval(tickerRef.current);
     const ticker = setInterval(() => {
-      const seg = segmentRef.current;
-      const elapsed = Date.now() - seg.startedAt;
-      const fraction = 1 - Math.exp(-elapsed / seg.expectedMs);
-      setProgress(seg.floor + (seg.ceiling - seg.floor) * fraction);
+      const elapsed = Date.now() - scanStartRef.current;
+      setProgress(Math.min(99, (elapsed / EARLY_REVIEW_MS) * 100));
     }, TICK_MS);
     tickerRef.current = ticker;
 
