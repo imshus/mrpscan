@@ -31,8 +31,7 @@ export function applyUploadSigning(projectRoot, { required = false } = {}) {
     const expected = readFileSync(expectedPath, 'utf8').trim().toUpperCase();
     const props = Object.fromEntries(
       readFileSync(uploadProps, 'utf8')
-        .split(/?
-/)
+        .split(/\r?\n/)
         .filter((line) => line.includes('='))
         .map((line) => [line.slice(0, line.indexOf('=')).trim(), line.slice(line.indexOf('=') + 1).trim()]),
     );
