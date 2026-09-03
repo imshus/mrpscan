@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 /**
  * Signs release builds with the Play upload key in <project>/credentials when it
@@ -21,6 +22,36 @@ export function applyUploadSigning(projectRoot, { required = false } = {}) {
     }
     console.log('Release signing: no upload key in credentials/, using the debug keystore');
     return false;
+  }
+  // Play pins the upload key per app. When credentials/expected-upload-sha1.txt
+  // holds the fingerprint Play expects, refuse to sign with any other key: a
+  // bundle signed with the wrong key is rejected at upload, after a long build.
+  const expectedPath = join(credentialsDir, 'expected-upload-sha1.txt');
+  if (existsSync(expectedPath)) {
+    const expected = readFileSync(expectedPath, 'utf8').trim().toUpperCase();
+    const props = Object.fromEntries(
+      readFileSync(uploadProps, 'utf8')
+        .split(/?
+/)
+        .filter((line) => line.includes('='))
+        .map((line) => [line.slice(0, line.indexOf('=')).trim(), line.slice(line.indexOf('=') + 1).trim()]),
+    );
+    const javaHome = process.env.JAVA_HOME || '';
+    const keytool = javaHome ? join(javaHome, 'bin', process.platform === 'win32' ? 'keytool.exe' : 'keytool') : 'keytool';
+    const listed = spawnSync(
+      keytool,
+      ['-list', '-v', '-keystore', join(credentialsDir, props.storeFile || 'upload.keystore'), '-storepass', props.storePassword || '', '-alias', props.keyAlias || 'upload'],
+      { encoding: 'utf8' },
+    );
+    const match = /SHA1:\s*([0-9A-F:]+)/i.exec(String(listed.stdout || ''));
+    const actual = match ? match[1].toUpperCase() : '(unreadable)';
+    if (actual !== expected) {
+      throw new Error(
+        `Upload key mismatch. Play expects SHA1 ${expected}; credentials/${props.storeFile || 'upload.keystore'} has SHA1 ${actual}. ` +
+          'Place the keystore Play expects in frontend/credentials/ (see docs/play-upload-key.md) or, after a Play upload-key reset, update expected-upload-sha1.txt.',
+      );
+    }
+    console.log(`Release signing: upload key fingerprint verified (${actual})`);
   }
   const buildGradlePath = join(projectRoot, 'android', 'app', 'build.gradle');
   let buildGradle = readFileSync(buildGradlePath, 'utf8');
