@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 
@@ -86,9 +86,11 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
   onToggleClubDiamonds,
   onToggleClubColorstones,
 }: ScannerFinalTabProps) {
-  const [selectedKarat, setSelectedKarat] = useState(
-    () => resolveScannedKarat(scanData.karat, scanData.tunch) || '14K',
-  );
+  // Derived, not state. The card mounts before the analysis lands and no
+  // longer remounts on the result, so a mount-time copy of the karat kept
+  // showing 14K after the tag's karat had arrived, while the price (which
+  // reads the store) was already using the scanned one.
+  const selectedKarat = resolveScannedKarat(scanData.karat, scanData.tunch) || '14K';
 
   // Intentionally left without combined blocks; render by type for clubbing.
 
@@ -145,7 +147,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
 
   const handleKaratChange = useCallback(
     (karat: string) => {
-      setSelectedKarat(karat);
+      // The store write re-renders this tab with the new karat.
       onFieldChange?.('karat', karat);
       onFieldChange?.('customPurityPercent', '');
     },
