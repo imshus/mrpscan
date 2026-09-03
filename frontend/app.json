@@ -2,7 +2,7 @@
   "expo": {
     "name": "pratham",
     "slug": "pratham",
-    "version": "1.0.149",
+    "version": "1.0.150",
     "orientation": "portrait",
     "icon": "./assets/images/app-logo.jpeg",
     "scheme": "pratham",
@@ -25,7 +25,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.amitaashitsolutions",
-      "versionCode": 150
+      "versionCode": 151
     },
     "web": {
       "bundler": "metro",
