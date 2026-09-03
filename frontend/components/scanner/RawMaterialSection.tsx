@@ -30,6 +30,8 @@ interface RawMaterialSectionProps {
   >;
   editable?: boolean;
   canEditPurityPercent?: boolean;
+  /** Scanned fields the reader was not sure of; they are marked for a check. */
+  attention?: { grossWt?: boolean; netWt?: boolean; karat?: boolean };
   onFieldChange?: (field: keyof ScanItemData, value: ScanItemData[keyof ScanItemData]) => void;
   goldRates?: GoldRate[];
   goldTaxSettings?: TaxSettings;
@@ -74,6 +76,7 @@ export const RawMaterialSection = memo(function RawMaterialSection({
   scanData,
   editable = false,
   canEditPurityPercent = true,
+  attention,
   onFieldChange,
   goldRates,
   goldTaxSettings,
@@ -186,15 +189,17 @@ export const RawMaterialSection = memo(function RawMaterialSection({
           value={scanData.grossWt}
           onChangeText={(value) => onFieldChange?.('grossWt', value)}
           editable={editable}
+          attention={attention?.grossWt}
         />
         <MetalInput
           label="Net Weight"
           value={scanData.netWt}
           onChangeText={(value) => onFieldChange?.('netWt', value)}
           editable={editable}
+          attention={attention?.netWt}
         />
         {editable ? (
-          <MetalFieldSlot label="Karat">
+          <MetalFieldSlot label="Karat" attention={attention?.karat}>
             <SearchableSelectDropdown compact
               value={resolvedKarat ?? ''}
               options={displayedKaratOptions ?? []}

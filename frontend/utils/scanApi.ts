@@ -153,12 +153,47 @@ function unwrapImageUploadResponse(
   throw new Error('Invalid image upload response from server');
 }
 
+/**
+ * Per-field confidence from the analysis, keyed like the flat structured data
+ * ("grossWeight") and, for stones, "diamonds.0.weight". Only fields that
+ * carry a value are listed. The review card marks anything under its
+ * threshold so the user checks it against the tag.
+ */
+export function extractFieldConfidence(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  const readField = (value: unknown): number | null => {
+    if (value && typeof value === 'object' && !Array.isArray(value) && 'value' in value) {
+      const field = value as { value?: unknown; confidence?: unknown };
+      if (field.value == null || String(field.value).trim() === '') return null;
+      return Number(field.confidence) || 0;
+    }
+    return null;
+  };
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if ((key === 'diamonds' || key === 'colorstones') && Array.isArray(value)) {
+      value.forEach((stone, index) => {
+        if (!stone || typeof stone !== 'object') return;
+        for (const [stoneKey, stoneValue] of Object.entries(stone as Record<string, unknown>)) {
+          const confidence = readField(stoneValue);
+          if (confidence != null) out[`${key}.${index}.${stoneKey}`] = confidence;
+        }
+      });
+      continue;
+    }
+    const confidence = readField(value);
+    if (confidence != null) out[key] = confidence;
+  }
+  return out;
+}
+
 function normalizeAnalyzeResponse(raw: AnalyzeScanResponse): AnalyzeScanResponse {
   const unwrapped = unwrapApiData(raw);
   return {
     scanId: unwrapped.scanId,
     status: unwrapped.status,
     structuredData: flattenStructuredData(unwrapped.structuredData),
+    fieldConfidence: extractFieldConfidence(unwrapped.structuredData),
     unknownFields: unwrapped.unknownFields ?? [],
     billing: unwrapped.billing,
   };

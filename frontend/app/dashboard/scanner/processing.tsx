@@ -51,6 +51,7 @@ export default function ProcessingScreen() {
   const scanLoading = useScannerStore((s) => s.scanLoading);
   const setScanLoading = useScannerStore((s) => s.setScanLoading);
   const setAnalysisPending = useScannerStore((s) => s.setAnalysisPending);
+  const setFieldConfidence = useScannerStore((s) => s.setFieldConfidence);
   const resetScanLoading = useScannerStore((s) => s.resetScanLoading);
   const progressRef = useRef(0);
   const stageRef = useRef<ScanStage | null>(null);
@@ -311,6 +312,11 @@ export default function ProcessingScreen() {
       }
       setUnknownFields(result.unknownFields ?? []);
       setStructuredData({ ...flatData, karat: fallbackKarat });
+      // A karat the tag did not print is a default, not a reading: mark it
+      // so the review card asks the user to confirm it.
+      const fieldConfidence = { ...(result.fieldConfidence ?? {}) };
+      if (!extractedKarat) fieldConfidence.karat = 0;
+      setFieldConfidence(fieldConfidence);
       updateScanData(adjustedScanData);
       setAnalysisPending(false);
 
@@ -381,6 +387,7 @@ export default function ProcessingScreen() {
     applyClientFormulaRules,
     setUnknownFields,
     setStructuredData,
+    setFieldConfidence,
     updateScanData,
   ]);
 

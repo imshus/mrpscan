@@ -39,6 +39,8 @@ export interface AnalyzeScanResponse {
   scanId: string;
   status: ScanStatus;
   structuredData?: StructuredScanData;
+  /** Confidence per structured field ("grossWeight", "diamonds.0.weight"), 0-100. */
+  fieldConfidence?: Record<string, number>;
   unknownFields: UnknownField[];
   billing?: {
     billed: boolean;

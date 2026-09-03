@@ -115,6 +115,12 @@ export function toApiJewelleryType(type: JewelleryType): ApiJewelleryType {
   return JEWELLERY_TYPE_TO_API[type];
 }
 
+/** The analysis field a review-card value came from (confidence lookups). */
+export function apiKeyForScanField(field: keyof ScanItemData): string | null {
+  if (field === 'sku') return 'serialNumber';
+  return SCAN_ITEM_TO_API[field as ApiMappedScanItemKey] ?? null;
+}
+
 export function toApiScanType(mode: ScanMode): ApiScanType {
   return mode === 'both' ? 'BOTH_SIDES' : 'SINGLE_SIDE';
 }

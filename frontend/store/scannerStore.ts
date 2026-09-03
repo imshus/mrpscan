@@ -59,6 +59,14 @@ interface ScannerState {
   /** True from the moment a scan is submitted until its result is in the store. */
   analysisPending: boolean;
   setAnalysisPending: (value: boolean) => void;
+  /**
+   * Confidence the reader gave each scanned field (0-100), keyed like the
+   * analysis ("grossWeight", "diamonds.0.weight"). A field the user has
+   * edited is removed: it is theirs now, not the reader's.
+   */
+  fieldConfidence: Record<string, number>;
+  setFieldConfidence: (map: Record<string, number>) => void;
+  clearFieldConfidence: (key: string) => void;
   setScanSessionBootstrapping: (value: boolean) => void;
   resetScanLoading: () => void;
   updateScanData: (data: Partial<ScanItemData>) => void;
@@ -82,6 +90,7 @@ const initialSessionState = {
   } as ScanLoadingState,
   previewPricing: null as FinalTabPricingResult | null,
   analysisPending: false,
+  fieldConfidence: {} as Record<string, number>,
 };
 
 export const useScannerStore = create<ScannerState>((set) => ({
@@ -130,6 +139,14 @@ export const useScannerStore = create<ScannerState>((set) => ({
       },
     })),
   setAnalysisPending: (value) => set({ analysisPending: value }),
+  setFieldConfidence: (map) => set({ fieldConfidence: map }),
+  clearFieldConfidence: (key) =>
+    set((state) => {
+      if (!(key in state.fieldConfidence)) return state;
+      const next = { ...state.fieldConfidence };
+      delete next[key];
+      return { fieldConfidence: next };
+    }),
   resetScanLoading: () =>
     set({
       scanLoading: {

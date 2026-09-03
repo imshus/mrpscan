@@ -2,7 +2,7 @@
   "expo": {
     "name": "MRPscan",
     "slug": "pratham",
-    "version": "1.0.161",
+    "version": "1.0.162",
     "orientation": "portrait",
     "icon": "./assets/images/app-logo.jpeg",
     "scheme": "pratham",
@@ -24,8 +24,8 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.amitaashitsolutions",
-      "versionCode": 162
+      "package": "com.mrpscan",
+      "versionCode": 163
     },
     "web": {
       "bundler": "metro",
@@ -45,15 +45,15 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Pratham to access your camera to scan jewellery tags.",
+          "cameraPermission": "Allow MRPscan to access your camera to scan jewellery tags.",
           "recordAudioAndroid": false
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Pratham to access your photos to upload jewellery tag images.",
-          "cameraPermission": "Allow Pratham to access your camera to scan jewellery tags."
+          "photosPermission": "Allow MRPscan to access your photos to upload jewellery tag images.",
+          "cameraPermission": "Allow MRPscan to access your camera to scan jewellery tags."
         }
       ],
       [

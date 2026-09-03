@@ -38,6 +38,8 @@ interface ScannerFinalTabProps {
   goldTaxSettings?: TaxSettings;
   mcxLiveRate?: number;
   diamondShapeOptions?: { value: string; label?: string }[];
+  /** Reader confidence per scanned field ("grossWeight", "diamonds.0.weight"). */
+  fieldConfidence?: Record<string, number>;
   editable?: boolean;
   canEditPurityPercent?: boolean;
   onFieldChange?: (field: keyof ScanItemData, value: ScanItemData[keyof ScanItemData]) => void;
@@ -56,6 +58,9 @@ interface ScannerFinalTabProps {
   onToggleClubColorstones?: (enabled: boolean) => void;
 }
 
+/** Below this reader confidence a scanned field is marked for the user to check. */
+const ATTENTION_BELOW = 80;
+
 export const ScannerFinalTab = memo(function ScannerFinalTab({
   scanData,
   structuredData,
@@ -67,6 +72,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
   goldTaxSettings,
   mcxLiveRate,
   diamondShapeOptions,
+  fieldConfidence,
   editable = false,
   canEditPurityPercent = true,
   onFieldChange,
@@ -93,6 +99,48 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
   const colorstoneBlocks = useMemo(
     () => colorstones.map((entry, index) => ({ entry, index })),
     [colorstones],
+  );
+
+  // Fields the reader was not sure of carry a "check" mark until the user
+  // has been through them (an edit clears the mark). Clubbed rows are
+  // computed totals and carry none.
+  const needsCheck = useCallback(
+    (key: string) => {
+      const confidence = fieldConfidence?.[key];
+      return typeof confidence === 'number' && confidence < ATTENTION_BELOW;
+    },
+    [fieldConfidence],
+  );
+  const rawMaterialAttention = useMemo(
+    () => ({
+      grossWt: needsCheck('grossWeight'),
+      netWt: needsCheck('netWeight'),
+      karat: needsCheck('karat'),
+    }),
+    [needsCheck],
+  );
+  const stoneAttention = useCallback(
+    (group: 'diamonds' | 'colorstones', index: number) => ({
+      shape: needsCheck(`${group}.${index}.shape`),
+      packetCode: needsCheck(`${group}.${index}.packetCode`),
+      color: needsCheck(`${group}.${index}.color`),
+      clarity: needsCheck(`${group}.${index}.clarity`),
+      weight: needsCheck(`${group}.${index}.weight`),
+      rate: needsCheck(`${group}.${index}.rate`),
+      pieces: needsCheck(`${group}.${index}.pieces`),
+    }),
+    [needsCheck],
+  );
+  const diamondAttention = useMemo(
+    () => diamondBlocks.map((block) => (clubDiamonds ? undefined : stoneAttention('diamonds', block.index))),
+    [diamondBlocks, clubDiamonds, stoneAttention],
+  );
+  const colorstoneAttention = useMemo(
+    () =>
+      colorstoneBlocks.map((block) =>
+        clubColorstones ? undefined : stoneAttention('colorstones', block.index),
+      ),
+    [colorstoneBlocks, clubColorstones, stoneAttention],
   );
 
   const handleKaratChange = useCallback(
@@ -193,6 +241,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
           calculationRateAccess={calculationRateAccess}
           editable
           canEditPurityPercent={canEditPurityPercent}
+          attention={rawMaterialAttention}
           onFieldChange={handleRawMaterialFieldChange}
         />
       ) : (
@@ -234,6 +283,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
               sequenceIndex={idx}
               values={block.entry}
               shapeOptions={diamondShapeOptions}
+              attention={diamondAttention[idx]}
               editable
               onChange={onStoneEntryChange}
               onRateErrorChange={onRateErrorChange}
@@ -266,6 +316,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
               entryIndex={block.index}
               sequenceIndex={diamondBlocks.length + idx}
               values={block.entry}
+              attention={colorstoneAttention[idx]}
               editable
               onChange={onStoneEntryChange}
               onRateErrorChange={onRateErrorChange}
