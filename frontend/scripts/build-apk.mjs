@@ -198,7 +198,7 @@ if (!existsSync(sourceApk)) {
 }
 
 const appConfig = JSON.parse(readFileSync(join(projectRoot, 'app.json'), 'utf8'));
-const appName = String(appConfig.expo?.slug ?? appConfig.expo?.name ?? 'app')
+const appName = String(appConfig.expo?.name ?? appConfig.expo?.slug ?? 'app')
   .trim()
   .replace(/[^a-z0-9._-]+/gi, '-');
 const version = String(appConfig.expo?.version ?? 'local');
