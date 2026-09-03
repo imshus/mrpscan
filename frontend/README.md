@@ -45,6 +45,7 @@ The command synchronizes the generated Android project, builds the release varia
 versioned ARM64 APK and SHA-256 checksum to `dist/android`. ARM64 covers current physical Android
 phones and avoids Windows' native-build path limit for legacy 32-bit targets. Override the target
 when needed, for example `$env:REACT_NATIVE_ARCHITECTURES='arm64-v8a,x86_64'` before running the
-build. The local release is signed with Expo's generated debug keystore and is intended for
-internal installation/testing. Use the EAS `production` profile for a Play Store app bundle signed
-with production credentials.
+build. When `credentials/upload.keystore` exists (git-ignored; keep it backed up), local APKs and
+`npm run build:aab` bundles are both signed with that Play upload key, so a phone can update between
+a sideloaded build and the Play build. Without it the APK falls back to Expo's debug keystore. The EAS
+`production` profile is the alternative when that Expo account is available.

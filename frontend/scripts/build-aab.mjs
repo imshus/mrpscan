@@ -14,6 +14,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { applyUploadSigning } from './apply-upload-signing.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, '..');
@@ -163,49 +164,7 @@ run(process.execPath, [expoCli, 'prebuild', '--platform', 'android', '--no-insta
 
 writeFileSync(join(androidRoot, 'local.properties'), `sdk.dir=${toGradlePath(androidSdk)}\n`);
 
-// Play Store uploads must be signed with the upload key, not Expo's debug
-// keystore. prebuild regenerates build.gradle, so the release signing config
-// is written into it here on every run (idempotent) from a git-ignored folder.
-const credentialsDir = join(projectRoot, 'credentials');
-const uploadProps = join(credentialsDir, 'upload-keystore.properties');
-if (!existsSync(uploadProps) || !existsSync(join(credentialsDir, 'upload.keystore'))) {
-  throw new Error(
-    `Missing upload key. Expected credentials/upload.keystore and credentials/upload-keystore.properties under ${projectRoot}`,
-  );
-}
-const buildGradlePath = join(androidRoot, 'app', 'build.gradle');
-let buildGradle = readFileSync(buildGradlePath, 'utf8');
-const marker = '// upload-key signing (build-aab.mjs)';
-if (!buildGradle.includes(marker)) {
-  const releaseSigning = [
-    `        ${marker}`,
-    '        release {',
-    "            def uploadPropsFile = rootProject.file('../credentials/upload-keystore.properties')",
-    '            def uploadProps = new Properties()',
-    '            uploadPropsFile.withInputStream { uploadProps.load(it) }',
-    "            storeFile rootProject.file('../credentials/' + uploadProps['storeFile'])",
-    "            storePassword uploadProps['storePassword']",
-    "            keyAlias uploadProps['keyAlias']",
-    "            keyPassword uploadProps['keyPassword']",
-    '        }',
-  ].join('\n');
-  const signingBlock = buildGradle.indexOf('signingConfigs {');
-  const debugBlockEnd = buildGradle.indexOf('        }\n', signingBlock);
-  if (signingBlock < 0 || debugBlockEnd < 0) throw new Error('Could not find signingConfigs in build.gradle');
-  const insertAt = debugBlockEnd + '        }\n'.length;
-  buildGradle = buildGradle.slice(0, insertAt) + releaseSigning + '\n' + buildGradle.slice(insertAt);
-  const releaseType = buildGradle.indexOf('release {', buildGradle.indexOf('buildTypes {'));
-  const debugSigningInRelease = buildGradle.indexOf('signingConfig signingConfigs.debug', releaseType);
-  if (releaseType < 0 || debugSigningInRelease < 0) throw new Error('Could not find the release buildType signing line');
-  buildGradle =
-    buildGradle.slice(0, debugSigningInRelease) +
-    'signingConfig signingConfigs.release' +
-    buildGradle.slice(debugSigningInRelease + 'signingConfig signingConfigs.debug'.length);
-  writeFileSync(buildGradlePath, buildGradle);
-  console.log('Release signing: upload key wired into android/app/build.gradle');
-} else {
-  console.log('Release signing: upload key already wired');
-}
+applyUploadSigning(projectRoot, { required: true });
 
 // Always regenerate the files that were left partially written by the failed
 // concurrent builds reported by Metro's source-map composer.
