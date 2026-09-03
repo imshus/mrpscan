@@ -136,7 +136,8 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
     clarity: values.clarity,
     shape: stoneType === 'diamond' ? resolvedShape : undefined,
     packetCode: stoneType === 'diamond' ? values.packetCode : undefined,
-    enabled: editable && hasLookupCriteria,
+    // The rate printed on the tag wins; the table only fills a row without one.
+    enabled: editable && hasLookupCriteria && !values.rate.trim(),
     onRateFetched: handleRateFetched,
   });
 
