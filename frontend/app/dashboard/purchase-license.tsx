@@ -123,7 +123,10 @@ export default function PurchaseLicenseScreen() {
         amount: order.amountInPaise,
         currency: 'INR',
         order_id: order.orderId,
-        name: 'MRP Scanner',
+        name: 'MRPscan',
+        // The business phone on file: fewer taps in the sheet, and Razorpay's
+        // risk checks see a consistent customer.
+        prefill: { contact: String(useAuthStore.getState().registration?.phone ?? '') },
         description: 'Application License Purchase',
         theme: { color: Colors.primary },
       });
