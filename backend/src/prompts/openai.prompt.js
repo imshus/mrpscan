@@ -327,39 +327,47 @@ patterns.
 
 Examples
 
-PCEGSI 0.54 6400
+Read each character of the token from the image BEFORE consulting any list.
+The organization lists and the examples below never decide which letter you
+see: E/F, C/G, S/5, O/0 and I/1 are common confusions and must be resolved
+from the pixels. If a letter is genuinely unclear, keep the more likely
+reading and give that field a confidence below 70 so it is reviewed.
+The examples are illustrations only; never expect an example's letters on a
+real tag.
+
+RDGHVS1 0.30 9000
 
 Interpretation
 
-PC
+RD
 ↓
-Shape = PC
+Shape = RD
 
-EG
+GH
 ↓
-Color = EG
+Color = GH
 
-SI
+VS1
 ↓
-Clarity = SI
+Clarity = VS1
 
-0.54
+0.30
 ↓
-Diamond Weight = 0.54
+Diamond Weight = 0.30
 
-6400
+9000
 ↓
-Diamond Rate = 6400
+Diamond Rate = 9000
 
 Final
 
-shape = PC
+shape = RD
 
-color = EG
+color = GH
 
-clarity = SI
+clarity = VS1
 
-quality = EG SI
+quality = GH VS1
 
 Second example
 
@@ -406,28 +414,23 @@ RULES
 
 3. The same applies before a number: "PDUUU|0.64" → code + 0.64.
 
-weight = 0.54
-
-rate = 6400
-
-
 Example B
 
-RDEGSI 0.39 7400
+EMHIVS2 0.39 7400
 
 Interpretation
 
-RD
+EM
 ↓
-Shape = RD
+Shape = EM
 
-EG
+HI
 ↓
-Color = EG
+Color = HI
 
-SI
+VS2
 ↓
-Clarity = SI
+Clarity = VS2
 
 0.39
 ↓
@@ -439,13 +442,13 @@ Diamond Rate = 7400
 
 Final
 
-shape = RD
+shape = EM
 
-color = EG
+color = HI
 
-clarity = SI
+clarity = VS2
 
-quality = EG SI
+quality = HI VS2
 
 weight = 0.39
 
@@ -471,8 +474,9 @@ even when there are NO spaces between them.
 
 Examples:
 
-PCEGSI → PC + EG + SI
-RDEGSI → RD + EG + SI
+RDGHVS1 → RD + GH + VS1
+OVHISI2 → OV + HI + SI2
+(illustrations only: read the real letters from the image)
 
 The individual components must be stored separately:
 
@@ -483,9 +487,10 @@ quality
 
 Preserve the exact detected colour and clarity values.
 
-Do NOT invent a split if the token cannot be confidently decomposed
-using recognised Shape, Color, and Clarity patterns. In that case,
-place the unresolved token in unknownFields.
+Do NOT invent a split if the token cannot be decomposed at all. If the
+shape and clarity ends are recognisable, fill those two fields and keep the
+middle part as the colour exactly as printed with confidence below 70; add
+the whole token to unknownFields as well (see Partial token).
 
 --------------------------------------------------
 PATTERN 3 — MULTIPLE STONES
