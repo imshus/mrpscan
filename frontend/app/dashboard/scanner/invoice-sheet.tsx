@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
@@ -206,6 +206,41 @@ export default function InvoiceSheetScreen() {
     { current: null },
   );
 
+  // The phone can make the PDF itself from the very HTML the preview shows,
+  // so no action has to wait for the remote render or a download. It is
+  // rendered ahead of time once the figures settle, and rendered again only
+  // if the server assigns a different number than the one previewed.
+  const localPdfRef = useRef<{ invoiceNumber: string; html: string; uri: string } | null>(null);
+  const renderPdfLocally = async (html: string, number: string): Promise<string | null> => {
+    try {
+      const document = `<!doctype html><html><head><meta charset="utf-8" /><style>html, body { margin: 0; padding: 0; background: #fff; }</style></head><body>${html}</body></html>`;
+      // A4 in PDF points.
+      const { uri } = await Print.printToFileAsync({ html: document, width: 595, height: 842 });
+      const named = `${FileSystem.cacheDirectory ?? ''}Invoice-${String(number).replace(/[^\w.-]+/g, '-')}.pdf`;
+      await FileSystem.deleteAsync(named, { idempotent: true });
+      await FileSystem.moveAsync({ from: uri, to: named });
+      return named;
+    } catch (error) {
+      console.warn('[Invoice] Local PDF render failed; using the server copy.', error);
+      return null;
+    }
+  };
+  useEffect(() => {
+    if (!previewHtml || invoiceNumber === '—') return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void renderPdfLocally(previewHtml, invoiceNumber).then((uri) => {
+        if (cancelled || !uri) return;
+        localPdfRef.current = { invoiceNumber, html: previewHtml, uri };
+      });
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewHtml, invoiceNumber]);
+
   const fetchPdfToCache = async () => {
     const result = await generateOnce();
     if (pdfCache.current && pdfCache.current.result.invoiceNumber === result.invoiceNumber) {
@@ -213,8 +248,34 @@ export default function InvoiceSheetScreen() {
       if (info.exists) return pdfCache.current;
     }
     const fileName = `Invoice-${String(result.invoiceNumber).replace(/[^\w.-]+/g, '-')}.pdf`;
+    // Local copy first: the one rendered ahead of time when the server kept
+    // the previewed number and the figures have not changed since; otherwise
+    // one rendered now from the same template with the assigned number.
+    const ready = localPdfRef.current;
+    let localUri: string | null =
+      ready && ready.invoiceNumber === result.invoiceNumber && ready.html === previewHtml
+        ? ready.uri
+        : null;
+    if (localUri) {
+      const info = await FileSystem.getInfoAsync(localUri);
+      if (!info.exists) localUri = null;
+    }
+    if (!localUri) {
+      const html =
+        result.invoiceNumber === invoiceNumber && previewHtml
+          ? previewHtml
+          : await fetchInvoicePreviewHtml({ ...invoicePayload, invoice_number: result.invoiceNumber }).catch(
+              () => null,
+            );
+      if (html) localUri = await renderPdfLocally(html, result.invoiceNumber);
+    }
+    if (localUri) {
+      const entry = { result, fileName, uri: localUri };
+      pdfCache.current = entry;
+      return entry;
+    }
+    // Server copy. The renderer answers 409/425 until the PDF is ready; poll instead of failing.
     const cached = `${FileSystem.cacheDirectory ?? ''}${fileName}`;
-    // The renderer answers 409/425 until the PDF is ready; poll instead of failing.
     let downloaded = await FileSystem.downloadAsync(resolveInvoicePdfUrl(result), cached);
     for (let attempt = 0; attempt < 30 && (downloaded.status === 409 || downloaded.status === 425); attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 600));
