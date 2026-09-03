@@ -318,13 +318,13 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
+      {/* The header stays put; only the market data scrolls beneath it. */}
+      <DashboardHeader />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <DashboardHeader />
-
         <View style={styles.cardsWrap}>
           {loading ? (
             <View style={styles.loadingWrap}>
