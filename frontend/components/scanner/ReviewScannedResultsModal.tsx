@@ -136,14 +136,16 @@ export function ReviewScannedResultsModal({
 
   const [karatDropdownMode, setKaratDropdownMode] = useState(false);
   // The Net Wt formula row was removed from the UI; the fallback still applies
-  // whenever the scan itself did not provide a net weight.
-  const [useNetWtFormula, setUseNetWtFormula] = useState(!scanData.netWt);
-  // The card can open before the analysis lands; decide again on the real
-  // data when it does, in place, so a field the user is typing in survives.
-  useEffect(() => {
-    if (!analysisPending) setUseNetWtFormula(!scanData.netWt);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysisPending]);
+  // whenever the scan itself did not provide a net weight. The card can open
+  // before the analysis lands, so the decision is made once, synchronously, on
+  // the first render that carries the result: a state-plus-effect version ran
+  // one commit late and let the fallback overwrite a net weight the tag had
+  // printed (gross minus not-yet-parsed stones, which is just gross).
+  const netWtDecisionRef = useRef<boolean | null>(null);
+  if (!analysisPending && netWtDecisionRef.current === null) {
+    netWtDecisionRef.current = !scanData.netWt;
+  }
+  const useNetWtFormula = !analysisPending && netWtDecisionRef.current === true;
 
   useEffect(() => {
     const resolved = resolveStoneEntryArrays(
