@@ -389,8 +389,13 @@ export function ReviewScannedResultsModal({
   }, [colorstoneEntries]);
 
   const handleStoneEntryChange = useCallback(
-    (stoneType: 'diamond' | 'colorstone', sourceIndex: number, values: Partial<StoneEntry>) => {
-      onStoneFieldEdited?.(stoneType, sourceIndex, Object.keys(values));
+    (
+      stoneType: 'diamond' | 'colorstone',
+      sourceIndex: number,
+      values: Partial<StoneEntry>,
+      fromUser = true,
+    ) => {
+      if (fromUser) onStoneFieldEdited?.(stoneType, sourceIndex, Object.keys(values));
       if (stoneType === 'diamond') {
         const nextDiamonds = updateStoneEntryAtIndex(
           diamondEntriesRef.current,

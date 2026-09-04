@@ -48,6 +48,8 @@ interface StoneTypeRowCardProps {
     stoneType: StoneKind,
     entryIndex: number,
     values: Partial<StoneTypeRowValues>,
+    /** False when the row changed itself, e.g. a rate arriving from the table. */
+    fromUser?: boolean,
   ) => void;
   onRateErrorChange?: (sequenceIndex: number, hasError: boolean) => void;
   shapeOptions?: { value: string; label?: string }[];
@@ -86,8 +88,8 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
 }: StoneTypeRowCardProps) {
   const labels = STONE_LABELS[stoneType];
   const emitChange = useCallback(
-    (next: Partial<StoneTypeRowValues>) => {
-      onChange?.(stoneType, entryIndex, next);
+    (next: Partial<StoneTypeRowValues>, fromUser = true) => {
+      onChange?.(stoneType, entryIndex, next, fromUser);
     },
     [onChange, stoneType, entryIndex],
   );
@@ -134,14 +136,16 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
 
   const handleRateFetched = useCallback(
     (fetchedRate: string) => {
+      // Not a user edit: the row asked the rate table and is writing down the
+      // answer, so the scanned value's check mark stays until someone looks.
       if (fetchedRate) {
-        emitChange({ rate: fetchedRate });
+        emitChange({ rate: fetchedRate }, false);
         return;
       }
       if (userTypedRateRef.current || !values.rate) return;
       // The table has no row for this grade: leaving the old rate in place
       // would price the stone off a grade it no longer has.
-      emitChange({ rate: '' });
+      emitChange({ rate: '' }, false);
     },
     [emitChange, values.rate],
   );
