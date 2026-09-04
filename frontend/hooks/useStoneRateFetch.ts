@@ -55,7 +55,7 @@ export function useStoneRateFetch({
     // the catch below swallowed.
     const hasLookupCriteria =
       type === 'diamond'
-        ? Boolean(trimmedPacketCode || (trimmedColor && trimmedClarity))
+        ? Boolean(trimmedPacketCode || trimmedShape || trimmedColor || trimmedClarity)
         : Boolean(trimmedColor && trimmedClarity);
 
     if (!hasLookupCriteria) {
@@ -114,7 +114,7 @@ export function useStoneRateFetch({
     const trimmedPacketCode = packetCode?.trim() ?? '';
     const hasLookupCriteria =
       type === 'diamond'
-        ? Boolean(trimmedPacketCode || (trimmedColor && trimmedClarity))
+        ? Boolean(trimmedPacketCode || trimmedShape || trimmedColor || trimmedClarity)
         : Boolean(trimmedColor && trimmedClarity);
 
     if (!hasLookupCriteria) {

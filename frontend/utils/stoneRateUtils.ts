@@ -69,6 +69,77 @@ export function findDuplicateStoneRate(
   );
 }
 
+function normalizedLookupKey(value: unknown): string {
+  return String(value ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function normalizedShapeKey(value: unknown): string {
+  const key = normalizedLookupKey(value);
+  return key === '0' || key === 'NONE' ? '' : key;
+}
+
+/**
+ * Finds the most specific configured diamond rate that the scanned fields can
+ * identify. Empty fields in a configured row act as wildcards, which mirrors
+ * the Diamond Rate form where packet code, shape, color and clarity are all
+ * individually optional.
+ */
+export function findMatchingDiamondRate(
+  rates: StoneRate[],
+  color: string,
+  clarity: string,
+  shape?: string,
+  packetCode?: string,
+): StoneRate | undefined {
+  const packetKey = normalizedLookupKey(packetCode);
+  if (packetKey) {
+    const packetMatch = rates.find(
+      (rate) => normalizedLookupKey(rate.packetCode) === packetKey,
+    );
+    if (packetMatch) return packetMatch;
+  }
+
+  const requested = {
+    color: normalizedLookupKey(color),
+    clarity: normalizedLookupKey(clarity),
+    shape: normalizedShapeKey(shape),
+  };
+  if (!requested.color && !requested.clarity && !requested.shape) return undefined;
+
+  return rates
+    .map((rate, index) => {
+      // Packet-specific rows must only be selected by their packet code.
+      if (normalizedLookupKey(rate.packetCode)) return null;
+
+      const configured = {
+        color: normalizedLookupKey(rate.color),
+        clarity: normalizedLookupKey(rate.clarity),
+        shape: normalizedShapeKey(rate.shape),
+      };
+      const fields = (['color', 'clarity', 'shape'] as const).filter(
+        (field) => configured[field],
+      );
+      if (
+        fields.length === 0 ||
+        fields.some((field) => !requested[field] || configured[field] !== requested[field])
+      ) {
+        return null;
+      }
+
+      // Prefer more specific rows. For equally specific rows, the traditional
+      // color + clarity grade wins, then a shape-qualified row.
+      const score =
+        fields.length * 100 +
+        (configured.color && configured.clarity ? 20 : 0) +
+        (configured.shape ? 10 : 0) +
+        (configured.color ? 2 : 0) +
+        (configured.clarity ? 1 : 0);
+      return { rate, score, index };
+    })
+    .filter((candidate): candidate is { rate: StoneRate; score: number; index: number } => !!candidate)
+    .sort((a, b) => b.score - a.score || a.index - b.index)[0]?.rate;
+}
+
 export function stoneRateSummary(rate: StoneRate): string {
   const parts = [
     displayStoneField(rate.packetCode ?? ''),

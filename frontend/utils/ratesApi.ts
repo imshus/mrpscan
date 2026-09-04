@@ -16,6 +16,7 @@ import type {
 } from '@/types/rates';
 import { apiRequest, ApiError } from '@/utils/apiClient';
 import { unwrapApiData } from '@/utils/apiResponse';
+import { findMatchingDiamondRate } from '@/utils/stoneRateUtils';
 
 type ApiEnvelope = Record<string, unknown> & {
   success?: boolean;
@@ -387,7 +388,23 @@ export async function lookupStoneRate(
       }
       return { rate };
     } catch (error) {
-      if (error instanceof ApiError && error.status === 404) {
+      if (error instanceof ApiError && (error.status === 400 || error.status === 404)) {
+        // Older API deployments require both color and clarity even though
+        // Diamond Rate setup permits any one of shape, color or clarity. Fall
+        // back to the rate list so partial configured rows work immediately.
+        try {
+          const rates = await fetchDiamondRates();
+          const match = findMatchingDiamondRate(
+            rates,
+            trimmedColor,
+            trimmedClarity,
+            trimmedShape,
+            trimmedPacketCode,
+          );
+          if (match) return { rate: match.rate };
+        } catch {
+          // Keep the endpoint's authoritative not-found result below.
+        }
         throw new RateNotFoundError(quality);
       }
       throw error;

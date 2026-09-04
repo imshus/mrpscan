@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 
 import { FormFieldGrid, FormFieldGridItem } from '@/components/scanner/FormFieldGrid';
 import { FormInput } from '@/components/scanner/FormInput';
@@ -8,6 +8,7 @@ import { QualityField } from '@/components/scanner/QualityField';
 import { RateField } from '@/components/scanner/RateField';
 import { DIAMOND_SHAPE_OPTIONS, type StoneSelectOption } from '@/constants/stoneRateOptions';
 import { useStoneRateFetch } from '@/hooks/useStoneRateFetch';
+import { parseNumericLabourValue } from '@/utils/labourUtils';
 import { buildQuality } from '@/utils/qualityUtils';
 
 export interface DiamondSectionValues {
@@ -41,12 +42,24 @@ export const DiamondSection = memo(function DiamondSection({
     values.packetCode?.trim() || values.shape.trim() || values.color.trim() || values.clarity.trim(),
   );
   const quality = buildQuality(values.color, values.clarity);
+  const tableRateRef = useRef<string | null>(null);
 
   const handleRateFetched = useCallback(
     (fetchedRate: string) => {
-      onChange({ rate: fetchedRate });
+      if (fetchedRate) {
+        tableRateRef.current = fetchedRate;
+        onChange({ rate: fetchedRate });
+        return;
+      }
+
+      // A table miss must not erase a rate that was actually read from the
+      // tag. Only clear a stale value that this lookup supplied itself.
+      if (tableRateRef.current && values.rate === tableRateRef.current) {
+        onChange({ rate: '' });
+      }
+      tableRateRef.current = null;
     },
-    [onChange],
+    [onChange, values.rate],
   );
 
   const { isFetching, rateNotFound } = useStoneRateFetch({
@@ -68,8 +81,9 @@ export const DiamondSection = memo(function DiamondSection({
   };
 
   useEffect(() => {
-    onRateErrorChange?.(rateNotFound);
-  }, [rateNotFound, onRateErrorChange]);
+    const rateValue = parseNumericLabourValue(values.rate) ?? 0;
+    onRateErrorChange?.(rateNotFound && rateValue <= 0);
+  }, [rateNotFound, values.rate, onRateErrorChange]);
 
   const inputsDisabled = disabled || isFetching;
   const dropdownOptions = (() => {
