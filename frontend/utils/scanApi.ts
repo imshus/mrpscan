@@ -172,12 +172,21 @@ export function extractFieldConfidence(raw: unknown): Record<string, number> {
   };
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if ((key === 'diamonds' || key === 'colorstones') && Array.isArray(value)) {
-      value.forEach((stone, index) => {
+      // Counted the way the card counts them: it drops stones with no values
+      // at all before rendering, so an empty stone ahead of a filled one would
+      // otherwise put every mark on the wrong row.
+      let position = 0;
+      value.forEach((stone) => {
         if (!stone || typeof stone !== 'object') return;
-        for (const [stoneKey, stoneValue] of Object.entries(stone as Record<string, unknown>)) {
-          const confidence = readField(stoneValue);
-          if (confidence != null) out[`${key}.${index}.${stoneKey}`] = confidence;
+        const entries = Object.entries(stone as Record<string, unknown>);
+        const confidences = entries
+          .map(([stoneKey, stoneValue]) => [stoneKey, readField(stoneValue)] as const)
+          .filter(([, confidence]) => confidence != null);
+        if (confidences.length === 0) return;
+        for (const [stoneKey, confidence] of confidences) {
+          out[`${key}.${position}.${stoneKey}`] = confidence as number;
         }
+        position += 1;
       });
       continue;
     }

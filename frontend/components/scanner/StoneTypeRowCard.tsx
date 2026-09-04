@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 
 import {
   MetalFieldSlot,
@@ -48,6 +48,8 @@ interface StoneTypeRowCardProps {
     stoneType: StoneKind,
     entryIndex: number,
     values: Partial<StoneTypeRowValues>,
+    /** False when the row changed itself, e.g. a rate arriving from the table. */
+    fromUser?: boolean,
   ) => void;
   onRateErrorChange?: (sequenceIndex: number, hasError: boolean) => void;
   shapeOptions?: { value: string; label?: string }[];
@@ -86,8 +88,8 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
 }: StoneTypeRowCardProps) {
   const labels = STONE_LABELS[stoneType];
   const emitChange = useCallback(
-    (next: Partial<StoneTypeRowValues>) => {
-      onChange?.(stoneType, entryIndex, next);
+    (next: Partial<StoneTypeRowValues>, fromUser = true) => {
+      onChange?.(stoneType, entryIndex, next, fromUser);
     },
     [onChange, stoneType, entryIndex],
   );
@@ -119,22 +121,33 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
       return true;
     });
   })();
+  // Matches what the server can answer: a packet code, or colour AND clarity.
   const hasLookupCriteria =
     stoneType === 'diamond'
       ? Boolean(
           values.packetCode?.trim() ||
-            resolvedShape.trim() ||
-            values.color.trim() ||
-            values.clarity.trim(),
+            (values.color.trim() && values.clarity.trim()),
         )
       : Boolean(values.color.trim() && values.clarity.trim());
 
+  // A rate the user typed is theirs; a rate that came from the table (or from
+  // the tag) is replaced by whatever the table says now, including nothing.
+  const userTypedRateRef = useRef(false);
+
   const handleRateFetched = useCallback(
     (fetchedRate: string) => {
-      if (!fetchedRate) return;
-      emitChange({ rate: fetchedRate });
+      // Not a user edit: the row asked the rate table and is writing down the
+      // answer, so the scanned value's check mark stays until someone looks.
+      if (fetchedRate) {
+        emitChange({ rate: fetchedRate }, false);
+        return;
+      }
+      if (userTypedRateRef.current || !values.rate) return;
+      // The table has no row for this grade: leaving the old rate in place
+      // would price the stone off a grade it no longer has.
+      emitChange({ rate: '' }, false);
     },
-    [emitChange],
+    [emitChange, values.rate],
   );
 
   // Fields stay editable while a lookup runs: flipping them to read-only
@@ -234,10 +247,13 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
         <MetalInput
           label={labels.rate}
           value={values.rate}
-          onChangeText={(text) => emitChange({ rate: text.replace(/[^0-9.]/g, '') })}
+          onChangeText={(text) => {
+            userTypedRateRef.current = true;
+            emitChange({ rate: text.replace(/[^0-9.]/g, '') });
+          }}
           editable={editable}
           keyboardType="decimal-pad"
-          attention={attention?.rate}
+          attention={attention?.rate || (rateNotFound && !values.rate)}
         />
         {stoneType === 'diamond' ? (
           <MetalInput

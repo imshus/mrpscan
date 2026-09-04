@@ -16,11 +16,12 @@ import { ApiError } from '@/utils/apiClient';
 import { syncFormulaStoreFromApi } from '@/utils/formulaSettingsApi';
 import {
   applyFormula2KaratConstraint,
+  readScannedKarat,
   resolveScannedKarat,
 } from '@/utils/formulaUtils';
 import { analyzeScan, completeDemoCapture, uploadBackImage, uploadFrontImage } from '@/utils/scanApi';
 import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
-import { structuredDataToScanItem } from '@/utils/scanMappers';
+import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
 import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 
 // Progress is driven by real milestones (upload done, analysis done, results
@@ -271,7 +272,10 @@ export default function ProcessingScreen() {
         ...DEFAULT_SCAN_ITEM,
         ...structuredDataToScanItem(flatData),
       });
-      const extractedKarat = resolveScannedKarat(adjustedScanData.karat, adjustedScanData.tunch);
+      // readScannedKarat is empty when the tag carried no karat and no
+      // fineness; resolveScannedKarat would have answered 14K here, so the
+      // difference between a reading and a default was invisible.
+      const extractedKarat = readScannedKarat(adjustedScanData.karat, adjustedScanData.tunch);
       const fallbackKarat = extractedKarat || '14K';
       adjustedScanData = { ...adjustedScanData, karat: fallbackKarat };
 
@@ -310,12 +314,44 @@ export default function ProcessingScreen() {
         setAnalysisPending(false);
         return;
       }
+      // The review card opens before this result arrives, so anything already
+      // set on it is a choice made here — the jewellery type, an employee's
+      // permitted rate, or a value typed into the card while it waited. The
+      // session was reset to DEFAULT_SCAN_ITEM before this scan, so a field
+      // that still holds its default is one nobody has touched.
+      let keptFields: string[] = [];
+      {
+        const chosen = useScannerStore.getState().scanData;
+        const kept: string[] = [];
+        for (const key of Object.keys(adjustedScanData) as (keyof ScanItemData)[]) {
+          const isDefault =
+            JSON.stringify(chosen[key]) === JSON.stringify(DEFAULT_SCAN_ITEM[key]);
+          if (isDefault) continue;
+          kept.push(key);
+          adjustedScanData = { ...adjustedScanData, [key]: chosen[key] };
+        }
+        if (kept.length) console.info('[SCAN_KEEPING_USER_VALUES]', { scanId, fields: kept });
+        keptFields = kept;
+      }
+
       setUnknownFields(result.unknownFields ?? []);
-      setStructuredData({ ...flatData, karat: fallbackKarat });
+      setStructuredData({ ...flatData, karat: adjustedScanData.karat });
       // A karat the tag did not print is a default, not a reading: mark it
       // so the review card asks the user to confirm it.
       const fieldConfidence = { ...(result.fieldConfidence ?? {}) };
-      if (!extractedKarat) fieldConfidence.karat = 0;
+      // Marked only when the tag carried no karat and nobody chose one: the
+      // 14K it shows is this app's default, not something read off the tag.
+      if (!extractedKarat && adjustedScanData.karat === fallbackKarat) {
+        fieldConfidence.karat = 0;
+      } else {
+        delete fieldConfidence.karat;
+      }
+      // A value the user typed is theirs, so it carries no doubt from the
+      // reader: marking it would ask them to check their own work.
+      for (const field of keptFields) {
+        const apiKey = apiKeyForScanField(field as keyof ScanItemData);
+        if (apiKey) delete fieldConfidence[apiKey];
+      }
       setFieldConfidence(fieldConfidence);
       updateScanData(adjustedScanData);
       setAnalysisPending(false);

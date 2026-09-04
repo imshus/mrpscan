@@ -319,8 +319,12 @@ export function ReviewScannedResultsModal({
   const hasRateError = Object.values(rateErrors).some(Boolean);
 
   useEffect(() => {
+    // Nothing to resolve until the tag's own karat is in: writing the 14K
+    // default into the store while the analysis is still running made that
+    // default look like a value someone had chosen.
+    if (analysisPending) return;
     const scannedKarat = resolveScannedKarat(scanData.karat, scanData.tunch) || '14K';
-    
+
     if (activeFormula === 'F2') {
       const { karat, requiresDropdown } = applyFormula2KaratConstraint(scannedKarat, formula2Rules);
       setKaratDropdownMode(requiresDropdown || !scannedKarat);
@@ -337,7 +341,19 @@ export function ReviewScannedResultsModal({
         onFieldChange('karat', scannedKarat);
       }
     }
-  }, [activeFormula, formula2Rules, scanData.karat, scanData.tunch, onFieldChange]);
+  }, [activeFormula, formula2Rules, scanData.karat, scanData.tunch, onFieldChange, analysisPending]);
+
+  // A net weight the user types ends the gross-minus-stones fallback; without
+  // this the effect below wrote its own figure back on every keystroke, so the
+  // field could not be corrected by hand. The effect keeps calling the raw
+  // onFieldChange, so it never disarms itself.
+  const handleUserFieldChange = useCallback(
+    (field: keyof ScanItemData, value: ScanItemData[keyof ScanItemData]) => {
+      if (field === 'netWt') netWtDecisionRef.current = false;
+      onFieldChange(field, value);
+    },
+    [onFieldChange],
+  );
 
   useEffect(() => {
     if (!useNetWtFormula) return;
@@ -373,8 +389,13 @@ export function ReviewScannedResultsModal({
   }, [colorstoneEntries]);
 
   const handleStoneEntryChange = useCallback(
-    (stoneType: 'diamond' | 'colorstone', sourceIndex: number, values: Partial<StoneEntry>) => {
-      onStoneFieldEdited?.(stoneType, sourceIndex, Object.keys(values));
+    (
+      stoneType: 'diamond' | 'colorstone',
+      sourceIndex: number,
+      values: Partial<StoneEntry>,
+      fromUser = true,
+    ) => {
+      if (fromUser) onStoneFieldEdited?.(stoneType, sourceIndex, Object.keys(values));
       if (stoneType === 'diamond') {
         const nextDiamonds = updateStoneEntryAtIndex(
           diamondEntriesRef.current,
@@ -473,7 +494,7 @@ export function ReviewScannedResultsModal({
           clubColorstones={scanData.clubColorstones}
           onToggleClubDiamonds={toggleDiamondClubbing}
           onToggleClubColorstones={toggleColorstoneClubbing}
-          onFieldChange={onFieldChange}
+          onFieldChange={handleUserFieldChange}
           onStoneEntryChange={handleStoneEntryChange}
           onRateErrorChange={handleStoneRateErrorChange}
         />

@@ -47,6 +47,7 @@ interface ScannerFinalTabProps {
     stoneType: 'diamond' | 'colorstone',
     sourceIndex: number,
     values: Partial<StoneEntry>,
+    fromUser?: boolean,
   ) => void;
   onRateErrorChange?: (sequenceIndex: number, hasError: boolean) => void;
   showLabourValidation?: boolean;
@@ -133,16 +134,22 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
     }),
     [needsCheck],
   );
+  // Keyed on how many rows there are, never on the rows themselves: rebuilding
+  // these on every keystroke handed every row a new prop and re-rendered the
+  // whole list, which is the pattern that used to eat typed characters.
   const diamondAttention = useMemo(
-    () => diamondBlocks.map((block) => (clubDiamonds ? undefined : stoneAttention('diamonds', block.index))),
-    [diamondBlocks, clubDiamonds, stoneAttention],
+    () =>
+      Array.from({ length: diamonds.length }, (_, index) =>
+        clubDiamonds ? undefined : stoneAttention('diamonds', index),
+      ),
+    [diamonds.length, clubDiamonds, stoneAttention],
   );
   const colorstoneAttention = useMemo(
     () =>
-      colorstoneBlocks.map((block) =>
-        clubColorstones ? undefined : stoneAttention('colorstones', block.index),
+      Array.from({ length: colorstones.length }, (_, index) =>
+        clubColorstones ? undefined : stoneAttention('colorstones', index),
       ),
-    [colorstoneBlocks, clubColorstones, stoneAttention],
+    [colorstones.length, clubColorstones, stoneAttention],
   );
 
   const handleKaratChange = useCallback(
