@@ -149,11 +149,12 @@ export function parseStoneArraysFromStructuredData(
   let diamonds = parseStoneArray(record.diamonds, 'diamond');
   let colorstones = parseStoneArray(record.colorstones, 'colorstone');
 
+  // A tag-wide packet code seeds the rows only while none of them carries one
+  // of its own. Filling in every empty row instead put the scanned code back
+  // the moment the user cleared it, and copied one row's code onto another.
   const globalPacketCode = typeof record.packetCode === 'string' ? record.packetCode.trim() : '';
-  if (globalPacketCode && diamonds.length > 0) {
-    diamonds = diamonds.map((entry) =>
-      entry.packetCode ? entry : { ...entry, packetCode: globalPacketCode },
-    );
+  if (globalPacketCode && diamonds.length > 0 && diamonds.every((entry) => !entry.packetCode)) {
+    diamonds = diamonds.map((entry) => ({ ...entry, packetCode: globalPacketCode }));
   }
 
   if (diamonds.length === 0 && scanData) {
@@ -338,7 +339,11 @@ export function stoneEntriesToStructuredData(
   if (flatFields.diamondQuality) result.diamondQuality = flatFields.diamondQuality;
   if (flatFields.diamondRate) result.diamondRate = flatFields.diamondRate;
   if (flatFields.diamondPieces) result.diamondPieces = flatFields.diamondPieces;
+  // Cleared on every row means cleared on the tag record too, otherwise the
+  // scanned code survives here and is seeded back into the rows on the next
+  // parse.
   if (flatFields.packetCode) result.packetCode = flatFields.packetCode;
+  else delete result.packetCode;
 
   if (flatFields.colorstoneWeight) result.colorstoneWeight = flatFields.colorstoneWeight;
   if (flatFields.colorstoneColor) result.colorstoneColor = flatFields.colorstoneColor;

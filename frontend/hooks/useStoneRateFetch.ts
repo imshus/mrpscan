@@ -50,9 +50,12 @@ export function useStoneRateFetch({
     const trimmedShapeRaw = shape?.trim() ?? '';
     const trimmedShape = trimmedShapeRaw.toLowerCase() === 'none' ? '' : trimmedShapeRaw;
     const trimmedPacketCode = packetCode?.trim() ?? '';
+    // What the server can actually answer: a packet code, or a colour AND a
+    // clarity. Asking with only a shape or only a colour returned 400, which
+    // the catch below swallowed.
     const hasLookupCriteria =
       type === 'diamond'
-        ? Boolean(trimmedPacketCode || trimmedShape || trimmedColor || trimmedClarity)
+        ? Boolean(trimmedPacketCode || (trimmedColor && trimmedClarity))
         : Boolean(trimmedColor && trimmedClarity);
 
     if (!hasLookupCriteria) {
@@ -83,12 +86,16 @@ export function useStoneRateFetch({
       if (requestId !== requestIdRef.current) return;
 
       if (error instanceof RateNotFoundError) {
+        // The rate table has no row for this grade. Saying so is the point:
+        // this used to be swallowed, so the row kept whatever rate it already
+        // had and the miss looked like a rate that would not update.
         setRate('');
         onRateFetchedRef.current?.('');
-        setRateNotFound(false);
+        setRateNotFound(true);
         return;
       }
 
+      // A transport failure is not evidence about the table; leave the row be.
       setRateNotFound(false);
     } finally {
       if (requestId === requestIdRef.current) {
@@ -107,7 +114,7 @@ export function useStoneRateFetch({
     const trimmedPacketCode = packetCode?.trim() ?? '';
     const hasLookupCriteria =
       type === 'diamond'
-        ? Boolean(trimmedPacketCode || trimmedShape || trimmedColor || trimmedClarity)
+        ? Boolean(trimmedPacketCode || (trimmedColor && trimmedClarity))
         : Boolean(trimmedColor && trimmedClarity);
 
     if (!hasLookupCriteria) {
