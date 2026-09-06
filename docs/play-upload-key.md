@@ -1,6 +1,6 @@
-# Play upload key for com.mrpscan
+# Play upload key for the Android app
 
-Play Console already holds an upload key for `com.mrpscan` from an earlier upload:
+Play Console already holds an upload key for the listing from an earlier upload:
 
 ```
 expected  SHA1: 0C:13:BA:3E:88:A0:DB:7B:4C:B6:7C:47:DD:85:6C:2B:EE:32:89:AA
