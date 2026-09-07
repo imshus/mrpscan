@@ -1,11 +1,12 @@
+import * as WebBrowser from 'expo-web-browser';
 import { Alert, Linking, Share } from 'react-native';
 
-/**
- * Support contact details are baked into the bundle at build time from
- * EXPO_PUBLIC_SUPPORT_EMAIL and EXPO_PUBLIC_SUPPORT_PHONE in .env.
- */
+/** Support address, baked in at build time from EXPO_PUBLIC_SUPPORT_EMAIL in .env. */
 export const SUPPORT_EMAIL = (process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? '').trim();
-export const SUPPORT_PHONE = (process.env.EXPO_PUBLIC_SUPPORT_PHONE ?? '').replace(/[^\d+]/g, '');
+
+/** The browser voice agent a customer talks to; EXPO_PUBLIC_VOICE_AGENT_URL overrides it. */
+export const VOICE_AGENT_URL =
+  (process.env.EXPO_PUBLIC_VOICE_AGENT_URL ?? '').trim() || 'https://voice.amitaash.com';
 
 const INVITE_URL = 'https://mrpscan.com';
 
@@ -28,16 +29,20 @@ export async function openSupportEmail(businessName?: string | null): Promise<vo
   }
 }
 
-/** Dials the customer care line. */
-export async function callSupport(): Promise<void> {
-  if (!SUPPORT_PHONE) {
-    Alert.alert('Customer care', 'The customer care number is not set up in this build yet.');
-    return;
-  }
+/**
+ * Opens the voice agent in an in-app browser tab. A browser tab rather than a
+ * WebView because the agent needs the microphone, and the browser handles
+ * that permission prompt itself.
+ */
+export async function talkToAgent(): Promise<void> {
   try {
-    await Linking.openURL(`tel:${SUPPORT_PHONE}`);
+    await WebBrowser.openBrowserAsync(VOICE_AGENT_URL);
   } catch {
-    Alert.alert('Cannot place the call', `Dial ${SUPPORT_PHONE} from your phone app.`);
+    try {
+      await Linking.openURL(VOICE_AGENT_URL);
+    } catch {
+      Alert.alert('Cannot open the agent', `Open ${VOICE_AGENT_URL} in your browser.`);
+    }
   }
 }
 

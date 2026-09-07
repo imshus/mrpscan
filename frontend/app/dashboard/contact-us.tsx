@@ -6,7 +6,7 @@ import { BottomNav } from '@/components/dashboard/BottomNav';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
-import { SUPPORT_EMAIL, SUPPORT_PHONE, callSupport, openSupportEmail } from '@/constants/support';
+import { SUPPORT_EMAIL, openSupportEmail, talkToAgent } from '@/constants/support';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { getBusinessProfile } from '@/utils/businessProfile';
@@ -33,8 +33,8 @@ export default function ContactUsScreen() {
     {
       id: 'call',
       title: 'Talk to an agent now',
-      subtitle: SUPPORT_PHONE ? `Customer care ${SUPPORT_PHONE}` : 'Customer care line',
-      onPress: () => void callSupport(),
+      subtitle: 'Customer care voice agent',
+      onPress: () => void talkToAgent(),
     },
   ];
 
