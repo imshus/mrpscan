@@ -33,7 +33,7 @@ export default function ContactUsScreen() {
     {
       id: 'call',
       title: 'Talk to Our Agent',
-      subtitle: 'Customer care voice agent',
+      subtitle: '',
       onPress: () => void talkToAgent(),
     },
   ];
