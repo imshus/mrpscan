@@ -1,21 +1,20 @@
 import * as WebBrowser from 'expo-web-browser';
 import { Alert, Linking } from 'react-native';
 
-/** Support address, baked in at build time from EXPO_PUBLIC_SUPPORT_EMAIL in .env. */
-export const SUPPORT_EMAIL = (process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? '').trim();
+/** Support inbox the "Email Us" row writes to; EXPO_PUBLIC_SUPPORT_EMAIL overrides it. */
+export const SUPPORT_EMAIL =
+  (process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? '').trim() || 'info@mrpscan.com';
+
+/** Subject line the support email opens with. */
+export const SUPPORT_EMAIL_SUBJECT = 'MRPscan:Amitaash IT Solutions Private Limited';
 
 /** The browser voice agent a customer talks to; EXPO_PUBLIC_VOICE_AGENT_URL overrides it. */
 export const VOICE_AGENT_URL =
   (process.env.EXPO_PUBLIC_VOICE_AGENT_URL ?? '').trim() || 'https://voice.amitaash.com';
 
-/**
- * Opens the phone's own email app on a new message, addressed to support
- * when an address is configured and left blank for the user to fill otherwise.
- */
-export async function openSupportEmail(businessName?: string | null): Promise<void> {
-  const subject = encodeURIComponent(
-    businessName ? `MRPscan support: ${businessName}` : 'MRPscan support',
-  );
+/** Opens the phone's own email app on a new message to the support inbox. */
+export async function openSupportEmail(): Promise<void> {
+  const subject = encodeURIComponent(SUPPORT_EMAIL_SUBJECT);
   try {
     await Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}`);
   } catch {

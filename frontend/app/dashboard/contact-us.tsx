@@ -8,8 +8,6 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
 import { SUPPORT_EMAIL, openSupportEmail, talkToAgent } from '@/constants/support';
 import { Colors } from '@/constants/theme';
-import { useAuthStore } from '@/store/authStore';
-import { getBusinessProfile } from '@/utils/businessProfile';
 
 interface ContactRow {
   id: string;
@@ -20,15 +18,12 @@ interface ContactRow {
 
 /** Laid out like Masters: the same header, list rows and bottom bar. */
 export default function ContactUsScreen() {
-  const registration = useAuthStore((s) => s.registration);
-  const profile = getBusinessProfile(registration);
-
   const rows: ContactRow[] = [
     {
       id: 'email',
       title: 'Email Us',
       subtitle: SUPPORT_EMAIL,
-      onPress: () => void openSupportEmail(profile.businessName),
+      onPress: () => void openSupportEmail(),
     },
     {
       id: 'call',
