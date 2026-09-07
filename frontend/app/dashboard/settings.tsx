@@ -6,8 +6,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { BusinessProfileBanner } from '@/components/settings/BusinessProfileBanner';
 import { screenStyles } from '@/constants/screenLayout';
-import type { SettingsMenuAction } from '@/constants/settingsData';
-import { shareInvite } from '@/constants/support';
 import { Colors, Spacing } from '@/constants/theme';
 import { useSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useAuthStore } from '@/store/authStore';
@@ -30,10 +28,6 @@ export default function SettingsScreen() {
   const logout = useAuthStore((s) => s.logout);
   const profile = getBusinessProfile(registration);
   const { visibleMenuItems } = useSettingsAccess();
-
-  const runAction = (action: SettingsMenuAction) => {
-    if (action === 'invite') void shareInvite();
-  };
 
   const handleLogout = () => {
     // Employees, inventory, purity and wishlist are stored per account (see
@@ -112,11 +106,7 @@ export default function SettingsScreen() {
               </>
             );
 
-            const onPress = item.route
-              ? () => router.push(item.route as Href)
-              : item.action
-                ? () => runAction(item.action as SettingsMenuAction)
-                : undefined;
+            const onPress = item.route ? () => router.push(item.route as Href) : undefined;
 
             if (onPress) {
               return (

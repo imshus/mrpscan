@@ -15,16 +15,12 @@ import {
   UserPlus,
 } from 'lucide-react-native';
 
-/** What a tile does when it has no screen of its own. */
-export type SettingsMenuAction = 'invite';
-
 export interface SettingsMenuItem {
   id: string;
   title: string;
   subtitle?: string;
   icon: LucideIcon;
   route?: string;
-  action?: SettingsMenuAction;
   isLogout?: boolean;
 }
 
@@ -69,10 +65,10 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     route: '/dashboard/contact-us',
   },
   {
+    // Earn & Invite has no screen or action yet; it is a plain tile for now.
     id: 'invite',
     title: 'Earn & Invite',
     icon: Gift,
-    action: 'invite',
   },
   {
     id: 'logout',
