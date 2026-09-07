@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { ChevronLeft, LogOut } from 'lucide-react-native';
@@ -6,10 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { BusinessProfileBanner } from '@/components/settings/BusinessProfileBanner';
-import { ContactUsSheet } from '@/components/settings/ContactUsSheet';
 import { screenStyles } from '@/constants/screenLayout';
 import type { SettingsMenuAction } from '@/constants/settingsData';
-import { SUPPORT_EMAIL, SUPPORT_PHONE, callSupport, openSupportEmail, shareInvite } from '@/constants/support';
+import { shareInvite } from '@/constants/support';
 import { Colors, Spacing } from '@/constants/theme';
 import { useSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useAuthStore } from '@/store/authStore';
@@ -32,14 +30,9 @@ export default function SettingsScreen() {
   const logout = useAuthStore((s) => s.logout);
   const profile = getBusinessProfile(registration);
   const { visibleMenuItems } = useSettingsAccess();
-  const [contactOpen, setContactOpen] = useState(false);
 
   const runAction = (action: SettingsMenuAction) => {
-    if (action === 'invite') {
-      void shareInvite();
-      return;
-    }
-    setContactOpen(true);
+    if (action === 'invite') void shareInvite();
   };
 
   const handleLogout = () => {
@@ -146,21 +139,6 @@ export default function SettingsScreen() {
           })}
         </View>
       </ScrollView>
-
-      <ContactUsSheet
-        visible={contactOpen}
-        email={SUPPORT_EMAIL}
-        phone={SUPPORT_PHONE}
-        onClose={() => setContactOpen(false)}
-        onEmail={() => {
-          setContactOpen(false);
-          void openSupportEmail(profile.businessName);
-        }}
-        onCall={() => {
-          setContactOpen(false);
-          void callSupport();
-        }}
-      />
 
       <BottomNav activeRoute="none" />
     </SafeAreaView>

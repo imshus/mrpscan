@@ -1,12 +1,8 @@
-import { Linking, Share } from 'react-native';
+import { Alert, Linking, Share } from 'react-native';
 
 /**
- * How a shop reaches MRPscan, and how it invites others.
- *
- * Both contact points come from the build's environment so they can be
- * changed without touching code: EXPO_PUBLIC_SUPPORT_EMAIL and
- * EXPO_PUBLIC_SUPPORT_PHONE in frontend/.env. Until they are set, the two
- * Contact Us options say so instead of doing nothing.
+ * Support contact details are baked into the bundle at build time from
+ * EXPO_PUBLIC_SUPPORT_EMAIL and EXPO_PUBLIC_SUPPORT_PHONE in .env.
  */
 export const SUPPORT_EMAIL = (process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? '').trim();
 export const SUPPORT_PHONE = (process.env.EXPO_PUBLIC_SUPPORT_PHONE ?? '').replace(/[^\d+]/g, '');
@@ -17,28 +13,31 @@ export const INVITE_MESSAGE =
   'I price jewellery straight from the tag with MRPscan: photograph the tag, ' +
   `get the MRP, print the bill. Try it: ${INVITE_URL}`;
 
-/** Opens the phone's mail app addressed to support, with the subject filled in. */
-export async function openSupportEmail(businessName?: string): Promise<boolean> {
-  if (!SUPPORT_EMAIL) return false;
+/**
+ * Opens the phone's own email app on a new message, addressed to support
+ * when an address is configured and left blank for the user to fill otherwise.
+ */
+export async function openSupportEmail(businessName?: string | null): Promise<void> {
   const subject = encodeURIComponent(
-    businessName ? `MRPscan support — ${businessName}` : 'MRPscan support',
+    businessName ? `MRPscan support: ${businessName}` : 'MRPscan support',
   );
   try {
     await Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}`);
-    return true;
   } catch {
-    return false;
+    Alert.alert('No email app', 'Set up an email app on this phone, then try again.');
   }
 }
 
-/** Opens the dialler on the customer care line. */
-export async function callSupport(): Promise<boolean> {
-  if (!SUPPORT_PHONE) return false;
+/** Dials the customer care line. */
+export async function callSupport(): Promise<void> {
+  if (!SUPPORT_PHONE) {
+    Alert.alert('Customer care', 'The customer care number is not set up in this build yet.');
+    return;
+  }
   try {
     await Linking.openURL(`tel:${SUPPORT_PHONE}`);
-    return true;
   } catch {
-    return false;
+    Alert.alert('Cannot place the call', `Dial ${SUPPORT_PHONE} from your phone app.`);
   }
 }
 

@@ -16,7 +16,7 @@ import {
 } from 'lucide-react-native';
 
 /** What a tile does when it has no screen of its own. */
-export type SettingsMenuAction = 'invite' | 'contact';
+export type SettingsMenuAction = 'invite';
 
 export interface SettingsMenuItem {
   id: string;
@@ -63,16 +63,16 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     route: '/dashboard/subscription-manager',
   },
   {
+    id: 'contact',
+    title: 'Contact Us',
+    icon: Headset,
+    route: '/dashboard/contact-us',
+  },
+  {
     id: 'invite',
     title: 'Earn & Invite',
     icon: Gift,
     action: 'invite',
-  },
-  {
-    id: 'contact',
-    title: 'Contact Us',
-    icon: Headset,
-    action: 'contact',
   },
   {
     id: 'logout',
