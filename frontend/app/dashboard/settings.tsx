@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { ChevronLeft, LogOut } from 'lucide-react-native';
@@ -5,7 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { BusinessProfileBanner } from '@/components/settings/BusinessProfileBanner';
+import { ContactUsSheet } from '@/components/settings/ContactUsSheet';
 import { screenStyles } from '@/constants/screenLayout';
+import type { SettingsMenuAction } from '@/constants/settingsData';
+import { SUPPORT_EMAIL, SUPPORT_PHONE, callSupport, openSupportEmail, shareInvite } from '@/constants/support';
 import { Colors, Spacing } from '@/constants/theme';
 import { useSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useAuthStore } from '@/store/authStore';
@@ -16,7 +20,11 @@ const ICON_ACCENTS: Record<string, { bg: string; color: string }> = {
   masters: { bg: Colors.diamondBg, color: Colors.diamond },
   employee: { bg: Colors.metalGoldBg, color: Colors.metalGold },
   subscription: { bg: Colors.dangerBg, color: Colors.brandDeep },
+  invite: { bg: Colors.metalGoldBg, color: Colors.metalGold },
+  contact: { bg: Colors.diamondBg, color: Colors.diamond },
 };
+
+const ICON_SIZE = 16;
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -24,6 +32,15 @@ export default function SettingsScreen() {
   const logout = useAuthStore((s) => s.logout);
   const profile = getBusinessProfile(registration);
   const { visibleMenuItems } = useSettingsAccess();
+  const [contactOpen, setContactOpen] = useState(false);
+
+  const runAction = (action: SettingsMenuAction) => {
+    if (action === 'invite') {
+      void shareInvite();
+      return;
+    }
+    setContactOpen(true);
+  };
 
   const handleLogout = () => {
     // Employees, inventory, purity and wishlist are stored per account (see
@@ -77,7 +94,7 @@ export default function SettingsScreen() {
                   style={styles.menuCard}
                 >
                   <View style={styles.logoutIconWrap}>
-                    <LogOut size={21} color={Colors.brandDeep} />
+                    <LogOut size={ICON_SIZE} color={Colors.brandDeep} />
                   </View>
                   <Text style={styles.logoutTitle}>{item.title}</Text>
                 </TouchableOpacity>
@@ -94,7 +111,7 @@ export default function SettingsScreen() {
                     accent ? { backgroundColor: accent.bg } : null,
                   ]}
                 >
-                  <Icon size={21} color={accent ? accent.color : Colors.textMuted} />
+                  <Icon size={ICON_SIZE} color={accent ? accent.color : Colors.textMuted} />
                 </View>
                 <View style={styles.menuTextWrap}>
                   <Text style={styles.menuTitle}>{item.title}</Text>
@@ -102,13 +119,19 @@ export default function SettingsScreen() {
               </>
             );
 
-            if (item.route) {
+            const onPress = item.route
+              ? () => router.push(item.route as Href)
+              : item.action
+                ? () => runAction(item.action as SettingsMenuAction)
+                : undefined;
+
+            if (onPress) {
               return (
                 <TouchableOpacity
                   key={item.id}
                   activeOpacity={0.9}
                   style={styles.menuCard}
-                  onPress={() => router.push(item.route as Href)}
+                  onPress={onPress}
                 >
                   {content}
                 </TouchableOpacity>
@@ -123,6 +146,21 @@ export default function SettingsScreen() {
           })}
         </View>
       </ScrollView>
+
+      <ContactUsSheet
+        visible={contactOpen}
+        email={SUPPORT_EMAIL}
+        phone={SUPPORT_PHONE}
+        onClose={() => setContactOpen(false)}
+        onEmail={() => {
+          setContactOpen(false);
+          void openSupportEmail(profile.businessName);
+        }}
+        onCall={() => {
+          setContactOpen(false);
+          void callSupport();
+        }}
+      />
 
       <BottomNav activeRoute="none" />
     </SafeAreaView>
@@ -150,37 +188,40 @@ const styles = StyleSheet.create({
   },
   menuList: {
     paddingHorizontal: Spacing.screenHorizontal,
-    marginTop: 22,
-    gap: Spacing.md,
+    marginTop: 18,
+    gap: Spacing.sm,
     paddingBottom: Spacing.lg,
   },
+  // Half the height the mockup's tiles had (82 → 42): a 30px icon disc with
+  // 6px above and below, and the list gap tightened to match.
   menuCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.white,
-    borderRadius: 18,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.lg,
-    gap: 14,
+    paddingVertical: 6,
+    paddingHorizontal: Spacing.md,
+    gap: 10,
     shadowColor: '#15120D',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 1,
   },
   iconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: Colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   logoutIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: Colors.dangerBg,
     alignItems: 'center',
     justifyContent: 'center',
@@ -189,14 +230,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   menuTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: Colors.textPrimary,
-    lineHeight: 20,
+    lineHeight: 18,
   },
   logoutTitle: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: Colors.brandDeep,
   },

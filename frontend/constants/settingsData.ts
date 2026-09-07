@@ -3,6 +3,8 @@ import {
   ClipboardCheck,
   Crown,
   FileText,
+  Gift,
+  Headset,
   IdCard,
   LayoutGrid,
   Lock,
@@ -13,12 +15,16 @@ import {
   UserPlus,
 } from 'lucide-react-native';
 
+/** What a tile does when it has no screen of its own. */
+export type SettingsMenuAction = 'invite' | 'contact';
+
 export interface SettingsMenuItem {
   id: string;
   title: string;
   subtitle?: string;
   icon: LucideIcon;
   route?: string;
+  action?: SettingsMenuAction;
   isLogout?: boolean;
 }
 
@@ -55,6 +61,18 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     title: 'Credits & Subscription',
     icon: Crown,
     route: '/dashboard/subscription-manager',
+  },
+  {
+    id: 'invite',
+    title: 'Earn & Invite',
+    icon: Gift,
+    action: 'invite',
+  },
+  {
+    id: 'contact',
+    title: 'Contact Us',
+    icon: Headset,
+    action: 'contact',
   },
   {
     id: 'logout',
