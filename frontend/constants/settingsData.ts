@@ -59,10 +59,10 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     route: '/dashboard/subscription-manager',
   },
   {
-    // Earn & Invite has no screen or action yet; it is a plain tile for now.
     id: 'invite',
     title: 'Earn & Invite',
     icon: Gift,
+    route: '/dashboard/earn-invite',
   },
   {
     id: 'contact',

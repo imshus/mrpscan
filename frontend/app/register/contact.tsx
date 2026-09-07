@@ -31,6 +31,7 @@ export default function ContactDetailsScreen() {
   const updateRegistration = useAuthStore((s) => s.updateRegistration);
 
   const [phone, setPhone] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,6 +57,7 @@ export default function ContactDetailsScreen() {
       await submitBusinessContactDetails({
         businessId: registration.businessId,
         phone,
+        referralCode,
       });
       router.push('/register/otp-phone');
     } catch (error) {
@@ -111,9 +113,18 @@ export default function ContactDetailsScreen() {
             </Reveal>
           </Animated.View>
 
+          <Reveal d={3}>
+            <AuthField
+              label="Referral code (optional)"
+              value={referralCode}
+              onChangeText={(text) => setReferralCode(text.toUpperCase().slice(0, 12))}
+              autoCapitalize="characters"
+            />
+          </Reveal>
+
           {formError ? <AuthErrorText>{formError}</AuthErrorText> : null}
 
-          <Reveal d={3}>
+          <Reveal d={4}>
             <AuthPrimaryButton
               title="Continue"
               onPress={handleContinue}
@@ -122,7 +133,7 @@ export default function ContactDetailsScreen() {
             />
           </Reveal>
 
-          <Reveal d={4}>
+          <Reveal d={5}>
             <AuthSwitch
               prompt="Already have an account?"
               linkText="Log In"

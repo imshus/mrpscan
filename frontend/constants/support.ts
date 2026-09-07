@@ -12,6 +12,16 @@ export const SUPPORT_EMAIL_SUBJECT = 'MRPscan:Amitaash IT Solutions Private Limi
 export const VOICE_AGENT_URL =
   (process.env.EXPO_PUBLIC_VOICE_AGENT_URL ?? '').trim() || 'https://voice.amitaash.com';
 
+const INVITE_URL = 'https://mrpscan.com';
+
+/** The message Earn & Invite shares, carrying the sender's referral code. */
+export function buildInviteMessage(referralCode: string): string {
+  return (
+    'You are invited to MRPscan — photograph a jewellery tag, get the MRP, ' +
+    `print the bill. Use my referral code ${referralCode} when you sign up: ${INVITE_URL}`
+  );
+}
+
 /** Opens the phone's own email app on a new message to the support inbox. */
 export async function openSupportEmail(): Promise<void> {
   const subject = encodeURIComponent(SUPPORT_EMAIL_SUBJECT);
