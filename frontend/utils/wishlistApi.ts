@@ -11,6 +11,7 @@ interface ApiWishlistItem {
   scanTimestamp: string;
   snapshot: WishlistItem['snapshot'];
   createdAt: string;
+  savedBy?: string | null;
 }
 
 interface AddWishlistPayload {
@@ -35,6 +36,7 @@ function mapApiItemToWishlistItem(raw: ApiWishlistItem): WishlistItem {
     addedAt: raw.createdAt,
     scanTimestamp: raw.scanTimestamp,
     snapshot: raw.snapshot,
+    savedBy: raw.savedBy ?? null,
   };
 }
 

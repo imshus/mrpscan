@@ -13,6 +13,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { scopedKey } from '@/utils/userScopedStorage';
+
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner';
@@ -96,7 +98,9 @@ interface HomeSnapshot {
 }
 async function readHomeSnapshot(): Promise<HomeSnapshot | null> {
   try {
-    const raw = await AsyncStorage.getItem(HOME_SNAPSHOT_KEY);
+    // One snapshot per signed-in account: the rows an employee sees are
+    // their own, and a shared phone must not paint another account's.
+    const raw = await AsyncStorage.getItem(scopedKey(HOME_SNAPSHOT_KEY));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as HomeSnapshot;
     return parsed && parsed.gold && Array.isArray(parsed.gold.rates) ? parsed : null;
@@ -105,7 +109,7 @@ async function readHomeSnapshot(): Promise<HomeSnapshot | null> {
   }
 }
 function writeHomeSnapshot(snapshot: HomeSnapshot): void {
-  AsyncStorage.setItem(HOME_SNAPSHOT_KEY, JSON.stringify(snapshot)).catch(() => {});
+  AsyncStorage.setItem(scopedKey(HOME_SNAPSHOT_KEY), JSON.stringify(snapshot)).catch(() => {});
 }
 
 export default function DashboardScreen() {

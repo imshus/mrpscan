@@ -30,4 +30,6 @@ export interface WishlistItem {
   /** ISO string – when the scan session was originally created */
   scanTimestamp: string;
   snapshot: WishlistItemSnapshot;
+  /** Who saved it, when it was someone other than the person viewing (the owner sees the whole shop's list). */
+  savedBy?: string | null;
 }

@@ -8,7 +8,6 @@ import { BusinessProfileBanner } from '@/components/settings/BusinessProfileBann
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Spacing } from '@/constants/theme';
 import { useSettingsAccess } from '@/hooks/useSettingsAccess';
-import { clearPersistedAppState } from '@/utils/clearAppState';
 import { useAuthStore } from '@/store/authStore';
 import { getBusinessProfile, formatProfileValue } from '@/utils/businessProfile';
 
@@ -27,11 +26,11 @@ export default function SettingsScreen() {
   const { visibleMenuItems } = useSettingsAccess();
 
   const handleLogout = () => {
+    // Employees, inventory, purity and wishlist are stored per account (see
+    // utils/userScopedStorage.ts), so nothing needs wiping: clearing the
+    // session switches the stores to the signed-out keys, and this account's
+    // data is waiting under its own keys the next time it signs in.
     logout();
-    // Employees, inventory, purity and wishlist are persisted per
-    // business, so drop them as well rather than leaking one account's
-    // data into the next.
-    void clearPersistedAppState();
     router.replace('/');
   };
 
