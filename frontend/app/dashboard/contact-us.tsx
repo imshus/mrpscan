@@ -26,13 +26,13 @@ export default function ContactUsScreen() {
   const rows: ContactRow[] = [
     {
       id: 'email',
-      title: 'Email us',
+      title: 'Email Us',
       subtitle: SUPPORT_EMAIL,
       onPress: () => void openSupportEmail(profile.businessName),
     },
     {
       id: 'call',
-      title: 'Talk to an agent now',
+      title: 'Talk to Our Agent',
       subtitle: 'Customer care voice agent',
       onPress: () => void talkToAgent(),
     },
