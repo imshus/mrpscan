@@ -104,6 +104,13 @@ export default function PasswordManagerScreen() {
                   {showCurrent ? <EyeOff size={20} color={Colors.textMuted} /> : <Eye size={20} color={Colors.textMuted} />}
                 </Pressable>
               </View>
+              <Pressable
+                onPress={() => router.push('/login/forgot-password')}
+                hitSlop={8}
+                style={styles.forgotLink}
+              >
+                <Text style={styles.forgotLinkText}>Forgot password?</Text>
+              </Pressable>
             </View>
 
             <View style={styles.inputGroup}>
@@ -224,6 +231,15 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     gap: Spacing.xs,
+  },
+  forgotLink: {
+    alignSelf: 'flex-end',
+    marginTop: 2,
+  },
+  forgotLinkText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.accentLink,
   },
   label: {
     fontSize: 13,
