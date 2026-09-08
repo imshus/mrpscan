@@ -323,9 +323,10 @@ const GALLERY_PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
   quality: 1, // == RawImageExporter on Android: byte copy, no re-encode. Do NOT lower.
   allowsEditing: false,
   exif: false, // was true; never read, costs an ExifInterface pass per pick
-  // The system Photo Picker is a separate process that cold-starts on every
-  // open; the legacy intent goes straight to the device gallery chooser.
-  legacy: true,
+  // System Photo Picker (Android 13+; expo falls back below that). The legacy
+  // intent used here before routed through the device's documents chooser,
+  // which took seconds to appear on the test phone; the photo picker opens on
+  // the recents grid and needs no storage permission prompt.
   base64: false,
   allowsMultipleSelection: false,
   selectionLimit: 1,

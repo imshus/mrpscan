@@ -24,13 +24,17 @@ import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
 import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
 import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 
-// The counter runs 0 to 100 showing every digit — one per tick, never a
-// jump — through five labelled sections of twenty digits each. It is a clock
-// for the hand-off window: 99 digits at TICK_MS spans EARLY_REVIEW_MS, and
-// the last digit lands as the review screen opens. When the analysis returns
-// early the remaining digits play as a quick sprint instead of a jump.
+// The counter runs 0 to 100 showing every digit through five labelled
+// sections of twenty digits each, pinned to the wall clock: the digit due at
+// any moment comes from elapsed time over the hand-off window, so a busy JS
+// thread can delay a frame but never stretch the whole count — it catches up
+// a couple of digits per frame instead. The last digit lands as the review
+// screen opens. When the analysis returns early the remaining digits play as
+// a quick sprint instead of a jump.
 // Billing is finalized server-side in the background and never blocks this.
-const TICK_MS = 30;
+const TICK_MS = 16;
+/** How many digits one frame may advance while catching up to the clock. */
+const MAX_DIGITS_PER_TICK = 2;
 /** Sprint pace after the analysis lands: still every digit, just quicker. */
 const FAST_TICK_MS = 8;
 const COMPLETE_HOLD_MS = 150;
@@ -191,12 +195,19 @@ export default function ProcessingScreen() {
       router.replace('/dashboard/scanner/review-results' as Href);
     }, EARLY_REVIEW_MS);
 
-    // The counter: one digit per tick, 0 to 99 across the hand-off window,
-    // section labels switching every twenty digits. The last digit lands
-    // when the review card opens or the analysis returns.
+    // The counter: the digit due now comes from elapsed wall-clock time, and
+    // each frame advances at most a couple of digits toward it — so the count
+    // is visible digit by digit yet always finishes on schedule, even when
+    // uploads keep the JS thread busy. Section labels switch every twenty
+    // digits. The last digit lands when the review card opens or the
+    // analysis returns.
     if (tickerRef.current) clearInterval(tickerRef.current);
     const ticker = setInterval(() => {
-      if (progressRef.current < 99) applyDigit(progressRef.current + 1);
+      const elapsed = Date.now() - scanStartRef.current;
+      const due = Math.min(99, Math.floor((elapsed / EARLY_REVIEW_MS) * 100));
+      if (due > progressRef.current) {
+        applyDigit(Math.min(due, progressRef.current + MAX_DIGITS_PER_TICK));
+      }
     }, TICK_MS);
     tickerRef.current = ticker;
 
