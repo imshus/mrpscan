@@ -15,6 +15,8 @@ import { ScanStage } from '@/types/scanner';
 type UnifiedScanLoaderProps = {
   progress: number;
   stage: ScanStage;
+  /** Section label from the counter; the stage's own wording fills in without it. */
+  message?: string;
 };
 
 function stageMessage(stage: ScanStage): string {
@@ -28,7 +30,7 @@ function stageMessage(stage: ScanStage): string {
  * Mockup `.proc-center` column: 96px spinner ring (`.proc-spinner`,
  * 1.1s linear infinite rotation), bold percent, stage label and sub text.
  */
-export function UnifiedScanLoader({ progress, stage }: UnifiedScanLoaderProps) {
+export function UnifiedScanLoader({ progress, stage, message }: UnifiedScanLoaderProps) {
   const percent = Math.max(0, Math.min(100, Math.round(progress)));
   const rotation = useSharedValue(0);
 
@@ -70,7 +72,7 @@ export function UnifiedScanLoader({ progress, stage }: UnifiedScanLoaderProps) {
       </Animated.View>
 
       <Text style={styles.percent}>{percent}%</Text>
-      <Text style={styles.stage}>{stageMessage(stage)}</Text>
+      <Text style={styles.stage}>{message || stageMessage(stage)}</Text>
       <Text style={styles.sub}>Please wait while the jewellery tag is being analysed.</Text>
     </View>
   );
