@@ -4,6 +4,7 @@ import { useBhawRates } from '@/hooks/useBhawRates';
 import {
   ActivityIndicator,
   Alert,
+  InteractionManager,
   ScrollView,
   StyleSheet,
   Text,
@@ -279,8 +280,14 @@ export default function DashboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // Only the very first paint gets the blocking loader.
-      void loadMarketData(!hasDataRef.current);
+      // Only the very first paint gets the blocking loader. The refresh waits
+      // for the navigation transition to finish so coming back from the scan
+      // flow never fetches rates and credits mid-animation — that contention
+      // made the page look stuck.
+      const task = InteractionManager.runAfterInteractions(() => {
+        void loadMarketData(!hasDataRef.current);
+      });
+      return () => task.cancel();
     }, [loadMarketData]),
   );
 

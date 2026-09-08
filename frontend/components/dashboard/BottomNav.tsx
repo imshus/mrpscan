@@ -30,11 +30,16 @@ export function BottomNav({ activeRoute = 'home', onHeightChange }: BottomNavPro
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+  // navigate, not replace: replace tore down the home screen on the way into
+  // the scanner, so coming Home rebuilt it from scratch — a spinner and a
+  // rates + credits refetch mid-transition that read as the page hanging.
+  // navigate pops back to the screen that is still alive, which is instant;
+  // its own focus effect refreshes the numbers in place.
   const handleScannerPress = () => {
     if (activeRoute === 'scanner') {
       return;
     }
-    router.replace('/dashboard/scanner' as Href);
+    router.navigate('/dashboard/scanner' as Href);
   };
 
   const homeColor = activeRoute === 'home' ? Colors.brandDeep : Colors.textMuted;
@@ -50,7 +55,7 @@ export function BottomNav({ activeRoute = 'home', onHeightChange }: BottomNavPro
       }
     >
       <View style={styles.navBar}>
-        <Pressable style={styles.navItem} onPress={() => router.replace('/dashboard')}>
+        <Pressable style={styles.navItem} onPress={() => router.navigate('/dashboard')}>
           <Home size={ICON_SIZE} color={homeColor} strokeWidth={2} />
           <Text style={[styles.navLabel, { color: homeColor }]}>Home</Text>
         </Pressable>
