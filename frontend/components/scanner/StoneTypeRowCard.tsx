@@ -121,33 +121,39 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
       return true;
     });
   })();
-  // Matches what the server can answer: a packet code, or colour AND clarity.
+  // Diamond Rate setup permits any one of packet code, shape, color or clarity.
   const hasLookupCriteria =
     stoneType === 'diamond'
       ? Boolean(
           values.packetCode?.trim() ||
-            (values.color.trim() && values.clarity.trim()),
+            resolvedShape ||
+            values.color.trim() ||
+            values.clarity.trim(),
         )
       : Boolean(values.color.trim() && values.clarity.trim());
 
-  // A rate the user typed is theirs; a rate that came from the table (or from
-  // the tag) is replaced by whatever the table says now, including nothing.
+  // A rate the user typed or the scanner read is theirs. Only a rate supplied
+  // by the table may be cleared by a later table miss.
   const userTypedRateRef = useRef(false);
+  const tableRateRef = useRef<string | null>(null);
 
   const handleRateFetched = useCallback(
     (fetchedRate: string) => {
       // Not a user edit: the row asked the rate table and is writing down the
-      // answer, so the scanned value's check mark stays until someone looks.
+      // answer without changing the reader-confidence metadata.
       if (fetchedRate) {
+        tableRateRef.current = fetchedRate;
         emitChange({ rate: fetchedRate }, false);
         return;
       }
+      const previousTableRate = tableRateRef.current;
+      tableRateRef.current = null;
       if (userTypedRateRef.current || !values.rate) return;
-      // The table has no row for this grade: leaving the old rate in place
-      // would price the stone off a grade it no longer has.
-      emitChange({ rate: '' }, false);
+      if (stoneType === 'colorstone' || values.rate === previousTableRate) {
+        emitChange({ rate: '' }, false);
+      }
     },
-    [emitChange, values.rate],
+    [emitChange, stoneType, values.rate],
   );
 
   // Fields stay editable while a lookup runs: flipping them to read-only
@@ -253,7 +259,9 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
           }}
           editable={editable}
           keyboardType="decimal-pad"
-          attention={attention?.rate || (rateNotFound && !values.rate)}
+          attention={
+            stoneType === 'colorstone' && (attention?.rate || (rateNotFound && !values.rate))
+          }
         />
         {stoneType === 'diamond' ? (
           <MetalInput

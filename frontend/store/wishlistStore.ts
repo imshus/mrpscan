@@ -1,8 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { WishlistItem } from '@/types/wishlist';
+import { registerUserScopedStore, userScopedStorage } from '@/utils/userScopedStorage';
 import {
   apiAddToWishlist,
   apiClearWishlist,
@@ -93,8 +93,11 @@ export const useWishlistStore = create<WishlistState>()(
     }),
     {
       name: 'pratham-wishlist',
-      storage: createJSONStorage(() => AsyncStorage),
+      // One list per signed-in account; see utils/userScopedStorage.ts.
+      storage: createJSONStorage(() => userScopedStorage),
     },
   ),
 );
+
+registerUserScopedStore(useWishlistStore);
 

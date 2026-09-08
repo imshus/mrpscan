@@ -4,6 +4,7 @@ import { useBhawRates } from '@/hooks/useBhawRates';
 import {
   ActivityIndicator,
   Alert,
+  InteractionManager,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +13,8 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { scopedKey } from '@/utils/userScopedStorage';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
@@ -96,7 +99,9 @@ interface HomeSnapshot {
 }
 async function readHomeSnapshot(): Promise<HomeSnapshot | null> {
   try {
-    const raw = await AsyncStorage.getItem(HOME_SNAPSHOT_KEY);
+    // One snapshot per signed-in account: the rows an employee sees are
+    // their own, and a shared phone must not paint another account's.
+    const raw = await AsyncStorage.getItem(scopedKey(HOME_SNAPSHOT_KEY));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as HomeSnapshot;
     return parsed && parsed.gold && Array.isArray(parsed.gold.rates) ? parsed : null;
@@ -105,7 +110,7 @@ async function readHomeSnapshot(): Promise<HomeSnapshot | null> {
   }
 }
 function writeHomeSnapshot(snapshot: HomeSnapshot): void {
-  AsyncStorage.setItem(HOME_SNAPSHOT_KEY, JSON.stringify(snapshot)).catch(() => {});
+  AsyncStorage.setItem(scopedKey(HOME_SNAPSHOT_KEY), JSON.stringify(snapshot)).catch(() => {});
 }
 
 export default function DashboardScreen() {
@@ -275,8 +280,14 @@ export default function DashboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // Only the very first paint gets the blocking loader.
-      void loadMarketData(!hasDataRef.current);
+      // Only the very first paint gets the blocking loader. The refresh waits
+      // for the navigation transition to finish so coming back from the scan
+      // flow never fetches rates and credits mid-animation — that contention
+      // made the page look stuck.
+      const task = InteractionManager.runAfterInteractions(() => {
+        void loadMarketData(!hasDataRef.current);
+      });
+      return () => task.cancel();
     }, [loadMarketData]),
   );
 

@@ -8,7 +8,6 @@ import { BusinessProfileBanner } from '@/components/settings/BusinessProfileBann
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Spacing } from '@/constants/theme';
 import { useSettingsAccess } from '@/hooks/useSettingsAccess';
-import { clearPersistedAppState } from '@/utils/clearAppState';
 import { useAuthStore } from '@/store/authStore';
 import { getBusinessProfile, formatProfileValue } from '@/utils/businessProfile';
 
@@ -17,7 +16,11 @@ const ICON_ACCENTS: Record<string, { bg: string; color: string }> = {
   masters: { bg: Colors.diamondBg, color: Colors.diamond },
   employee: { bg: Colors.metalGoldBg, color: Colors.metalGold },
   subscription: { bg: Colors.dangerBg, color: Colors.brandDeep },
+  invite: { bg: Colors.metalGoldBg, color: Colors.metalGold },
+  contact: { bg: Colors.diamondBg, color: Colors.diamond },
 };
+
+const ICON_SIZE = 16;
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -27,11 +30,11 @@ export default function SettingsScreen() {
   const { visibleMenuItems } = useSettingsAccess();
 
   const handleLogout = () => {
+    // Employees, inventory, purity and wishlist are stored per account (see
+    // utils/userScopedStorage.ts), so nothing needs wiping: clearing the
+    // session switches the stores to the signed-out keys, and this account's
+    // data is waiting under its own keys the next time it signs in.
     logout();
-    // Employees, inventory, purity and wishlist are persisted per
-    // business, so drop them as well rather than leaking one account's
-    // data into the next.
-    void clearPersistedAppState();
     router.replace('/');
   };
 
@@ -78,7 +81,7 @@ export default function SettingsScreen() {
                   style={styles.menuCard}
                 >
                   <View style={styles.logoutIconWrap}>
-                    <LogOut size={21} color={Colors.brandDeep} />
+                    <LogOut size={ICON_SIZE} color={Colors.brandDeep} />
                   </View>
                   <Text style={styles.logoutTitle}>{item.title}</Text>
                 </TouchableOpacity>
@@ -95,7 +98,7 @@ export default function SettingsScreen() {
                     accent ? { backgroundColor: accent.bg } : null,
                   ]}
                 >
-                  <Icon size={21} color={accent ? accent.color : Colors.textMuted} />
+                  <Icon size={ICON_SIZE} color={accent ? accent.color : Colors.textMuted} />
                 </View>
                 <View style={styles.menuTextWrap}>
                   <Text style={styles.menuTitle}>{item.title}</Text>
@@ -103,13 +106,15 @@ export default function SettingsScreen() {
               </>
             );
 
-            if (item.route) {
+            const onPress = item.route ? () => router.push(item.route as Href) : undefined;
+
+            if (onPress) {
               return (
                 <TouchableOpacity
                   key={item.id}
                   activeOpacity={0.9}
                   style={styles.menuCard}
-                  onPress={() => router.push(item.route as Href)}
+                  onPress={onPress}
                 >
                   {content}
                 </TouchableOpacity>
@@ -151,37 +156,40 @@ const styles = StyleSheet.create({
   },
   menuList: {
     paddingHorizontal: Spacing.screenHorizontal,
-    marginTop: 22,
-    gap: Spacing.md,
+    marginTop: 18,
+    gap: Spacing.sm,
     paddingBottom: Spacing.lg,
   },
+  // Half the height the mockup's tiles had (82 → 42): a 30px icon disc with
+  // 6px above and below, and the list gap tightened to match.
   menuCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.white,
-    borderRadius: 18,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.lg,
-    gap: 14,
+    paddingVertical: 6,
+    paddingHorizontal: Spacing.md,
+    gap: 10,
     shadowColor: '#15120D',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 1,
   },
   iconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: Colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   logoutIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: Colors.dangerBg,
     alignItems: 'center',
     justifyContent: 'center',
@@ -190,14 +198,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   menuTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: Colors.textPrimary,
-    lineHeight: 20,
+    lineHeight: 18,
   },
   logoutTitle: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: Colors.brandDeep,
   },

@@ -5,6 +5,7 @@ const LabourRate = require('../models/labourRate.model');
 const Employee = require('../models/employee.model');
 const { aggregateJewelleryMrp } = require('../services/pricingAggregation.service');
 const { assertScanAccess, toSessionContext } = require('../utils/scanAccess');
+const { settingsScope, findScopedSetting } = require('../services/userScope.service');
 
 const normalizeBool = (value) => {
   if (typeof value === 'boolean') return value;
@@ -86,12 +87,15 @@ const calculateMRP = async (req, res, next) => {
     const employeePromise = req.user?.role === 'EMP'
       ? Employee.findById(req.user.userId).select('permissions')
       : Promise.resolve(null);
-    const [liveRatesData, globalLabour, scanResolution, employee] = await Promise.all([
-      rateCalculationService.getLiveGoldRates(businessId),
-      LabourRate.findOne({ businessId }),
+    const [liveRatesData, globalLabourDoc, scanResolution, employee] = await Promise.all([
+      rateCalculationService.getLiveGoldRates(businessId, settingsScope(req.user)),
+      // The calculating account's own labour charge when saved, else the
+      // shop's; a stored NONE row means explicitly no labour charge.
+      findScopedSetting(LabourRate, settingsScope(req.user)),
       resolveScanForCalculation(scanId, sessionContext),
       employeePromise,
     ]);
+    const globalLabour = globalLabourDoc && globalLabourDoc.chargeType !== 'NONE' ? globalLabourDoc : null;
     const { resolvedScanId, scan } = scanResolution;
 
     // 1. Fetch live gold rates and purity percentages for this business

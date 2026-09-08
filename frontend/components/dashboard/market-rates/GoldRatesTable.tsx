@@ -44,7 +44,10 @@ export function GoldRatesTable({
     return null;
   }
 
-  const VisibilityIcon = visibilityAction === 'hide' ? Eye : EyeOff;
+  // Same convention as the password field's eye: a value that is showing
+  // carries the slashed eye (tap to hide), a hidden one the open eye (tap to
+  // view).
+  const VisibilityIcon = visibilityAction === 'hide' ? EyeOff : Eye;
 
   return (
     <View style={styles.table}>

@@ -24,21 +24,38 @@ import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
 import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
 import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 
-// Progress is driven by real milestones (upload done, analysis done, results
-// mapped). Between milestones the bar creeps asymptotically toward the next
-// milestone's floor so it keeps moving however long the backend takes.
+// The counter runs 0 to 100 showing every digit through five labelled
+// sections of twenty digits each, pinned to the wall clock: the digit due at
+// any moment comes from elapsed time over the hand-off window, so a busy JS
+// thread can delay a frame but never stretch the whole count — it catches up
+// a couple of digits per frame instead. The last digit lands as the review
+// screen opens. When the analysis returns early the remaining digits play as
+// a quick sprint instead of a jump.
 // Billing is finalized server-side in the background and never blocks this.
-const TICK_MS = 50;
+const TICK_MS = 16;
+/** How many digits one frame may advance while catching up to the clock. */
+const MAX_DIGITS_PER_TICK = 2;
+/** Sprint pace after the analysis lands: still every digit, just quicker. */
+const FAST_TICK_MS = 8;
 const COMPLETE_HOLD_MS = 150;
 /** The review screen opens after this long even if the analysis is still running. */
 const EARLY_REVIEW_MS = 3000;
 
-type ProgressSegment = { floor: number; ceiling: number; expectedMs: number; startedAt: number };
-const SEGMENTS = {
-  uploading: { floor: 0, ceiling: 40, expectedMs: 2500 },
-  analyzing: { floor: 40, ceiling: 90, expectedMs: 7000 },
-  finalizing: { floor: 90, ceiling: 98, expectedMs: 800 },
-} as const;
+/** The five sections of the counter; a digit belongs to the last one it reached. */
+const SECTIONS = [
+  { from: 0, stage: ScanStage.Uploading, message: 'Uploading Tags...' },
+  { from: 20, stage: ScanStage.AIProcessing, message: 'Reading the Tag...' },
+  { from: 40, stage: ScanStage.AIProcessing, message: 'Analysing Details...' },
+  { from: 60, stage: ScanStage.PreparingResults, message: 'Calculating Price...' },
+  { from: 80, stage: ScanStage.PreparingResults, message: 'Loading Scanned Results...' },
+] as const;
+
+const sectionFor = (digit: number) => {
+  for (let i = SECTIONS.length - 1; i >= 0; i -= 1) {
+    if (digit >= SECTIONS[i].from) return SECTIONS[i];
+  }
+  return SECTIONS[0];
+};
 
 export default function ProcessingScreen() {
   const router = useRouter();
@@ -55,9 +72,7 @@ export default function ProcessingScreen() {
   const setFieldConfidence = useScannerStore((s) => s.setFieldConfidence);
   const resetScanLoading = useScannerStore((s) => s.resetScanLoading);
   const progressRef = useRef(0);
-  const stageRef = useRef<ScanStage | null>(null);
   const analysisRunKeyRef = useRef<string | null>(null);
-  const segmentRef = useRef<ProgressSegment>({ ...SEGMENTS.uploading, startedAt: Date.now() });
   const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // The review screen opens after EARLY_REVIEW_MS whether or not the analysis
   // has returned; these track whether that hand-off already happened.
@@ -98,33 +113,37 @@ export default function ProcessingScreen() {
     progressRef.current = scanLoading.progress;
   }, [scanLoading.progress]);
 
-  const setProgress = useCallback(
+  /** Advances the counter to `value`, carrying its section's stage and label along. */
+  const applyDigit = useCallback(
     (value: number) => {
       const bounded = Math.max(0, Math.min(100, Math.round(value)));
-      const current = progressRef.current;
-      if (bounded <= current) return;
+      if (bounded <= progressRef.current) return;
       progressRef.current = bounded;
-      setScanLoading({ progress: bounded });
+      const section = sectionFor(bounded);
+      setScanLoading({ progress: bounded, stage: section.stage, message: section.message });
     },
     [setScanLoading],
   );
 
-  const setStage = useCallback(
-    (stage: ScanStage, message: string) => {
-      if (stageRef.current === stage) return;
-      stageRef.current = stage;
-      setScanLoading({ stage, message });
-    },
-    [setScanLoading],
-  );
-
-  const enterSegment = useCallback(
-    (segment: { floor: number; ceiling: number; expectedMs: number }, stage: ScanStage, message: string) => {
-      segmentRef.current = { ...segment, startedAt: Date.now() };
-      setProgress(segment.floor);
-      setStage(stage, message);
-    },
-    [setProgress, setStage],
+  /** Plays the remaining digits to 100 quickly — every digit, no jump. */
+  const sprintToHundred = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        if (progressRef.current >= 100) {
+          resolve();
+          return;
+        }
+        const sprint = setInterval(() => {
+          applyDigit(progressRef.current + 1);
+          if (progressRef.current >= 100) {
+            clearInterval(sprint);
+            if (tickerRef.current === sprint) tickerRef.current = null;
+            resolve();
+          }
+        }, FAST_TICK_MS);
+        tickerRef.current = sprint;
+      }),
+    [applyDigit],
   );
 
   // Stop the ticker if the screen unmounts mid-run so nothing writes to the
@@ -157,13 +176,11 @@ export default function ProcessingScreen() {
 
     resetScanLoading();
     progressRef.current = 0;
-    stageRef.current = null;
     console.info('[LOADER_PROGRESS]', { scanId, progress: 0, timestamp: Date.now(), stage: 'upload_init' });
-    setScanLoading({ progress: 0 });
+    setScanLoading({ progress: 0, stage: SECTIONS[0].stage, message: SECTIONS[0].message });
     scanStartRef.current = Date.now();
     navigatedRef.current = false;
     setAnalysisPending(true);
-    enterSegment(SEGMENTS.uploading, ScanStage.Uploading, 'Uploading Tags...');
 
     // Hand over to the review screen at the deadline; the OCR keeps running
     // behind it and fills the card in when it lands. The bar completes here
@@ -174,18 +191,23 @@ export default function ProcessingScreen() {
       if (navigatedRef.current) return;
       if (useScannerStore.getState().scanId !== scanId) return;
       navigatedRef.current = true;
-      setProgress(100);
-      setStage(ScanStage.Completed, 'Loading Scanned Results...');
+      applyDigit(100);
       router.replace('/dashboard/scanner/review-results' as Href);
     }, EARLY_REVIEW_MS);
 
-    // Even climb over the hand-off window: the bar is a clock for how long the
-    // user waits on this screen and reaches 100 as the review card opens. The
-    // milestones below still drive the stage message.
+    // The counter: the digit due now comes from elapsed wall-clock time, and
+    // each frame advances at most a couple of digits toward it — so the count
+    // is visible digit by digit yet always finishes on schedule, even when
+    // uploads keep the JS thread busy. Section labels switch every twenty
+    // digits. The last digit lands when the review card opens or the
+    // analysis returns.
     if (tickerRef.current) clearInterval(tickerRef.current);
     const ticker = setInterval(() => {
       const elapsed = Date.now() - scanStartRef.current;
-      setProgress(Math.min(99, (elapsed / EARLY_REVIEW_MS) * 100));
+      const due = Math.min(99, Math.floor((elapsed / EARLY_REVIEW_MS) * 100));
+      if (due > progressRef.current) {
+        applyDigit(Math.min(due, progressRef.current + MAX_DIGITS_PER_TICK));
+      }
     }, TICK_MS);
     tickerRef.current = ticker;
 
@@ -227,7 +249,6 @@ export default function ProcessingScreen() {
 
       console.info('[LOADER_PROGRESS]', { scanId, timestamp: Date.now(), stage: 'upload_done' });
       uploadDoneRef.current = Date.now();
-      enterSegment(SEGMENTS.analyzing, ScanStage.AIProcessing, 'Processing Tag Details...');
       console.info('[ANALYZE_REQUEST_START]', {
         scanId,
         timestamp: Date.now(),
@@ -260,7 +281,6 @@ export default function ProcessingScreen() {
         timestamp: Date.now(),
       });
       analyzeDoneRef.current = Date.now();
-      enterSegment(SEGMENTS.finalizing, ScanStage.PreparingResults, 'Loading Scanned Results...');
       // Billing now completes server-side in the background: `pending` is the
       // normal fast-path response; `billed` covers older backends.
       if (!isDemoScanMode() && !result.billing?.billed && !result.billing?.pending) {
@@ -358,8 +378,9 @@ export default function ProcessingScreen() {
 
       clearInterval(ticker);
       tickerRef.current = null;
-      setProgress(100);
-      setStage(ScanStage.Completed, 'Loading Scanned Results...');
+      // The analysis is back: play the remaining digits rather than jumping.
+      await sprintToHundred();
+      setScanLoading({ stage: ScanStage.Completed });
       // The split the review screen shows: where this scan's seconds went.
       {
         const done = Date.now();
@@ -417,9 +438,8 @@ export default function ProcessingScreen() {
     router,
     resetScanLoading,
     setScanLoading,
-    setProgress,
-    setStage,
-    enterSegment,
+    applyDigit,
+    sprintToHundred,
     applyClientFormulaRules,
     setUnknownFields,
     setStructuredData,
@@ -444,7 +464,11 @@ export default function ProcessingScreen() {
         <Rect x="0" y="0" width="100%" height="100%" fill="url(#procBg)" />
       </Svg>
       <SafeAreaView style={styles.center}>
-        <UnifiedScanLoader progress={scanLoading.progress} stage={scanLoading.stage} />
+        <UnifiedScanLoader
+          progress={scanLoading.progress}
+          stage={scanLoading.stage}
+          message={scanLoading.message}
+        />
       </SafeAreaView>
     </View>
   );

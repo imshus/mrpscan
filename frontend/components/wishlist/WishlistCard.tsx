@@ -64,6 +64,7 @@ export function WishlistCard({ item, onPress, onDelete }: WishlistCardProps) {
 
       <Text style={styles.timestamp}>
         {formatWishlistTimestamp(item.scanTimestamp || item.addedAt)}
+        {item.savedBy ? `  ·  Saved by ${item.savedBy}` : ''}
       </Text>
     </Pressable>
   );

@@ -176,7 +176,7 @@ export function MetalGrid({ children }: { children: ReactNode }) {
 interface MetalFieldSlotProps {
   label: string;
   fullWidth?: boolean;
-  /** The reader was not sure of this scanned value: a "check" tag beside the label. */
+  /** Retained for callers that provide confidence metadata; no visual marker is shown. */
   attention?: boolean;
   children: ReactNode;
 }
@@ -185,15 +185,11 @@ interface MetalFieldSlotProps {
 export function MetalFieldSlot({
   label,
   fullWidth = false,
-  attention = false,
   children,
 }: MetalFieldSlotProps) {
   return (
     <View style={[styles.metalField, fullWidth && styles.metalFieldFull]}>
-      <View style={styles.metalFieldLabelRow}>
-        <Text style={styles.metalFieldLabel}>{label}</Text>
-        {attention ? <Text style={styles.metalFieldCheck}>check</Text> : null}
-      </View>
+      <Text style={styles.metalFieldLabel}>{label}</Text>
       {children}
     </View>
   );
@@ -210,7 +206,7 @@ interface MetalInputProps {
   /** .input-icon prefix (e.g. ₹). */
   prefix?: string;
   fullWidth?: boolean;
-  /** The reader was not sure of this scanned value: amber field, "check" tag. */
+  /** Retained for callers that provide confidence metadata; no visual marker is shown. */
   attention?: boolean;
   onFocus?: ComponentProps<typeof TextInput>['onFocus'];
   onBlur?: ComponentProps<typeof TextInput>['onBlur'];
@@ -225,7 +221,6 @@ export function MetalInput({
   amount = false,
   prefix,
   fullWidth,
-  attention = false,
   onFocus,
   onBlur,
 }: MetalInputProps) {
@@ -245,13 +240,12 @@ export function MetalInput({
       style={[
         prefix ? styles.inputIconInput : styles.metalInput,
         !prefix && amount && styles.metalInputAmount,
-        !prefix && attention && styles.metalInputAttention,
       ]}
     />
   );
 
   return (
-    <MetalFieldSlot label={label} fullWidth={fullWidth} attention={attention}>
+    <MetalFieldSlot label={label} fullWidth={fullWidth}>
       {prefix ? (
         <View style={styles.inputIcon}>
           <Text style={styles.inputIconPrefix}>{prefix}</Text>
@@ -536,25 +530,6 @@ const styles = StyleSheet.create({
     fontSize: 17.6,
     fontWeight: '900',
     height: 42,
-  },
-  // A scanned value the reader was not sure of: amber until the user has
-  // looked at it or typed over it.
-  metalInputAttention: {
-    borderColor: '#D97706',
-    backgroundColor: '#FFFBEB',
-  },
-  metalFieldLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  metalFieldCheck: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: '#B45309',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 4,
   },
   metalInputBox: {
     width: '100%',

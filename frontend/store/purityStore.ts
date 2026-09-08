@@ -1,8 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { DEFAULT_PURITY_ITEMS } from '@/constants/purityData';
+import { registerUserScopedStore, userScopedStorage } from '@/utils/userScopedStorage';
 import type { PurityItem } from '@/constants/purityData';
 
 interface PurityState {
@@ -26,7 +26,10 @@ export const usePurityStore = create<PurityState>()(
     }),
     {
       name: 'pratham-purity',
-      storage: createJSONStorage(() => AsyncStorage),
+      // Kept per signed-in account; see utils/userScopedStorage.ts.
+      storage: createJSONStorage(() => userScopedStorage),
     }
   )
 );
+
+registerUserScopedStore(usePurityStore);

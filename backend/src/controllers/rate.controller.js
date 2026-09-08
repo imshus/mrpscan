@@ -5,7 +5,19 @@ const ColorstoneRate = require('../models/colorstoneRate.model');
 const LabourRate = require('../models/labourRate.model');
 const GoldTaxSetting = require('../models/goldTaxSetting.model');
 const { getLiveGoldRates } = require('../services/rateCalculation.service');
+const { findDiamondRateMatch } = require('../services/diamondRateLookup.service');
 const redisService = require('../services/redis.service');
+const {
+  settingsScope,
+  findScopedSetting,
+  upsertScopedSetting,
+  findScopedRows,
+  materializeOwnRows,
+  resolveScopedRowById,
+} = require('../services/userScope.service');
+
+const DIAMOND_KEY_FIELDS = ['color', 'clarity', 'shape', 'packetCode'];
+const COLORSTONE_KEY_FIELDS = ['color', 'clarity'];
 const {
   addPromptCustomization,
   getPromptCustomizations,
@@ -96,14 +108,17 @@ const updateGoldRate = async (req, res) => {
   try {
     const { carat, purity, increaseByAmount, increaseByType } = req.body;
     const businessId = req.user.businessId;
+    const scope = settingsScope(req.user);
     const normalizedCarat = normalizeCarat(carat);
 
     if (!normalizedCarat || purity == null) {
       return res.status(400).json({ success: false, message: 'Carat and purity are required' });
     }
 
+    // An employee's first gold edit copies the shop's table for them.
+    await materializeOwnRows(GoldRate, scope);
     const goldRate = await GoldRate.findOneAndUpdate(
-      { businessId, carat: normalizedCarat },
+      { businessId, userId: scope.userId ?? null, carat: normalizedCarat },
       {
         $set: {
           carat: normalizedCarat,
@@ -119,7 +134,7 @@ const updateGoldRate = async (req, res) => {
     await redisService.invalidateGoldRatesCache(businessId.toString());
 
     // Return computed shape (with finalRate/mcxRate/cashRate/rtgsRate) expected by frontend
-    const live = await getLiveGoldRates(businessId);
+    const live = await getLiveGoldRates(businessId, settingsScope(req.user));
     const updatedComputed = Array.isArray(live?.karatRates)
       ? live.karatRates.find((row) => row.carat === normalizedCarat)
       : null;
@@ -135,37 +150,40 @@ const updateGoldRateVisibility = async (req, res) => {
   try {
     const { carat, id, hidden } = req.body;
     const businessId = req.user.businessId;
+    const scope = settingsScope(req.user);
 
     if (hidden == null) {
       return res.status(400).json({ success: false, message: 'Hidden flag is required' });
     }
 
-    let query = { businessId };
+    await materializeOwnRows(GoldRate, scope);
+
+    let target = null;
     if (id) {
-      query = { ...query, _id: id };
+      // The id the client shows may still be a shop row the employee was
+      // inheriting; resolve it into their own copy by carat.
+      target = await resolveScopedRowById(GoldRate, scope, id, ['carat']);
     } else if (carat) {
       const normalizedCarat = normalizeCarat(carat);
       if (!normalizedCarat) {
         return res.status(400).json({ success: false, message: 'Valid carat is required' });
       }
-      query = { ...query, carat: normalizedCarat };
+      target = await GoldRate.findOne({ businessId, userId: scope.userId ?? null, carat: normalizedCarat });
     } else {
       return res.status(400).json({ success: false, message: 'Carat or id is required' });
     }
 
-    const updated = await GoldRate.findOneAndUpdate(
-      query,
-      { $set: { isHidden: !!hidden } },
-      { new: true }
-    );
-
-    if (!updated) {
+    if (!target) {
       return res.status(404).json({ success: false, message: 'Gold rate not found' });
     }
 
+    target.isHidden = !!hidden;
+    await target.save();
+    const updated = target;
+
     await redisService.invalidateGoldRatesCache(businessId.toString());
 
-    const live = await getLiveGoldRates(businessId);
+    const live = await getLiveGoldRates(businessId, settingsScope(req.user));
     const updatedComputed = Array.isArray(live?.karatRates)
       ? live.karatRates.find((row) => row.carat === updated.carat)
       : null;
@@ -180,8 +198,9 @@ const updateGoldRateVisibility = async (req, res) => {
 const getGoldRates = async (req, res) => {
   try {
     const businessId = req.user.businessId;
-    // Uses the "Supreme Truth Engine" which orchestrates MongoDB + Redis + Live Math
-    const data = await getLiveGoldRates(businessId);
+    // Uses the "Supreme Truth Engine" which orchestrates MongoDB + Redis + Live Math,
+    // against this account's own rate settings when it has saved any.
+    const data = await getLiveGoldRates(businessId, settingsScope(req.user));
     
     // Keep all fields inside a single data envelope so frontend unwrapApiData preserves them.
     res.status(200).json({
@@ -203,8 +222,8 @@ const getGoldRates = async (req, res) => {
 
 const getGoldTaxSettings = async (req, res) => {
   try {
-    const businessId = req.user.businessId;
-    let taxSettings = await GoldTaxSetting.findOne({ businessId });
+    // The employee's own adjustments when they have saved any, else the shop's.
+    let taxSettings = await findScopedSetting(GoldTaxSetting, settingsScope(req.user));
     if (!taxSettings) {
       taxSettings = {
         mcxChange: { operation: '+', amount: 0 },
@@ -238,13 +257,10 @@ const updateGoldTaxSettings = async (req, res) => {
     if (cashChangeBy !== undefined) updateData.cashChangeBy = cashChangeBy;
     if (scannerCalculationUse) updateData.scannerCalculationUse = scannerCalculationUse === 'cash' ? 'cash' : 'rtgs';
 
-    const taxSettings = await GoldTaxSetting.findOneAndUpdate(
-      { businessId },
-      { $set: updateData },
-      { new: true, upsert: true }
-    );
+    // The owner writes the shop's adjustments; an employee writes their own.
+    const taxSettings = await upsertScopedSetting(GoldTaxSetting, settingsScope(req.user), updateData);
 
-    // Invalidate Cache since base rate logic changed
+    // Invalidate Cache since base rate logic changed, for every account of the business
     await redisService.invalidateGoldRatesCache(businessId.toString());
 
     res.status(200).json({ success: true, data: taxSettings });
@@ -259,6 +275,7 @@ const addOrUpdateDiamondRate = async (req, res) => {
   try {
     const { id, color, clarity, rate, shape, packetCode } = req.body;
     const businessId = req.user.businessId;
+    const scope = settingsScope(req.user);
 
     const trimmedColor = typeof color === 'string' ? color.trim() : '';
     const trimmedClarity = typeof clarity === 'string' ? clarity.trim() : '';
@@ -312,25 +329,33 @@ const addOrUpdateDiamondRate = async (req, res) => {
       }
     }
 
+    // An employee's first diamond edit copies the shop's table for them.
+    await materializeOwnRows(DiamondRate, scope);
+
     if (id && mongoose.Types.ObjectId.isValid(id)) {
-      const updated = await DiamondRate.findOneAndUpdate(
-        { _id: id, businessId },
-        {
-          rate,
-          shape: normalizedShape,
-          color: normalizedColor,
-          clarity: normalizedClarity,
-          packetCode: normalizedPacketCode,
-        },
-        { new: true }
-      );
+      // The id may still point at a shop row the employee was inheriting;
+      // resolve it into the row in their own copy.
+      const target = await resolveScopedRowById(DiamondRate, scope, id, DIAMOND_KEY_FIELDS);
+      const updated = target
+        ? await DiamondRate.findOneAndUpdate(
+            { _id: target._id },
+            {
+              rate,
+              shape: normalizedShape,
+              color: normalizedColor,
+              clarity: normalizedClarity,
+              packetCode: normalizedPacketCode,
+            },
+            { new: true }
+          )
+        : null;
 
       if (!updated) {
         return res.status(404).json({ success: false, message: 'Diamond rate not found' });
       }
 
       if (normalizedPacketCode) {
-        const packetCodes = await DiamondRate.find({ businessId, packetCode: { $ne: '' } })
+        const packetCodes = await DiamondRate.find({ businessId, userId: scope.userId ?? null, packetCode: { $ne: '' } })
           .select('packetCode')
           .lean();
         const packetCustomization = {
@@ -352,9 +377,10 @@ const addOrUpdateDiamondRate = async (req, res) => {
     }
 
     const baseQuery = normalizedPacketCode
-      ? { businessId, packetCode: normalizedPacketCode }
+      ? { businessId, userId: scope.userId ?? null, packetCode: normalizedPacketCode }
       : {
           businessId,
+          userId: scope.userId ?? null,
           color: normalizedColor,
           clarity: normalizedClarity,
         };
@@ -381,7 +407,7 @@ const addOrUpdateDiamondRate = async (req, res) => {
     );
 
     if (normalizedPacketCode) {
-      const packetCodes = await DiamondRate.find({ businessId, packetCode: { $ne: '' } })
+      const packetCodes = await DiamondRate.find({ businessId, userId: scope.userId ?? null, packetCode: { $ne: '' } })
         .select('packetCode')
         .lean();
       const packetCustomization = {
@@ -414,8 +440,8 @@ const addOrUpdateDiamondRate = async (req, res) => {
 const getDiamondRates = async (req, res) => {
   try {
     console.log('[RATE] GET /rates/diamond hit by user:', req.user?.businessId);
-    const businessId = req.user.businessId;
-    const rates = await DiamondRate.find({ businessId });
+    // The employee's own table when they have one, else the shop's.
+    const rates = await findScopedRows(DiamondRate, settingsScope(req.user));
     res.status(200).json({ success: true, data: rates });
   } catch (error) {
     console.error('Get Diamond Rates Error:', error);
@@ -442,50 +468,15 @@ const lookupDiamondRate = async (req, res) => {
         .json({ success: false, message: 'At least one of packet code, shape, color or clarity is required' });
     }
 
-    if (!normalizedPacketCode && !(trimmedColor && trimmedClarity)) {
-      return res
-        .status(400)
-        .json({ success: false, message: 'Color and clarity are required when packet code is missing' });
-    }
-
-    // Format-tolerant matching: scanner output ("IJ", "VSSI", "RD") must match
-    // configured rows regardless of case, spaces, or hyphens ("ij", "VS-SI").
-    const normKey = (value) => String(value ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const normShapeKey = (value) => {
-      const key = normKey(value);
-      return key === '0' || key === 'NONE' ? '' : key;
-    };
-
-    const rows = await DiamondRate.find({ businessId }).lean();
-
-    let match = null;
-    if (normalizedPacketCode) {
-      const packetKey = normKey(normalizedPacketCode);
-      match = rows.find((row) => normKey(row.packetCode) === packetKey);
-    }
-    // A packet code the table does not know cannot pin a row. Fall back to
-    // colour + clarity when the tag printed them: a labour code such as
-    // LBR-850 landing in the packet-code field used to block the lookup and
-    // answer 404 although a colour/clarity row existed.
-    if (!match && trimmedColor && trimmedClarity) {
-      const colorKey = normKey(trimmedColor);
-      const clarityKey = normKey(trimmedClarity);
-      const candidates = rows.filter(
-        (row) => normKey(row.color) === colorKey && normKey(row.clarity) === clarityKey,
-      );
-      const requestedShapeKey = normShapeKey(normalizedShape);
-      if (requestedShapeKey) {
-        // Prefer the exact shape; fall back to a shape-agnostic row.
-        match =
-          candidates.find((row) => normShapeKey(row.shape) === requestedShapeKey) ||
-          candidates.find((row) => !normShapeKey(row.shape));
-      } else {
-        // No shape requested: shape-agnostic row, or the single candidate.
-        match =
-          candidates.find((row) => !normShapeKey(row.shape)) ||
-          (candidates.length === 1 ? candidates[0] : null);
-      }
-    }
+    const rows = (await findScopedRows(DiamondRate, settingsScope(req.user))).map((doc) =>
+      typeof doc.toObject === 'function' ? doc.toObject() : doc,
+    );
+    const match = findDiamondRateMatch(rows, {
+      color: trimmedColor,
+      clarity: trimmedClarity,
+      shape: normalizedShape,
+      packetCode: normalizedPacketCode,
+    });
 
     if (!match) {
       console.warn('[DIAMOND_RATE_LOOKUP_MISS]', {
@@ -508,8 +499,12 @@ const lookupDiamondRate = async (req, res) => {
 const deleteDiamondRate = async (req, res) => {
   try {
     const { id } = req.params;
-    const businessId = req.user.businessId;
-    await DiamondRate.findOneAndDelete({ _id: id, businessId });
+    const scope = settingsScope(req.user);
+    // An employee deleting from an inherited table first gets their own copy,
+    // then the matching row of that copy is removed.
+    await materializeOwnRows(DiamondRate, scope);
+    const target = await resolveScopedRowById(DiamondRate, scope, id, DIAMOND_KEY_FIELDS);
+    if (target) await DiamondRate.deleteOne({ _id: target._id });
     res.status(200).json({ success: true, message: 'Deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -522,6 +517,7 @@ const addOrUpdateColorstoneRate = async (req, res) => {
   try {
     const { color, clarity, rate } = req.body;
     const businessId = req.user.businessId;
+    const scope = settingsScope(req.user);
 
     const trimmedColor = typeof color === 'string' ? color.trim() : '';
     const trimmedClarity = typeof clarity === 'string' ? clarity.trim() : '';
@@ -549,8 +545,10 @@ const addOrUpdateColorstoneRate = async (req, res) => {
       promptUpdated = promptUpdated || added;
     }
 
+    // An employee's first colorstone edit copies the shop's table for them.
+    await materializeOwnRows(ColorstoneRate, scope);
     const colorstoneRate = await ColorstoneRate.findOneAndUpdate(
-      { businessId, color: trimmedColor, clarity: trimmedClarity },
+      { businessId, userId: scope.userId ?? null, color: trimmedColor, clarity: trimmedClarity },
       { rate },
       { new: true, upsert: true }
     );
@@ -573,8 +571,8 @@ const addOrUpdateColorstoneRate = async (req, res) => {
 
 const getColorstoneRates = async (req, res) => {
   try {
-    const businessId = req.user.businessId;
-    const rates = await ColorstoneRate.find({ businessId });
+    // The employee's own table when they have one, else the shop's.
+    const rates = await findScopedRows(ColorstoneRate, settingsScope(req.user));
     res.status(200).json({ success: true, data: rates });
   } catch (error) {
     console.error('Get Colorstone Rates Error:', error);
@@ -585,8 +583,10 @@ const getColorstoneRates = async (req, res) => {
 const deleteColorstoneRate = async (req, res) => {
   try {
     const { id } = req.params;
-    const businessId = req.user.businessId;
-    await ColorstoneRate.findOneAndDelete({ _id: id, businessId });
+    const scope = settingsScope(req.user);
+    await materializeOwnRows(ColorstoneRate, scope);
+    const target = await resolveScopedRowById(ColorstoneRate, scope, id, COLORSTONE_KEY_FIELDS);
+    if (target) await ColorstoneRate.deleteOne({ _id: target._id });
     res.status(200).json({ success: true, message: 'Deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -597,9 +597,10 @@ const deleteColorstoneRate = async (req, res) => {
 
 const getLabourRate = async (req, res) => {
   try {
-    const businessId = req.user.businessId;
-    const labourRate = await LabourRate.findOne({ businessId });
-    res.status(200).json({ success: true, data: labourRate ?? null });
+    // The employee's own charge when they have saved one, else the shop's.
+    // A stored NONE row is an explicit "no labour charge" and reads as null.
+    const labourRate = await findScopedSetting(LabourRate, settingsScope(req.user));
+    res.status(200).json({ success: true, data: labourRate && labourRate.chargeType !== 'NONE' ? labourRate : null });
   } catch (error) {
     console.error('Get Labour Rate Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -610,6 +611,8 @@ const upsertLabourRate = async (req, res) => {
   try {
     const { chargeType, value, rupeesUnit, weightBasis } = req.body;
     const businessId = req.user.businessId;
+    const scope = settingsScope(req.user);
+    const scopedQuery = { businessId, userId: scope.userId ?? null };
 
     if (!chargeType) {
       return res.status(400).json({
@@ -619,7 +622,13 @@ const upsertLabourRate = async (req, res) => {
     }
 
     if (chargeType === 'NONE') {
-      await LabourRate.findOneAndDelete({ businessId });
+      // Stored rather than deleted: an employee's deleted row would fall back
+      // to the shop's charge, which is not what "no labour charge" means.
+      await LabourRate.findOneAndUpdate(
+        scopedQuery,
+        { $set: { chargeType: 'NONE', value: 0 }, $unset: { rupeesUnit: 1 } },
+        { new: true, upsert: true, setDefaultsOnInsert: true },
+      );
       return res.status(200).json({ success: true, data: null });
     }
 
@@ -678,7 +687,7 @@ const upsertLabourRate = async (req, res) => {
     }
 
     const labourRate = await LabourRate.findOneAndUpdate(
-      { businessId },
+      scopedQuery,
       updateData,
       { new: true, upsert: true },
     );

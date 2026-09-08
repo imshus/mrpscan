@@ -3,6 +3,8 @@ import {
   ClipboardCheck,
   Crown,
   FileText,
+  Gift,
+  Headset,
   IdCard,
   LayoutGrid,
   Lock,
@@ -55,6 +57,18 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     title: 'Credits & Subscription',
     icon: Crown,
     route: '/dashboard/subscription-manager',
+  },
+  {
+    id: 'invite',
+    title: 'Earn & Invite',
+    icon: Gift,
+    route: '/dashboard/earn-invite',
+  },
+  {
+    id: 'contact',
+    title: 'Contact Us',
+    icon: Headset,
+    route: '/dashboard/contact-us',
   },
   {
     id: 'logout',

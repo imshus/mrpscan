@@ -176,6 +176,17 @@ const generatedBundleFiles = [
 ];
 generatedBundleFiles.forEach((path) => rmSync(path, { force: true }));
 
+// Autolinking caches the app's package name (android/build/generated/
+// autolinking/autolinking.json) and generates an entry point that imports
+// <package>.BuildConfig from it. Gradle treats both as up to date across an
+// applicationId change, so a rename fails to compile with "package com.<old>
+// does not exist" until they go. Both are regenerated on every build, so
+// removing them always costs nothing.
+[
+  join(androidRoot, 'build', 'generated', 'autolinking'),
+  join(androidRoot, 'app', 'build', 'generated', 'autolinking'),
+].forEach((path) => rmSync(path, { recursive: true, force: true }));
+
 if (isWindows) {
   // Absolute path: with NoDefaultCurrentDirectoryInExePath set, cmd won't resolve a bare gradlew.bat from cwd.
   run(process.env.ComSpec ?? 'cmd.exe', [

@@ -2,7 +2,7 @@
   "expo": {
     "name": "MRPscan",
     "slug": "pratham",
-    "version": "1.0.164",
+    "version": "1.0.173",
     "orientation": "portrait",
     "icon": "./assets/images/app-logo.jpeg",
     "scheme": "pratham",
@@ -24,8 +24,8 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.mrpscan",
-      "versionCode": 165
+      "package": "com.amitaashitsolution",
+      "versionCode": 174
     },
     "web": {
       "bundler": "metro",

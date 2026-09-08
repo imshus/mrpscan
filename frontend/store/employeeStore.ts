@@ -1,8 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { Employee } from '@/types/employee';
+import { registerUserScopedStore, userScopedStorage } from '@/utils/userScopedStorage';
 
 interface EmployeeState {
   employees: Employee[];
@@ -45,7 +45,10 @@ export const useEmployeeStore = create<EmployeeState>()(
     }),
     {
       name: 'pratham-employees',
-      storage: createJSONStorage(() => AsyncStorage),
+      // Cached per signed-in account; see utils/userScopedStorage.ts.
+      storage: createJSONStorage(() => userScopedStorage),
     }
   )
 );
+
+registerUserScopedStore(useEmployeeStore);

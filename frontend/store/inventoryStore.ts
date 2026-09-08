@@ -1,8 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { InventoryFile } from '@/types/inventory';
+import { registerUserScopedStore, userScopedStorage } from '@/utils/userScopedStorage';
 
 interface InventoryState {
   files: InventoryFile[];
@@ -28,7 +28,10 @@ export const useInventoryStore = create<InventoryState>()(
     }),
     {
       name: 'pratham-inventory',
-      storage: createJSONStorage(() => AsyncStorage),
+      // Kept per signed-in account; see utils/userScopedStorage.ts.
+      storage: createJSONStorage(() => userScopedStorage),
     }
   )
 );
+
+registerUserScopedStore(useInventoryStore);

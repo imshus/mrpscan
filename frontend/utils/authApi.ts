@@ -165,12 +165,15 @@ export async function confirmBusinessGst(gstNumber: string): Promise<{ businessI
 export async function submitBusinessContactDetails(payload: {
   businessId: string;
   phone: string;
+  referralCode?: string;
 }): Promise<void> {
+  const referralCode = payload.referralCode?.trim().toUpperCase();
   const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/business/contact-details', {
     method: 'POST',
     body: {
       businessId: payload.businessId,
       phone: payload.phone.replace(/\D/g, ''),
+      ...(referralCode ? { referralCode } : {}),
     },
   });
   const unwrapped = unwrapEnvelope(response);

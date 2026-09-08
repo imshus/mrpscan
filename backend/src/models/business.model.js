@@ -58,6 +58,27 @@ const businessSchema = new mongoose.Schema({
   bankAccountNumber: { type: String, default: '' },
   bankIfsc: { type: String, default: '' },
   invoiceTerms: { type: [String], default: [] },
+  // ── Referral programme ──────────────────────────────────────────────
+  // Codes are personal and live in the referral_codes collection; the
+  // referred side is recorded here. Business whose member's code was entered
+  // when this one registered, and which member's.
+  referredByBusinessId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Business',
+    default: null,
+    index: true
+  },
+  referredByUserId: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null,
+    index: true
+  },
+  // Stamped when the referrer has been paid for this business — at most once,
+  // on the first licence (trial start or purchase).
+  referralRewardedAt: {
+    type: Date,
+    default: null
+  },
   isRegistered: {
     type: Boolean,
     default: false
