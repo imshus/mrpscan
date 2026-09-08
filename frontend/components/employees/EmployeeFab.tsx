@@ -1,6 +1,5 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { PlusCircle } from 'lucide-react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Gradients } from '@/constants/theme';
@@ -11,24 +10,15 @@ interface EmployeeFabProps {
   label?: string;
 }
 
+/** The red "Add New Employee" pill; the parent decides where it sits. */
 export function EmployeeFab({
   onPress,
   variant = 'primary',
   label = 'Add New Employee',
 }: EmployeeFabProps) {
-  const isMuted = variant === 'muted';
-  const insets = useSafeAreaInsets();
-
-  if (isMuted) {
+  if (variant === 'muted') {
     return (
-      <Pressable
-        onPress={onPress}
-        style={[
-          styles.fab,
-          styles.fabMuted,
-          { position: 'absolute', right: -2, bottom: insets.bottom + 3 },
-        ]}
-      >
+      <Pressable onPress={onPress} style={[styles.fab, styles.fabMuted]}>
         <PlusCircle size={18} color={Colors.textSecondary} />
         <Text style={[styles.label, styles.labelMuted]}>{label}</Text>
       </Pressable>
@@ -36,10 +26,7 @@ export function EmployeeFab({
   }
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={{ position: 'absolute', right: -2, bottom: insets.bottom + 3 }}
-    >
+    <Pressable onPress={onPress}>
       <GradientView colors={Gradients.brand} borderRadius={999} style={styles.fab}>
         <PlusCircle size={18} color={Colors.white} />
         <Text style={styles.label}>{label}</Text>

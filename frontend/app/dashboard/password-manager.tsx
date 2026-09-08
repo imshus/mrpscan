@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { Eye, EyeOff, Lock } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -105,7 +105,7 @@ export default function PasswordManagerScreen() {
                 </Pressable>
               </View>
               <Pressable
-                onPress={() => router.push('/login/forgot-password')}
+                onPress={() => router.push('/dashboard/forgot-password' as Href)}
                 hitSlop={8}
                 style={styles.forgotLink}
               >

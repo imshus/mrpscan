@@ -120,10 +120,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.screenHorizontal,
     paddingBottom: 120,
   },
+  // Mockup: the Add pill sits centered above the bottom bar.
   fabWrap: {
     position: 'absolute',
-    right: Spacing.screenHorizontal,
-    bottom: 100,
+    left: 0,
+    right: 0,
+    bottom: 108,
+    alignItems: 'center',
   },
   centerState: {
     paddingVertical: 40,

@@ -12,13 +12,15 @@ import { screenStyles } from '@/constants/screenLayout';
 
 export default function MastersScreen() {
   const access = useMarketRatesAccess();
-  useSettingsAccess();
+  const { userRole } = useSettingsAccess();
 
   const visibleItems = MASTER_RATES_ITEMS.filter((item) => {
     if (item.id === 'rates-gold') return access.canEditGold;
     if (item.id === 'rates-diamond') return access.canEditDiamond;
     if (item.id === 'rates-colorstone') return access.canEditColorstone;
     if (item.id === 'rates-labour') return access.canEditLabour;
+    // The item-code catalogue is the shop's to shape, so the tile is the owner's.
+    if (item.id === 'item-codes') return userRole === 'business';
     return false;
   });
 

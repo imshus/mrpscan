@@ -80,7 +80,7 @@ export function GoldRatesTable({
             {onToggleVisibility ? (
               <Pressable
                 onPress={() => onToggleVisibility(rate)}
-                style={[styles.actionIconBtn, styles.actionIconBtnGhost]}
+                style={styles.actionIconBtn}
                 accessibilityLabel={
                   visibilityAction === 'hide' ? 'Hide gold karat' : 'Restore gold karat'
                 }
@@ -89,10 +89,11 @@ export function GoldRatesTable({
                     ? 'Moves this karat to hidden rates'
                     : 'Moves this karat back to visible rates'
                 }
-                android_ripple={{ color: 'rgba(27,48,34,0.12)', borderless: false }}
+                android_ripple={{ color: 'rgba(27,48,34,0.12)', borderless: true }}
                 hitSlop={8}
               >
-                <VisibilityIcon size={15} color="#A81F17" />
+                {/* The password field's eye, exactly: same glyph, size and grey. */}
+                <VisibilityIcon size={20} color={Colors.textMuted} />
               </Pressable>
             ) : null}
             {/* <Pressable onPress={() => onIncreaseBy(rate)} style={styles.actionBtnOutline}>

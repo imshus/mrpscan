@@ -15,6 +15,7 @@ import {
 } from '@/utils/scanPriceCalculation';
 import { parseWeightValue } from '@/utils/formulaUtils';
 import { calculateScanMrp } from '@/utils/scanApi';
+import { derivePricingInput, takePrefetchedPricing } from '@/utils/pricingPrefetch';
 import { ApiError } from '@/utils/apiClient';
 import { useScannerStore } from '@/store/scannerStore';
 
@@ -151,35 +152,13 @@ export function useFinalTabPricing({
     ],
   );
 
-  const calculationInput = useMemo(() => {
-    const resolvedKarat = selectedKarat || resolveScannedKarat(scanData.karat, scanData.tunch) || '14K';
-    const { diamonds, colorstones } = parseStoneArraysFromStructuredData(structuredData ?? {}, scanData);
-    const otherChargesTotal = computeOtherChargesTotal(scanData);
-    const rawCustomPurity = scanData.customPurityPercent?.trim();
-    const payload: CalculateMrpPayload = {
-      jewelleryType: selectedType,
-      netWt: parseNumericValue(scanData.netWt) || 0,
-      grossWt: parseNumericValue(scanData.grossWt) || 0,
-      purityKarat: resolvedKarat,
-      labourChargeAmount: scanData.labourChargeAmount,
-      labourChargeUnit: scanData.labourChargeUnit,
-      labourWeightBasis: scanData.labourWeightBasis,
-      calculationMode: scanData.calculationRate,
-      otherCharges: otherChargesTotal,
-      diamonds: diamonds.map(d => ({
-        weight: parseNumericValue(d.weight) || 0,
-        rate: parseNumericValue(d.rate) || 0,
-        discountPercent: parseNumericValue(d.discountPercent ?? '0') || 0,
-      })),
-      colorstones: colorstones.map(c => ({ weight: parseNumericValue(c.weight) || 0, rate: parseNumericValue(c.rate) || 0 })),
-    };
-
-    if (rawCustomPurity) {
-      payload.customPurityPercent = parseNumericValue(rawCustomPurity);
-    }
-
-    return { diamonds, colorstones, payload, resolvedKarat };
-  }, [calculationKey]);
+  // Shared with the processing screen's prefetch: identical state must yield
+  // an identical payload there for its early request to be matched here.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const calculationInput = useMemo(
+    () => derivePricingInput(selectedType, scanData, structuredData, selectedKarat),
+    [calculationKey],
+  );
 
   useEffect(() => {
     // No point pricing an empty card; the real figures arrive with the result.
@@ -200,7 +179,13 @@ export function useFinalTabPricing({
     const requestPricing = () => {
       const { diamonds, colorstones, payload, resolvedKarat } = calculationInput;
 
-      calculateScanMrp(scanId, payload)
+      // The processing screen starts the first calculation while its counter
+      // runs; when the payloads match, that answer is already in hand here.
+      const prefetchedPromise = isFirstRequestForScan
+        ? takePrefetchedPricing(scanId, payload)
+        : null;
+
+      (prefetchedPromise ?? calculateScanMrp(scanId, payload))
       .then((res: CalculateMrpResponse) => {
         if (!isMounted) return;
         

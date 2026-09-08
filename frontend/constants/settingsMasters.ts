@@ -32,4 +32,10 @@ export const MASTER_RATES_ITEMS: MasterNavItem[] = [
     subtitle: '',
     route: '/dashboard/market-rates?tab=labour',
   },
+  {
+    id: 'item-codes',
+    title: 'Item Code',
+    subtitle: '',
+    route: '/dashboard/masters/item-codes',
+  },
 ];
