@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ChevronRight } from 'lucide-react-native';
 
 import { Colors, Radius } from '@/constants/theme';
 import type { Employee } from '@/types/employee';
@@ -13,7 +14,6 @@ export function EmployeeListCard({ employee, onPress }: EmployeeListCardProps) {
   const initial = nameParts.length > 1
     ? (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase()
     : employee.fullName.charAt(0).toUpperCase();
-  const badgeText = employee.email || employee.phone || 'No Contact';
 
   return (
     <Pressable onPress={onPress} style={styles.card}>
@@ -24,9 +24,7 @@ export function EmployeeListCard({ employee, onPress }: EmployeeListCardProps) {
         <Text style={styles.name}>{employee.fullName}</Text>
         <Text style={styles.role}>{employee.designation}</Text>
       </View>
-      <View style={styles.badge}>
-        <Text style={styles.badgeText} numberOfLines={1}>{badgeText}</Text>
-      </View>
+      <ChevronRight size={18} color={Colors.textMuted} />
     </Pressable>
   );
 }
@@ -44,10 +42,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     gap: 12,
   },
+  // Mockup: initials on a rounded square, not a full circle.
   avatar: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 14,
     backgroundColor: Colors.metalGoldBg,
     alignItems: 'center',
     justifyContent: 'center',
@@ -70,20 +69,7 @@ const styles = StyleSheet.create({
   role: {
     fontSize: 11.5,
     fontWeight: '600',
-    color: Colors.textMuted,
+    color: Colors.metalGold,
     marginTop: 2,
-  },
-  badge: {
-    backgroundColor: Colors.metalGold,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    maxWidth: 120,
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Colors.white,
-    textAlign: 'center',
   },
 });
