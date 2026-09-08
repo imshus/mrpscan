@@ -3,9 +3,17 @@ import { useRouter, type Href } from 'expo-router';
 import { Heart, Menu } from 'lucide-react-native';
 
 import { Colors, Fonts, Spacing } from '@/constants/theme';
+import { useAuthStore } from '@/store/authStore';
+import { formatProfileValue, getBusinessProfile } from '@/utils/businessProfile';
 
 export function DashboardHeader() {
   const router = useRouter();
+  // The GST-verified business name of the signed-in shop, not a fixed brand.
+  const registration = useAuthStore((s) => s.registration);
+  const businessName = formatProfileValue(
+    getBusinessProfile(registration).businessName,
+    'MRPscan',
+  );
 
   return (
     <View style={styles.header}>
@@ -17,7 +25,9 @@ export function DashboardHeader() {
         <Menu size={18} color={Colors.textPrimary} />
       </Pressable>
 
-      <Text style={styles.brandTitle}>Pratham International</Text>
+      <Text style={styles.brandTitle} numberOfLines={1}>
+        {businessName}
+      </Text>
 
       <Pressable
         style={styles.wishlistBtn}
