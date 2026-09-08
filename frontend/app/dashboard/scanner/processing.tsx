@@ -20,26 +20,25 @@ import {
   resolveScannedKarat,
 } from '@/utils/formulaUtils';
 import { analyzeScan, completeDemoCapture, uploadBackImage, uploadFrontImage } from '@/utils/scanApi';
+import { derivePricingInput, prefetchFirstPricing } from '@/utils/pricingPrefetch';
 import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
 import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
 import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 
-// The counter runs 0 to 100 showing every digit through five labelled
-// sections of twenty digits each, pinned to the wall clock: the digit due at
-// any moment comes from elapsed time over the hand-off window, so a busy JS
+// The counter runs 0 to 100 over a fixed five seconds, showing every digit
+// through five labelled sections of twenty digits each, pinned to the wall
+// clock: the digit due at any moment comes from elapsed time, so a busy JS
 // thread can delay a frame but never stretch the whole count — it catches up
-// a couple of digits per frame instead. The last digit lands as the review
-// screen opens. When the analysis returns early the remaining digits play as
-// a quick sprint instead of a jump.
+// a couple of digits per frame instead. Everything happens behind the count:
+// upload, the reading, and the first MRP calculation, so the review card
+// normally opens with its values and price already in hand. An analysis that
+// outlives the window fills the open card in when it lands.
 // Billing is finalized server-side in the background and never blocks this.
 const TICK_MS = 16;
 /** How many digits one frame may advance while catching up to the clock. */
 const MAX_DIGITS_PER_TICK = 2;
-/** Sprint pace after the analysis lands: still every digit, just quicker. */
-const FAST_TICK_MS = 8;
-const COMPLETE_HOLD_MS = 150;
-/** The review screen opens after this long even if the analysis is still running. */
-const EARLY_REVIEW_MS = 3000;
+/** The fixed window: the counter's five seconds, then the review screen opens. */
+const EARLY_REVIEW_MS = 5000;
 
 /** The five sections of the counter; a digit belongs to the last one it reached. */
 const SECTIONS = [
@@ -125,26 +124,6 @@ export default function ProcessingScreen() {
     [setScanLoading],
   );
 
-  /** Plays the remaining digits to 100 quickly — every digit, no jump. */
-  const sprintToHundred = useCallback(
-    () =>
-      new Promise<void>((resolve) => {
-        if (progressRef.current >= 100) {
-          resolve();
-          return;
-        }
-        const sprint = setInterval(() => {
-          applyDigit(progressRef.current + 1);
-          if (progressRef.current >= 100) {
-            clearInterval(sprint);
-            if (tickerRef.current === sprint) tickerRef.current = null;
-            resolve();
-          }
-        }, FAST_TICK_MS);
-        tickerRef.current = sprint;
-      }),
-    [applyDigit],
-  );
 
   // Stop the ticker if the screen unmounts mid-run so nothing writes to the
   // store after unmount.
@@ -376,11 +355,17 @@ export default function ProcessingScreen() {
       updateScanData(adjustedScanData);
       setAnalysisPending(false);
 
-      clearInterval(ticker);
-      tickerRef.current = null;
-      // The analysis is back: play the remaining digits rather than jumping.
-      await sprintToHundred();
-      setScanLoading({ stage: ScanStage.Completed });
+      // The reading is stored; start the first MRP calculation now, while the
+      // counter is still running, so the review card opens with the price
+      // already in hand. Derived exactly the way the pricing hook derives it,
+      // or the hook cannot claim this request as its own.
+      {
+        const state = useScannerStore.getState();
+        prefetchFirstPricing(
+          scanId,
+          derivePricingInput(state.selectedType, state.scanData, state.structuredData),
+        );
+      }
       // The split the review screen shows: where this scan's seconds went.
       {
         const done = Date.now();
@@ -395,19 +380,11 @@ export default function ProcessingScreen() {
           },
         });
       }
-      console.info('[LOADER_PROGRESS]', { scanId, progress: 100, timestamp: Date.now(), stage: 'completed' });
-      if (earlyNavRef.current) {
-        clearTimeout(earlyNavRef.current);
-        earlyNavRef.current = null;
-      }
-      if (navigatedRef.current) {
-        // Already on the review screen; the store write above filled it in.
-        return;
-      }
-      navigatedRef.current = true;
-      // Let the 100% frame paint before leaving the screen.
-      await new Promise((resolve) => setTimeout(resolve, COMPLETE_HOLD_MS));
-      router.replace('/dashboard/scanner/review-results' as Href);
+      console.info('[LOADER_PROGRESS]', { scanId, timestamp: Date.now(), stage: 'analysis_stored' });
+      // Navigation belongs to the five-second timer alone: the counter keeps
+      // its pace however early the analysis lands, and when the analysis
+      // outlives the window the already-open card fills in from the writes
+      // above.
     } catch (error) {
       clearInterval(ticker);
       tickerRef.current = null;
@@ -439,7 +416,6 @@ export default function ProcessingScreen() {
     resetScanLoading,
     setScanLoading,
     applyDigit,
-    sprintToHundred,
     applyClientFormulaRules,
     setUnknownFields,
     setStructuredData,
