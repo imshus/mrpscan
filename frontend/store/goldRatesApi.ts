@@ -69,7 +69,26 @@ export const goldRatesApi = createApi({
           };
         }
       },
-      invalidatesTags: ['GoldRates'],
+      // No invalidation: hiding a karat changes nothing but its own flag, and
+      // the refetch this used to trigger recomputed live rates and reflowed
+      // the whole table a beat after the row had already animated away — the
+      // stutter on the Gold Karat Values screen. The cached row is patched in
+      // place instead, and rolled back if the server says no.
+      async onQueryStarted(payload, { dispatch, queryFulfilled }) {
+        const patch = dispatch(
+          goldRatesApi.util.updateQueryData('getGoldRates', undefined, (draft) => {
+            const row = draft.rates.find(
+              (rate) => (payload.id && rate.id === payload.id) || rate.carat === payload.carat,
+            );
+            if (row) row.isHidden = payload.hidden;
+          }),
+        );
+        try {
+          await queryFulfilled;
+        } catch {
+          patch.undo();
+        }
+      },
     }),
     updateGoldTaxSettings: builder.mutation<TaxSettings, UpdateGoldTaxSettingsPayload>({
       async queryFn(payload) {
