@@ -109,8 +109,12 @@ async function readHomeSnapshot(): Promise<HomeSnapshot | null> {
     return null;
   }
 }
-function writeHomeSnapshot(snapshot: HomeSnapshot): void {
-  AsyncStorage.setItem(scopedKey(HOME_SNAPSHOT_KEY), JSON.stringify(snapshot)).catch(() => {});
+function writeHomeSnapshot(snapshot: HomeSnapshot, keyAtFetchStart: string): void {
+  // The fetch may still be in flight when the account changes; resolving the
+  // key now would file the old account's rates under the new account's
+  // snapshot. The write only happens while the scope is the one it started in.
+  if (scopedKey(HOME_SNAPSHOT_KEY) !== keyAtFetchStart) return;
+  AsyncStorage.setItem(keyAtFetchStart, JSON.stringify(snapshot)).catch(() => {});
 }
 
 export default function DashboardScreen() {
@@ -220,6 +224,7 @@ export default function DashboardScreen() {
     // The blocking loader is for the first paint only; after that the numbers
     // stay on screen and update in place. Rates and the subscription are
     // fetched side by side and each lands as soon as it arrives.
+    const snapshotKey = scopedKey(HOME_SNAPSHOT_KEY);
     if (showLoader && !hasDataRef.current) setLoading(true);
     const goldPromise = fetchGoldRates().then((gold) => {
       setMcxLiveRate(gold.mcxLiveRate);
@@ -244,7 +249,7 @@ export default function DashboardScreen() {
       setSubscriptionOverview(null);
     }
     if (goldResult.status === 'fulfilled') {
-      writeHomeSnapshot({ gold: goldResult.value, subscription: subscriptionRef.current });
+      writeHomeSnapshot({ gold: goldResult.value, subscription: subscriptionRef.current }, snapshotKey);
     } else if (showLoader && !hasDataRef.current) {
       const error = goldResult.reason;
       const message =

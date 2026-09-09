@@ -5,6 +5,7 @@ import {
   type MatrixKey,
 } from '@/constants/dashboardMatrices';
 import { fetchDashboardMatrices, updateDashboardMatrices } from '@/utils/matricesApi';
+import { registerScopeResetCallback } from '@/utils/userScopedStorage';
 
 interface MatricesState {
   values: Record<MatrixKey, boolean>;
@@ -16,6 +17,7 @@ interface MatricesState {
 }
 
 export const useMatricesStore = create<MatricesState>()((set) => ({
+  // (registered below: this in-memory store resets when the account changes)
   values: { ...DEFAULT_MATRIX_VALUES },
   isLoaded: false,
   toggle: (key) =>
@@ -53,3 +55,11 @@ export const useMatricesStore = create<MatricesState>()((set) => ({
     }
   },
 }));
+
+// This store has no persistence, so the account-switch rehydration cannot
+// reach it — without this reset, the previous account's toggles and bhaw
+// source would show on the next account's home screen until (and, when the
+// refetch fails, long after) its own settings load.
+registerScopeResetCallback(() => {
+  useMatricesStore.setState({ values: { ...DEFAULT_MATRIX_VALUES }, isLoaded: false });
+});
