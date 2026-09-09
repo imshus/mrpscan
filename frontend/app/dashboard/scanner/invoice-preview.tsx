@@ -7,6 +7,7 @@ import { PrimaryGreenButton } from '@/components/scanner/PrimaryGreenButton';
 import { ScanScreenWrapper } from '@/components/scanner/ScanScreenWrapper';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { useInvoiceComputation } from '@/hooks/useInvoiceComputation';
+import { fetchEInvoiceSettings } from '@/utils/businessProfileApi';
 import { useInvoiceStore } from '@/store/invoiceStore';
 import { useScannerStore } from '@/store/scannerStore';
 import { parseStoneArraysFromStructuredData } from '@/utils/stoneSequenceUtils';
@@ -59,13 +60,27 @@ export default function InvoicePreviewScreen() {
   };
 
   // Same sheet, but the government registration needs a buyer GSTIN —
-  // e-invoicing exists only for B2B bills, so it is checked at the door.
-  const handleEInvoice = () => {
+  // e-invoicing exists only for B2B bills — and the shop's own IRP
+  // credentials, without which nothing can be signed. Both are checked at
+  // the door, so a QR-less document never comes as a surprise.
+  const handleEInvoice = async () => {
     if (!validateBasics()) return;
     if (customer.customerGstin.trim().length !== 15) {
       Alert.alert(
         'E-Invoice',
         'E-invoicing applies to B2B bills: enter the customer\'s 15-character GST number first.',
+      );
+      return;
+    }
+    const settings = await fetchEInvoiceSettings();
+    if (!settings?.enabled) {
+      Alert.alert(
+        'E-Invoicing not set up',
+        'The signed QR comes from the government IRP, which needs your IRP API credentials. Save them under Business Profile → E-Invoicing and switch on Register B2B invoices.',
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Open Business Profile', onPress: () => router.push('/dashboard/business-profile' as Href) },
+        ],
       );
       return;
     }
