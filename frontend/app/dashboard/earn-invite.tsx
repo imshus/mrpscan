@@ -19,8 +19,14 @@ import { fetchReferralOverview, type ReferralOverview } from '@/utils/referralAp
 
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.amitaashitsolutions';
 
-/** The Play Store link with the sender's code riding along as the referrer. */
-const inviteLink = (code: string) => `${PLAY_STORE_URL}&referrer=${encodeURIComponent(code)}`;
+/**
+ * The Play Store link with the sender's code and the offer it was shared
+ * under riding along as the referrer, in the key=value form Play keeps:
+ * invite50 for the 50-credit invite, purchase500 for the 500-credit
+ * purchase referral — so each share can be told apart later.
+ */
+const inviteLink = (code: string, offer: 'invite50' | 'purchase500') =>
+  `${PLAY_STORE_URL}&referrer=${encodeURIComponent(`code=${code}&offer=${offer}`)}`;
 
 export default function EarnInviteScreen() {
   const [overview, setOverview] = useState<ReferralOverview | null>(null);
@@ -49,7 +55,7 @@ export default function EarnInviteScreen() {
       await Share.share({
         message:
           `Join me on MRPscan — photograph a jewellery tag, get the MRP, print the bill. ` +
-          `Install and sign up with my invite code ${overview.referralCode}: ${inviteLink(overview.referralCode)}`,
+          `Install and sign up with my invite code ${overview.referralCode} and I earn ${overview.inviteReward} credits: ${inviteLink(overview.referralCode, 'invite50')}`,
       });
     } catch {
       // Share sheet dismissed; nothing to do.
@@ -62,7 +68,7 @@ export default function EarnInviteScreen() {
       await Share.share({
         message:
           `Get MRPscan for your jewellery shop — lifetime access, scan tags and bill instantly. ` +
-          `Use my referral code ${overview.referralCode} when you sign up and purchase: ${inviteLink(overview.referralCode)}`,
+          `Use my referral code ${overview.referralCode} when you sign up and purchase (${overview.purchaseReward}-credit referral): ${inviteLink(overview.referralCode, 'purchase500')}`,
       });
     } catch {
       // Share sheet dismissed; nothing to do.
