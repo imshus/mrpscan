@@ -34,8 +34,12 @@ export interface BusinessProfileResponse {
  * sign-in. Returns null on failure so callers keep displaying the cached copy
  * rather than blanking the screen.
  */
+export type EInvoiceMode = 'live' | 'test';
+
 export interface EInvoiceSettings {
   enabled: boolean;
+  /** live registers with the IRP; test prints a labelled specimen band. */
+  mode: EInvoiceMode;
   username: string;
   /** Whether a password is saved server-side; the password itself never returns. */
   hasPassword: boolean;
@@ -61,6 +65,7 @@ export async function fetchEInvoiceSettings(): Promise<EInvoiceSettings | null> 
  */
 export async function updateEInvoiceSettings(payload: {
   enabled?: boolean;
+  mode?: EInvoiceMode;
   username?: string;
   password?: string;
 }): Promise<EInvoiceSettings> {

@@ -73,7 +73,8 @@ export default function InvoicePreviewScreen() {
       return;
     }
     const settings = await fetchEInvoiceSettings();
-    if (!settings?.enabled) {
+    // Test mode needs no credentials: it prints a labelled specimen band.
+    if (settings?.mode !== 'test' && !settings?.enabled) {
       Alert.alert(
         'E-Invoicing not set up',
         'The signed QR comes from the government IRP, which needs your IRP API credentials. Save them under Business Profile → E-Invoicing and switch on Register B2B invoices.',

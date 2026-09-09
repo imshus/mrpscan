@@ -56,6 +56,7 @@ export default function BusinessProfileScreen() {
   // E-invoicing (IRP) credentials, the owner's to manage. The password field
   // is entry-only: the server never returns it, only whether one is saved.
   const [eInvEnabled, setEInvEnabled] = useState(false);
+  const [eInvMode, setEInvMode] = useState<'live' | 'test'>('test');
   const [eInvUsername, setEInvUsername] = useState('');
   const [eInvPassword, setEInvPassword] = useState('');
   const [eInvHasPassword, setEInvHasPassword] = useState(false);
@@ -67,6 +68,7 @@ export default function BusinessProfileScreen() {
     void fetchEInvoiceSettings().then((settings) => {
       if (cancelled || !settings) return;
       setEInvEnabled(settings.enabled);
+      setEInvMode(settings.mode);
       setEInvUsername(settings.username);
       setEInvHasPassword(settings.hasPassword);
     });
@@ -85,6 +87,7 @@ export default function BusinessProfileScreen() {
         ...(eInvPassword.trim() ? { password: eInvPassword.trim() } : {}),
       });
       setEInvEnabled(saved.enabled);
+      setEInvMode(saved.mode);
       setEInvUsername(saved.username);
       setEInvHasPassword(saved.hasPassword);
       setEInvPassword('');
@@ -92,6 +95,25 @@ export default function BusinessProfileScreen() {
       Alert.alert(
         'E-Invoicing',
         error instanceof Error ? error.message : 'Could not save e-invoice settings.',
+      );
+    } finally {
+      setEInvSaving(false);
+    }
+  };
+
+  // Live registers with the government; Test prints a labelled specimen band
+  // so the document can be seen before IRP access exists.
+  const handleEInvoiceMode = async (mode: 'live' | 'test') => {
+    if (eInvSaving || mode === eInvMode) return;
+    setEInvSaving(true);
+    try {
+      const saved = await updateEInvoiceSettings({ mode });
+      setEInvMode(saved.mode);
+      setEInvEnabled(saved.enabled);
+    } catch (error) {
+      Alert.alert(
+        'E-Invoicing',
+        error instanceof Error ? error.message : 'Could not change the e-invoice mode.',
       );
     } finally {
       setEInvSaving(false);
@@ -176,6 +198,29 @@ export default function BusinessProfileScreen() {
                 signed QR. Create an API user for your GSTIN at einvoice1.gst.gov.in (API
                 Registration → Through GSP) and save it here.
               </Text>
+              <View style={styles.eInvModeRow}>
+                {(['test', 'live'] as const).map((mode) => {
+                  const selected = eInvMode === mode;
+                  return (
+                    <TouchableOpacity
+                      key={mode}
+                      activeOpacity={0.9}
+                      disabled={eInvSaving}
+                      onPress={() => void handleEInvoiceMode(mode)}
+                      style={[styles.eInvModePill, selected && styles.eInvModePillSelected]}
+                    >
+                      <Text style={[styles.eInvModeText, selected && styles.eInvModeTextSelected]}>
+                        {mode === 'live' ? 'Live' : 'Test'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                <Text style={styles.eInvModeHint}>
+                  {eInvMode === 'live'
+                    ? 'Registers with the IRP'
+                    : 'Prints a labelled specimen band'}
+                </Text>
+              </View>
               <TextInput
                 value={eInvUsername}
                 onChangeText={setEInvUsername}
@@ -291,6 +336,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     lineHeight: 17,
+  },
+  eInvModeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  eInvModePill: {
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundAlt,
+  },
+  eInvModePillSelected: {
+    backgroundColor: Colors.brandDeep,
+    borderColor: Colors.brandDeep,
+  },
+  eInvModeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  eInvModeTextSelected: {
+    color: Colors.white,
+  },
+  eInvModeHint: {
+    flex: 1,
+    fontSize: 11,
+    color: Colors.textMuted,
   },
   eInvInput: {
     borderWidth: 1,
