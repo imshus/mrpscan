@@ -64,10 +64,22 @@ export async function rehydrateUserScopedStores(): Promise<void> {
   await Promise.all(scopedStores.map((store) => store.persist.rehydrate()));
 }
 
+const scopeResetCallbacks: Array<() => void> = [];
+
+/**
+ * Runs the callback whenever the signed-in account changes. For in-memory
+ * stores with no persistence: they cannot be registered for rehydration, yet
+ * their values must not survive into the next account's session.
+ */
+export function registerScopeResetCallback(callback: () => void): void {
+  scopeResetCallbacks.push(callback);
+}
+
 let activeScope = currentUserScope();
 useAuthStore.subscribe(() => {
   const next = currentUserScope();
   if (next === activeScope) return;
   activeScope = next;
+  for (const callback of scopeResetCallbacks) callback();
   void rehydrateUserScopedStores();
 });

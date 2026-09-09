@@ -236,6 +236,8 @@ export default function PurchaseLicenseScreen() {
                   <View style={styles.featureList}>
                     <Feature text={`${trialDays} day free trial`} tone="trial" />
                     <Feature text={`Free ${trialCredits} credits`} tone="trial" />
+                    <Feature text="Pay per scan" tone="trial" />
+                    <Feature text="Credit recharge when low" tone="trial" />
                   </View>
                   <Pressable
                     disabled={isPurchased}
@@ -266,11 +268,9 @@ export default function PurchaseLicenseScreen() {
                     Subscription
                   </Text>
                   <View style={styles.featureList}>
+                    <Feature text="Everything in free trial" tone="paid" />
+                    <Feature text={`Free ${bonusCredits} Credits`} tone="paid" />
                     <Feature text={displayPrice} sub="(one time purchase)" tone="paid" />
-                    <Feature text="Lifetime application validity" tone="paid" />
-                    <Feature text="Pay per scan usage" tone="paid" />
-                    <Feature text={`${rupees(bonusCredits)} wallet credits included`} tone="paid" />
-                    <Feature text="Credit recharge when low" tone="paid" />
                   </View>
                   <Pressable
                     disabled={busy || isPurchased}

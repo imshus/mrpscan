@@ -25,13 +25,13 @@ export async function fetchItemCodes(): Promise<ItemCode[]> {
     .filter((row): row is ItemCode => row !== null);
 }
 
-/** Creates a code, or renames/redescribes the one whose id is given. */
+/** Creates a code, or renames/redescribes the one whose id is given; returns the saved row. */
 export async function saveItemCode(payload: {
   id?: string;
   code: string;
   description?: string;
-}): Promise<void> {
-  await apiRequest('/item-codes', {
+}): Promise<ItemCode | null> {
+  const response = await apiRequest<Record<string, unknown>>('/item-codes', {
     method: 'POST',
     body: {
       ...(payload.id ? { id: payload.id } : {}),
@@ -39,6 +39,7 @@ export async function saveItemCode(payload: {
       description: payload.description ?? '',
     },
   });
+  return toItemCode(unwrapApiData(response) as RawItemCode);
 }
 
 export async function deleteItemCode(id: string): Promise<void> {

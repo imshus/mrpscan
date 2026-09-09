@@ -43,6 +43,22 @@ export function formatWishlistPriceBadge(
   return `₹ ${amount}`;
 }
 
+/** "2h ago", "Yesterday", "3 days ago" — how the wishlist labels age. */
+export function formatWishlistAge(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return '—';
+  const minutes = Math.max(0, Math.floor((Date.now() - then) / 60000));
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 30) return `${days} days ago`;
+  const months = Math.floor(days / 30);
+  return months === 1 ? '1 month ago' : `${months} months ago`;
+}
+
 export function formatWishlistTimestamp(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '—';

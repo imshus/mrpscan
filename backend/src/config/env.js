@@ -27,6 +27,8 @@ const envVarsSchema = joi.object({
   SANDBOX_API_VERSION: joi.string().default('1.0.0').description('Sandbox API version header'),
   GST_VERIFY_MODE: joi.string().valid('live', 'mock').default('live')
     .description('mock = accept any structurally valid GSTIN with stub data (dev only); live = real Sandbox lookup'),
+  EINVOICE_CRED_KEY: joi.string().allow('').default('')
+    .description('Server-side key that encrypts each business\'s IRP password at rest; without it e-invoice credentials cannot be saved'),
   BILLING_TIMEZONE: joi.string().default('Asia/Kolkata'),
   MCX_SCHEDULER_TIMEZONE: joi.string().default('Asia/Kolkata'),
   MCX_TRADING_DAYS: joi.string().default('1,2,3,4,5').description('ISO weekdays for MCX trading scheduler (1=Mon..7=Sun)'),
@@ -108,6 +110,9 @@ module.exports = {
     apiVersion: envVars.SANDBOX_API_VERSION
   },
   gstVerifyMode: envVars.GST_VERIFY_MODE,
+  einvoice: {
+    credKey: envVars.EINVOICE_CRED_KEY,
+  },
   billing: {
     timezone: envVars.BILLING_TIMEZONE,
   },

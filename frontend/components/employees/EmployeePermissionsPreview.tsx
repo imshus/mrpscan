@@ -6,15 +6,16 @@ import { Colors, Radius } from '@/constants/theme';
 const ACCENT_GOLD = '#B8860B';
 
 interface EmployeePermissionsPreviewProps {
-  onEdit: () => void;
+  /** Omitted for a view-only reader (an employee looking at themselves). */
+  onEdit?: () => void;
 }
 
 export function EmployeePermissionsPreview({ onEdit }: EmployeePermissionsPreviewProps) {
   return (
     <View style={styles.card}>
-      <Pressable onPress={onEdit} style={styles.permissionsHeader}>
+      <Pressable onPress={onEdit} disabled={!onEdit} style={styles.permissionsHeader}>
         <Text style={styles.permissionsTitle}>Employee Permissions</Text>
-        <SquarePen size={16} color={Colors.textPrimary} />
+        {onEdit ? <SquarePen size={16} color={Colors.textPrimary} /> : null}
       </Pressable>
     </View>
   );

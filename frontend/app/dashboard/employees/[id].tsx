@@ -10,12 +10,16 @@ import { EmployeePermissionsPreview } from '@/components/employees/EmployeePermi
 import { EmployeeProfileHeader } from '@/components/employees/EmployeeProfileHeader';
 import { EmployeeScreenHeader } from '@/components/employees/EmployeeScreenHeader';
 import { Colors, Radius, Spacing } from '@/constants/theme';
+import { useSettingsAccess } from '@/hooks/useSettingsAccess';
 import { loadEmployeeIntoDraft, useEmployeeDraftStore } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { updateEmployeeApi } from '@/utils/employeeApi';
 
 export default function EmployeeDetailScreen() {
   const router = useRouter();
+  // An employee reads their own record here; every management control is the owner's.
+  const { userRole } = useSettingsAccess();
+  const isOwner = userRole !== 'employee';
   const { id } = useLocalSearchParams<{ id: string }>();
   const employee = useEmployeeStore((s) => s.employees.find((e) => e.id === id));
   const removeEmployee = useEmployeeStore((s) => s.removeEmployee);
@@ -86,8 +90,8 @@ export default function EmployeeDetailScreen() {
       >
         <EmployeeProfileHeader
           employee={employee}
-          onEdit={() => startEdit('profile')}
-          onDelete={() => setShowDelete(true)}
+          onEdit={isOwner ? () => startEdit('profile') : undefined}
+          onDelete={isOwner ? () => setShowDelete(true) : undefined}
         />
 
         <EmployeeInfoCard
@@ -104,11 +108,12 @@ export default function EmployeeDetailScreen() {
           title="PASSWORD MANAGER"
           actionLabel="Employee Password"
           actionValue={employee.password}
-          onEdit={() => startEdit('password')}
+          onEdit={isOwner ? () => startEdit('password') : undefined}
         />
 
-        <EmployeePermissionsPreview onEdit={() => startEdit('permissions')} />
+        <EmployeePermissionsPreview onEdit={isOwner ? () => startEdit('permissions') : undefined} />
 
+        {isOwner ? (
         <View style={styles.revokeSection}>
           <Text style={styles.revokeTitle}>ACCOUNT STATUS</Text>
           <View style={styles.revokeCard}>
@@ -130,6 +135,7 @@ export default function EmployeeDetailScreen() {
             />
           </View>
         </View>
+        ) : null}
       </ScrollView>
 
       <BottomNav activeRoute="home" />

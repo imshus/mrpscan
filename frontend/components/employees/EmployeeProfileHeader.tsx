@@ -6,8 +6,9 @@ import type { Employee } from '@/types/employee';
 
 interface EmployeeProfileHeaderProps {
   employee: Employee;
-  onEdit: () => void;
-  onDelete: () => void;
+  /** Omitted for a view-only reader (an employee looking at themselves). */
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
 export function EmployeeProfileHeader({ employee, onEdit, onDelete }: EmployeeProfileHeaderProps) {
@@ -22,14 +23,20 @@ export function EmployeeProfileHeader({ employee, onEdit, onDelete }: EmployeePr
         <Text style={styles.avatarText}>{initial}</Text>
       </View>
       <Text style={styles.name}>{employee.fullName}</Text>
-      <View style={styles.actions}>
-        <Pressable onPress={onEdit} hitSlop={8} style={styles.iconBtn}>
-          <SquarePen size={16} color={Colors.textMuted} />
-        </Pressable>
-        <Pressable onPress={onDelete} hitSlop={8} style={[styles.iconBtn, styles.iconBtnDanger]}>
-          <Trash2 size={16} color={Colors.brandDeep} />
-        </Pressable>
-      </View>
+      {onEdit || onDelete ? (
+        <View style={styles.actions}>
+          {onEdit ? (
+            <Pressable onPress={onEdit} hitSlop={8} style={styles.iconBtn}>
+              <SquarePen size={16} color={Colors.textMuted} />
+            </Pressable>
+          ) : null}
+          {onDelete ? (
+            <Pressable onPress={onDelete} hitSlop={8} style={[styles.iconBtn, styles.iconBtnDanger]}>
+              <Trash2 size={16} color={Colors.brandDeep} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }

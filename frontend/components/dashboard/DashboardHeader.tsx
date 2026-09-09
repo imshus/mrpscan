@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { Heart, Menu } from 'lucide-react-native';
+import { Bell, Heart, Menu } from 'lucide-react-native';
 
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
@@ -28,6 +28,14 @@ export function DashboardHeader() {
       <Text style={styles.brandTitle} numberOfLines={1}>
         {businessName}
       </Text>
+
+      <Pressable
+        style={styles.menuBtn}
+        hitSlop={8}
+        onPress={() => router.push('/dashboard/notifications' as Href)}
+      >
+        <Bell size={16} color={Colors.textPrimary} />
+      </Pressable>
 
       <Pressable
         style={styles.wishlistBtn}

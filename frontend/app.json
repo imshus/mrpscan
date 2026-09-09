@@ -2,13 +2,18 @@
   "expo": {
     "name": "MRPscan",
     "slug": "pratham",
-    "version": "1.0.175",
+    "version": "1.0.180",
     "orientation": "portrait",
     "icon": "./assets/images/app-logo.jpeg",
     "scheme": "pratham",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.amitaashitsolution",
+      "buildNumber": "176",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -25,7 +30,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.amitaashitsolution",
-      "versionCode": 176
+      "versionCode": 181
     },
     "web": {
       "bundler": "metro",
@@ -46,6 +51,7 @@
         "expo-camera",
         {
           "cameraPermission": "Allow MRPscan to access your camera to scan jewellery tags.",
+          "microphonePermission": false,
           "recordAudioAndroid": false
         }
       ],
@@ -63,7 +69,8 @@
             "usesCleartextTraffic": true,
             "enableProguardInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
-            "extraProguardRules": "-keep class com.razorpay.** { *; } -keep class com.google.android.gms.auth.api.phone.** { *; } -keep class me.furtado.smsretriever.** { *; } -dontwarn com.razorpay.** -dontwarn com.google.android.gms.auth.api.credentials.** -keepattributes InnerClasses,EnclosingMethod"
+            "extraProguardRules": "-keep class com.razorpay.** { *; } -keep class com.google.android.gms.auth.api.phone.** { *; } -keep class me.furtado.smsretriever.** { *; } -dontwarn com.razorpay.** -dontwarn com.google.android.gms.auth.api.credentials.** -keepattributes InnerClasses,EnclosingMethod",
+            "enableMinifyInReleaseBuilds": true
           }
         }
       ],
@@ -75,9 +82,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "c94809e5-54d5-4df1-a888-a54aaaf1dd05"
+        "projectId": "7943fc3a-2489-4310-8431-362187abe74b"
       }
     },
-    "owner": "prathamtest"
+    "owner": "imshu"
   }
 }
