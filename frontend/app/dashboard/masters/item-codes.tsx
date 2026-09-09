@@ -182,7 +182,7 @@ export default function ItemCodesScreen() {
                       <TextInput
                         value={row.name}
                         onChangeText={(text) => updateRow(row.key, { name: text, dirty: true })}
-                        onEndEditing={() => handleBlur(row.key)}
+                        onBlur={() => handleBlur(row.key)}
                         placeholder="––––––––––––"
                         placeholderTextColor={Colors.placeholder}
                         style={styles.fieldInput}
@@ -193,7 +193,7 @@ export default function ItemCodesScreen() {
                       <TextInput
                         value={row.code}
                         onChangeText={(text) => updateRow(row.key, { code: text.toUpperCase(), dirty: true })}
-                        onEndEditing={() => handleBlur(row.key)}
+                        onBlur={() => handleBlur(row.key)}
                         placeholder="––––––––––––"
                         placeholderTextColor={Colors.placeholder}
                         autoCapitalize="characters"

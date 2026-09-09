@@ -12,7 +12,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as MailComposer from 'expo-mail-composer';
-import { Minus, Plus, Search } from 'lucide-react-native';
+import { MessageCircle, Minus, Plus, RotateCcw, Search } from 'lucide-react-native';
 
 import { InvoiceHtmlSheet } from '@/components/invoice/InvoiceHtmlSheet';
 import { InvoiceQuickActions, type InvoiceAction } from '@/components/invoice/InvoiceQuickActions';
@@ -169,7 +169,9 @@ export default function InvoiceSheetScreen() {
     ],
   );
 
-  // Render the invoice from the server template whenever the figures change.
+  // Render the invoice from the server template whenever the figures change,
+  // or when the refresh disc asks for a fresh copy.
+  const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
   useEffect(() => {
     if (grandTotal <= 0) return;
     let cancelled = false;
@@ -180,7 +182,7 @@ export default function InvoiceSheetScreen() {
     return () => {
       cancelled = true;
     };
-  }, [invoicePayload, invoiceNumber, grandTotal]);
+  }, [invoicePayload, invoiceNumber, grandTotal, previewRefreshKey]);
 
   const generateOnce = async (): Promise<GenerateInvoiceResponse> => {
     if (generated) return generated;
@@ -484,6 +486,36 @@ export default function InvoiceSheetScreen() {
             <Plus size={16} color={Colors.textPrimary} />
           </Pressable>
         </View>
+
+        {/* Mockup: refresh disc, then the two primary actions side by side. */}
+        <View style={styles.actionBar}>
+          <Pressable
+            onPress={() => setPreviewRefreshKey((key) => key + 1)}
+            style={styles.refreshBtn}
+            accessibilityLabel="Refresh preview"
+          >
+            <RotateCcw size={16} color={Colors.brandDeep} />
+          </Pressable>
+          <Pressable
+            onPress={() => handleAction('whatsapp')}
+            disabled={working !== null}
+            style={[styles.shareBtn, working !== null && styles.actionDisabled]}
+          >
+            <MessageCircle size={16} color={Colors.textPrimary} />
+            <Text style={styles.shareBtnText}>Share on{'\n'}WhatsApp</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => handleAction('download')}
+            disabled={working !== null}
+            style={[styles.downloadBtn, working !== null && styles.actionDisabled]}
+          >
+            {working === 'download' ? (
+              <ActivityIndicator color={Colors.white} size="small" />
+            ) : (
+              <Text style={styles.downloadBtnText}>Download</Text>
+            )}
+          </Pressable>
+        </View>
       </View>
 
       <BottomNav activeRoute="scanner" scanButtonVariant="green" />
@@ -520,5 +552,57 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F4EFE3',
+  },
+  actionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+  },
+  refreshBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  shareBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    lineHeight: 15,
+  },
+  downloadBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+    backgroundColor: Colors.primaryButton,
+    paddingVertical: 13,
+    paddingHorizontal: 12,
+  },
+  downloadBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.white,
+  },
+  actionDisabled: {
+    opacity: 0.6,
   },
 });

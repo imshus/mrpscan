@@ -407,7 +407,6 @@ export function InvoiceGenerationBilling({
                   }}
                   required
                   error={nameError}
-                  placeholder="e.g. Garg Jewellers"
                 />
                 <ValidatedInput
                   label="Mobile Number"
@@ -420,7 +419,6 @@ export function InvoiceGenerationBilling({
                   maxLength={10}
                   required
                   error={phoneError}
-                  placeholder="+91 9999999999"
                 />
               </View>
               <View className={isWideLayout ? 'w-[48%]' : 'w-full'}>
@@ -432,14 +430,12 @@ export function InvoiceGenerationBilling({
                     setTouched((current) => ({ ...current, address: true }));
                   }}
                   error={addressError}
-                  placeholder="Shop no., Area, City, State, Pincode"
                 />
                 <ValidatedInput
                   label="GST No."
                   value={customer.customerGstin}
                   onChangeText={(text) => updateCustomer({ customerGstin: sanitizeGstinInput(text) })}
                   autoCapitalize="characters"
-                  placeholder="09AEWPG4525J1Z0"
                 />
                 <ValidatedInput
                   label="PAN"
@@ -448,7 +444,6 @@ export function InvoiceGenerationBilling({
                     updateCustomer({ customerPan: text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) })
                   }
                   autoCapitalize="characters"
-                  placeholder="AEWPG4525J"
                 />
               </View>
             </View>
