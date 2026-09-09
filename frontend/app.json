@@ -8,7 +8,12 @@
     "scheme": "pratham",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.amitaashitsolution",
+      "buildNumber": "176",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -46,6 +51,7 @@
         "expo-camera",
         {
           "cameraPermission": "Allow MRPscan to access your camera to scan jewellery tags.",
+          "microphonePermission": false,
           "recordAudioAndroid": false
         }
       ],
