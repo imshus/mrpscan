@@ -1,4 +1,12 @@
 <!--
+  MRPscan — GST E-INVOICE template for PDFMonkey (Liquid).
+
+  The dedicated e-invoice variant of invoice-pdfmonkey.html: identical
+  layout, with the IRN / Ack / signed-QR band always printed. The app's
+  backend renders every invoice through invoice-pdfmonkey.html, which shows
+  this same band whenever an IRN exists — keep the two files in step.
+-->
+<!--
   MRPscan — GST TAX INVOICE template for PDFMonkey (Liquid).
 
   Matches the printed PRATHAM INTERNATIONAL invoice format:
@@ -162,8 +170,7 @@
     </td>
   </tr>
 
-  <!-- ── e-Invoice reference band (design-mockup: einvoice variant) ───── -->
-  {% if irn != blank %}
+  <!-- ── e-Invoice reference band — always printed in this variant ──── -->
     <tr>
       <td class="bb pad sm">
         <div style="font-size: 8px; letter-spacing: 0.06em; color: #6b6b6b;">IRN</div>
@@ -193,7 +200,6 @@
         {% endif %}
       </td>
     </tr>
-  {% endif %}
 
   <!-- ── Items ────────────────────────────────────────────────────────── -->
   <tr>

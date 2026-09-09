@@ -361,7 +361,8 @@ const styles = StyleSheet.create({
   panel: {
     flex: 1,
     minWidth: 0,
-    paddingVertical: 26,
+    minHeight: 330,
+    paddingVertical: 34,
     paddingHorizontal: 18,
     gap: 18,
   },

@@ -28,6 +28,8 @@ interface RowState {
   id: string | null;
   name: string;
   code: string;
+  /** Edited since its last save; blur, + Add and leaving the screen flush it. */
+  dirty?: boolean;
 }
 
 let rowKeySeed = 0;
@@ -39,8 +41,17 @@ export default function ItemCodesScreen() {
   const [rows, setRows] = useState<RowState[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Shown in the sheet header so a save is visible, not assumed.
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   // Rows mid-save, so a slow request cannot double-fire from two blurs.
   const savingKeys = useRef(new Set<string>());
+  // The cleanup that saves on leaving the screen reads through this ref,
+  // because the closure it was created in holds stale rows.
+  const rowsRef = useRef<RowState[]>([]);
+  rowsRef.current = rows;
+  // Autosave: each keystroke restarts a short timer for that line, so a
+  // line saves itself even if its field never blurs.
+  const autosaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const load = useCallback(async () => {
     setError(null);
@@ -62,34 +73,72 @@ export default function ItemCodesScreen() {
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      void load();
-    }, [load]),
-  );
-
   const updateRow = (key: string, patch: Partial<RowState>) => {
     setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   };
 
-  /** Saves a line once both fields are left; an empty code means "not yet". */
-  const persistRow = async (row: RowState) => {
+  /** Saves a line once its fields are left; an empty code means "not yet". */
+  const persistRow = useCallback(async (row: RowState, quiet = false) => {
     const code = row.code.trim();
     if (!code || savingKeys.current.has(row.key)) return;
+    if (row.id && !row.dirty) return;
     savingKeys.current.add(row.key);
+    setSaveState('saving');
     try {
       const saved = await saveItemCode({
         id: row.id ?? undefined,
         code,
         description: row.name.trim(),
       });
-      if (saved) updateRow(row.key, { id: saved.id, code: saved.code, name: saved.description });
+      if (saved) {
+        updateRow(row.key, { id: saved.id, code: saved.code, name: saved.description, dirty: false });
+      }
+      setSaveState('saved');
     } catch (err) {
-      Alert.alert('Item Code', err instanceof Error ? err.message : 'Could not save this item code.');
+      setSaveState('failed');
+      if (!quiet) {
+        Alert.alert('Item Code', err instanceof Error ? err.message : 'Could not save this item code.');
+      }
     } finally {
       savingKeys.current.delete(row.key);
     }
-  };
+  }, []);
+
+  /** Restarts the line's autosave timer; it fires 800ms after the last keystroke. */
+  const scheduleAutosave = useCallback(
+    (key: string) => {
+      const timers = autosaveTimers.current;
+      const existing = timers.get(key);
+      if (existing) clearTimeout(existing);
+      timers.set(
+        key,
+        setTimeout(() => {
+          timers.delete(key);
+          const row = rowsRef.current.find((r) => r.key === key);
+          if (row) void persistRow(row, true);
+        }, 800),
+      );
+    },
+    [persistRow],
+  );
+
+  /** Saves every edited line — + Add and leaving the screen both call this. */
+  const flushDirtyRows = useCallback(
+    (quiet = false) => {
+      for (const row of rowsRef.current) {
+        if (row.code.trim() && (row.dirty || !row.id)) void persistRow(row, quiet);
+      }
+    },
+    [persistRow],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+      // Navigating away must not lose a line whose field never blurred.
+      return () => flushDirtyRows(true);
+    }, [load, flushDirtyRows]),
+  );
 
   const handleBlur = (key: string) => {
     const row = rows.find((r) => r.key === key);
@@ -126,7 +175,10 @@ export default function ItemCodesScreen() {
     ]);
   };
 
-  const handleAdd = () => setRows((current) => [...current, emptyRow()]);
+  const handleAdd = () => {
+    flushDirtyRows();
+    setRows((current) => [...current, emptyRow()]);
+  };
 
   return (
     <SafeAreaView style={screenStyles.safeArea} edges={['top']}>
@@ -147,6 +199,15 @@ export default function ItemCodesScreen() {
             <Text style={styles.errorText}>{error}</Text>
           ) : (
             <>
+              <Text style={[styles.saveStatus, saveState === 'failed' && styles.saveStatusFailed]}>
+                {saveState === 'saving'
+                  ? 'Saving…'
+                  : saveState === 'saved'
+                    ? 'All changes saved'
+                    : saveState === 'failed'
+                      ? 'Last save failed — check your connection'
+                      : 'Changes save automatically'}
+              </Text>
               <View style={styles.sheetCard}>
                 {rows.map((row, index) => (
                   <View key={row.key} style={[styles.row, index > 0 && styles.rowDivider]}>
@@ -155,8 +216,11 @@ export default function ItemCodesScreen() {
                       <Text style={styles.fieldLabel}>ITEM NAME</Text>
                       <TextInput
                         value={row.name}
-                        onChangeText={(text) => updateRow(row.key, { name: text })}
-                        onEndEditing={() => handleBlur(row.key)}
+                        onChangeText={(text) => {
+                          updateRow(row.key, { name: text, dirty: true });
+                          scheduleAutosave(row.key);
+                        }}
+                        onBlur={() => handleBlur(row.key)}
                         placeholder="––––––––––––"
                         placeholderTextColor={Colors.placeholder}
                         style={styles.fieldInput}
@@ -166,8 +230,11 @@ export default function ItemCodesScreen() {
                       <Text style={styles.fieldLabel}>ITEM CODE</Text>
                       <TextInput
                         value={row.code}
-                        onChangeText={(text) => updateRow(row.key, { code: text.toUpperCase() })}
-                        onEndEditing={() => handleBlur(row.key)}
+                        onChangeText={(text) => {
+                          updateRow(row.key, { code: text.toUpperCase(), dirty: true });
+                          scheduleAutosave(row.key);
+                        }}
+                        onBlur={() => handleBlur(row.key)}
                         placeholder="––––––––––––"
                         placeholderTextColor={Colors.placeholder}
                         autoCapitalize="characters"
@@ -202,6 +269,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.screenHorizontal,
     paddingBottom: 120,
     gap: Spacing.md,
+  },
+  saveStatus: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textMuted,
+    textAlign: 'right',
+    marginBottom: -4,
+  },
+  saveStatusFailed: {
+    color: Colors.dangerText,
   },
   sheetCard: {
     backgroundColor: Colors.white,

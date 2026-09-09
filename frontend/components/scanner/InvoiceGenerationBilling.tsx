@@ -83,6 +83,7 @@ function ValidatedInput({
   keyboardType = 'default',
   autoCapitalize = 'sentences',
   maxLength,
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -93,6 +94,8 @@ function ValidatedInput({
   autoCapitalize?: 'none' | 'sentences' | 'characters';
   /** Hard cap on typed characters, e.g. a 10-digit mobile number. */
   maxLength?: number;
+  /** Example text per the mockup, e.g. "e.g. Garg Jewellers". */
+  placeholder?: string;
 }) {
   return (
     <View className="mb-3">
@@ -103,6 +106,8 @@ function ValidatedInput({
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         maxLength={maxLength}
+        placeholder={placeholder}
+        placeholderTextColor="#B8AC8F"
         accessibilityLabel={label}
         className={`h-11 rounded-input border px-3.5 text-sm text-text-primary ${
           error ? 'border-danger-text bg-danger-bg' : 'border-border bg-surface-input'

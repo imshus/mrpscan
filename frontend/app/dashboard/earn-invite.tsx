@@ -17,7 +17,10 @@ import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { fetchReferralOverview, type ReferralOverview } from '@/utils/referralApi';
 
-const INVITE_URL = 'https://mrpscan.com';
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.amitaashitsolutions';
+
+/** The Play Store link with the sender's code riding along as the referrer. */
+const inviteLink = (code: string) => `${PLAY_STORE_URL}&referrer=${encodeURIComponent(code)}`;
 
 export default function EarnInviteScreen() {
   const [overview, setOverview] = useState<ReferralOverview | null>(null);
@@ -46,7 +49,7 @@ export default function EarnInviteScreen() {
       await Share.share({
         message:
           `Join me on MRPscan — photograph a jewellery tag, get the MRP, print the bill. ` +
-          `Sign up with my invite code ${overview.referralCode}: ${INVITE_URL}`,
+          `Install and sign up with my invite code ${overview.referralCode}: ${inviteLink(overview.referralCode)}`,
       });
     } catch {
       // Share sheet dismissed; nothing to do.
@@ -59,7 +62,7 @@ export default function EarnInviteScreen() {
       await Share.share({
         message:
           `Get MRPscan for your jewellery shop — lifetime access, scan tags and bill instantly. ` +
-          `Use my referral code ${overview.referralCode} when you sign up and purchase: ${INVITE_URL}`,
+          `Use my referral code ${overview.referralCode} when you sign up and purchase: ${inviteLink(overview.referralCode)}`,
       });
     } catch {
       // Share sheet dismissed; nothing to do.
