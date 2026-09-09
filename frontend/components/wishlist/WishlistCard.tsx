@@ -3,7 +3,7 @@ import { Trash2 } from 'lucide-react-native';
 
 import { Colors } from '@/constants/theme';
 import type { WishlistItem } from '@/types/wishlist';
-import { formatWishlistTimestamp } from '@/utils/wishlistUtils';
+import { formatWishlistAge } from '@/utils/wishlistUtils';
 
 function formatWishlistAmount(amount: number) {
   return `₹ ${Math.round(amount).toLocaleString('en-IN')}`;
@@ -16,35 +16,35 @@ interface WishlistCardProps {
 }
 
 /**
- * Wishlist row, laid out to the pencil sketch: the item number and the amount
- * each sit in their own outlined box, the time and date run underneath, and the
- * delete control sits at the trailing edge.
+ * Wishlist row per the mockup: the piece's name (with its tag code when it
+ * has one) against how long ago it was saved, then the red price pill
+ * carrying the rate it was calculated at, and the delete disc.
  */
 export function WishlistCard({ item, onPress, onDelete }: WishlistCardProps) {
-  // tagCode is the scanned tag/SKU — the number the shop identifies a piece by.
-  const itemNo = item.tagCode || item.title;
+  const title =
+    item.title && item.tagCode && item.title !== item.tagCode
+      ? `${item.title} · ${item.tagCode}`
+      : item.title || item.tagCode || 'Saved item';
 
   return (
     // Styles are plain objects on purpose: NativeWind's css-interop drops the
     // function form of `style` on Pressable, leaving the element unstyled.
     <Pressable onPress={onPress} style={styles.card}>
-      <View style={styles.body}>
-        <View style={styles.fields}>
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Item No.</Text>
-            <Text style={styles.fieldValue} numberOfLines={1}>
-              {itemNo}
-            </Text>
-          </View>
+      <View style={styles.titleRow}>
+        <Text style={styles.title} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text style={styles.age}>{formatWishlistAge(item.scanTimestamp || item.addedAt)}</Text>
+      </View>
 
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Amount</Text>
-            <View style={styles.amountRow}>
-              <Text style={styles.amountValue} numberOfLines={1}>
-                {formatWishlistAmount(item.totalMrp)}
-              </Text>
-            </View>
-          </View>
+      {item.savedBy ? <Text style={styles.savedBy}>Saved by {item.savedBy}</Text> : null}
+
+      <View style={styles.bottomRow}>
+        <View style={styles.pricePill}>
+          <Text style={styles.priceText}>{formatWishlistAmount(item.totalMrp)}</Text>
+          <Text style={styles.priceCaption}>
+            {item.calculationRate === 'cash' ? 'Cash Rate' : 'RTGS Rate'}
+          </Text>
         </View>
 
         <Pressable
@@ -55,17 +55,12 @@ export function WishlistCard({ item, onPress, onDelete }: WishlistCardProps) {
           }}
           hitSlop={12}
           accessibilityRole="button"
-          accessibilityLabel={`Delete item ${itemNo}`}
+          accessibilityLabel={`Delete ${title}`}
           style={styles.deleteBtn}
         >
-          <Trash2 size={18} color={Colors.primary} />
+          <Trash2 size={16} color={Colors.brandDeep} />
         </Pressable>
       </View>
-
-      <Text style={styles.timestamp}>
-        {formatWishlistTimestamp(item.scanTimestamp || item.addedAt)}
-        {item.savedBy ? `  ·  Saved by ${item.savedBy}` : ''}
-      </Text>
     </Pressable>
   );
 }
@@ -76,63 +71,61 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     marginBottom: 12,
+    gap: 8,
   },
-  body: {
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
-  fields: {
+  title: {
     flex: 1,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  field: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  fieldLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-  },
-  fieldValue: {
-    marginTop: 2,
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  amountRow: {
-    marginTop: 2,
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-  },
-  amountValue: {
-    fontSize: 16,
+    fontSize: 14.5,
     fontWeight: '800',
     color: Colors.textPrimary,
   },
-  deleteBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(217,41,31,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  timestamp: {
-    marginTop: 10,
+  age: {
     fontSize: 11,
     fontWeight: '600',
     color: Colors.textMuted,
+  },
+  savedBy: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: -4,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pricePill: {
+    backgroundColor: Colors.brandDeep,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  priceText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.white,
+  },
+  priceCaption: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    color: 'rgba(255,255,255,0.85)',
+  },
+  deleteBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: Colors.dangerBg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
