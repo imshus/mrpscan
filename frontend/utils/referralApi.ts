@@ -3,11 +3,13 @@ import { unwrapApiData } from '@/utils/apiResponse';
 
 export interface ReferralOverview {
   referralCode: string;
-  creditsPerReferral: number;
+  inviteReward: number;
+  purchaseReward: number;
   invitedCount: number;
-  rewardedCount: number;
-  pendingCount: number;
-  creditsEarned: number;
+  purchasedCount: number;
+  inviteCredits: number;
+  purchaseCredits: number;
+  totalCredits: number;
 }
 
 function toCount(value: unknown): number {
@@ -15,7 +17,7 @@ function toCount(value: unknown): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
-/** The business's referral code and how its referrals are doing. */
+/** This person's referral code and what their referrals have earned. */
 export async function fetchReferralOverview(): Promise<ReferralOverview> {
   const response = await apiRequest<Record<string, unknown>>('/subscription/referral', {
     method: 'GET',
@@ -29,10 +31,12 @@ export async function fetchReferralOverview(): Promise<ReferralOverview> {
 
   return {
     referralCode,
-    creditsPerReferral: toCount(data.creditsPerReferral) || 100,
+    inviteReward: toCount(data.inviteReward) || 50,
+    purchaseReward: toCount(data.purchaseReward) || 500,
     invitedCount: toCount(data.invitedCount),
-    rewardedCount: toCount(data.rewardedCount),
-    pendingCount: toCount(data.pendingCount),
-    creditsEarned: toCount(data.creditsEarned),
+    purchasedCount: toCount(data.purchasedCount),
+    inviteCredits: toCount(data.inviteCredits),
+    purchaseCredits: toCount(data.purchaseCredits),
+    totalCredits: toCount(data.totalCredits),
   };
 }
