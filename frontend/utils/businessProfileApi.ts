@@ -34,6 +34,46 @@ export interface BusinessProfileResponse {
  * sign-in. Returns null on failure so callers keep displaying the cached copy
  * rather than blanking the screen.
  */
+export interface EInvoiceSettings {
+  enabled: boolean;
+  username: string;
+  /** Whether a password is saved server-side; the password itself never returns. */
+  hasPassword: boolean;
+}
+
+/** GET /settings/einvoice — the business's IRP e-invoicing state (owner only). */
+export async function fetchEInvoiceSettings(): Promise<EInvoiceSettings | null> {
+  try {
+    const response = await apiRequest<ApiEnvelope<EInvoiceSettings>>('/settings/einvoice', {
+      method: 'GET',
+    });
+    return response.success && response.data ? response.data : null;
+  } catch (error) {
+    console.warn('Failed to fetch e-invoice settings', error);
+    return null;
+  }
+}
+
+/**
+ * POST /settings/einvoice — saves the IRP API user for this business. An
+ * omitted password keeps the stored one. Throws with the server's message so
+ * the screen can show why a save was refused.
+ */
+export async function updateEInvoiceSettings(payload: {
+  enabled?: boolean;
+  username?: string;
+  password?: string;
+}): Promise<EInvoiceSettings> {
+  const response = await apiRequest<ApiEnvelope<EInvoiceSettings>>('/settings/einvoice', {
+    method: 'POST',
+    body: payload,
+  });
+  if (!response.success || !response.data) {
+    throw new Error(response.message || 'Could not save e-invoice settings.');
+  }
+  return response.data;
+}
+
 export async function fetchBusinessProfile(): Promise<BusinessProfileResponse | null> {
   try {
     const response = await apiRequest<ApiEnvelope<BusinessProfileResponse>>(
