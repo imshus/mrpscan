@@ -312,7 +312,7 @@ export default function DashboardScreen() {
       await loadMarketData(false);
       Alert.alert(
         'Free Trial Started',
-        '100 free scanning credits have been granted.\n\nYour free trial is valid for 10 days.',
+        '10 free scanning credits have been granted.\n\nYour free trial is valid for 10 days.',
         [{ text: 'Continue' }],
       );
     } catch (error) {

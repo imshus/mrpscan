@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Alert } from 'react-native';
+import { Alert, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 
 import { InvoiceGenerationBilling } from '@/components/scanner/InvoiceGenerationBilling';
@@ -33,14 +33,14 @@ export default function InvoicePreviewScreen() {
   // Per the mockup, Preview Invoice opens the native tax-invoice sheet.
   // Nothing is generated here — the invoice number is consumed only when the
   // user presses Download on the preview.
-  const handleGenerateInvoice = () => {
+  const validateBasics = (): boolean => {
     if (!customer.customerName.trim()) {
       Alert.alert('Missing Info', 'Please enter the customer name before generating.');
-      return;
+      return false;
     }
     if (!customer.customerPhone.trim()) {
       Alert.alert('Missing Info', 'Please enter the customer phone number before generating.');
-      return;
+      return false;
     }
     // Gold rates load asynchronously; previewing a zero-value invoice helps no one.
     if (grandTotal <= 0) {
@@ -48,9 +48,27 @@ export default function InvoicePreviewScreen() {
         'Rates not ready',
         'Gold rates have not loaded yet, so the invoice total would be zero. Please wait a moment and try again.',
       );
+      return false;
+    }
+    return true;
+  };
+
+  const handleGenerateInvoice = () => {
+    if (!validateBasics()) return;
+    router.push('/dashboard/scanner/invoice-sheet' as Href);
+  };
+
+  // Same sheet, but the government registration needs a buyer GSTIN —
+  // e-invoicing exists only for B2B bills, so it is checked at the door.
+  const handleEInvoice = () => {
+    if (!validateBasics()) return;
+    if (customer.customerGstin.trim().length !== 15) {
+      Alert.alert(
+        'E-Invoice',
+        'E-invoicing applies to B2B bills: enter the customer\'s 15-character GST number first.',
+      );
       return;
     }
-
     router.push('/dashboard/scanner/invoice-sheet' as Href);
   };
 
@@ -60,7 +78,10 @@ export default function InvoicePreviewScreen() {
       className="bg-surface-muted"
       scanButtonVariant="green"
       footer={
-        <PrimaryGreenButton title="Preview Invoice" onPress={handleGenerateInvoice} />
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <PrimaryGreenButton title="Preview Invoice" onPress={handleGenerateInvoice} />
+          <PrimaryGreenButton title="E-Invoice" onPress={handleEInvoice} />
+        </View>
       }
     >
       <BackgroundPattern />
