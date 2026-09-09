@@ -9,12 +9,16 @@ import { EmployeeListCard } from '@/components/employees/EmployeeListCard';
 import { EmployeeScreenHeader } from '@/components/employees/EmployeeScreenHeader';
 import { EmployeeSearchBar } from '@/components/employees/EmployeeSearchBar';
 import { Colors, Spacing } from '@/constants/theme';
+import { useSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useEmployeeDraftStore } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { fetchEmployees } from '@/utils/employeeApi';
 
 export default function EmployeesScreen() {
   const router = useRouter();
+  // An employee sees only their own record here; adding is the owner's.
+  const { userRole } = useSettingsAccess();
+  const isOwner = userRole !== 'employee';
   const employees = useEmployeeStore((s) => s.employees);
   const setEmployees = useEmployeeStore((s) => s.setEmployees);
   const resetEmployeeDraft = useEmployeeDraftStore((s) => s.resetDraft);
@@ -95,9 +99,11 @@ export default function EmployeesScreen() {
         )}
       </ScrollView>
 
-      <View style={styles.fabWrap}>
-        <EmployeeFab onPress={handleAdd} />
-      </View>
+      {isOwner ? (
+        <View style={styles.fabWrap}>
+          <EmployeeFab onPress={handleAdd} />
+        </View>
+      ) : null}
 
       <BottomNav activeRoute="home" />
     </SafeAreaView>
