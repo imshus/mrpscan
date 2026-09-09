@@ -28,6 +28,8 @@ interface RowState {
   id: string | null;
   name: string;
   code: string;
+  /** Edited since its last save; blur, + Add and leaving the screen flush it. */
+  dirty?: boolean;
 }
 
 let rowKeySeed = 0;
@@ -41,6 +43,10 @@ export default function ItemCodesScreen() {
   const [error, setError] = useState<string | null>(null);
   // Rows mid-save, so a slow request cannot double-fire from two blurs.
   const savingKeys = useRef(new Set<string>());
+  // The cleanup that saves on leaving the screen reads through this ref,
+  // because the closure it was created in holds stale rows.
+  const rowsRef = useRef<RowState[]>([]);
+  rowsRef.current = rows;
 
   const load = useCallback(async () => {
     setError(null);
@@ -62,20 +68,15 @@ export default function ItemCodesScreen() {
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      void load();
-    }, [load]),
-  );
-
   const updateRow = (key: string, patch: Partial<RowState>) => {
     setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   };
 
-  /** Saves a line once both fields are left; an empty code means "not yet". */
-  const persistRow = async (row: RowState) => {
+  /** Saves a line once its fields are left; an empty code means "not yet". */
+  const persistRow = useCallback(async (row: RowState, quiet = false) => {
     const code = row.code.trim();
     if (!code || savingKeys.current.has(row.key)) return;
+    if (row.id && !row.dirty) return;
     savingKeys.current.add(row.key);
     try {
       const saved = await saveItemCode({
@@ -83,13 +84,35 @@ export default function ItemCodesScreen() {
         code,
         description: row.name.trim(),
       });
-      if (saved) updateRow(row.key, { id: saved.id, code: saved.code, name: saved.description });
+      if (saved) {
+        updateRow(row.key, { id: saved.id, code: saved.code, name: saved.description, dirty: false });
+      }
     } catch (err) {
-      Alert.alert('Item Code', err instanceof Error ? err.message : 'Could not save this item code.');
+      if (!quiet) {
+        Alert.alert('Item Code', err instanceof Error ? err.message : 'Could not save this item code.');
+      }
     } finally {
       savingKeys.current.delete(row.key);
     }
-  };
+  }, []);
+
+  /** Saves every edited line — + Add and leaving the screen both call this. */
+  const flushDirtyRows = useCallback(
+    (quiet = false) => {
+      for (const row of rowsRef.current) {
+        if (row.code.trim() && (row.dirty || !row.id)) void persistRow(row, quiet);
+      }
+    },
+    [persistRow],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+      // Navigating away must not lose a line whose field never blurred.
+      return () => flushDirtyRows(true);
+    }, [load, flushDirtyRows]),
+  );
 
   const handleBlur = (key: string) => {
     const row = rows.find((r) => r.key === key);
@@ -126,7 +149,10 @@ export default function ItemCodesScreen() {
     ]);
   };
 
-  const handleAdd = () => setRows((current) => [...current, emptyRow()]);
+  const handleAdd = () => {
+    flushDirtyRows();
+    setRows((current) => [...current, emptyRow()]);
+  };
 
   return (
     <SafeAreaView style={screenStyles.safeArea} edges={['top']}>
@@ -155,7 +181,7 @@ export default function ItemCodesScreen() {
                       <Text style={styles.fieldLabel}>ITEM NAME</Text>
                       <TextInput
                         value={row.name}
-                        onChangeText={(text) => updateRow(row.key, { name: text })}
+                        onChangeText={(text) => updateRow(row.key, { name: text, dirty: true })}
                         onEndEditing={() => handleBlur(row.key)}
                         placeholder="––––––––––––"
                         placeholderTextColor={Colors.placeholder}
@@ -166,7 +192,7 @@ export default function ItemCodesScreen() {
                       <Text style={styles.fieldLabel}>ITEM CODE</Text>
                       <TextInput
                         value={row.code}
-                        onChangeText={(text) => updateRow(row.key, { code: text.toUpperCase() })}
+                        onChangeText={(text) => updateRow(row.key, { code: text.toUpperCase(), dirty: true })}
                         onEndEditing={() => handleBlur(row.key)}
                         placeholder="––––––––––––"
                         placeholderTextColor={Colors.placeholder}
