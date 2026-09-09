@@ -65,16 +65,21 @@ export default function InvoicePreviewScreen() {
   // the door, so a QR-less document never comes as a surprise.
   const handleEInvoice = async () => {
     if (!validateBasics()) return;
+    const settings = await fetchEInvoiceSettings();
+    // Test mode needs neither credentials nor a buyer GSTIN: the specimen
+    // band stands in the account's own registered GST number and details.
+    if (settings?.mode === 'test') {
+      router.push('/dashboard/scanner/invoice-sheet' as Href);
+      return;
+    }
     if (customer.customerGstin.trim().length !== 15) {
       Alert.alert(
         'E-Invoice',
-        'E-invoicing applies to B2B bills: enter the customer\'s 15-character GST number first.',
+        'A live e-invoice is registered with the government against the customer\'s GSTIN: enter their 15-character GST number first.',
       );
       return;
     }
-    const settings = await fetchEInvoiceSettings();
-    // Test mode needs no credentials: it prints a labelled specimen band.
-    if (settings?.mode !== 'test' && !settings?.enabled) {
+    if (!settings?.enabled) {
       Alert.alert(
         'E-Invoicing not set up',
         'The signed QR comes from the government IRP, which needs your IRP API credentials. Save them under Business Profile → E-Invoicing and switch on Register B2B invoices.',

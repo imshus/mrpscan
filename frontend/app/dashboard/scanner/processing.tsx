@@ -25,7 +25,7 @@ import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
 import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
 import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 
-// The counter runs 0 to 100 over a fixed five seconds, showing every digit
+// The counter runs 0 to 100 over a fixed six seconds, showing every digit
 // through five labelled sections of twenty digits each, pinned to the wall
 // clock: the digit due at any moment comes from elapsed time, so a busy JS
 // thread can delay a frame but never stretch the whole count — it catches up
@@ -37,8 +37,8 @@ import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 const TICK_MS = 16;
 /** How many digits one frame may advance while catching up to the clock. */
 const MAX_DIGITS_PER_TICK = 2;
-/** The fixed window: the counter's five seconds, then the review screen opens. */
-const EARLY_REVIEW_MS = 5000;
+/** The fixed window: the counter's six seconds, then the review screen opens. */
+const EARLY_REVIEW_MS = 6000;
 
 /** The five sections of the counter; a digit belongs to the last one it reached. */
 const SECTIONS = [
