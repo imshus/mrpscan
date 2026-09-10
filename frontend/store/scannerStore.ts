@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import { registerScopeResetCallback } from '@/utils/userScopedStorage';
+
 import { DEFAULT_SCAN_ITEM } from '@/constants/scannerData';
 import { ScanStage } from '@/types/scanner';
 import type {
@@ -181,3 +183,15 @@ export const useScannerStore = create<ScannerState>((set) => ({
   setPreviewPricing: (pricing) => set({ previewPricing: pricing }),
   bumpMrpRefresh: () => set((state) => ({ mrpRefreshToken: Date.now() })),
 }));
+
+/**
+ * A scan session is the account's own work: the tag photographs, the reading
+ * taken from them, and the price an invoice would bill.
+ *
+ * It lives in memory, so nothing on disk carries it over, but the app is not
+ * restarted between accounts on a shared phone: what one person left behind
+ * must not be waiting for the next.
+ */
+registerScopeResetCallback(() => {
+  useScannerStore.setState(useScannerStore.getInitialState(), true);
+});
