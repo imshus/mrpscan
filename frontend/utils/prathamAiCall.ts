@@ -40,6 +40,16 @@ interface CallOptions {
 const SPEECH_RMS = 0.015;
 
 /**
+ * How long after the agent's audio ends the microphone stays shut.
+ *
+ * A phone playing the agent through its loudspeaker has no echo canceller on
+ * this path, so an open microphone hears the agent and the agent answers
+ * itself. The call is therefore half duplex: while the agent speaks the mic
+ * is muted, and this tail covers the room's own ring-out.
+ */
+const ECHO_TAIL_SECONDS = 0.25;
+
+/**
  * One call to the Dynamic Voice Agent server, spoken straight over its
  * WebSocket: the phone's microphone goes up as 16 kHz 16-bit PCM, the
  * agent's voice comes back as 24 kHz PCM and is played gapless through the
@@ -161,9 +171,16 @@ export class PrathamAiCall {
         const frames = event.numFrames > 0 ? Math.min(event.numFrames, channel.length) : channel.length;
         const samples = frames === channel.length ? channel : channel.subarray(0, frames);
         if (!samples.length) return;
-        this.noteMicLevel(samples);
+        const muted = this.micMuted();
+        if (!muted) this.noteMicLevel(samples);
+        // Resampled even while muted, so the converter's carry-over stays
+        // continuous and the frame that follows is not stretched.
         const pcm = this.toPcm16(samples, event.buffer.sampleRate || PRATHAM_AI_MIC_RATE);
-        if (pcm.length) this.ws.send(pcm.buffer);
+        if (!pcm.length) return;
+        // Silence rather than nothing: the stream keeps its cadence and the
+        // server's turn detection sees quiet instead of a gap.
+        if (muted) pcm.fill(0);
+        this.ws.send(pcm.buffer);
       },
     );
     try {
@@ -201,6 +218,16 @@ export class PrathamAiCall {
       pcm[i] = Math.round(clamped * 32767);
     }
     return pcm;
+  }
+
+  /**
+   * True while the agent's voice is still coming out of the speaker (or has
+   * just stopped). Everything the microphone hears then is the agent itself.
+   */
+  private micMuted(): boolean {
+    const ctx = this.ctx;
+    if (!ctx) return false;
+    return ctx.currentTime < this.nextPlayTime + ECHO_TAIL_SECONDS;
   }
 
   /** The caller making a sound keeps the silence clock from running out. */
