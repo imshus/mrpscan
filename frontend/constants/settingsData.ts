@@ -5,6 +5,7 @@ import {
   FileText,
   Gift,
   Headset,
+  HelpCircle,
   IdCard,
   LayoutGrid,
   Lock,
@@ -69,6 +70,12 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     title: 'Contact Us',
     icon: Headset,
     route: '/dashboard/contact-us',
+  },
+  {
+    id: 'faqs',
+    title: 'FAQs',
+    icon: HelpCircle,
+    route: '/dashboard/faqs',
   },
   {
     id: 'logout',
