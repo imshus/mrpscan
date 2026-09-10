@@ -40,14 +40,18 @@ interface CallOptions {
 const SPEECH_RMS = 0.015;
 
 /**
- * How long after the agent's audio ends the microphone stays shut.
+ * Talking over the agent.
  *
- * A phone playing the agent through its loudspeaker has no echo canceller on
- * this path, so an open microphone hears the agent and the agent answers
- * itself. The call is therefore half duplex: while the agent speaks the mic
- * is muted, and this tail covers the room's own ring-out.
+ * The microphone stays open for the whole call, so the caller can cut in at
+ * any moment. A phone has no echo canceller on the loudspeaker path, so while
+ * the agent speaks the mic hears it too: the floor below learns whatever the
+ * speaker is putting into the mic, and a voice clearly above that floor is the
+ * caller. The agent is then stopped here, immediately — which also silences
+ * the echo — and the server is told, so it stops writing that reply.
  */
-const ECHO_TAIL_SECONDS = 0.25;
+const DOUBLE_TALK_FRAMES = 3;
+const DOUBLE_TALK_MARGIN = 2.5;
+const DOUBLE_TALK_ABSOLUTE = 0.02;
 
 /**
  * One call to the Dynamic Voice Agent server, spoken straight over its
@@ -84,6 +88,11 @@ export class PrathamAiCall {
   // downsampled without a seam between frames.
   private micCarry = new Float32Array(0);
   private micPos = 0;
+
+  // The echo the speaker is putting into the mic, and how many frames in a
+  // row have been louder than it (the caller talking over the agent).
+  private echoFloor = 0;
+  private loudFrames = 0;
 
   constructor(
     private readonly events: CallEvents,
@@ -171,16 +180,9 @@ export class PrathamAiCall {
         const frames = event.numFrames > 0 ? Math.min(event.numFrames, channel.length) : channel.length;
         const samples = frames === channel.length ? channel : channel.subarray(0, frames);
         if (!samples.length) return;
-        const muted = this.micMuted();
-        if (!muted) this.noteMicLevel(samples);
-        // Resampled even while muted, so the converter's carry-over stays
-        // continuous and the frame that follows is not stretched.
+        this.noteMicLevel(samples);
         const pcm = this.toPcm16(samples, event.buffer.sampleRate || PRATHAM_AI_MIC_RATE);
-        if (!pcm.length) return;
-        // Silence rather than nothing: the stream keeps its cadence and the
-        // server's turn detection sees quiet instead of a gap.
-        if (muted) pcm.fill(0);
-        this.ws.send(pcm.buffer);
+        if (pcm.length) this.ws.send(pcm.buffer);
       },
     );
     try {
@@ -220,23 +222,60 @@ export class PrathamAiCall {
     return pcm;
   }
 
-  /**
-   * True while the agent's voice is still coming out of the speaker (or has
-   * just stopped). Everything the microphone hears then is the agent itself.
-   */
-  private micMuted(): boolean {
+  /** True while the agent's voice is still coming out of the speaker. */
+  private agentSpeaking(): boolean {
     const ctx = this.ctx;
     if (!ctx) return false;
-    return ctx.currentTime < this.nextPlayTime + ECHO_TAIL_SECONDS;
+    return this.nextPlayTime > ctx.currentTime + 0.02;
   }
 
-  /** The caller making a sound keeps the silence clock from running out. */
+  /**
+   * Every microphone frame passes through here: while the agent is quiet a
+   * sound from the caller keeps the silence clock from running out, and while
+   * it speaks the same level is watched for the caller talking over it.
+   */
   private noteMicLevel(samples: Float32Array): void {
-    if (this.speaking) return;
     let sum = 0;
-    for (let i = 0; i < samples.length; i += 4) sum += samples[i] * samples[i];
-    const rms = Math.sqrt(sum / Math.max(1, Math.ceil(samples.length / 4)));
-    if (rms >= SPEECH_RMS) this.armSilenceTimer();
+    let count = 0;
+    for (let i = 0; i < samples.length; i += 4) {
+      sum += samples[i] * samples[i];
+      count += 1;
+    }
+    const rms = Math.sqrt(sum / Math.max(1, count));
+
+    if (!this.agentSpeaking()) {
+      this.echoFloor = 0;
+      this.loudFrames = 0;
+      if (rms >= SPEECH_RMS) this.armSilenceTimer();
+      return;
+    }
+
+    this.echoFloor = this.echoFloor ? this.echoFloor * 0.85 + rms * 0.15 : rms;
+    if (rms > DOUBLE_TALK_ABSOLUTE && rms > this.echoFloor * DOUBLE_TALK_MARGIN) {
+      this.loudFrames += 1;
+      if (this.loudFrames >= DOUBLE_TALK_FRAMES) {
+        this.loudFrames = 0;
+        this.interruptAgent();
+      }
+      return;
+    }
+    this.loudFrames = 0;
+  }
+
+  /** The caller cut in: stop the agent here and now, and tell the server. */
+  private interruptAgent(): void {
+    if (!this.running) return;
+    this.clearPlayback();
+    this.echoFloor = 0;
+    const ws = this.ws;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({ type: 'interrupt', reason: 'talked over' }));
+      } catch {
+        // The socket is going away; the reply stops with it.
+      }
+    }
+    this.setListening();
   }
 
   // ── server messages ───────────────────────────────────────────────────
