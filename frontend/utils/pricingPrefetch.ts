@@ -121,6 +121,22 @@ export function takeServerPricing(scanId: string): CalculateMrpResponse | null {
 }
 
 /**
+ * Resolves once a price for this scan is in hand — the server's from the
+ * analysis, or the prefetched first calculation once it settles — so the
+ * counter can hold its hand-off until the card has something to show.
+ * Never rejects: a failed prefetch simply means the card prices itself.
+ */
+export async function awaitPricingReady(scanId: string): Promise<void> {
+  if (serverPricing.has(scanId)) return;
+  const entry = prefetched.get(scanId);
+  if (!entry) return;
+  await entry.promise.then(
+    () => undefined,
+    () => undefined,
+  );
+}
+
+/**
  * Hands the prefetched first calculation to the pricing hook — only when the
  * payload the hook derived matches the one the prefetch was made with, so an
  * edit made in between always prices fresh.

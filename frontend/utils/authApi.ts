@@ -435,6 +435,47 @@ export async function checkRegistrationAvailability(payload: {
   }
 }
 
+/**
+ * Recovery-form pre-check: is there an account behind this phone number or
+ * User ID? A failed request answers `success: false` rather than "no account",
+ * so a flaky connection never tells someone their account does not exist.
+ */
+export async function lookupAccount(payload: {
+  mobile?: string;
+  userId?: string;
+}): Promise<{ success: boolean; exists: boolean; error?: string }> {
+  const mobile = payload.mobile?.replace(/\D/g, '').slice(-10) ?? '';
+  const userId = payload.userId?.trim() ?? '';
+  try {
+    const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
+      '/auth/check-availability',
+      {
+        method: 'POST',
+        body: { mobile, userId },
+        timeoutMs: 10000,
+      },
+    );
+    const unwrapped = unwrapEnvelope(response);
+    if (!isSuccessfulResponse(response, unwrapped)) {
+      return {
+        success: false,
+        exists: false,
+        error: resolveApiMessage(response, unwrapped, 'Could not check the account. Please try again.'),
+      };
+    }
+    return {
+      success: true,
+      exists: unwrapped?.phoneTaken === true || unwrapped?.userIdTaken === true,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      exists: false,
+      error: error instanceof ApiError ? error.message : 'Could not check the account. Please try again.',
+    };
+  }
+}
+
 export async function registerBusiness(payload: {
   mobile: string;
   password: string;
