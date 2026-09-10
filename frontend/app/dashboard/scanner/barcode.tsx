@@ -16,7 +16,7 @@ import {
   pickImageFromGallery,
   prewarmImagePreparation,
 } from '@/utils/imagePicker';
-import { createScan } from '@/utils/scanApi';
+import { createScan, detectTagArea } from '@/utils/scanApi';
 import { invalidateBackgroundUploads, startBackgroundSideUpload } from '@/utils/uploadPipeline';
 
 type ConfirmedCapture = {
@@ -49,7 +49,11 @@ export default function BarcodeScannerScreen() {
   // An uploaded photo is framed in the capture frame itself: the frame is the
   // crop, so the tag ends up filling it exactly as a live capture would.
   const [pickedPhoto, setPickedPhoto] = useState<ConfirmedCapture | null>(null);
+  const [findingTag, setFindingTag] = useState(false);
   const adjustRef = useRef<AdjustableImageRef>(null);
+  // The photo the detection was started for, so a slower answer cannot move a
+  // photo the user has since replaced or dropped.
+  const pickedUriRef = useRef<string | null>(null);
 
   // Deliberately excludes isPickingImage: the controls must not flicker while
   // the system album is coming up.
@@ -59,7 +63,9 @@ export default function BarcodeScannerScreen() {
   const backCaptured = Boolean(confirmedBack);
 
   const instruction = pickedPhoto
-    ? 'Drag and pinch so only the tag fills the frame'
+    ? findingTag
+      ? 'Finding the tag in your photo…'
+      : 'Drag and pinch so only the tag fills the frame'
     : !onSecondSide
     ? 'Align jewellery tag inside frame'
     : backCaptured
@@ -75,6 +81,8 @@ export default function BarcodeScannerScreen() {
     setConfirmedFront(null);
     setConfirmedBack(null);
     setPickedPhoto(null);
+    setFindingTag(false);
+    pickedUriRef.current = null;
     setCaptureStep('first');
     setIsPickingImage(false);
     setIsStartingOperation(false);
@@ -199,6 +207,8 @@ export default function BarcodeScannerScreen() {
     if (!photo) return;
     const cropped = await adjustRef.current?.exportAdjusted();
     const uri = cropped ?? photo.uri;
+    pickedUriRef.current = null;
+    setFindingTag(false);
     setPickedPhoto(null);
     if (captureStep === 'second') confirmBackCapture(uri, photo.source);
     else confirmFrontCapture(uri, photo.source);
@@ -232,6 +242,8 @@ export default function BarcodeScannerScreen() {
   /** The bin beside the frame: drop the framed photo, or the scan itself. */
   const handleDiscardScan = () => {
     if (pickedPhoto) {
+      pickedUriRef.current = null;
+      setFindingTag(false);
       setPickedPhoto(null);
       return;
     }
@@ -268,6 +280,15 @@ export default function BarcodeScannerScreen() {
 
       setIsPickingImage(false);
       setPickedPhoto({ uri, source: 'gallery' });
+      // The tag is usually a small part of a gallery photo. The reader finds
+      // it and the frame goes to it, leaving the user only a nudge to make.
+      pickedUriRef.current = uri;
+      setFindingTag(true);
+      void detectTagArea(uri).then((box) => {
+        if (pickedUriRef.current !== uri) return;
+        setFindingTag(false);
+        if (box) adjustRef.current?.frameRegion(box);
+      });
     } catch {
       setIsPickingImage(false);
       Alert.alert('Upload Error', 'Could not load image from your device. Please try again.');
@@ -284,20 +305,25 @@ export default function BarcodeScannerScreen() {
         onUploadPress={onSecondSide || pickedPhoto ? undefined : handleUpload}
         onDeletePress={onSecondSide || pickedPhoto ? handleDiscardScan : undefined}
         onCalculatePress={onSecondSide && !pickedPhoto ? handleCalculateFromCapture : undefined}
-        frameInteractive={Boolean(pickedPhoto)}
+        photoLayer={
+          pickedPhoto
+            ? (frame) => (
+                <AdjustableImage
+                  ref={adjustRef}
+                  uri={pickedPhoto.uri}
+                  cropRect={frame}
+                  style={StyleSheet.absoluteFill}
+                />
+              )
+            : undefined
+        }
         controlsHidden={busy}
         cameraPaused={isPickingImage || Boolean(pickedPhoto)}
         cameraRef={cameraRef}
       >
-        {pickedPhoto ? (
-          <AdjustableImage
-            ref={adjustRef}
-            uri={pickedPhoto.uri}
-            style={StyleSheet.absoluteFill}
-          />
-        ) : backCaptured ? null : (
-          // The sweeping line means "still looking"; once the back side is in
-          // hand there is nothing left to align.
+        {backCaptured || pickedPhoto ? null : (
+          // The sweeping line means "still looking"; once a side is in hand
+          // there is nothing left to align.
           <BarcodeOverlay />
         )}
       </ScannerScreenLayout>

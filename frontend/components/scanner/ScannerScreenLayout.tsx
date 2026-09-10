@@ -97,6 +97,12 @@ interface ScannerScreenLayoutProps {
   onCalculatePress?: () => void;
   /** Lets touches reach what is drawn in the frame, for framing a photo in it. */
   frameInteractive?: boolean;
+  /**
+   * Drawn over the camera, full screen, with the capture frame's rectangle
+   * handed to it: a photo being positioned fills the screen so it can be seen
+   * while it is moved, and the frame is the part that is kept.
+   */
+  photoLayer?: (frame: { x: number; y: number; width: number; height: number }) => React.ReactNode;
   cameraRef?: RefObject<TagCameraPreviewRef | null>;
   headerContent?: React.ReactNode;
   controlsHidden?: boolean;
@@ -120,6 +126,7 @@ export function ScannerScreenLayout({
   onDeletePress,
   onCalculatePress,
   frameInteractive = false,
+  photoLayer,
   cameraRef,
   headerContent,
   controlsHidden = false,
@@ -179,10 +186,21 @@ export function ScannerScreenLayout({
         />
       </View>
 
+      {photoLayer && rootSize.width > 0 && rootSize.height > 0 ? (
+        <View style={StyleSheet.absoluteFill}>
+          {photoLayer({
+            x: frameLeft,
+            y: frameTop,
+            width: SCANNER_FRAME_WIDTH,
+            height: SCANNER_FRAME_HEIGHT,
+          })}
+        </View>
+      ) : null}
+
       {/* Everything outside the capture frame is blurred and dimmed so only the
           scan area reads sharp. Four pieces around the frame leave it untouched;
           a single overlay with a hole isn't possible with a native blur view. */}
-      {cameraPermissionGranted && rootSize.width > 0 && rootSize.height > 0 ? (
+      {(cameraPermissionGranted || photoLayer) && rootSize.width > 0 && rootSize.height > 0 ? (
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
           <BlurView
             intensity={38}
@@ -245,7 +263,7 @@ export function ScannerScreenLayout({
       </View>
 
       {/* Mockup: the instruction sits centered directly above the capture frame. */}
-      {cameraPermissionGranted && rootSize.height > 0 ? (
+      {(cameraPermissionGranted || photoLayer) && rootSize.height > 0 ? (
         <Text style={[styles.instruction, { top: Math.max(frameTop - 36, 70) }]} pointerEvents="none">
           {instruction}
         </Text>
@@ -253,7 +271,7 @@ export function ScannerScreenLayout({
 
       {headerContent ? <View style={styles.headerContent}>{headerContent}</View> : null}
 
-      {cameraPermissionGranted ? (
+      {cameraPermissionGranted || photoLayer ? (
         <>
           {/* Mockup .cap-frame + .cap-corner brackets */}
           <View style={styles.frame} pointerEvents={frameInteractive ? 'box-none' : 'none'}>

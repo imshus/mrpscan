@@ -36,6 +36,54 @@ const EDITS = [
     marker: 'setInputPreset(oboe::InputPreset::VoiceCommunication)',
   },
   {
+    file: join('android', 'src', 'main', 'java', 'com', 'swmansion', 'audioapi', 'AudioAPIModule.kt'),
+    find: `  override fun setAudioSessionActivity(
+    enabled: Boolean,
+    promise: Promise?,
+  ) {
+    promise?.resolve(true)
+  }`,
+    replace: `  override fun setAudioSessionActivity(
+    enabled: Boolean,
+    promise: Promise?,
+  ) {
+    // A voice-communication call goes to the earpiece by default, which is
+    // where the tag scanner's agent was ending up: held to the ear, on the
+    // call mic. Speakerphone is the same session — the platform's echo
+    // canceller keeps running — routed to the loudspeaker and the main mic.
+    try {
+      val context = reactContext.get()?.applicationContext
+      val manager =
+        context?.getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
+      if (manager != null) {
+        if (enabled) {
+          manager.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
+          if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            manager.availableCommunicationDevices
+              .firstOrNull { it.type == android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+              ?.let { manager.setCommunicationDevice(it) }
+          } else {
+            @Suppress("DEPRECATION")
+            manager.isSpeakerphoneOn = true
+          }
+        } else {
+          if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            manager.clearCommunicationDevice()
+          } else {
+            @Suppress("DEPRECATION")
+            manager.isSpeakerphoneOn = false
+          }
+          manager.mode = android.media.AudioManager.MODE_NORMAL
+        }
+      }
+    } catch (e: Exception) {
+      // The route is a preference, not a requirement: the call still runs.
+    }
+    promise?.resolve(true)
+  }`,
+    marker: 'MODE_IN_COMMUNICATION',
+  },
+  {
     file: join('android', 'src', 'main', 'cpp', 'audioapi', 'android', 'core', 'AudioPlayer.cpp'),
     find: `  builder.setSharingMode(SharingMode::Exclusive)
       ->setFormat(AudioFormat::Float)
