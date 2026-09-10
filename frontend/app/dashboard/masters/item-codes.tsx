@@ -46,6 +46,9 @@ export default function ItemCodesScreen() {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   // Rows mid-save, so a slow request cannot double-fire from two blurs.
   const savingKeys = useRef(new Set<string>());
+  // Rows edited again while their save was in flight: that edit would
+  // otherwise be dropped and never reach the database.
+  const resaveKeys = useRef(new Set<string>());
   // The cleanup that saves on leaving the screen reads through this ref,
   // because the closure it was created in holds stale rows.
   const rowsRef = useRef<RowState[]>([]);
@@ -81,7 +84,12 @@ export default function ItemCodesScreen() {
   /** Saves a line once its fields are left; an empty code means "not yet". */
   const persistRow = useCallback(async (row: RowState, quiet = false) => {
     const code = row.code.trim();
-    if (!code || savingKeys.current.has(row.key)) return;
+    if (!code) return;
+    if (savingKeys.current.has(row.key)) {
+      // Save again with the newer text once the one in flight answers.
+      resaveKeys.current.add(row.key);
+      return;
+    }
     if (row.id && !row.dirty) return;
     savingKeys.current.add(row.key);
     setSaveState('saving');
@@ -104,8 +112,17 @@ export default function ItemCodesScreen() {
       }
     } finally {
       savingKeys.current.delete(row.key);
+      if (resaveKeys.current.delete(row.key)) {
+        const latest = rowsRef.current.find((r) => r.key === row.key);
+        if (latest?.dirty) void persistRowRef.current?.(latest, true);
+      }
     }
   }, []);
+
+  // persistRow re-runs itself through this ref, which a plain recursive
+  // reference inside a useCallback cannot do.
+  const persistRowRef = useRef<typeof persistRow | null>(null);
+  persistRowRef.current = persistRow;
 
   /** Restarts the line's autosave timer; it fires 800ms after the last keystroke. */
   const scheduleAutosave = useCallback(
@@ -203,15 +220,11 @@ export default function ItemCodesScreen() {
             <Text style={styles.errorText}>{error}</Text>
           ) : (
             <>
-              <Text style={[styles.saveStatus, saveState === 'failed' && styles.saveStatusFailed]}>
-                {saveState === 'saving'
-                  ? 'Saving…'
-                  : saveState === 'saved'
-                    ? 'All changes saved'
-                    : saveState === 'failed'
-                      ? 'Last save failed — check your connection'
-                      : 'Changes save automatically'}
-              </Text>
+              {saveState === 'saving' || saveState === 'failed' ? (
+                <Text style={[styles.saveStatus, saveState === 'failed' && styles.saveStatusFailed]}>
+                  {saveState === 'saving' ? 'Saving…' : 'Last save failed — check your connection'}
+                </Text>
+              ) : null}
               <View style={styles.sheetCard}>
                 {rows.map((row, index) => (
                   <View key={row.key} style={[styles.row, index > 0 && styles.rowDivider]}>
@@ -225,8 +238,6 @@ export default function ItemCodesScreen() {
                           scheduleAutosave(row.key);
                         }}
                         onBlur={() => handleBlur(row.key)}
-                        placeholder="––––––––––––"
-                        placeholderTextColor={Colors.placeholder}
                         style={styles.fieldInput}
                       />
                     </View>
@@ -239,8 +250,6 @@ export default function ItemCodesScreen() {
                           scheduleAutosave(row.key);
                         }}
                         onBlur={() => handleBlur(row.key)}
-                        placeholder="––––––––––––"
-                        placeholderTextColor={Colors.placeholder}
                         autoCapitalize="characters"
                         maxLength={40}
                         style={styles.fieldInput}

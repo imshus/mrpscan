@@ -15,6 +15,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { applyUploadSigning } from './apply-upload-signing.mjs';
+import { patchAudioApi } from './patch-audio-api.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, '..');
@@ -188,6 +189,10 @@ if (
     cwd: join(audioApiRoot, 'android'),
   });
 }
+
+// The voice call records through Android's echo canceller; the library has no
+// setting for that, so its Oboe streams are patched in place.
+patchAudioApi(projectRoot);
 
 // Always regenerate the files that were left partially written by the failed
 // concurrent builds reported by Metro's source-map composer.

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomNavRoute } from '@/types/scanner';
 
 import { Colors } from '@/constants/theme';
+import { togglePrathamAiCall, usePrathamAiSession } from '@/utils/prathamAiSession';
 
 const NAV_OFFSET = 2;
 /**
@@ -42,18 +43,13 @@ export function BottomNav({ activeRoute = 'home', onHeightChange }: BottomNavPro
     router.navigate('/dashboard/scanner' as Href);
   };
 
-  // Pratham AI is a live call, not a page: the tab dials the voice agent
-  // straight away and the screen hangs up when it is left.
-  const handlePrathamAiPress = () => {
-    if (activeRoute === 'ai') {
-      return;
-    }
-    router.navigate('/dashboard/pratham-ai' as Href);
-  };
+  // Pratham AI is the call itself, not a page: the button dials the voice
+  // agent, ends the call when tapped again, and goes green while it is live.
+  const callLive = usePrathamAiSession((state) => state.live);
 
   const homeColor = activeRoute === 'home' ? Colors.brandDeep : Colors.textMuted;
   const scanColor = activeRoute === 'scanner' ? Colors.brandDeep : Colors.textMuted;
-  const aiColor = activeRoute === 'ai' ? Colors.brandDeep : Colors.textMuted;
+  const aiColor = callLive ? Colors.successText : Colors.textMuted;
 
   return (
     <View
@@ -75,7 +71,12 @@ export function BottomNav({ activeRoute = 'home', onHeightChange }: BottomNavPro
           <Text style={[styles.navLabel, { color: scanColor }]}>Scanner</Text>
         </Pressable>
 
-        <Pressable style={styles.navItem} onPress={handlePrathamAiPress}>
+        <Pressable
+          style={styles.navItem}
+          onPress={() => void togglePrathamAiCall()}
+          accessibilityRole="button"
+          accessibilityLabel={callLive ? 'End the Pratham AI call' : 'Call Pratham AI'}
+        >
           <Phone size={ICON_SIZE} color={aiColor} strokeWidth={2} />
           <Text style={[styles.navLabel, { color: aiColor }]}>Pratham AI</Text>
         </Pressable>

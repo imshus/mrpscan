@@ -239,6 +239,44 @@ export async function createScan(
   return unwrapCreateScanResponse(response);
 }
 
+
+export interface TagBox {
+  /** Fractions of the image's own width and height. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Where the printed tag sits in a photo, read by the same model the scan
+ * itself uses. Answers null when it cannot be found, when the request fails,
+ * or in demo mode — the framing is then left to the user.
+ */
+export async function detectTagArea(imageUri: string): Promise<TagBox | null> {
+  if (isDemoScanMode()) return null;
+  try {
+    const prepared = await prepareImageForUpload(imageUri);
+    const response = await apiRequest<Record<string, unknown>>('/scans/detect-tag', {
+      method: 'POST',
+      body: buildImageFormData(prepared),
+      timeoutMs: 30000,
+    });
+    const data = unwrapApiData(response) as { found?: boolean; box?: Partial<TagBox> } | null;
+    const box = data?.box;
+    if (!data?.found || !box) return null;
+    const num = (value: unknown) => (Number.isFinite(Number(value)) ? Number(value) : null);
+    const x = num(box.x);
+    const y = num(box.y);
+    const width = num(box.width);
+    const height = num(box.height);
+    if (x === null || y === null || !width || !height) return null;
+    return { x, y, width, height };
+  } catch {
+    return null;
+  }
+}
+
 export async function uploadFrontImage(
   scanId: string,
   imageUri: string,

@@ -71,6 +71,26 @@ export function flattenStructuredData(data: unknown): StructuredScanData {
   return result;
 }
 
+/**
+ * The rows a list endpoint answered with.
+ *
+ * `unwrapApiData` leaves an envelope alone when its `data` is an array, so a
+ * list read through it comes back still wrapped and reads as empty. Lists are
+ * taken out here instead: `{ data: [...] }`, `{ items: [...] }`, or a bare
+ * array.
+ */
+export function unwrapApiList(response: unknown): unknown[] {
+  if (Array.isArray(response)) return response;
+  if (response && typeof response === 'object') {
+    const record = response as Record<string, unknown>;
+    for (const key of ['data', 'items', 'rows', 'results']) {
+      const value = record[key];
+      if (Array.isArray(value)) return value;
+    }
+  }
+  return [];
+}
+
 export function unwrapApiData<T extends Record<string, unknown>>(response: T): T;
 export function unwrapApiData<T>(response: T | { data?: T }): T;
 export function unwrapApiData(response: unknown): unknown {

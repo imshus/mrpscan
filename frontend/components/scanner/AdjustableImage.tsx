@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Image,
@@ -10,22 +10,43 @@ import {
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
 const MIN_SCALE = 1;
-const MAX_SCALE = 4;
+const MAX_SCALE = 8;
+
+export interface CropRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 export interface AdjustableImageRef {
   /**
-   * Crops the source image down to whatever the user framed.
-   * Returns null when the image was left untouched, so callers keep the
-   * original file (and its prewarmed upload) in the common case.
+   * Crops the source image down to what the crop window is showing.
+   * Returns null only when the image's own size is not known yet, so callers
+   * fall back to the file as it came.
    */
   exportAdjusted: () => Promise<string | null>;
   /** Scales the framing by `factor` about the centre; clamped to the pinch range. */
   zoomBy: (factor: number) => void;
+  /**
+   * Moves and scales the photo so this region of it — fractions of the
+   * source's own width and height — sits in the crop window. Used to put the
+   * tag the model found straight into the frame. Applied as soon as the
+   * photo's size is known, so it can be called before it has loaded.
+   */
+  frameRegion: (region: CropRect) => void;
 }
 
 interface AdjustableImageProps {
   uri: string;
   style?: object;
+  /**
+   * The part of this view that is kept, in its own coordinates. The photo
+   * fills the whole screen so the tag can be seen while it is moved; the
+   * capture frame drawn over it is what is actually cut out. Defaults to the
+   * whole view.
+   */
+  cropRect?: CropRect;
   /** Fires when a drag or pinch ends, so the caller can export the framing early. */
   onAdjustEnd?: () => void;
 }
@@ -38,7 +59,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
  * adjustment reaches the OCR request, not just the preview.
  */
 export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImageProps>(
-  function AdjustableImage({ uri, style, onAdjustEnd }, ref) {
+  function AdjustableImage({ uri, style, cropRect, onAdjustEnd }, ref) {
     const [box, setBox] = useState({ width: 0, height: 0 });
     const [natural, setNatural] = useState({ width: 0, height: 0 });
 
@@ -145,7 +166,44 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
       [box.width, box.height],
     );
 
+    // The region to frame once the view and the photo have both been measured.
+    const pendingRegion = useRef<CropRect | null>(null);
+
+    const applyRegion = (region: CropRect): boolean => {
+      if (!box.width || !box.height || !natural.width || !natural.height) return false;
+      const window = cropRect ?? { x: 0, y: 0, width: box.width, height: box.height };
+      const coverScale = Math.max(box.width / natural.width, box.height / natural.height);
+
+      const regionWidth = Math.max(region.width * natural.width, 1);
+      const regionHeight = Math.max(region.height * natural.height, 1);
+      const wanted = Math.min(window.width / regionWidth, window.height / regionHeight);
+      const nextScale = clamp(wanted / coverScale, MIN_SCALE, MAX_SCALE);
+      const totalScale = coverScale * nextScale;
+
+      const regionCenterX = (region.x + region.width / 2) * natural.width;
+      const regionCenterY = (region.y + region.height / 2) * natural.height;
+      const tx = window.x + window.width / 2 - box.width / 2
+        - (regionCenterX - natural.width / 2) * totalScale;
+      const ty = window.y + window.height / 2 - box.height / 2
+        - (regionCenterY - natural.height / 2) * totalScale;
+
+      state.current.scale = nextScale;
+      scaleValue.setValue(nextScale);
+      applyTranslation(tx, ty);
+      return true;
+    };
+
+    useEffect(() => {
+      const region = pendingRegion.current;
+      if (region && applyRegion(region)) pendingRegion.current = null;
+      // applyRegion reads the measurements this effect waits for.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [box.width, box.height, natural.width, natural.height]);
+
     useImperativeHandle(ref, () => ({
+      frameRegion: (region: CropRect) => {
+        if (!applyRegion(region)) pendingRegion.current = region;
+      },
       // Button-driven zoom: the same state the pinch writes, so export sees
       // one framing however it was reached. Re-clamping the translation keeps
       // the image inside the frame when zooming back out.
@@ -156,18 +214,20 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
       },
       exportAdjusted: async () => {
         const { tx, ty, scale } = state.current;
-        const untouched = scale === 1 && tx === 0 && ty === 0;
-        if (untouched) return null;
         if (!box.width || !box.height || !natural.width || !natural.height) return null;
 
-        // resizeMode="contain" fits the image inside the box before the user transform.
-        const containScale = Math.min(box.width / natural.width, box.height / natural.height);
-        const totalScale = containScale * scale;
+        // resizeMode="cover" fills the view before the user transform, so what
+        // is on screen is always a crop — even when nothing has been moved.
+        const coverScale = Math.max(box.width / natural.width, box.height / natural.height);
+        const totalScale = coverScale * scale;
+        const window = cropRect ?? { x: 0, y: 0, width: box.width, height: box.height };
 
-        const originX = (-box.width / 2 - tx) / totalScale + natural.width / 2;
-        const originY = (-box.height / 2 - ty) / totalScale + natural.height / 2;
-        const cropWidth = box.width / totalScale;
-        const cropHeight = box.height / totalScale;
+        // A point of the view maps back to the image through the same centre,
+        // translation and scale the transform applied.
+        const originX = (window.x - box.width / 2 - tx) / totalScale + natural.width / 2;
+        const originY = (window.y - box.height / 2 - ty) / totalScale + natural.height / 2;
+        const cropWidth = window.width / totalScale;
+        const cropHeight = window.height / totalScale;
 
         const x = clamp(Math.round(originX), 0, Math.max(0, natural.width - 1));
         const y = clamp(Math.round(originY), 0, Math.max(0, natural.height - 1));
@@ -192,7 +252,7 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
       <View style={[styles.box, style]} onLayout={handleLayout} {...panResponder.panHandlers}>
         <Animated.Image
           source={{ uri }}
-          resizeMode="contain"
+          resizeMode="cover"
           style={[
             styles.image,
             {

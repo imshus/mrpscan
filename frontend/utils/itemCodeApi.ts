@@ -1,5 +1,5 @@
 import { apiRequest } from '@/utils/apiClient';
-import { unwrapApiData } from '@/utils/apiResponse';
+import { unwrapApiData, unwrapApiList } from '@/utils/apiResponse';
 
 export interface ItemCode {
   id: string;
@@ -18,9 +18,7 @@ function toItemCode(raw: RawItemCode): ItemCode | null {
 
 export async function fetchItemCodes(): Promise<ItemCode[]> {
   const response = await apiRequest<Record<string, unknown>>('/item-codes', { method: 'GET' });
-  const data = unwrapApiData(response);
-  const rows = Array.isArray(data) ? data : [];
-  return rows
+  return unwrapApiList(response)
     .map((row) => toItemCode(row as RawItemCode))
     .filter((row): row is ItemCode => row !== null);
 }
