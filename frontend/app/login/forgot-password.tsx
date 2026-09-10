@@ -25,6 +25,7 @@ import { Reveal } from '@/components/auth/Reveal';
 import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { Colors } from '@/constants/theme';
 import {
+  lookupAccount,
   requestPasswordReset,
   resetForgottenPassword,
   verifyPasswordResetOtp,
@@ -82,6 +83,28 @@ export default function ForgotPasswordScreen() {
     setUserIdError(null);
     setSending(true);
     try {
+      // A 10-digit entry is looked up as a phone number as well as a User ID,
+      // since either identifies an account; anything else is a User ID only.
+      const isPhone = /^[0-9]{10}$/.test(normalizedId);
+      const account = await lookupAccount({
+        userId: normalizedId,
+        mobile: isPhone ? normalizedId : undefined,
+      });
+      if (!account.success) {
+        setUserIdError(account.error ?? 'Could not check the account. Please try again.');
+        triggerShake();
+        return;
+      }
+      if (!account.exists) {
+        setUserIdError(
+          isPhone
+            ? 'No account is registered with this mobile number.'
+            : 'No account found with this User ID.',
+        );
+        triggerShake();
+        return;
+      }
+
       const result = await requestPasswordReset(normalizedId);
       if (!result.success) {
         setUserIdError(result.error ?? 'Failed to send code.');

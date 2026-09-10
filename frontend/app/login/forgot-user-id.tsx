@@ -25,7 +25,7 @@ import { OtpBox } from '@/components/auth/OtpBox';
 import { Reveal } from '@/components/auth/Reveal';
 import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { Colors, Fonts } from '@/constants/theme';
-import { recoverUserId, sendLoginOtp } from '@/utils/authApi';
+import { lookupAccount, recoverUserId, sendLoginOtp } from '@/utils/authApi';
 import { validatePhone } from '@/utils/validation';
 
 const OTP_LENGTH = 6;
@@ -64,6 +64,20 @@ export default function ForgotUserIdScreen() {
 
     setSending(true);
     try {
+      // The number must belong to an account before a code goes out — a
+      // stranger's phone gets a clear answer instead of an OTP for nothing.
+      const account = await lookupAccount({ mobile: normalizedPhone });
+      if (!account.success) {
+        setPhoneError(account.error ?? 'Could not check the number. Please try again.');
+        triggerShake();
+        return;
+      }
+      if (!account.exists) {
+        setPhoneError('No account is registered with this mobile number.');
+        triggerShake();
+        return;
+      }
+
       const result = await sendLoginOtp(normalizedPhone);
       if (!result.success) {
         setPhoneError(result.error ?? 'Failed to send code.');
