@@ -27,6 +27,9 @@ export const usePrathamAiSession = create<PrathamAiSessionState>(() => ({
 
 const LIVE_STATUSES: SessionStatus[] = ['connecting', 'listening', 'speaking'];
 
+/** How long the server is given to name the agent's address. */
+const CONFIG_WAIT_MS = 2500;
+
 let call: PrathamAiCall | null = null;
 let starting = false;
 /** Bumped whenever a call ends or a new one is placed, so an attempt that was
@@ -65,7 +68,15 @@ export async function togglePrathamAiCall(): Promise<void> {
   const attempt = (generation += 1);
   setStatus('connecting');
   try {
-    const config = await fetchAppConfig();
+    // A server that answers slowly (or has no such route) must not leave the
+    // button sitting green: the address it would supply is only an override
+    // of the one built into the app, so it is worth a short wait and no more.
+    const config = await Promise.race([
+      fetchAppConfig(),
+      new Promise<{ prathamAiUrl: string }>((resolve) =>
+        setTimeout(() => resolve({ prathamAiUrl: '' }), CONFIG_WAIT_MS),
+      ),
+    ]);
     const base = (config.prathamAiUrl || PRATHAM_AI_URL_FALLBACK).trim();
     // Tapped again while the address was being fetched: the call is off.
     if (generation !== attempt) return;

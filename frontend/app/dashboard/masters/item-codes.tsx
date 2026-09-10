@@ -46,6 +46,9 @@ export default function ItemCodesScreen() {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   // Rows mid-save, so a slow request cannot double-fire from two blurs.
   const savingKeys = useRef(new Set<string>());
+  // Rows edited again while their save was in flight: that edit would
+  // otherwise be dropped and never reach the database.
+  const resaveKeys = useRef(new Set<string>());
   // The cleanup that saves on leaving the screen reads through this ref,
   // because the closure it was created in holds stale rows.
   const rowsRef = useRef<RowState[]>([]);
@@ -81,7 +84,12 @@ export default function ItemCodesScreen() {
   /** Saves a line once its fields are left; an empty code means "not yet". */
   const persistRow = useCallback(async (row: RowState, quiet = false) => {
     const code = row.code.trim();
-    if (!code || savingKeys.current.has(row.key)) return;
+    if (!code) return;
+    if (savingKeys.current.has(row.key)) {
+      // Save again with the newer text once the one in flight answers.
+      resaveKeys.current.add(row.key);
+      return;
+    }
     if (row.id && !row.dirty) return;
     savingKeys.current.add(row.key);
     setSaveState('saving');
@@ -104,8 +112,17 @@ export default function ItemCodesScreen() {
       }
     } finally {
       savingKeys.current.delete(row.key);
+      if (resaveKeys.current.delete(row.key)) {
+        const latest = rowsRef.current.find((r) => r.key === row.key);
+        if (latest?.dirty) void persistRowRef.current?.(latest, true);
+      }
     }
   }, []);
+
+  // persistRow re-runs itself through this ref, which a plain recursive
+  // reference inside a useCallback cannot do.
+  const persistRowRef = useRef<typeof persistRow | null>(null);
+  persistRowRef.current = persistRow;
 
   /** Restarts the line's autosave timer; it fires 800ms after the last keystroke. */
   const scheduleAutosave = useCallback(
@@ -184,6 +201,9 @@ export default function ItemCodesScreen() {
     setRows((current) => [...current, emptyRow()]);
   };
 
+  // The lines that are in the database: a row has an id once it is saved.
+  const savedRows = rows.filter((row) => row.id && row.code.trim());
+
   return (
     <SafeAreaView style={screenStyles.safeArea} edges={['top']}>
       <BackgroundPattern />
@@ -225,8 +245,6 @@ export default function ItemCodesScreen() {
                           scheduleAutosave(row.key);
                         }}
                         onBlur={() => handleBlur(row.key)}
-                        placeholder="––––––––––––"
-                        placeholderTextColor={Colors.placeholder}
                         style={styles.fieldInput}
                       />
                     </View>
@@ -239,8 +257,6 @@ export default function ItemCodesScreen() {
                           scheduleAutosave(row.key);
                         }}
                         onBlur={() => handleBlur(row.key)}
-                        placeholder="––––––––––––"
-                        placeholderTextColor={Colors.placeholder}
                         autoCapitalize="characters"
                         maxLength={40}
                         style={styles.fieldInput}
@@ -256,6 +272,24 @@ export default function ItemCodesScreen() {
               <TouchableOpacity activeOpacity={0.85} style={styles.addBtn} onPress={handleAdd}>
                 <Text style={styles.addBtnText}>+ Add</Text>
               </TouchableOpacity>
+
+              {/* Everything saved, numbered, exactly as it is in the database. */}
+              <View style={styles.savedSection}>
+                <Text style={styles.savedTitle}>
+                  {savedRows.length
+                    ? `Saved item codes (${savedRows.length})`
+                    : 'No item code saved yet'}
+                </Text>
+                {savedRows.map((row, index) => (
+                  <View key={`saved-${row.id}`} style={styles.savedRow}>
+                    <Text style={styles.savedIndex}>{index + 1}.</Text>
+                    <Text style={styles.savedCode}>{row.code}</Text>
+                    <Text style={styles.savedName} numberOfLines={2}>
+                      {row.name || '—'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
             </>
           )}
         </ScrollView>
@@ -349,6 +383,44 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: Colors.textPrimary,
+  },
+  savedSection: {
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.tile,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
+  },
+  savedTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: Colors.textMuted,
+  },
+  savedRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+  },
+  savedIndex: {
+    width: 22,
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.textMuted,
+  },
+  savedCode: {
+    minWidth: 96,
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  savedName: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.textSecondary,
   },
   centerState: {
     paddingVertical: 32,
