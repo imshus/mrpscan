@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import { registerScopeResetCallback } from '@/utils/userScopedStorage';
+
 import type { GstRateOption } from '@/utils/invoiceCalculation';
 
 export interface InvoiceCustomerForm {
@@ -52,3 +54,16 @@ export const useInvoiceStore = create<InvoiceState>((set) => ({
       gstRate: 3,
     }),
 }));
+
+/**
+ * The billing form belongs to the account that typed it: a customer's name,
+ * address, phone, GSTIN and PAN, which the next invoice would be made out to
+ * and emailed to.
+ *
+ * It lives in memory, so nothing on disk carries it over, but the app is not
+ * restarted between accounts on a shared phone: what one person left behind
+ * must not be waiting for the next.
+ */
+registerScopeResetCallback(() => {
+  useInvoiceStore.getState().resetInvoiceForm();
+});

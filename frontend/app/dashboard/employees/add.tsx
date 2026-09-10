@@ -4,7 +4,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,13 +12,11 @@ import {
   View,
 } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { ChevronDown } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { EmployeeScreenHeader } from '@/components/employees/EmployeeScreenHeader';
 import { GradientView } from '@/components/ui/GradientView';
-import { GENDER_OPTIONS } from '@/constants/employeeData';
 import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
 import { useEmployeeDraftStore } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
@@ -35,7 +32,6 @@ export default function AddEmployeeScreen() {
   const editEmployeeId = useEmployeeDraftStore((s) => s.editEmployeeId);
   const updateEmployee = useEmployeeStore((s) => s.updateEmployee);
 
-  const [showGender, setShowGender] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
 
@@ -101,7 +97,7 @@ export default function AddEmployeeScreen() {
             </View>
             <View style={styles.cardBody}>
             <Text style={styles.label}>
-              FULL NAME<Text style={styles.required}>*</Text>
+              Full Name<Text style={styles.required}>*</Text>
             </Text>
             <TextInput
               value={draft.fullName}
@@ -112,7 +108,7 @@ export default function AddEmployeeScreen() {
             {errors.fullName ? <Text style={styles.error}>{errors.fullName}</Text> : null}
 
             <Text style={styles.label}>
-              PHONE NUMBER<Text style={styles.required}>*</Text>
+              Phone Number<Text style={styles.required}>*</Text>
             </Text>
             <TextInput
               value={draft.phone}
@@ -125,7 +121,7 @@ export default function AddEmployeeScreen() {
             />
             {errors.phone ? <Text style={styles.error}>{errors.phone}</Text> : null}
 
-            <Text style={styles.label}>EMAIL</Text>
+            <Text style={styles.label}>Email</Text>
             <TextInput
               value={draft.email}
               onChangeText={(text) => updateDraft({ email: text })}
@@ -136,35 +132,13 @@ export default function AddEmployeeScreen() {
             />
             {errors.email ? <Text style={styles.error}>{errors.email}</Text> : null}
 
-            <Text style={styles.label}>GENDER</Text>
-            <Pressable onPress={() => setShowGender((v) => !v)} style={styles.input}>
-              <Text style={styles.inputText}>{draft.gender}</Text>
-              <ChevronDown size={16} color={Colors.textMuted} />
-            </Pressable>
-            {showGender ? (
-              <View style={styles.dropdown}>
-                {GENDER_OPTIONS.map((option) => (
-                  <Pressable
-                    key={option}
-                    onPress={() => {
-                      updateDraft({ gender: option });
-                      setShowGender(false);
-                    }}
-                    style={styles.dropdownItem}
-                  >
-                    <Text style={styles.dropdownText}>{option}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-
             <Text style={styles.label}>
-              DESIGNATION<Text style={styles.required}>*</Text>
+              Position / Designation<Text style={styles.required}>*</Text>
             </Text>
             <TextInput
               value={draft.designation}
               onChangeText={(text) => updateDraft({ designation: text })}
-              accessibilityLabel="Designation"
+              accessibilityLabel="Position or Designation"
               style={[styles.input, errors.designation ? styles.inputError : null]}
             />
             {errors.designation ? <Text style={styles.error}>{errors.designation}</Text> : null}
@@ -228,12 +202,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   label: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.brandDeep,
     marginBottom: 7,
     marginTop: 14,
-    letterSpacing: 0.3,
   },
   required: {
     color: Colors.brandDeep,
@@ -251,10 +224,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  inputText: {
-    fontSize: 15,
-    color: Colors.textPrimary,
-  },
   inputError: {
     borderColor: Colors.brandDeep,
   },
@@ -263,24 +232,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.brandDeep,
     marginTop: 6,
-  },
-  dropdown: {
-    marginTop: 4,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.input,
-    overflow: 'hidden',
-  },
-  dropdownItem: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  dropdownText: {
-    fontSize: 15,
-    color: Colors.textPrimary,
   },
   continueBtn: {
     height: Spacing.buttonHeight,

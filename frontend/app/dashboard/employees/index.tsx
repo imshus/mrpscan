@@ -10,7 +10,7 @@ import { EmployeeScreenHeader } from '@/components/employees/EmployeeScreenHeade
 import { EmployeeSearchBar } from '@/components/employees/EmployeeSearchBar';
 import { Colors, Spacing } from '@/constants/theme';
 import { useSettingsAccess } from '@/hooks/useSettingsAccess';
-import { useEmployeeDraftStore } from '@/store/employeeDraftStore';
+import { loadEmployeeIntoDraft, useEmployeeDraftStore } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { fetchEmployees } from '@/utils/employeeApi';
 
@@ -94,6 +94,17 @@ export default function EmployeesScreen() {
               key={employee.id}
               employee={employee}
               onPress={() => router.push(`/dashboard/employees/${employee.id}` as Href)}
+              onSetPermission={
+                isOwner
+                  ? () => {
+                      // Straight to the permissions from the list: the whole
+                      // set opens against this employee's saved values.
+                      loadEmployeeIntoDraft(employee);
+                      setMode('edit', employee.id);
+                      router.push('/dashboard/employees/permissions' as Href);
+                    }
+                  : undefined
+              }
             />
           ))
         )}
@@ -126,13 +137,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.screenHorizontal,
     paddingBottom: 120,
   },
-  // Mockup: the Add pill sits centered above the bottom bar.
+  // Mockup: the Add pill sits at the right, above the bottom bar.
   fabWrap: {
     position: 'absolute',
     left: 0,
-    right: 0,
+    right: Spacing.screenHorizontal,
     bottom: 108,
-    alignItems: 'center',
+    alignItems: 'flex-end',
   },
   centerState: {
     paddingVertical: 40,

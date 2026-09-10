@@ -1,15 +1,19 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { ChevronRight } from 'lucide-react-native';
 
 import { Colors, Radius } from '@/constants/theme';
 import type { Employee } from '@/types/employee';
 
+/** The role line's violet, from the mockup; the theme carries no purple. */
+const ROLE_VIOLET = '#6D5BD0';
+
 interface EmployeeListCardProps {
   employee: Employee;
   onPress: () => void;
+  /** Opens this employee's permissions; omitted for an employee's own card. */
+  onSetPermission?: () => void;
 }
 
-export function EmployeeListCard({ employee, onPress }: EmployeeListCardProps) {
+export function EmployeeListCard({ employee, onPress, onSetPermission }: EmployeeListCardProps) {
   const nameParts = employee.fullName.trim().split(/\s+/);
   const initial = nameParts.length > 1
     ? (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase()
@@ -21,10 +25,18 @@ export function EmployeeListCard({ employee, onPress }: EmployeeListCardProps) {
         <Text style={styles.avatarText}>{initial}</Text>
       </View>
       <View style={styles.info}>
-        <Text style={styles.name}>{employee.fullName}</Text>
-        <Text style={styles.role}>{employee.designation}</Text>
+        <Text style={styles.name} numberOfLines={1}>
+          {employee.fullName}
+        </Text>
+        <Text style={styles.role} numberOfLines={1}>
+          {employee.designation}
+        </Text>
       </View>
-      <ChevronRight size={18} color={Colors.textMuted} />
+      {onSetPermission ? (
+        <Pressable onPress={onSetPermission} hitSlop={6} style={styles.permissionBtn}>
+          <Text style={styles.permissionText}>Set Permission</Text>
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }
@@ -42,11 +54,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     gap: 12,
   },
-  // Mockup: initials on a rounded square, not a full circle.
+  // Mockup: initials on a circle.
   avatar: {
     width: 44,
     height: 44,
-    borderRadius: 14,
+    borderRadius: 22,
     backgroundColor: Colors.metalGoldBg,
     alignItems: 'center',
     justifyContent: 'center',
@@ -69,7 +81,20 @@ const styles = StyleSheet.create({
   role: {
     fontSize: 11.5,
     fontWeight: '600',
-    color: Colors.metalGold,
+    color: ROLE_VIOLET,
     marginTop: 2,
+  },
+  permissionBtn: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.metalGoldBorder,
+    backgroundColor: Colors.metalGoldBg,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  permissionText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: Colors.metalGold,
   },
 });

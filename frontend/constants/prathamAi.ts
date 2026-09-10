@@ -7,8 +7,13 @@
 /** Build-time address of the agent server; the server's PRATHAM_AI_URL overrides it. */
 export const PRATHAM_AI_URL_FALLBACK = (process.env.EXPO_PUBLIC_PRATHAM_AI_URL ?? '').trim();
 
-/** The call ends on its own after this long without the caller saying anything. */
-export const PRATHAM_AI_SILENCE_MS = 10000;
+/**
+ * The call ends on its own after this long without the caller saying anything.
+ * Long, because the agent walks a caller through the app one step at a time and
+ * then waits: they go quiet while they tap through their own screens, which at
+ * ten seconds hung up on them mid-walkthrough.
+ */
+export const PRATHAM_AI_SILENCE_MS = 45000;
 
 /** How long to let the agent say goodbye after the caller asks to end the call. */
 export const PRATHAM_AI_FAREWELL_MS = 6000;

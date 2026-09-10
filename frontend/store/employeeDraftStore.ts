@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import { DEFAULT_EMPLOYEE_PERMISSIONS } from '@/constants/employeeData';
 import type { EmployeeDraft, EmployeeGender, EmployeePermissionKey } from '@/types/employee';
+import { registerScopeResetCallback } from '@/utils/userScopedStorage';
 
 interface EmployeeDraftState {
   mode: 'add' | 'edit';
@@ -50,6 +51,16 @@ export const useEmployeeDraftStore = create<EmployeeDraftState>()((set) => ({
       draft: { ...emptyDraft, permissions: { ...DEFAULT_EMPLOYEE_PERMISSIONS } },
     }),
 }));
+
+/**
+ * The half-filled form belongs to whoever was signing in when it was typed.
+ * It lives in memory, so nothing on disk carries it over, but the app is not
+ * restarted between accounts on a shared phone: signing in as someone else
+ * must not open Add New Employee on the last person's colleague.
+ */
+registerScopeResetCallback(() => {
+  useEmployeeDraftStore.getState().resetDraft();
+});
 
 export function loadEmployeeIntoDraft(employee: {
   fullName: string;

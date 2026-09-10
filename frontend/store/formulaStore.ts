@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import { registerScopeResetCallback } from '@/utils/userScopedStorage';
+
 export type ActiveFormula = 'F1' | 'F2';
 
 interface FormulaState {
@@ -30,3 +32,15 @@ export const useFormulaStore = create<FormulaState>((set) => ({
       formula2Rules: state.formula2Rules.filter((_, i) => i !== index),
     })),
 }));
+
+/**
+ * The active formula and its karat rules are the signed-in account's own —
+ * the server keeps them per user — and they decide what a scan is priced at.
+ *
+ * It lives in memory, so nothing on disk carries it over, but the app is not
+ * restarted between accounts on a shared phone: what one person left behind
+ * must not be waiting for the next.
+ */
+registerScopeResetCallback(() => {
+  useFormulaStore.setState(useFormulaStore.getInitialState(), true);
+});
