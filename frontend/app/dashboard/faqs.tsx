@@ -1,14 +1,12 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -45,9 +43,9 @@ export default function FaqsScreen() {
   // reads as an index of what the help covers.
   const [openSections, setOpenSections] = useState<Set<string>>(new Set());
   const [languageOpen, setLanguageOpen] = useState(false);
-  const [anchor, setAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-  const globeRef = useRef<View>(null);
-  const { width: screenWidth } = useWindowDimensions();
+  // Where the search row ends, in this screen's own coordinates, so the menu
+  // hangs under the globe on any device.
+  const [searchRowBottom, setSearchRowBottom] = useState(0);
 
   const load = useCallback(async () => {
     setError(null);
@@ -99,7 +97,13 @@ export default function FaqsScreen() {
       <BackgroundPattern />
       <PageHeader title="FAQs" />
 
-      <View style={styles.searchRow}>
+      <View
+        style={styles.searchRow}
+        onLayout={(event) => {
+          const { y, height } = event.nativeEvent.layout;
+          setSearchRowBottom(Math.round(y + height));
+        }}
+      >
         <View style={styles.searchBox}>
           <Search size={16} color={Colors.textMuted} />
           <TextInput
@@ -111,13 +115,7 @@ export default function FaqsScreen() {
           />
         </View>
         <Pressable
-          ref={globeRef}
-          onPress={() => {
-            globeRef.current?.measureInWindow((x, y, width, height) => {
-              setAnchor({ x, y, width, height });
-              setLanguageOpen(true);
-            });
-          }}
+          onPress={() => setLanguageOpen((open) => !open)}
           accessibilityRole="button"
           accessibilityLabel="Choose the language"
           style={styles.globeBtn}
@@ -126,48 +124,31 @@ export default function FaqsScreen() {
         </Pressable>
       </View>
 
-      {/* statusBarTranslucent: without it the modal's own coordinates start
-          below the status bar, and the menu measured against the window lands
-          that much too high — over the globe instead of under it. */}
-      <Modal
-        visible={languageOpen}
-        transparent
-        statusBarTranslucent
-        animationType="none"
-        onRequestClose={() => setLanguageOpen(false)}
-      >
-        <Pressable style={styles.menuBackdrop} onPress={() => setLanguageOpen(false)}>
-          {anchor ? (
-            <View
-              style={[
-                styles.menu,
-                {
-                  top: anchor.y + anchor.height + 10,
-                  right: Math.max(8, screenWidth - (anchor.x + anchor.width)),
-                },
-              ]}
-            >
-              {LANGUAGE_CHOICES.map((choice) => {
-                const selected = choice.value === language;
-                return (
-                  <Pressable
-                    key={choice.value}
-                    onPress={() => {
-                      setLanguage(choice.value);
-                      setLanguageOpen(false);
-                    }}
-                    style={styles.menuRow}
-                  >
-                    <Text style={[styles.menuText, selected && styles.menuTextSelected]}>
-                      {choice.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
-        </Pressable>
-      </Modal>
+      {languageOpen ? (
+        <>
+          {/* A tap anywhere else closes it. */}
+          <Pressable style={styles.menuScrim} onPress={() => setLanguageOpen(false)} />
+          <View style={[styles.menu, { top: searchRowBottom + 4 }]}>
+            {LANGUAGE_CHOICES.map((choice) => {
+              const selected = choice.value === language;
+              return (
+                <Pressable
+                  key={choice.value}
+                  onPress={() => {
+                    setLanguage(choice.value);
+                    setLanguageOpen(false);
+                  }}
+                  style={styles.menuRow}
+                >
+                  <Text style={[styles.menuText, selected && styles.menuTextSelected]}>
+                    {choice.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
+      ) : null}
 
       <ScrollView
         style={styles.flex}
@@ -281,11 +262,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  menuBackdrop: {
-    flex: 1,
+  menuScrim: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 18,
   },
   menu: {
     position: 'absolute',
+    right: Spacing.screenHorizontal,
+    zIndex: 20,
     minWidth: 132,
     backgroundColor: Colors.white,
     borderRadius: 12,
