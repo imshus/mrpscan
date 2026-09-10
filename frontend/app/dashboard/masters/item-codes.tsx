@@ -220,15 +220,11 @@ export default function ItemCodesScreen() {
             <Text style={styles.errorText}>{error}</Text>
           ) : (
             <>
-              <Text style={[styles.saveStatus, saveState === 'failed' && styles.saveStatusFailed]}>
-                {saveState === 'saving'
-                  ? 'Saving…'
-                  : saveState === 'saved'
-                    ? 'All changes saved'
-                    : saveState === 'failed'
-                      ? 'Last save failed — check your connection'
-                      : 'Changes save automatically'}
-              </Text>
+              {saveState === 'saving' || saveState === 'failed' ? (
+                <Text style={[styles.saveStatus, saveState === 'failed' && styles.saveStatusFailed]}>
+                  {saveState === 'saving' ? 'Saving…' : 'Last save failed — check your connection'}
+                </Text>
+              ) : null}
               <View style={styles.sheetCard}>
                 {rows.map((row, index) => (
                   <View key={row.key} style={[styles.row, index > 0 && styles.rowDivider]}>

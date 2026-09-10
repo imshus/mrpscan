@@ -12,8 +12,7 @@ import { ChevronLeft, Trash2 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
-import { GradientView } from '@/components/ui/GradientView';
-import { Colors, Gradients } from '@/constants/theme';
+import { Colors } from '@/constants/theme';
 import {
   SCANNER_FRAME_HEIGHT,
   SCANNER_FRAME_VERTICAL_BIAS,
@@ -96,6 +95,8 @@ interface ScannerScreenLayoutProps {
   onDeletePress?: () => void;
   /** The red Calculate pill under the shutter, once there is a side to price. */
   onCalculatePress?: () => void;
+  /** Lets touches reach what is drawn in the frame, for framing a photo in it. */
+  frameInteractive?: boolean;
   cameraRef?: RefObject<TagCameraPreviewRef | null>;
   headerContent?: React.ReactNode;
   controlsHidden?: boolean;
@@ -118,6 +119,7 @@ export function ScannerScreenLayout({
   onUploadPress,
   onDeletePress,
   onCalculatePress,
+  frameInteractive = false,
   cameraRef,
   headerContent,
   controlsHidden = false,
@@ -254,7 +256,7 @@ export function ScannerScreenLayout({
       {cameraPermissionGranted ? (
         <>
           {/* Mockup .cap-frame + .cap-corner brackets */}
-          <View style={styles.frame} pointerEvents="none">
+          <View style={styles.frame} pointerEvents={frameInteractive ? 'box-none' : 'none'}>
             <View style={styles.frameClip}>{children}</View>
             <View style={[styles.corner, styles.cornerTL]} />
             <View style={[styles.corner, styles.cornerTR]} />
@@ -300,14 +302,10 @@ export function ScannerScreenLayout({
                       <Text style={styles.uploadLabel}>{shutterLabel}</Text>
                     </View>
                   ) : (
-                    <GradientView
-                      colors={Gradients.brand}
-                      borderRadius={999}
-                      style={styles.actionButton}
-                    >
+                    <View style={[styles.actionButton, styles.actionButtonSolid]}>
                       <CapScanIcon color={Colors.white} />
                       <Text style={styles.scanLabel}>{shutterLabel}</Text>
-                    </GradientView>
+                    </View>
                   )}
                 </Pressable>
 
@@ -315,13 +313,9 @@ export function ScannerScreenLayout({
                   <>
                     <Text style={styles.orLabel}>OR</Text>
                     <Pressable onPress={onCalculatePress} style={styles.actionSlot}>
-                      <GradientView
-                        colors={Gradients.brand}
-                        borderRadius={999}
-                        style={styles.actionButton}
-                      >
+                      <View style={[styles.actionButton, styles.actionButtonSolid]}>
                         <Text style={styles.scanLabel}>Calculate</Text>
-                      </GradientView>
+                      </View>
                     </Pressable>
                   </>
                 ) : null}
@@ -445,13 +439,15 @@ const styles = StyleSheet.create({
   },
   sideButtonLight: {
     borderRadius: 14,
-    backgroundColor: 'rgba(251,247,240,0.95)',
+    backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.6)',
+    borderColor: Colors.white,
+    elevation: 8,
   },
   sideButtonDanger: {
     borderRadius: 22,
     backgroundColor: Colors.primary,
+    elevation: 8,
   },
   orLabel: {
     color: 'rgba(255,255,255,0.75)',
@@ -475,15 +471,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
+  // Flat red, not the gradient the rest of the app uses: this pill sits over
+  // the camera surface, and an SVG fill there let the live preview show
+  // through it. A plain background cannot.
+  actionButtonSolid: {
+    backgroundColor: Colors.primary,
+    elevation: 8,
+  },
   scanLabel: {
     color: Colors.white,
     fontSize: 13.1,
     fontWeight: '700',
   },
   uploadButton: {
-    backgroundColor: 'rgba(251,247,240,0.95)',
+    backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.6)',
+    borderColor: Colors.white,
+    elevation: 8,
   },
   uploadLabel: {
     color: Colors.textPrimary,

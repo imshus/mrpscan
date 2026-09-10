@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, InteractionManager, View } from 'react-native';
+import { Alert, InteractionManager, StyleSheet, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 
+import { AdjustableImage, type AdjustableImageRef } from '@/components/scanner/AdjustableImage';
 import { BarcodeOverlay } from '@/components/scanner/BarcodeOverlay';
 import { type CaptureSource } from '@/components/scanner/CapturedSidesStrip';
 import { ScannerScreenLayout } from '@/components/scanner/ScannerScreenLayout';
@@ -45,6 +46,10 @@ export default function BarcodeScannerScreen() {
   const [confirmedFront, setConfirmedFront] = useState<ConfirmedCapture | null>(null);
   const [confirmedBack, setConfirmedBack] = useState<ConfirmedCapture | null>(null);
   const [captureStep, setCaptureStep] = useState<'first' | 'second'>('first');
+  // An uploaded photo is framed in the capture frame itself: the frame is the
+  // crop, so the tag ends up filling it exactly as a live capture would.
+  const [pickedPhoto, setPickedPhoto] = useState<ConfirmedCapture | null>(null);
+  const adjustRef = useRef<AdjustableImageRef>(null);
 
   // Deliberately excludes isPickingImage: the controls must not flicker while
   // the system album is coming up.
@@ -53,7 +58,9 @@ export default function BarcodeScannerScreen() {
   const onSecondSide = captureStep === 'second';
   const backCaptured = Boolean(confirmedBack);
 
-  const instruction = !onSecondSide
+  const instruction = pickedPhoto
+    ? 'Drag and pinch so only the tag fills the frame'
+    : !onSecondSide
     ? 'Align jewellery tag inside frame'
     : backCaptured
       ? 'Back side captured — tap Calculate to continue'
@@ -67,6 +74,7 @@ export default function BarcodeScannerScreen() {
     invalidateBackgroundUploads();
     setConfirmedFront(null);
     setConfirmedBack(null);
+    setPickedPhoto(null);
     setCaptureStep('first');
     setIsPickingImage(false);
     setIsStartingOperation(false);
@@ -185,8 +193,24 @@ export default function BarcodeScannerScreen() {
     });
   };
 
+  /** Keeps what the frame is showing of the uploaded photo, cropped to it. */
+  const useFramedPhoto = async () => {
+    const photo = pickedPhoto;
+    if (!photo) return;
+    const cropped = await adjustRef.current?.exportAdjusted();
+    const uri = cropped ?? photo.uri;
+    setPickedPhoto(null);
+    if (captureStep === 'second') confirmBackCapture(uri, photo.source);
+    else confirmFrontCapture(uri, photo.source);
+  };
+
   const handleShutter = async () => {
     if (busy) return;
+
+    if (pickedPhoto) {
+      await useFramedPhoto();
+      return;
+    }
 
     const uri = await resolveCaptureUri();
     if (!uri) {
@@ -205,8 +229,12 @@ export default function BarcodeScannerScreen() {
     confirmFrontCapture(uri, 'camera');
   };
 
-  /** The bin beside the frame: drop both sides and start the scan over. */
+  /** The bin beside the frame: drop the framed photo, or the scan itself. */
   const handleDiscardScan = () => {
+    if (pickedPhoto) {
+      setPickedPhoto(null);
+      return;
+    }
     invalidateBackgroundUploads();
     setConfirmedBack(null);
     setConfirmedFront(null);
@@ -239,8 +267,7 @@ export default function BarcodeScannerScreen() {
       }
 
       setIsPickingImage(false);
-      if (captureStep === 'second') confirmBackCapture(uri, 'gallery');
-      else confirmFrontCapture(uri, 'gallery');
+      setPickedPhoto({ uri, source: 'gallery' });
     } catch {
       setIsPickingImage(false);
       Alert.alert('Upload Error', 'Could not load image from your device. Please try again.');
@@ -252,18 +279,27 @@ export default function BarcodeScannerScreen() {
       <ScannerScreenLayout
         instruction={instruction}
         onShutterPress={handleShutter}
-        shutterLabel={onSecondSide ? 'Click for 2nd side' : 'Click'}
-        shutterTone={onSecondSide ? 'secondary' : 'primary'}
-        onUploadPress={onSecondSide ? undefined : handleUpload}
-        onDeletePress={onSecondSide ? handleDiscardScan : undefined}
-        onCalculatePress={onSecondSide ? handleCalculateFromCapture : undefined}
+        shutterLabel={pickedPhoto ? 'Use this tag' : onSecondSide ? 'Click for 2nd side' : 'Click'}
+        shutterTone={pickedPhoto || !onSecondSide ? 'primary' : 'secondary'}
+        onUploadPress={onSecondSide || pickedPhoto ? undefined : handleUpload}
+        onDeletePress={onSecondSide || pickedPhoto ? handleDiscardScan : undefined}
+        onCalculatePress={onSecondSide && !pickedPhoto ? handleCalculateFromCapture : undefined}
+        frameInteractive={Boolean(pickedPhoto)}
         controlsHidden={busy}
-        cameraPaused={isPickingImage}
+        cameraPaused={isPickingImage || Boolean(pickedPhoto)}
         cameraRef={cameraRef}
       >
-        {/* The sweeping line means "still looking"; once the back side is in
-            hand there is nothing left to align. */}
-        {backCaptured ? null : <BarcodeOverlay />}
+        {pickedPhoto ? (
+          <AdjustableImage
+            ref={adjustRef}
+            uri={pickedPhoto.uri}
+            style={StyleSheet.absoluteFill}
+          />
+        ) : backCaptured ? null : (
+          // The sweeping line means "still looking"; once the back side is in
+          // hand there is nothing left to align.
+          <BarcodeOverlay />
+        )}
       </ScannerScreenLayout>
 
     </View>
