@@ -1,5 +1,5 @@
 /**
- * Pratham AI — the voice agent behind the bottom bar's third tab. The app
+ * 24/7 — the voice agent behind the bottom bar's third tab. The app
  * speaks to the Dynamic Voice Agent server directly over its WebSocket, the
  * way that server's own web page does: 16 kHz PCM up, 24 kHz PCM down.
  */

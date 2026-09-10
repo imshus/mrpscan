@@ -7,7 +7,7 @@ import { PrathamAiCall, type CallStatus } from '@/utils/prathamAiCall';
 import { registerScopeResetCallback } from '@/utils/userScopedStorage';
 
 /**
- * The one Pratham AI call the app can have running, owned outside the screen
+ * The one 24/7 call the app can have running, owned outside the screen
  * tree so the bottom bar's button is the whole interface: tapping it dials
  * the voice agent, tapping it again hangs up, and the icon turns green while
  * the call is live. Walking between screens does not interrupt it.
@@ -54,7 +54,7 @@ export function endPrathamAiCall(): void {
 }
 
 /**
- * The bottom bar's Pratham AI button: places the call, or ends the one in
+ * The bottom bar's 24/7 button: places the call, or ends the one in
  * progress. Nothing is navigated to — the call has no page of its own.
  */
 export async function togglePrathamAiCall(): Promise<void> {
@@ -104,7 +104,7 @@ export async function togglePrathamAiCall(): Promise<void> {
           if (status === 'error') {
             call = null;
             setStatus('idle');
-            if (detail) Alert.alert('Pratham AI', detail);
+            if (detail) Alert.alert('24/7', detail);
             return;
           }
           if (status === 'ended') {
@@ -129,7 +129,7 @@ export async function togglePrathamAiCall(): Promise<void> {
 
 function notConfigured(): void {
   Alert.alert(
-    'Pratham AI',
-    'Pratham AI is not set up yet. Set PRATHAM_AI_URL on the server, or EXPO_PUBLIC_PRATHAM_AI_URL in the app.',
+    '24/7',
+    'The 24/7 agent is not set up yet. Set PRATHAM_AI_URL on the server, or EXPO_PUBLIC_PRATHAM_AI_URL in the app.',
   );
 }

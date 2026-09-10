@@ -3,7 +3,7 @@ import { unwrapApiData } from '@/utils/apiResponse';
 
 /** Settings the server hands the app; none need a login. */
 export interface AppConfig {
-  /** Where the Pratham AI voice agent is hosted; empty when the server has not set it. */
+  /** Where the 24/7 voice agent is hosted; empty when the server has not set it. */
   prathamAiUrl: string;
 }
 
