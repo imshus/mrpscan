@@ -167,6 +167,28 @@ writeFileSync(join(androidRoot, 'local.properties'), `sdk.dir=${toGradlePath(and
 // update between a sideloaded APK and the Play build. Debug key otherwise.
 applyUploadSigning(projectRoot);
 
+// react-native-audio-api fetches its prebuilt opus/vorbis static libraries in
+// a gradle Exec task that calls a bare `bash`. On Windows that resolves to
+// WSL's bash, which has no `unzip`: the archives were downloaded, never
+// extracted, and the C++ link then failed on libopusfile.a. Run the same
+// script here with Git's bash (which ships unzip) whenever they are missing;
+// FFmpeg is skipped to match the plugin's disableFFmpeg in app.json.
+const audioApiRoot = join(projectRoot, 'node_modules', 'react-native-audio-api');
+const audioApiExternal = join(audioApiRoot, 'common', 'cpp', 'audioapi', 'external');
+if (
+  existsSync(audioApiRoot) &&
+  architectures.some((abi) => !existsSync(join(audioApiExternal, abi, 'libopusfile.a')))
+) {
+  const gitBash =
+    firstExisting([
+      isWindows ? 'C:\\Program Files\\Git\\usr\\bin\\bash.exe' : undefined,
+      isWindows ? 'C:\\Program Files\\Git\\bin\\bash.exe' : undefined,
+    ]) ?? 'bash';
+  run(gitBash, ['../scripts/download-prebuilt-binaries.sh', 'android', 'skipffmpeg'], {
+    cwd: join(audioApiRoot, 'android'),
+  });
+}
+
 // Always regenerate the files that were left partially written by the failed
 // concurrent builds reported by Metro's source-map composer.
 const generatedBundleFiles = [
