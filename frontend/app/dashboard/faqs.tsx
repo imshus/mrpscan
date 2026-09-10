@@ -126,14 +126,23 @@ export default function FaqsScreen() {
         </Pressable>
       </View>
 
-      <Modal visible={languageOpen} transparent animationType="none" onRequestClose={() => setLanguageOpen(false)}>
+      {/* statusBarTranslucent: without it the modal's own coordinates start
+          below the status bar, and the menu measured against the window lands
+          that much too high — over the globe instead of under it. */}
+      <Modal
+        visible={languageOpen}
+        transparent
+        statusBarTranslucent
+        animationType="none"
+        onRequestClose={() => setLanguageOpen(false)}
+      >
         <Pressable style={styles.menuBackdrop} onPress={() => setLanguageOpen(false)}>
           {anchor ? (
             <View
               style={[
                 styles.menu,
                 {
-                  top: anchor.y + anchor.height + 6,
+                  top: anchor.y + anchor.height + 10,
                   right: Math.max(8, screenWidth - (anchor.x + anchor.width)),
                 },
               ]}
