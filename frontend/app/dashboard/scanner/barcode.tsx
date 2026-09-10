@@ -63,10 +63,14 @@ export default function BarcodeScannerScreen() {
   // system album loads only delays and flickers in front of the picker.
   const overlayVisible = isStartingOperation || Boolean(pendingPreview);
 
-  const instruction =
-    captureStep === 'second'
-      ? 'Align back side of tag inside frame'
-      : 'Align jewellery tag inside frame';
+  const onSecondSide = captureStep === 'second';
+  const backCaptured = Boolean(confirmedBack);
+
+  const instruction = !onSecondSide
+    ? 'Align jewellery tag inside frame'
+    : backCaptured
+      ? 'Back side captured — tap Calculate to continue'
+      : 'Align back side of tag inside frame';
 
   useEffect(() => {
     if (!isFocused) return;
@@ -285,6 +289,23 @@ export default function BarcodeScannerScreen() {
     return captureScanImageFallback();
   };
 
+  /**
+   * The back side is kept on the capture screen itself — the frame stays up,
+   * the wording changes, and Calculate is right there. Its upload starts now,
+   * while the user decides, the same way the front's does.
+   */
+  const confirmBackCapture = (uri: string, source: CaptureSource) => {
+    setConfirmedBack({ uri, source });
+    prewarmScanSession();
+    InteractionManager.runAfterInteractions(() => {
+      prewarmImagePreparation(uri);
+      const prewarmedSession = scanSessionPrewarmRef.current;
+      if (prewarmedSession && prewarmedSession.jewelleryType === selectedType) {
+        startBackgroundSideUpload(prewarmedSession.promise, 'back', uri);
+      }
+    });
+  };
+
   const handleShutter = async () => {
     if (overlayVisible) return;
 
@@ -297,7 +318,36 @@ export default function BarcodeScannerScreen() {
       return;
     }
 
+    if (captureStep === 'second') {
+      confirmBackCapture(uri, 'camera');
+      return;
+    }
+
     openPreview(uri, 'camera');
+  };
+
+  /** The bin beside the frame: drop both sides and start the scan over. */
+  const handleDiscardScan = () => {
+    previewUriRef.current = null;
+    invalidateBackgroundUploads();
+    setPendingPreview(null);
+    setConfirmedBack(null);
+    setConfirmedFront(null);
+    setFrontImageUri(null);
+    setBackImageUri(null);
+    setCaptureStep('first');
+  };
+
+  /** Calculate from the capture screen: with the back side when it was taken. */
+  const handleCalculateFromCapture = () => {
+    if (overlayVisible) return;
+    const front = confirmedFront;
+    if (!front) return;
+    void startScanOperation(
+      front.uri,
+      confirmedBack?.uri ?? null,
+      confirmedBack?.source ?? front.source,
+    );
   };
 
   const handleUpload = async () => {
@@ -324,12 +374,18 @@ export default function BarcodeScannerScreen() {
       <ScannerScreenLayout
         instruction={instruction}
         onShutterPress={handleShutter}
-        onUploadPress={handleUpload}
+        shutterLabel={onSecondSide ? 'Click for 2nd side' : 'Click'}
+        shutterTone={onSecondSide ? 'secondary' : 'primary'}
+        onUploadPress={onSecondSide ? undefined : handleUpload}
+        onDeletePress={onSecondSide ? handleDiscardScan : undefined}
+        onCalculatePress={onSecondSide ? handleCalculateFromCapture : undefined}
         controlsHidden={overlayVisible}
         cameraPaused={isPickingImage}
         cameraRef={cameraRef}
       >
-        <BarcodeOverlay />
+        {/* The sweeping line means "still looking"; once the back side is in
+            hand there is nothing left to align. */}
+        {backCaptured ? null : <BarcodeOverlay />}
       </ScannerScreenLayout>
 
       <CapturePreviewOverlay

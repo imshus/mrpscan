@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useRouter, type Href } from 'expo-router';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, Trash2 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
@@ -86,7 +86,16 @@ interface ScannerScreenLayoutProps {
   children: React.ReactNode;
   instruction: string;
   onShutterPress: () => void;
+  /** Wording on the shutter pill; "Click" on the first side. */
+  shutterLabel?: string;
+  /** The shutter is the red pill on the first side, cream once a side is held. */
+  shutterTone?: 'primary' | 'secondary';
+  /** Gallery button beside the frame; shown when there is nothing to discard. */
   onUploadPress?: () => void;
+  /** Discard button beside the frame, which takes the scan back to its start. */
+  onDeletePress?: () => void;
+  /** The red Calculate pill under the shutter, once there is a side to price. */
+  onCalculatePress?: () => void;
   cameraRef?: RefObject<TagCameraPreviewRef | null>;
   headerContent?: React.ReactNode;
   controlsHidden?: boolean;
@@ -104,7 +113,11 @@ export function ScannerScreenLayout({
   children,
   instruction,
   onShutterPress,
+  shutterLabel = 'Click',
+  shutterTone = 'primary',
   onUploadPress,
+  onDeletePress,
+  onCalculatePress,
   cameraRef,
   headerContent,
   controlsHidden = false,
@@ -255,25 +268,65 @@ export function ScannerScreenLayout({
               styling entirely on device. */}
           {/* Mockup .cap-controls sits 20px below the frame, not at the screen bottom. */}
           {!controlsHidden ? (
-            <View style={[styles.controls, { top: frameBottom + 20 }]}>
-              <Pressable onPress={onShutterPress} style={styles.actionSlot}>
-                <GradientView
-                  colors={Gradients.brand}
-                  borderRadius={999}
-                  style={styles.actionButton}
+            <>
+              {/* Beside the frame: the gallery on the first side, and the
+                  discard that returns the scan to its start thereafter. */}
+              {onDeletePress || onUploadPress ? (
+                <Pressable
+                  onPress={onDeletePress ?? onUploadPress}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    onDeletePress ? 'Discard and start again' : 'Upload a photo from the gallery'
+                  }
+                  style={[
+                    styles.sideButton,
+                    onDeletePress ? styles.sideButtonDanger : styles.sideButtonLight,
+                    { top: frameBottom - 46 },
+                  ]}
                 >
-                  <CapScanIcon color={Colors.white} />
-                  <Text style={styles.scanLabel}>Click</Text>
-                </GradientView>
-              </Pressable>
+                  {onDeletePress ? (
+                    <Trash2 size={19} color={Colors.white} strokeWidth={2} />
+                  ) : (
+                    <CapUploadIcon color={Colors.textPrimary} />
+                  )}
+                </Pressable>
+              ) : null}
 
-              <Pressable onPress={onUploadPress} style={styles.actionSlot}>
-                <View style={[styles.actionButton, styles.uploadButton]}>
-                  <CapUploadIcon color={Colors.textPrimary} />
-                  <Text style={styles.uploadLabel}>Upload Image</Text>
-                </View>
-              </Pressable>
-            </View>
+              <View style={[styles.controls, { top: frameBottom + 20 }]}>
+                <Pressable onPress={onShutterPress} style={styles.actionSlot}>
+                  {shutterTone === 'secondary' ? (
+                    <View style={[styles.actionButton, styles.uploadButton]}>
+                      <Text style={styles.uploadLabel}>{shutterLabel}</Text>
+                    </View>
+                  ) : (
+                    <GradientView
+                      colors={Gradients.brand}
+                      borderRadius={999}
+                      style={styles.actionButton}
+                    >
+                      <CapScanIcon color={Colors.white} />
+                      <Text style={styles.scanLabel}>{shutterLabel}</Text>
+                    </GradientView>
+                  )}
+                </Pressable>
+
+                {onCalculatePress ? (
+                  <>
+                    <Text style={styles.orLabel}>OR</Text>
+                    <Pressable onPress={onCalculatePress} style={styles.actionSlot}>
+                      <GradientView
+                        colors={Gradients.brand}
+                        borderRadius={999}
+                        style={styles.actionButton}
+                      >
+                        <Text style={styles.scanLabel}>Calculate</Text>
+                      </GradientView>
+                    </Pressable>
+                  </>
+                ) : null}
+              </View>
+            </>
           ) : null}
         </>
       ) : null}
@@ -370,16 +423,41 @@ const styles = StyleSheet.create({
     borderBottomWidth: 3,
     borderBottomLeftRadius: 6,
   },
+  // The pills sit under the frame and share its width, stacked with the OR
+  // between them when there is something to price.
   controls: {
     position: 'absolute',
     left: 0,
     right: 0,
     zIndex: 25,
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    justifyContent: 'center',
-    gap: 12,
+    alignItems: 'center',
+    gap: 8,
     paddingHorizontal: 20,
+  },
+  sideButton: {
+    position: 'absolute',
+    right: 14,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 26,
+  },
+  sideButtonLight: {
+    borderRadius: 14,
+    backgroundColor: 'rgba(251,247,240,0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.6)',
+  },
+  sideButtonDanger: {
+    borderRadius: 22,
+    backgroundColor: Colors.primary,
+  },
+  orLabel: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 1.2,
   },
   // Mockup .cap-action-btn: flex 1 1 50%, h48, radius 999, gap 8.
   // Primary = red gradient with glow; secondary = near-white cream pill.
@@ -387,7 +465,7 @@ const styles = StyleSheet.create({
   // putting it on the Pressable let its `alignItems: center` shrink the
   // gradient child to text height.
   actionSlot: {
-    flex: 1,
+    width: SCANNER_FRAME_WIDTH,
   },
   actionButton: {
     height: 48,
