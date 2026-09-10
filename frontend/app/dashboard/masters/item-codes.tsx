@@ -201,9 +201,6 @@ export default function ItemCodesScreen() {
     setRows((current) => [...current, emptyRow()]);
   };
 
-  // The lines that are in the database: a row has an id once it is saved.
-  const savedRows = rows.filter((row) => row.id && row.code.trim());
-
   return (
     <SafeAreaView style={screenStyles.safeArea} edges={['top']}>
       <BackgroundPattern />
@@ -272,24 +269,6 @@ export default function ItemCodesScreen() {
               <TouchableOpacity activeOpacity={0.85} style={styles.addBtn} onPress={handleAdd}>
                 <Text style={styles.addBtnText}>+ Add</Text>
               </TouchableOpacity>
-
-              {/* Everything saved, numbered, exactly as it is in the database. */}
-              <View style={styles.savedSection}>
-                <Text style={styles.savedTitle}>
-                  {savedRows.length
-                    ? `Saved item codes (${savedRows.length})`
-                    : 'No item code saved yet'}
-                </Text>
-                {savedRows.map((row, index) => (
-                  <View key={`saved-${row.id}`} style={styles.savedRow}>
-                    <Text style={styles.savedIndex}>{index + 1}.</Text>
-                    <Text style={styles.savedCode}>{row.code}</Text>
-                    <Text style={styles.savedName} numberOfLines={2}>
-                      {row.name || '—'}
-                    </Text>
-                  </View>
-                ))}
-              </View>
             </>
           )}
         </ScrollView>
@@ -383,44 +362,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: Colors.textPrimary,
-  },
-  savedSection: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.tile,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    gap: Spacing.sm,
-  },
-  savedTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: Colors.textMuted,
-  },
-  savedRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.sm,
-  },
-  savedIndex: {
-    width: 22,
-    fontSize: 13,
-    fontWeight: '800',
-    color: Colors.textMuted,
-  },
-  savedCode: {
-    minWidth: 96,
-    fontSize: 13,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  savedName: {
-    flex: 1,
-    fontSize: 13,
-    color: Colors.textSecondary,
   },
   centerState: {
     paddingVertical: 32,
