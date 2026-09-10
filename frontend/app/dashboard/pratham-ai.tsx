@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Phone, PhoneOff } from 'lucide-react-native';
+import { ExternalLink, Phone, PhoneOff } from 'lucide-react-native';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
@@ -21,6 +21,14 @@ const STATUS_TEXT: Record<CallStatus, string> = {
   error: 'Could not connect.',
 };
 
+const NOT_CONFIGURED =
+  'Pratham AI is not set up yet. Set PRATHAM_AI_URL on the server, or EXPO_PUBLIC_PRATHAM_AI_URL in the app.';
+
+// The in-app call needs the phone's microphone through the native audio
+// module, which the web build does not have. In a browser the agent's own
+// hosted page does the call, so the tab opens that instead of failing.
+const IS_WEB = Platform.OS === 'web';
+
 /**
  * Pratham AI: opening this tab places the call at once — no page, no
  * browser — and the transcript fills in as the two of you talk. The call
@@ -31,6 +39,7 @@ export default function PrathamAiScreen() {
   const [status, setStatus] = useState<CallStatus>('connecting');
   const [detail, setDetail] = useState<string | undefined>();
   const [lines, setLines] = useState<TranscriptLine[]>([]);
+  const [pageUrl, setPageUrl] = useState('');
   const callRef = useRef<PrathamAiCall | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -42,12 +51,17 @@ export default function PrathamAiScreen() {
     setStatus('connecting');
 
     const config = await fetchAppConfig();
-    const wsUrl = toAgentWsUrl(config.prathamAiUrl || PRATHAM_AI_URL_FALLBACK);
+    const base = (config.prathamAiUrl || PRATHAM_AI_URL_FALLBACK).trim();
+    if (IS_WEB) {
+      setPageUrl(base);
+      setStatus(base ? 'ended' : 'error');
+      setDetail(base ? 'In the browser, Pratham AI opens as its own page.' : NOT_CONFIGURED);
+      return;
+    }
+    const wsUrl = toAgentWsUrl(base);
     if (!wsUrl) {
       setStatus('error');
-      setDetail(
-        'Pratham AI is not set up yet. Set PRATHAM_AI_URL on the server, or EXPO_PUBLIC_PRATHAM_AI_URL in the app.',
-      );
+      setDetail(NOT_CONFIGURED);
       return;
     }
 
@@ -135,7 +149,17 @@ export default function PrathamAiScreen() {
           <Text style={styles.statusLine} numberOfLines={2}>
             {statusText}
           </Text>
-          {live ? (
+          {IS_WEB && pageUrl ? (
+            <Pressable
+              onPress={() => void Linking.openURL(pageUrl)}
+              accessibilityRole="button"
+              accessibilityLabel="Open Pratham AI"
+              style={({ pressed }) => [styles.callBtn, styles.callBtnStart, pressed && styles.callBtnPressed]}
+            >
+              <ExternalLink size={22} color={Colors.white} />
+              <Text style={styles.callBtnText}>Open Pratham AI</Text>
+            </Pressable>
+          ) : live ? (
             <Pressable
               onPress={endCall}
               accessibilityRole="button"
