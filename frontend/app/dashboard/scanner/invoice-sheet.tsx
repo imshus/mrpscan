@@ -12,7 +12,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as MailComposer from 'expo-mail-composer';
-import { MessageCircle, Minus, Plus, RotateCcw, Search } from 'lucide-react-native';
+import { MessageCircle, Minus, Plus, Search } from 'lucide-react-native';
 
 import { InvoiceHtmlSheet } from '@/components/invoice/InvoiceHtmlSheet';
 import { InvoiceQuickActions, type InvoiceAction } from '@/components/invoice/InvoiceQuickActions';
@@ -169,9 +169,7 @@ export default function InvoiceSheetScreen() {
     ],
   );
 
-  // Render the invoice from the server template whenever the figures change,
-  // or when the refresh disc asks for a fresh copy.
-  const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
+  // Render the invoice from the server template whenever the figures change.
   useEffect(() => {
     if (grandTotal <= 0) return;
     let cancelled = false;
@@ -182,7 +180,7 @@ export default function InvoiceSheetScreen() {
     return () => {
       cancelled = true;
     };
-  }, [invoicePayload, invoiceNumber, grandTotal, previewRefreshKey]);
+  }, [invoicePayload, invoiceNumber, grandTotal]);
 
   const generateOnce = async (): Promise<GenerateInvoiceResponse> => {
     if (generated) return generated;
@@ -213,6 +211,13 @@ export default function InvoiceSheetScreen() {
   // rendered ahead of time once the figures settle, and rendered again only
   // if the server assigns a different number than the one previewed.
   const localPdfRef = useRef<{ invoiceNumber: string; html: string; uri: string } | null>(null);
+  // The render in flight, so a Share tapped before it lands waits for it
+  // instead of starting a second full render of the same document.
+  const localPdfInFlightRef = useRef<{
+    invoiceNumber: string;
+    html: string;
+    promise: Promise<string | null>;
+  } | null>(null);
   const renderPdfLocally = async (html: string, number: string): Promise<string | null> => {
     try {
       const document = `<!doctype html><html><head><meta charset="utf-8" /><style>html, body { margin: 0; padding: 0; background: #fff; }</style></head><body>${html}</body></html>`;
@@ -230,12 +235,15 @@ export default function InvoiceSheetScreen() {
   useEffect(() => {
     if (!previewHtml || invoiceNumber === '—') return;
     let cancelled = false;
+    // A short pause coalesces back-to-back preview refreshes into one render.
     const timer = setTimeout(() => {
-      void renderPdfLocally(previewHtml, invoiceNumber).then((uri) => {
-        if (cancelled || !uri) return;
-        localPdfRef.current = { invoiceNumber, html: previewHtml, uri };
+      const promise = renderPdfLocally(previewHtml, invoiceNumber).then((uri) => {
+        if (!cancelled && uri) localPdfRef.current = { invoiceNumber, html: previewHtml, uri };
+        if (localPdfInFlightRef.current?.promise === promise) localPdfInFlightRef.current = null;
+        return uri;
       });
-    }, 400);
+      localPdfInFlightRef.current = { invoiceNumber, html: previewHtml, promise };
+    }, 150);
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -244,24 +252,36 @@ export default function InvoiceSheetScreen() {
   }, [previewHtml, invoiceNumber]);
 
   const fetchPdfToCache = async () => {
-    const result = await generateOnce();
+    // The server call and the local PDF are independent until the assigned
+    // number is compared, so they run side by side: the PDF is either done
+    // already, still rendering (wait for it), or started right now.
+    const localPromise: Promise<{ invoiceNumber: string; uri: string } | null> = (async () => {
+      const ready = localPdfRef.current;
+      if (ready && ready.html === previewHtml) {
+        const info = await FileSystem.getInfoAsync(ready.uri);
+        if (info.exists) return { invoiceNumber: ready.invoiceNumber, uri: ready.uri };
+      }
+      const inFlight = localPdfInFlightRef.current;
+      if (inFlight && inFlight.html === previewHtml) {
+        const uri = await inFlight.promise;
+        return uri ? { invoiceNumber: inFlight.invoiceNumber, uri } : null;
+      }
+      if (!previewHtml || invoiceNumber === '—') return null;
+      const uri = await renderPdfLocally(previewHtml, invoiceNumber);
+      return uri ? { invoiceNumber, uri } : null;
+    })();
+    const [result, local] = await Promise.all([generateOnce(), localPromise]);
+
     if (pdfCache.current && pdfCache.current.result.invoiceNumber === result.invoiceNumber) {
       const info = await FileSystem.getInfoAsync(pdfCache.current.uri);
       if (info.exists) return pdfCache.current;
     }
     const fileName = `Invoice-${String(result.invoiceNumber).replace(/[^\w.-]+/g, '-')}.pdf`;
-    // Local copy first: the one rendered ahead of time when the server kept
-    // the previewed number and the figures have not changed since; otherwise
-    // one rendered now from the same template with the assigned number.
-    const ready = localPdfRef.current;
+    // The local copy serves when the server kept the previewed number;
+    // otherwise one is rendered now from the same template with the
+    // assigned number.
     let localUri: string | null =
-      ready && ready.invoiceNumber === result.invoiceNumber && ready.html === previewHtml
-        ? ready.uri
-        : null;
-    if (localUri) {
-      const info = await FileSystem.getInfoAsync(localUri);
-      if (!info.exists) localUri = null;
-    }
+      local && local.invoiceNumber === result.invoiceNumber ? local.uri : null;
     if (!localUri) {
       const html =
         result.invoiceNumber === invoiceNumber && previewHtml
@@ -487,15 +507,8 @@ export default function InvoiceSheetScreen() {
           </Pressable>
         </View>
 
-        {/* Mockup: refresh disc, then the two primary actions side by side. */}
+        {/* The two primary actions side by side. */}
         <View style={styles.actionBar}>
-          <Pressable
-            onPress={() => setPreviewRefreshKey((key) => key + 1)}
-            style={styles.refreshBtn}
-            accessibilityLabel="Refresh preview"
-          >
-            <RotateCcw size={16} color={Colors.brandDeep} />
-          </Pressable>
           <Pressable
             onPress={() => handleAction('whatsapp')}
             disabled={working !== null}
@@ -558,16 +571,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     marginTop: 12,
-  },
-  refreshBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   shareBtn: {
     flex: 1,
