@@ -43,7 +43,7 @@ export function BottomNav({ activeRoute = 'home', onHeightChange }: BottomNavPro
     router.navigate('/dashboard/scanner' as Href);
   };
 
-  // Pratham AI is the call itself, not a page: the button dials the voice
+  // 24/7 is the call itself, not a page: the button dials the voice
   // agent, ends the call when tapped again, and goes green while it is live.
   const callLive = usePrathamAiSession((state) => state.live);
 
@@ -75,10 +75,10 @@ export function BottomNav({ activeRoute = 'home', onHeightChange }: BottomNavPro
           style={styles.navItem}
           onPress={() => void togglePrathamAiCall()}
           accessibilityRole="button"
-          accessibilityLabel={callLive ? 'End the Pratham AI call' : 'Call Pratham AI'}
+          accessibilityLabel={callLive ? 'End the 24/7 call' : 'Call the 24/7 agent'}
         >
           <Phone size={ICON_SIZE} color={aiColor} strokeWidth={2} />
-          <Text style={[styles.navLabel, { color: aiColor }]}>Pratham AI</Text>
+          <Text style={[styles.navLabel, { color: aiColor }]}>24/7</Text>
         </Pressable>
       </View>
     </View>

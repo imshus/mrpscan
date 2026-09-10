@@ -110,7 +110,7 @@ export class PrathamAiCall {
       permission = 'Denied';
     }
     if (permission !== 'Granted') {
-      this.fail('Allow the microphone for MRPscan to talk to Pratham AI.');
+      this.fail('Allow the microphone for MRPscan to talk to the 24/7 agent.');
       return;
     }
 
@@ -146,11 +146,11 @@ export class PrathamAiCall {
     };
     ws.onmessage = (event) => this.handleMessage(event.data);
     ws.onerror = () => {
-      if (!opened) this.fail("Can't reach Pratham AI right now. Please try again.");
+      if (!opened) this.fail("Can't reach the 24/7 agent right now. Please try again.");
     };
     ws.onclose = () => {
       if (!opened) {
-        this.fail("Can't reach Pratham AI right now. Please try again.");
+        this.fail("Can't reach the 24/7 agent right now. Please try again.");
         return;
       }
       if (this.running) this.end('server');
