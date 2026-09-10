@@ -9,7 +9,10 @@ import {
 } from 'react-native';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
-const MIN_SCALE = 1;
+// The photo is laid over the whole screen but the crop frame is small, so a
+// tag that fills most of a photo has to shrink to sit inside it: zooming out
+// below "covers the screen" is the normal case here, not an edge one.
+const MIN_SCALE = 0.1;
 const MAX_SCALE = 8;
 
 export interface CropRect {
@@ -85,10 +88,13 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
       );
     }
 
-    // Keep the image from being dragged completely out of the frame.
+    // Keep the image from being dragged completely out of the frame. The
+    // allowance grows with a zoomed-in photo and never goes negative for a
+    // zoomed-out one, which would have inverted the clamp.
     const applyTranslation = (nextTx: number, nextTy: number) => {
-      const limitX = (box.width * (state.current.scale - 1)) / 2 + box.width * 0.25;
-      const limitY = (box.height * (state.current.scale - 1)) / 2 + box.height * 0.25;
+      const zoom = Math.max(state.current.scale, 1);
+      const limitX = (box.width * (zoom - 1)) / 2 + box.width * 0.5;
+      const limitY = (box.height * (zoom - 1)) / 2 + box.height * 0.5;
       state.current.tx = clamp(nextTx, -limitX, limitX);
       state.current.ty = clamp(nextTy, -limitY, limitY);
       translate.setValue({ x: state.current.tx, y: state.current.ty });
@@ -106,6 +112,7 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
           onMoveShouldSetPanResponderCapture: () => true,
           onPanResponderTerminationRequest: () => false,
           onPanResponderGrant: () => {
+            userFramed.current = true;
             gestureStart.current = {
               tx: state.current.tx,
               ty: state.current.ty,
@@ -168,6 +175,8 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
 
     // The region to frame once the view and the photo have both been measured.
     const pendingRegion = useRef<CropRect | null>(null);
+    // A drag or pinch means the framing is the user's now, not a default.
+    const userFramed = useRef(false);
 
     const applyRegion = (region: CropRect): boolean => {
       if (!box.width || !box.height || !natural.width || !natural.height) return false;
@@ -194,8 +203,21 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
     };
 
     useEffect(() => {
+      if (!box.width || !box.height || !natural.width || !natural.height) return;
       const region = pendingRegion.current;
-      if (region && applyRegion(region)) pendingRegion.current = null;
+      if (region) {
+        if (applyRegion(region)) pendingRegion.current = null;
+        return;
+      }
+      if (userFramed.current) return;
+      // Nothing has been framed yet: show the whole photo, so the piece and
+      // its tag can be seen before either is moved.
+      const cover = Math.max(box.width / natural.width, box.height / natural.height);
+      const contain = Math.min(box.width / natural.width, box.height / natural.height);
+      const start = clamp(contain / cover, MIN_SCALE, MAX_SCALE);
+      state.current.scale = start;
+      scaleValue.setValue(start);
+      applyTranslation(0, 0);
       // applyRegion reads the measurements this effect waits for.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [box.width, box.height, natural.width, natural.height]);
