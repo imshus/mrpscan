@@ -103,8 +103,6 @@ export default function AddEmployeeScreen() {
               value={draft.fullName}
               onChangeText={(text) => updateDraft({ fullName: text })}
               accessibilityLabel="Full Name"
-              placeholder="Employee Name"
-              placeholderTextColor={Colors.placeholder}
               style={[styles.input, errors.fullName ? styles.inputError : null]}
             />
             {errors.fullName ? <Text style={styles.error}>{errors.fullName}</Text> : null}
@@ -118,8 +116,6 @@ export default function AddEmployeeScreen() {
                 updateDraft({ phone: text.replace(/\D/g, '').slice(0, 10) })
               }
               accessibilityLabel="Phone Number"
-              placeholder="+91 9999999999"
-              placeholderTextColor={Colors.placeholder}
               keyboardType="phone-pad"
               style={[styles.input, errors.phone ? styles.inputError : null]}
             />
@@ -130,8 +126,6 @@ export default function AddEmployeeScreen() {
               value={draft.email}
               onChangeText={(text) => updateDraft({ email: text })}
               accessibilityLabel="Email"
-              placeholder="employee@pratham.gmail.com"
-              placeholderTextColor={Colors.placeholder}
               keyboardType="email-address"
               autoCapitalize="none"
               style={[styles.input, errors.email ? styles.inputError : null]}
@@ -145,8 +139,6 @@ export default function AddEmployeeScreen() {
               value={draft.designation}
               onChangeText={(text) => updateDraft({ designation: text })}
               accessibilityLabel="Position or Designation"
-              placeholder="Sales Manager"
-              placeholderTextColor={Colors.placeholder}
               style={[styles.input, errors.designation ? styles.inputError : null]}
             />
             {errors.designation ? <Text style={styles.error}>{errors.designation}</Text> : null}
