@@ -20,7 +20,7 @@ import {
   resolveScannedKarat,
 } from '@/utils/formulaUtils';
 import { analyzeScan, completeDemoCapture, uploadBackImage, uploadFrontImage } from '@/utils/scanApi';
-import { derivePricingInput, prefetchFirstPricing } from '@/utils/pricingPrefetch';
+import { derivePricingInput, prefetchFirstPricing, seedServerPricing } from '@/utils/pricingPrefetch';
 import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
 import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
 import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
@@ -355,10 +355,13 @@ export default function ProcessingScreen() {
       updateScanData(adjustedScanData);
       setAnalysisPending(false);
 
-      // The reading is stored; start the first MRP calculation now, while the
-      // counter is still running, so the review card opens with the price
-      // already in hand. Derived exactly the way the pricing hook derives it,
-      // or the hook cannot claim this request as its own.
+      // The server priced the reading inside the analysis: hand that price to
+      // the card so it shows the instant the values do, with no round trip.
+      if (result.pricing) seedServerPricing(scanId, result.pricing);
+      // Also start the card's own first calculation now, while the counter
+      // is still running, so its confirmation is already in hand too.
+      // Derived exactly the way the pricing hook derives it, or the hook
+      // cannot claim this request as its own.
       {
         const state = useScannerStore.getState();
         prefetchFirstPricing(

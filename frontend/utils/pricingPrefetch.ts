@@ -99,6 +99,28 @@ export function prefetchFirstPricing(scanId: string, input: PricingInput): void 
 }
 
 /**
+ * The price the server computed inside the analysis itself. The hook shows
+ * it the instant the card opens — no round trip at all — and then confirms
+ * with its own request, which replaces it only if the figures differ.
+ */
+const serverPricing = new Map<string, CalculateMrpResponse>();
+
+export function seedServerPricing(scanId: string, pricing: CalculateMrpResponse): void {
+  serverPricing.set(scanId, pricing);
+  while (serverPricing.size > MAX_ENTRIES) {
+    const oldest = serverPricing.keys().next().value;
+    if (oldest == null) break;
+    serverPricing.delete(oldest);
+  }
+}
+
+export function takeServerPricing(scanId: string): CalculateMrpResponse | null {
+  const pricing = serverPricing.get(scanId) ?? null;
+  serverPricing.delete(scanId);
+  return pricing;
+}
+
+/**
  * Hands the prefetched first calculation to the pricing hook — only when the
  * payload the hook derived matches the one the prefetch was made with, so an
  * edit made in between always prices fresh.

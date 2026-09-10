@@ -49,6 +49,12 @@ export interface AnalyzeScanResponse {
     totalScanCharge?: number;
     billedAt?: string;
   };
+  /**
+   * The MRP the server computed for this reading in the same call, so the
+   * review card can show a price the instant it shows the values. Null when
+   * the server could not price it; the card then prices itself.
+   */
+  pricing?: CalculateMrpResponse | null;
 }
 
 export interface ClarificationField {

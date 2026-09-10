@@ -15,7 +15,7 @@ import {
 } from '@/utils/scanPriceCalculation';
 import { parseWeightValue } from '@/utils/formulaUtils';
 import { calculateScanMrp } from '@/utils/scanApi';
-import { derivePricingInput, takePrefetchedPricing } from '@/utils/pricingPrefetch';
+import { derivePricingInput, takePrefetchedPricing, takeServerPricing } from '@/utils/pricingPrefetch';
 import { ApiError } from '@/utils/apiClient';
 import { useScannerStore } from '@/store/scannerStore';
 
@@ -179,16 +179,26 @@ export function useFinalTabPricing({
     const requestPricing = () => {
       const { diamonds, colorstones, payload, resolvedKarat } = calculationInput;
 
+      // The server priced the reading inside the analysis: show that the
+      // instant the card opens, with no request at all. The request below
+      // then confirms it and replaces it only if the figures differ.
+      if (isFirstRequestForScan) {
+        const seeded = takeServerPricing(scanId);
+        if (seeded) {
+          const seededPricing = toPricingResult(seeded);
+          setPricing((current) =>
+            buildPricingStateKey(current) === buildPricingStateKey(seededPricing) ? current : seededPricing,
+          );
+        }
+      }
+
       // The processing screen starts the first calculation while its counter
       // runs; when the payloads match, that answer is already in hand here.
       const prefetchedPromise = isFirstRequestForScan
         ? takePrefetchedPricing(scanId, payload)
         : null;
 
-      (prefetchedPromise ?? calculateScanMrp(scanId, payload))
-      .then((res: CalculateMrpResponse) => {
-        if (!isMounted) return;
-        
+      function toPricingResult(res: CalculateMrpResponse): FinalTabPricingResult {
         const stoneBlocks = buildDisplayStoneBlocks(diamonds, colorstones);
         const stoneRows: StoneAmountRow[] = stoneBlocks.map(block => {
             const wt = parseNumericValue(block.entry.weight) || 0;
@@ -261,7 +271,7 @@ export function useFinalTabPricing({
           );
         }
 
-        const nextPricing: FinalTabPricingResult = {
+        return {
           grossWtDisplay: scanData.grossWt || '—',
           netWtGrams,
           netWtDisplay: formatWeightGrams(netWtGrams),
@@ -287,7 +297,12 @@ export function useFinalTabPricing({
           ultimateMrp: finalTotal,
           ultimateMrpDisplay: formatIndianCurrency(finalTotal),
         };
+      }
 
+      (prefetchedPromise ?? calculateScanMrp(scanId, payload))
+      .then((res: CalculateMrpResponse) => {
+        if (!isMounted) return;
+        const nextPricing = toPricingResult(res);
         setPricing((current) =>
           buildPricingStateKey(current) === buildPricingStateKey(nextPricing) ? current : nextPricing,
         );

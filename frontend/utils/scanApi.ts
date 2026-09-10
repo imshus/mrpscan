@@ -205,6 +205,10 @@ function normalizeAnalyzeResponse(raw: AnalyzeScanResponse): AnalyzeScanResponse
     fieldConfidence: extractFieldConfidence(unwrapped.structuredData),
     unknownFields: unwrapped.unknownFields ?? [],
     billing: unwrapped.billing,
+    pricing:
+      unwrapped.pricing && typeof unwrapped.pricing.finalMRP === 'number'
+        ? unwrapped.pricing
+        : null,
   };
 }
 
