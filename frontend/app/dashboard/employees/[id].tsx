@@ -115,7 +115,6 @@ export default function EmployeeDetailScreen() {
 
         {isOwner ? (
         <View style={styles.revokeSection}>
-          <Text style={styles.revokeTitle}>ACCOUNT STATUS</Text>
           <View style={styles.revokeCard}>
             <View style={styles.revokeInfo}>
               <Text style={styles.revokeCardTitle}>
@@ -123,8 +122,8 @@ export default function EmployeeDetailScreen() {
               </Text>
               <Text style={styles.revokeCardDesc}>
                 {employee.isActive === false
-                  ? 'This employee is currently unable to login.'
-                  : 'Toggle to instantly revoke login access for this employee.'}
+                  ? 'This employee cannot log in.'
+                  : 'Employee can log in and use the app.'}
               </Text>
             </View>
             <Switch

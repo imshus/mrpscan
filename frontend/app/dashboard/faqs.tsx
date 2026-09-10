@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     fontWeight: '700',
-    color: Colors.brandDeep,
+    color: Colors.textPrimary,
   },
   aText: {
     marginTop: 8,

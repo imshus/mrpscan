@@ -1,5 +1,14 @@
-import { useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { ChevronDown, ChevronRight } from 'lucide-react-native';
 import { useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -17,6 +26,37 @@ import { buildEmployeeDraftPayload, createEmployeeDraft, updateEmployeeApi } fro
 
 const ACCENT_GOLD = Colors.metalGold;
 
+/**
+ * One permission group: a gold band naming what it governs, which opens onto
+ * its own rows. Closed, the four bands read as a list of what can be granted
+ * — which is what the mockup shows on arriving.
+ */
+function PermissionGroup({
+  title,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <View style={styles.group}>
+      <Pressable onPress={onToggle} style={styles.groupHeader}>
+        <Text style={styles.groupTitle}>{title}</Text>
+        {open ? (
+          <ChevronDown size={16} color={ACCENT_GOLD} />
+        ) : (
+          <ChevronRight size={16} color={ACCENT_GOLD} />
+        )}
+      </Pressable>
+      {open ? <View style={styles.groupBody}>{children}</View> : null}
+    </View>
+  );
+}
+
 export default function EmployeePermissionsScreen() {
   const router = useRouter();
   const draft = useEmployeeDraftStore((s) => s.draft);
@@ -27,11 +67,14 @@ export default function EmployeePermissionsScreen() {
   const editEmployeeId = useEmployeeDraftStore((s) => s.editEmployeeId);
   const updateEmployee = useEmployeeStore((s) => s.updateEmployee);
 
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [rateOptionError, setRateOptionError] = useState<string | null>(null);
 
   const toggle = (key: EmployeePermissionKey) => togglePermission(key);
+  // One group open at a time keeps the whole set in view.
+  const toggleGroup = (name: string) => setOpenGroup((current) => (current === name ? null : name));
 
   const resolveRateOption = () => {
     const allowRtgs = permissions.scan_rate_rtgs;
@@ -106,10 +149,11 @@ export default function EmployeePermissionsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Dashboard Matrices</Text>
-          <Text style={styles.cardSubtitle}>Price visibility on home screen</Text>
-
+        <PermissionGroup
+          title="DASHBOARD MATRICES — PRICE VISIBILITY ON HOME SCREEN"
+          open={openGroup === 'matrices'}
+          onToggle={() => toggleGroup('matrices')}
+        >
           <View style={styles.goldHeader}>
             <View style={styles.goldDot} />
             <Text style={styles.goldHeaderText}>GOLD BREAKDOWNS</Text>
@@ -131,12 +175,13 @@ export default function EmployeePermissionsScreen() {
               ))}
             </View>
           ))}
-        </View>
+        </PermissionGroup>
 
-        <View style={styles.permissionCard}>
-          <Text style={styles.cardTitle}>Give Rate Edit Access</Text>
-          <Text style={styles.cardSubtitle}>Allow employee to edit market rates</Text>
-          
+        <PermissionGroup
+          title="GIVE RATE EDIT ACCESS — ALLOW EMPLOYEE TO EDIT MARKET RATES"
+          open={openGroup === 'rates'}
+          onToggle={() => toggleGroup('rates')}
+        >
           <MatrixCheckboxRow
             label="Gold Rate"
             checked={permissions.edit_rate_gold}
@@ -161,26 +206,26 @@ export default function EmployeePermissionsScreen() {
             onToggle={() => toggle('edit_rate_labour')}
             showDivider={false}
           />
-        </View>
+        </PermissionGroup>
 
-        <View style={styles.permissionCard}>
-          <Text style={styles.cardTitle}>Edit Purity Percentage During Calculation</Text>
-          <Text style={styles.cardSubtitle}>
-            Allow employee to modify the purity percentage while calculating jewellery price.
-          </Text>
+        <PermissionGroup
+          title="EDIT PURITY PERCENTAGE DURING CALCULATION"
+          open={openGroup === 'purity'}
+          onToggle={() => toggleGroup('purity')}
+        >
           <MatrixCheckboxRow
             label="Edit Purity (%)"
             checked={permissions.scan_edit_purity_percent}
             onToggle={() => toggle('scan_edit_purity_percent')}
             showDivider={false}
           />
-        </View>
+        </PermissionGroup>
 
-        <View style={styles.permissionCard}>
-          <Text style={styles.cardTitle}>Gold Rate Options While Calculating</Text>
-          <Text style={styles.cardSubtitle}>
-            Choose which Gold Rate options the employee can use while calculating jewellery price.
-          </Text>
+        <PermissionGroup
+          title="GOLD RATE OPTIONS WHILE CALCULATING"
+          open={openGroup === 'rateOptions'}
+          onToggle={() => toggleGroup('rateOptions')}
+        >
           <View style={styles.radioGroup}>
             {[
               { value: 'rtgs', label: 'RTGS Rate Only' },
@@ -210,7 +255,7 @@ export default function EmployeePermissionsScreen() {
             })}
           </View>
           {rateOptionError ? <Text style={styles.errorText}>{rateOptionError}</Text> : null}
-        </View>
+        </PermissionGroup>
 
         <TouchableOpacity
           activeOpacity={0.9}
@@ -242,6 +287,36 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Spacing.screenHorizontal,
     paddingBottom: 120,
+  },
+  group: {
+    marginTop: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    overflow: 'hidden',
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    backgroundColor: Colors.metalGoldBg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 13,
+  },
+  groupTitle: {
+    flex: 1,
+    fontSize: 11.5,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    lineHeight: 16,
+    color: ACCENT_GOLD,
+  },
+  groupBody: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: 8,
+    paddingBottom: 10,
   },
   card: {
     backgroundColor: Colors.white,
