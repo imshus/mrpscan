@@ -15,6 +15,7 @@ export const JEWELLERY_TYPES = ['Gold', 'Diamond'] as const;
 
 export const DEFAULT_SCAN_ITEM: ScanItemData = {
   sku: '',
+  itemName: '',
   category: 'Diamond', // JewelleryType union — chip selection, must stay a valid member
   grossWt: '',
   netWt: '',

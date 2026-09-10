@@ -8,8 +8,9 @@ import {
   FloatingCard,
   PillButton,
 } from '@/components/scanner/ReviewCardKit';
-import { RefreshCw } from 'lucide-react-native';
+import { ChevronDown, RefreshCw } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
+import { ItemCodePicker } from '@/components/scanner/ItemCodePicker';
 import { useFormulaStore } from '@/store/formulaStore';
 import type { ScanItemData, StoneEntry, StructuredScanData } from '@/types/scanner';
 import { resolveItemIdentity } from '@/utils/itemIdentity';
@@ -428,6 +429,7 @@ export function ReviewScannedResultsModal({
   }, []);
 
   const itemIdentity = resolveItemIdentity(scanData);
+  const [codePickerOpen, setCodePickerOpen] = useState(false);
 
   return (
     <FloatingCard>
@@ -459,13 +461,31 @@ export function ReviewScannedResultsModal({
               {itemIdentity.name}
             </Text>
           </View>
-          <View style={styles.itemTile}>
-            <Text style={styles.itemTileLabel}>Item Number</Text>
-            <Text style={styles.itemTileValue} numberOfLines={1}>
-              {itemIdentity.number || '—'}
-            </Text>
-          </View>
+          {/* The code the tag printed; tapping lists every saved item code. */}
+          <Pressable
+            onPress={() => setCodePickerOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Choose item code"
+            style={styles.itemTile}
+          >
+            <Text style={styles.itemTileLabel}>Item Code</Text>
+            <View style={styles.itemTileValueRow}>
+              <Text style={[styles.itemTileValue, styles.itemTileValueGrow]} numberOfLines={1}>
+                {itemIdentity.number || '—'}
+              </Text>
+              <ChevronDown size={14} color={Colors.textMuted} />
+            </View>
+          </Pressable>
         </View>
+        <ItemCodePicker
+          visible={codePickerOpen}
+          value={scanData.sku}
+          onSelect={(item) => {
+            onFieldChange('sku', item.code);
+            onFieldChange('itemName', item.description);
+          }}
+          onClose={() => setCodePickerOpen(false)}
+        />
       </CardHeader>
 
       {/* Scrollable review content */}
@@ -562,6 +582,8 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   itemTileValue: { fontSize: 13.5, fontWeight: '800', color: Colors.textPrimary },
+  itemTileValueRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  itemTileValueGrow: { flex: 1, minWidth: 0 },
   refreshBtn: {
     height: 32,
     width: 32,
