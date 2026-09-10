@@ -156,13 +156,12 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
       },
       exportAdjusted: async () => {
         const { tx, ty, scale } = state.current;
-        const untouched = scale === 1 && tx === 0 && ty === 0;
-        if (untouched) return null;
         if (!box.width || !box.height || !natural.width || !natural.height) return null;
 
-        // resizeMode="contain" fits the image inside the box before the user transform.
-        const containScale = Math.min(box.width / natural.width, box.height / natural.height);
-        const totalScale = containScale * scale;
+        // resizeMode="cover" fills the box before the user transform, so what
+        // the box shows is always a crop — even when nothing has been moved.
+        const coverScale = Math.max(box.width / natural.width, box.height / natural.height);
+        const totalScale = coverScale * scale;
 
         const originX = (-box.width / 2 - tx) / totalScale + natural.width / 2;
         const originY = (-box.height / 2 - ty) / totalScale + natural.height / 2;
@@ -192,7 +191,7 @@ export const AdjustableImage = forwardRef<AdjustableImageRef, AdjustableImagePro
       <View style={[styles.box, style]} onLayout={handleLayout} {...panResponder.panHandlers}>
         <Animated.Image
           source={{ uri }}
-          resizeMode="contain"
+          resizeMode="cover"
           style={[
             styles.image,
             {
