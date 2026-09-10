@@ -27,6 +27,7 @@ import {
   seedServerPricing,
 } from '@/utils/pricingPrefetch';
 import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
+import { itemNameForCode, loadItemCatalogue } from '@/utils/itemCatalogue';
 import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
 import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 
@@ -259,6 +260,9 @@ export default function ProcessingScreen() {
       // These requests do not depend on the OCR result. Start them while the
       // tag is being analyzed so the preview does not wait for rate setup.
       const labourRatePromise = fetchLabourRate().catch(() => null);
+      // The saved item codes, fetched alongside the analysis so the tag's
+      // code can be named the moment the reading lands.
+      const cataloguePromise = loadItemCatalogue();
       // Cache warm-up only: the calculate endpoint fetches rates itself, so
       // nothing here waits on it — it used to gate the move to the review
       // screen, which on a slow rates response added seconds after the OCR
@@ -328,6 +332,12 @@ export default function ProcessingScreen() {
       // Formulas shape the price the review screen shows, so this one is
       // still awaited; it was started before the analysis and is normally done.
       await formulaSyncPromise;
+
+      // A tag code that is a saved item code names the piece on the card.
+      if (adjustedScanData.sku.trim()) {
+        const itemName = itemNameForCode(adjustedScanData.sku, await cataloguePromise);
+        if (itemName) adjustedScanData = { ...adjustedScanData, itemName };
+      }
 
       // The user may have rescanned while this ran; never write a stale result
       // over a newer session.

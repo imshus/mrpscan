@@ -20,6 +20,7 @@ import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
+import { invalidateItemCatalogue } from '@/utils/itemCatalogue';
 import { deleteItemCode, fetchItemCodes, saveItemCode } from '@/utils/itemCodeApi';
 
 /** One editable line of the sheet; unsaved rows have no id yet. */
@@ -93,6 +94,8 @@ export default function ItemCodesScreen() {
       if (saved) {
         updateRow(row.key, { id: saved.id, code: saved.code, name: saved.description, dirty: false });
       }
+      // The scanner names tags from this list; make it fetch the new line.
+      invalidateItemCatalogue();
       setSaveState('saved');
     } catch (err) {
       setSaveState('failed');
@@ -162,6 +165,7 @@ export default function ItemCodesScreen() {
           void (async () => {
             try {
               await deleteItemCode(row.id as string);
+              invalidateItemCatalogue();
               setRows((current) => {
                 const next = current.filter((r) => r.key !== row.key);
                 return next.length ? next : [emptyRow()];

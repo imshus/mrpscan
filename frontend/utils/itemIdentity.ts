@@ -4,7 +4,8 @@ import { resolveScannedKarat } from '@/utils/formulaUtils';
 /**
  * How a scanned piece is identified on screen and on the invoice.
  *
- * The tag carries the number; the name is composed from what was scanned,
+ * The tag carries the number. The name is the catalogue's, when the number
+ * matches a saved item code; otherwise it is composed from what was scanned,
  * since the tag has no product title of its own.
  */
 export interface ItemIdentity {
@@ -13,12 +14,13 @@ export interface ItemIdentity {
 }
 
 export function resolveItemIdentity(scanData: ScanItemData): ItemIdentity {
+  const catalogueName = scanData.itemName?.trim();
   const karat = resolveScannedKarat(scanData.karat, scanData.tunch);
   const category = scanData.category || 'Gold';
-  const name = [karat, category].filter(Boolean).join(' ').trim();
+  const composed = [karat, category].filter(Boolean).join(' ').trim();
 
   return {
-    name: name || 'Jewellery',
+    name: catalogueName || composed || 'Jewellery',
     number: scanData.sku?.trim() || '',
   };
 }

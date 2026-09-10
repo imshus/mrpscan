@@ -153,12 +153,16 @@ export function structuredDataToScanItem(data: StructuredScanData): Partial<Scan
   result.customPurityPercent = '';
   result.goldRate = '';
   result.sku = '';
+  result.itemName = '';
   result.diamondAmount = '';
 
   // The tag's item number (ITEM/STYLE/ST/SR NO) arrives as serialNumber.
   const serialNumber = data.serialNumber;
   if (serialNumber != null && String(serialNumber).trim() !== '') {
     result.sku = String(serialNumber).trim();
+  }
+  if (data.itemName != null && String(data.itemName).trim() !== '') {
+    result.itemName = String(data.itemName).trim();
   }
 
   for (const [apiKey, value] of Object.entries(data)) {
@@ -227,6 +231,11 @@ export function scanItemToStructuredData(
   const result: StructuredScanData = { ...existing };
   if (scanData.sku?.trim()) {
     result.serialNumber = scanData.sku.trim();
+  }
+  if (scanData.itemName?.trim()) {
+    result.itemName = scanData.itemName.trim();
+  } else {
+    delete result.itemName;
   }
   for (const [scanKey, apiKey] of Object.entries(SCAN_ITEM_TO_API) as [
     ApiMappedScanItemKey,

@@ -144,6 +144,11 @@ export type AbbreviationOption =
 
 export interface ScanItemData {
   sku: string;
+  /**
+   * The catalogue name behind the tag's item code (Masters → Item Code),
+   * attached when the code matches; empty when it does not.
+   */
+  itemName: string;
   category: JewelleryType;
   grossWt: string;
   netWt: string;
