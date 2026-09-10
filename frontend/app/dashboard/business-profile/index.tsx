@@ -1,15 +1,5 @@
-import { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { useEffect } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
@@ -17,15 +7,10 @@ import { BottomNav } from '@/components/dashboard/BottomNav';
 import { BusinessProfileBanner } from '@/components/settings/BusinessProfileBanner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
-import { Colors, Radius, Spacing } from '@/constants/theme';
-import { useSettingsAccess } from '@/hooks/useSettingsAccess';
+import { Colors, Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { getBusinessProfile, formatProfileValue } from '@/utils/businessProfile';
-import {
-  fetchBusinessProfile,
-  fetchEInvoiceSettings,
-  updateEInvoiceSettings,
-} from '@/utils/businessProfileApi';
+import { fetchBusinessProfile } from '@/utils/businessProfileApi';
 
 interface DetailRowProps {
   label: string;
@@ -51,74 +36,6 @@ function DetailRow({ label, value, multiline, last }: DetailRowProps) {
 export default function BusinessProfileScreen() {
   const registration = useAuthStore((s) => s.registration);
   const updateRegistration = useAuthStore((s) => s.updateRegistration);
-  const { isOwner } = useSettingsAccess();
-
-  // E-invoicing (IRP) credentials, the owner's to manage. The password field
-  // is entry-only: the server never returns it, only whether one is saved.
-  const [eInvEnabled, setEInvEnabled] = useState(false);
-  const [eInvMode, setEInvMode] = useState<'live' | 'test'>('test');
-  const [eInvUsername, setEInvUsername] = useState('');
-  const [eInvPassword, setEInvPassword] = useState('');
-  const [eInvHasPassword, setEInvHasPassword] = useState(false);
-  const [eInvSaving, setEInvSaving] = useState(false);
-
-  useEffect(() => {
-    if (!isOwner) return;
-    let cancelled = false;
-    void fetchEInvoiceSettings().then((settings) => {
-      if (cancelled || !settings) return;
-      setEInvEnabled(settings.enabled);
-      setEInvMode(settings.mode);
-      setEInvUsername(settings.username);
-      setEInvHasPassword(settings.hasPassword);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [isOwner]);
-
-  const handleEInvoiceSave = async (nextEnabled?: boolean) => {
-    if (eInvSaving) return;
-    setEInvSaving(true);
-    try {
-      const saved = await updateEInvoiceSettings({
-        ...(nextEnabled !== undefined ? { enabled: nextEnabled } : {}),
-        username: eInvUsername,
-        ...(eInvPassword.trim() ? { password: eInvPassword.trim() } : {}),
-      });
-      setEInvEnabled(saved.enabled);
-      setEInvMode(saved.mode);
-      setEInvUsername(saved.username);
-      setEInvHasPassword(saved.hasPassword);
-      setEInvPassword('');
-    } catch (error) {
-      Alert.alert(
-        'E-Invoicing',
-        error instanceof Error ? error.message : 'Could not save e-invoice settings.',
-      );
-    } finally {
-      setEInvSaving(false);
-    }
-  };
-
-  // Live registers with the government; Test prints a labelled specimen band
-  // so the document can be seen before IRP access exists.
-  const handleEInvoiceMode = async (mode: 'live' | 'test') => {
-    if (eInvSaving || mode === eInvMode) return;
-    setEInvSaving(true);
-    try {
-      const saved = await updateEInvoiceSettings({ mode });
-      setEInvMode(saved.mode);
-      setEInvEnabled(saved.enabled);
-    } catch (error) {
-      Alert.alert(
-        'E-Invoicing',
-        error instanceof Error ? error.message : 'Could not change the e-invoice mode.',
-      );
-    } finally {
-      setEInvSaving(false);
-    }
-  };
 
   // Read the business identity from the database on open. The cached copy from
   // login renders immediately so nothing flashes empty, and a failed request
@@ -187,83 +104,6 @@ export default function BusinessProfileScreen() {
           </View>
         </View>
 
-        {isOwner ? (
-          <View style={styles.detailsCard}>
-            <View style={styles.detailsHeader}>
-              <Text style={styles.detailsHeaderText}>E-INVOICING (IRP)</Text>
-            </View>
-            <View style={styles.eInvBody}>
-              <Text style={styles.eInvHelp}>
-                For B2B bills, MRPscan can register the invoice with the government and print the
-                signed QR. Create an API user for your GSTIN at einvoice1.gst.gov.in (API
-                Registration → Through GSP) and save it here.
-              </Text>
-              <View style={styles.eInvModeRow}>
-                {(['test', 'live'] as const).map((mode) => {
-                  const selected = eInvMode === mode;
-                  return (
-                    <TouchableOpacity
-                      key={mode}
-                      activeOpacity={0.9}
-                      disabled={eInvSaving}
-                      onPress={() => void handleEInvoiceMode(mode)}
-                      style={[styles.eInvModePill, selected && styles.eInvModePillSelected]}
-                    >
-                      <Text style={[styles.eInvModeText, selected && styles.eInvModeTextSelected]}>
-                        {mode === 'live' ? 'Live' : 'Test'}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-                <Text style={styles.eInvModeHint}>
-                  {eInvMode === 'live'
-                    ? 'Registers with the IRP'
-                    : 'Prints a labelled specimen band'}
-                </Text>
-              </View>
-              <TextInput
-                value={eInvUsername}
-                onChangeText={setEInvUsername}
-                placeholder="IRP API username"
-                placeholderTextColor={Colors.placeholder}
-                autoCapitalize="none"
-                style={styles.eInvInput}
-              />
-              <TextInput
-                value={eInvPassword}
-                onChangeText={setEInvPassword}
-                placeholder={eInvHasPassword ? 'Password saved — enter to replace' : 'IRP API password'}
-                placeholderTextColor={Colors.placeholder}
-                autoCapitalize="none"
-                secureTextEntry
-                style={styles.eInvInput}
-              />
-              <View style={styles.eInvActions}>
-                <View style={styles.eInvToggleWrap}>
-                  <Text style={styles.eInvToggleLabel}>Register B2B invoices</Text>
-                  <Switch
-                    value={eInvEnabled}
-                    disabled={eInvSaving}
-                    onValueChange={(next) => void handleEInvoiceSave(next)}
-                    trackColor={{ false: Colors.border, true: Colors.metalGold }}
-                  />
-                </View>
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={[styles.eInvSaveBtn, eInvSaving && styles.eInvSaveBtnDisabled]}
-                  disabled={eInvSaving}
-                  onPress={() => void handleEInvoiceSave()}
-                >
-                  {eInvSaving ? (
-                    <ActivityIndicator color={Colors.white} size="small" />
-                  ) : (
-                    <Text style={styles.eInvSaveText}>Save credentials</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        ) : null}
       </ScrollView>
 
       <BottomNav activeRoute="home" />
@@ -327,88 +167,5 @@ const styles = StyleSheet.create({
   },
   detailValueMultiline: {
     lineHeight: 20,
-  },
-  eInvBody: {
-    padding: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  eInvHelp: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    lineHeight: 17,
-  },
-  eInvModeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  eInvModePill: {
-    paddingVertical: 7,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.backgroundAlt,
-  },
-  eInvModePillSelected: {
-    backgroundColor: Colors.brandDeep,
-    borderColor: Colors.brandDeep,
-  },
-  eInvModeText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  eInvModeTextSelected: {
-    color: Colors.white,
-  },
-  eInvModeHint: {
-    flex: 1,
-    fontSize: 11,
-    color: Colors.textMuted,
-  },
-  eInvInput: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.input,
-    backgroundColor: Colors.inputBg,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: Colors.textPrimary,
-  },
-  eInvActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.sm,
-    marginTop: 2,
-  },
-  eInvToggleWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    flex: 1,
-  },
-  eInvToggleLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  eInvSaveBtn: {
-    minWidth: 130,
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: Radius.input,
-    backgroundColor: Colors.primaryButton,
-  },
-  eInvSaveBtnDisabled: {
-    opacity: 0.5,
-  },
-  eInvSaveText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: Colors.white,
   },
 });
