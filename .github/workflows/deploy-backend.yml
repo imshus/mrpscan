@@ -1,0 +1,122 @@
+name: Deploy backend to EC2
+
+# What a push to main means for the API: run the suite, and only if it passes,
+# put that exact commit on the EC2 box and restart it under PM2. Deploying by
+# hand is what left production running week-old code while the app expected
+# endpoints that were not there yet.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  # Same pipeline, on demand — for a redeploy after changing the server's .env.
+  workflow_dispatch:
+
+concurrency:
+  # One deploy at a time; a newer push cancels a queued older one.
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+
+      # The suite runs on fakes — no database, no Redis, no paid API — so it is
+      # safe to run on every push and means what it says when it is green.
+      - run: npm test
+
+  deploy:
+    name: Deploy
+    needs: test
+    runs-on: ubuntu-latest
+    # Never on a pull request or a manual run against a branch: only main.
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Put this commit on the server and restart it
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }}
+          APP_DIR: ${{ secrets.EC2_APP_DIR }}
+          PM2_NAME: ${{ secrets.EC2_PM2_NAME }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          for name in SSH_KEY HOST USER APP_DIR PM2_NAME; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing repository secret EC2_$name — see docs/deploy-github-actions.md"
+              exit 1
+            fi
+          done
+
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Pin the host key so the deploy cannot be pointed at another machine
+          # mid-run; a changed key fails the step instead of trusting it.
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$USER@$HOST" \
+            "APP_DIR='$APP_DIR' PM2_NAME='$PM2_NAME' SHA='$SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_DIR"
+
+          # Fast-forward only: if the server's checkout has commits or edits of
+          # its own, stop and say so rather than throwing them away.
+          git fetch --quiet origin main
+          git -c advice.detachedHead=false merge --ff-only "$SHA"
+
+          cd backend
+          # Production install from the lockfile: no dev packages on the box,
+          # and no surprise minor versions between test and production.
+          npm ci --omit=dev
+
+          pm2 restart "$PM2_NAME" --update-env
+          pm2 save --force
+          REMOTE
+
+      - name: Check the API came back on this commit
+        env:
+          HEALTH_URL: ${{ secrets.HEALTH_URL }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          url="${HEALTH_URL:-https://appapi.mrpscan.com/api/v1/health}"
+
+          # PM2 needs a moment to bind; ten tries at two seconds covers a cold
+          # start without hiding a server that never came up.
+          for attempt in $(seq 1 10); do
+            body=$(curl -fsS --max-time 10 "$url" || true)
+            if [ -n "$body" ]; then
+              echo "$body"
+              short="${SHA:0:7}"
+              if printf '%s' "$body" | grep -q "\"commit\":\"$short\""; then
+                echo "Deployed commit $short is serving."
+                exit 0
+              fi
+              echo "API is up but not on $short yet (attempt $attempt)."
+            else
+              echo "No answer from $url yet (attempt $attempt)."
+            fi
+            sleep 2
+          done
+
+          echo "::error::The API did not come back on ${SHA:0:7}. Check pm2 logs on the server."
+          exit 1
