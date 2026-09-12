@@ -18,6 +18,7 @@ import { scopedKey } from '@/utils/userScopedStorage';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
+import { fetchBusinessProfile } from '@/utils/businessProfileApi';
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner';
 import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Gradients, Spacing } from '@/constants/theme';
@@ -282,6 +283,25 @@ export default function DashboardScreen() {
 
     return () => clearTimeout(timeoutId);
   }, [authUserRole, loadMarketData, subscriptionOverview]);
+
+  // The header's title is the shop's GST-verified name. The cached copy paints
+  // at once and this refresh keeps it true — after a reinstall, for an employee
+  // who never went through signup, and if the shop's GST details change.
+  const updateRegistration = useAuthStore((s) => s.updateRegistration);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchBusinessProfile().then((fresh) => {
+      if (cancelled || !fresh?.businessName) return;
+      updateRegistration({
+        businessId: fresh.businessId,
+        businessName: fresh.businessName,
+        gstNumber: fresh.gstNumber,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [updateRegistration]);
 
   useFocusEffect(
     useCallback(() => {
