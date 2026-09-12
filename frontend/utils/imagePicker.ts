@@ -3,6 +3,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 
+import { registerScopeResetCallback } from '@/utils/userScopedStorage';
+
 export const MOCK_SCAN_IMAGE_URI = 'mock://local-scan-image';
 
 // Matches the backend's OCR_MAX_EDGE_PX default (2400): the server cuts
@@ -260,6 +262,18 @@ async function buildPreparedImage(uri: string): Promise<PreparedUploadImage> {
 }
 
 const prewarmedPreparations = new Map<string, Promise<PreparedUploadImage>>();
+
+// The prepared copies are files in the cache directory; an account switch
+// removes them along with the map, so the next account cannot come across
+// the previous one's tag photographs.
+registerScopeResetCallback(() => {
+  for (const promise of prewarmedPreparations.values()) {
+    promise
+      .then((prepared) => FileSystem.deleteAsync(prepared.uri, { idempotent: true }))
+      .catch(() => undefined);
+  }
+  prewarmedPreparations.clear();
+});
 
 /** Starts preparing an image early (e.g. while the capture preview is open) so upload reuses it. */
 export function prewarmImagePreparation(uri: string): void {

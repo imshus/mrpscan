@@ -13,6 +13,11 @@ on:
   # Same pipeline, on demand — for a redeploy after changing the server's .env.
   workflow_dispatch:
 
+# Read-only token for the whole workflow: a push to main deploys to
+# production, so a token that could push is a way onto the server.
+permissions:
+  contents: read
+
 concurrency:
   # One deploy at a time; a newer push cancels a queued older one.
   group: deploy-backend
@@ -27,6 +32,10 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+        with:
+          # npm ci runs third-party install scripts; the token must not be
+          # sitting in .git/config for them to read.
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -44,13 +53,17 @@ jobs:
     name: Deploy
     needs: test
     runs-on: ubuntu-latest
-    # Never on a pull request or a manual run against a branch: only main.
-    if: github.ref == 'refs/heads/main'
+    # Only this repository's main: never a pull request, a manual run against
+    # a branch, or a fork's main should the secrets ever be shared with one.
+    if: github.ref == 'refs/heads/main' && github.repository == 'imshus/mrpscan'
     environment: production
+    # No checkout here, so no token at all.
+    permissions: {}
     steps:
       - name: Put this commit on the server and restart it
         env:
           SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
           HOST: ${{ secrets.EC2_HOST }}
           USER: ${{ secrets.EC2_USER }}
           APP_DIR: ${{ secrets.EC2_APP_DIR }}
@@ -69,28 +82,46 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          # Pin the host key so the deploy cannot be pointed at another machine
-          # mid-run; a changed key fails the step instead of trusting it.
-          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$USER@$HOST" \
-            "APP_DIR='$APP_DIR' PM2_NAME='$PM2_NAME' SHA='$SHA' bash -s" <<'REMOTE'
+          # With the instance's host key on file, any other machine answering
+          # at that address fails the step. Without it, the key presented at
+          # this moment is trusted — say so, rather than pretend otherwise.
+          if [ -n "$KNOWN_HOSTS" ]; then
+            printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+            strict=yes
+          else
+            echo "::warning::EC2_KNOWN_HOSTS is not set: trusting whichever host answers at EC2_HOST this run. See docs/deploy-github-actions.md."
+            ssh-keyscan -H "$HOST" > ~/.ssh/known_hosts
+            strict=yes
+          fi
+
+          # The values travel as arguments, not as the remote environment:
+          # pm2 restart --update-env would copy that environment into the API
+          # process and pm2 save would write it to disk.
+          remote_args=$(printf ' %q' "$APP_DIR" "$PM2_NAME" "$SHA")
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking="$strict" \
+            "$USER@$HOST" "bash -s --$remote_args" <<'REMOTE'
           set -euo pipefail
-          cd "$APP_DIR"
+          app_dir="$1"; pm2_name="$2"; sha="$3"
+          cd "$app_dir"
 
           # Fast-forward only: if the server's checkout has commits or edits of
           # its own, stop and say so rather than throwing them away.
           git fetch --quiet origin main
-          git -c advice.detachedHead=false merge --ff-only "$SHA"
+          git -c advice.detachedHead=false merge --ff-only "$sha"
 
           cd backend
           # Production install from the lockfile: no dev packages on the box,
           # and no surprise minor versions between test and production.
           npm ci --omit=dev
 
-          pm2 restart "$PM2_NAME" --update-env
+          pm2 restart "$pm2_name" --update-env
           pm2 save --force
           REMOTE
+
+      - name: Remove the deploy key from the runner
+        if: always()
+        run: shred -u ~/.ssh/deploy_key 2>/dev/null || rm -f ~/.ssh/deploy_key
 
       - name: Check the API came back on this commit
         env:

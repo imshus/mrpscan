@@ -13,10 +13,11 @@ import { registerScopeResetCallback } from '@/utils/userScopedStorage';
 let catalogue: ItemCode[] | null = null;
 let inFlight: Promise<ItemCode[]> | null = null;
 const listeners = new Set<() => void>();
+/** Bumped whenever the cache is dropped, so a load begun before then cannot refill it. */
+let generation = 0;
 
 registerScopeResetCallback(() => {
-  catalogue = null;
-  inFlight = null;
+  invalidateItemCatalogue();
   notify();
 });
 
@@ -28,13 +29,17 @@ function notify() {
 export function loadItemCatalogue(force = false): Promise<ItemCode[]> {
   if (catalogue && !force) return Promise.resolve(catalogue);
   if (inFlight) return inFlight;
+  const issuedAt = generation;
   const request = fetchItemCodes()
     .then((items) => {
+      // Dropped while loading (an account switch, a save): this list belongs
+      // to whoever asked for it then, not to the cache as it is now.
+      if (issuedAt !== generation) return [];
       catalogue = items;
       notify();
       return items;
     })
-    .catch(() => catalogue ?? [])
+    .catch(() => (issuedAt === generation ? catalogue ?? [] : []))
     .finally(() => {
       if (inFlight === request) inFlight = null;
     });
@@ -45,6 +50,7 @@ export function loadItemCatalogue(force = false): Promise<ItemCode[]> {
 export function invalidateItemCatalogue(): void {
   catalogue = null;
   inFlight = null;
+  generation += 1;
 }
 
 export function getCachedItemCatalogue(): ItemCode[] {
@@ -83,7 +89,10 @@ export function useItemCatalogue(): { items: ItemCode[]; loading: boolean } {
   useEffect(() => {
     let active = true;
     const listener = () => {
-      if (active) setItems(getCachedItemCatalogue());
+      if (!active) return;
+      setItems(getCachedItemCatalogue());
+      // Dropped underneath a mounted picker: show it loading, not empty.
+      setLoading(catalogue === null);
     };
     listeners.add(listener);
     void loadItemCatalogue().then((loaded) => {

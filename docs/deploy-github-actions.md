@@ -21,7 +21,13 @@ pasted into a chat, an issue or a commit.
 | `EC2_SSH_KEY` | The **whole** private key that opens that instance, `-----BEGIN …` line included | contents of your `.pem` |
 | `EC2_APP_DIR` | The repository's directory on the box (the folder holding `backend/`) | `/home/ubuntu/mrpscan-app` |
 | `EC2_PM2_NAME` | The PM2 process name | `mrpscan-backend` |
+| `EC2_KNOWN_HOSTS` | Recommended. The instance's SSH host key, so a deploy refuses any other machine at that address. Get it with `ssh-keyscan -H <EC2_HOST>` and paste the whole output | `\|1\|…= ssh-ed25519 AAAA…` |
 | `HEALTH_URL` | Optional. Defaults to `https://appapi.mrpscan.com/api/v1/health` | |
+
+Without `EC2_KNOWN_HOSTS` the deploy trusts whichever machine answers at
+`EC2_HOST` that run — it says so in the log. EC2 hands public addresses to new
+instances when old ones are stopped, so add the key once and a stale
+`EC2_HOST` fails the step instead of deploying to a stranger.
 
 Find the PM2 name on the server with `pm2 list`, and the directory with
 `pm2 info <name>` (its `cwd`).
@@ -40,6 +46,11 @@ Find the PM2 name on the server with `pm2 list`, and the directory with
 3. **Verify** — polls `/api/v1/health` until it answers with the `commit` field
    matching the deployed SHA. That endpoint reports the commit it is running, so
    a green tick means *this* code is serving, not merely that something is up.
+
+The workflow's own token is read-only and is not left in the checkout, so a
+package install script cannot use it to push; the deploy job has no token at
+all. The SSH key is removed from the runner when the job ends, whatever the
+outcome, and the deploy only runs for `imshus/mrpscan` itself — never a fork.
 
 ## Checking a run
 

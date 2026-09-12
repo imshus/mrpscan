@@ -1,5 +1,6 @@
 import { isDemoScanMode } from '@/constants/scanMode';
 import { uploadBackImage, uploadFrontImage } from '@/utils/scanApi';
+import { registerScopeResetCallback } from '@/utils/userScopedStorage';
 import type { CreateScanResponse, ImageUploadResponse } from '@/types/scanner';
 
 /**
@@ -143,3 +144,8 @@ export function invalidateBackgroundUploads(): void {
   }
   backgroundUploads.clear();
 }
+
+// A sign-out aborts whatever is still queued: the photographs belong to the
+// account that took them, and a late upload must not go out under the next
+// account's token.
+registerScopeResetCallback(invalidateBackgroundUploads);

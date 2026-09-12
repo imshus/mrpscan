@@ -28,6 +28,7 @@ import { useInvoiceComputation } from '@/hooks/useInvoiceComputation';
 import { getBusinessProfile } from '@/utils/businessProfile';
 import { formatItemIdentity, resolveItemIdentity } from '@/utils/itemIdentity';
 import { fetchBusinessProfile, type BusinessProfileResponse } from '@/utils/businessProfileApi';
+import { invoicePdfFileName } from '@/utils/invoicePdfCache';
 import {
   apiFetchNextInvoiceNumber,
   apiGenerateInvoice,
@@ -223,7 +224,7 @@ export default function InvoiceSheetScreen() {
       const document = `<!doctype html><html><head><meta charset="utf-8" /><style>html, body { margin: 0; padding: 0; background: #fff; }</style></head><body>${html}</body></html>`;
       // A4 in PDF points.
       const { uri } = await Print.printToFileAsync({ html: document, width: 595, height: 842 });
-      const named = `${FileSystem.cacheDirectory ?? ''}Invoice-${String(number).replace(/[^\w.-]+/g, '-')}.pdf`;
+      const named = `${FileSystem.cacheDirectory ?? ''}${invoicePdfFileName(number)}`;
       await FileSystem.deleteAsync(named, { idempotent: true });
       await FileSystem.moveAsync({ from: uri, to: named });
       return named;
@@ -276,7 +277,7 @@ export default function InvoiceSheetScreen() {
       const info = await FileSystem.getInfoAsync(pdfCache.current.uri);
       if (info.exists) return pdfCache.current;
     }
-    const fileName = `Invoice-${String(result.invoiceNumber).replace(/[^\w.-]+/g, '-')}.pdf`;
+    const fileName = invoicePdfFileName(result.invoiceNumber);
     // The local copy serves when the server kept the previewed number;
     // otherwise one is rendered now from the same template with the
     // assigned number.

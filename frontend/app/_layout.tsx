@@ -22,6 +22,9 @@ import { useInventoryStore } from '@/store/inventoryStore';
 import { usePurityStore } from '@/store/purityStore';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { resetIfNewBuild } from '@/utils/appBuildReset';
+// Registers the sign-out purge of rendered invoices; the invoice screen is
+// loaded lazily, so this has to happen here for a PDF left by an earlier run.
+import '@/utils/invoicePdfCache';
 
 export { ErrorBoundary } from 'expo-router';
 

@@ -113,6 +113,7 @@ export class PrathamAiCall {
       this.fail('Allow the microphone for MRPscan to talk to the 24/7 agent.');
       return;
     }
+    if (this.abandoned()) return;
 
     try {
       AudioManager.setAudioSessionOptions({
@@ -124,6 +125,7 @@ export class PrathamAiCall {
     } catch {
       // Android needs no session; a failed iOS activation still lets audio run.
     }
+    if (this.abandoned()) return;
 
     try {
       this.ctx = new AudioContext();
@@ -493,8 +495,24 @@ export class PrathamAiCall {
     this.events.onStatus('error', message);
   }
 
+  /**
+   * Hung up while start() was still waiting on the phone (an account switch
+   * does that): nothing brought up since may stay up. A microphone that
+   * outlived the hang-up would stream the next account's room into a call
+   * nobody could end.
+   */
+  private abandoned(): boolean {
+    if (!this.finished) return false;
+    this.teardown();
+    return true;
+  }
+
   private end(reason: EndReason): void {
-    if (this.finished) return;
+    if (this.finished) {
+      // Already over; release whatever came up since, just in case.
+      this.teardown();
+      return;
+    }
     this.finished = true;
     const ws = this.ws;
     if (ws && ws.readyState === WebSocket.OPEN) {
