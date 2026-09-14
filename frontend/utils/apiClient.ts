@@ -1,6 +1,10 @@
 import { API_BASE_URL, getApiUrl } from '@/constants/api';
 import { useAuthStore } from '@/store/authStore';
-import { currentUserScope } from '@/utils/userScopedStorage';
+import {
+  currentScopeGeneration,
+  currentUserScope,
+  registerScopeResetCallback,
+} from '@/utils/userScopedStorage';
 
 export class ApiError extends Error {
   constructor(
@@ -89,17 +93,36 @@ function getNetworkErrorMessage(): string {
 }
 
 let refreshPromise: Promise<string | null> | null = null;
+let refreshController: AbortController | null = null;
+const REFRESH_TIMEOUT_MS = 20000;
+
+// An account change ends a refresh still in flight: its tokens would be the
+// previous account's, and installing them would hand the next person that
+// account's whole session.
+registerScopeResetCallback(() => {
+  refreshController?.abort();
+  refreshController = null;
+  refreshPromise = null;
+});
 
 async function handleTokenRefresh(): Promise<string | null> {
   if (refreshPromise) {
     return refreshPromise;
   }
 
-  refreshPromise = (async () => {
+  const issuedAt = currentScopeGeneration();
+  const controller = new AbortController();
+  refreshController = controller;
+  const timeoutId = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
+
+  // A refresh with no token to send settles before this function returns; the
+  // slot is only taken for one that is actually on the wire.
+  let settled = false;
+  const promise = (async () => {
     try {
       const state = useAuthStore.getState();
       const refreshToken = state.refreshToken;
-      
+
       if (!refreshToken) {
         state.logout();
         return null;
@@ -109,7 +132,12 @@ async function handleTokenRefresh(): Promise<string | null> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
+        signal: controller.signal,
       });
+
+      // Whoever asked has signed out since: neither the new tokens nor a
+      // failure are this session's to act on.
+      if (issuedAt !== currentScopeGeneration()) return null;
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
@@ -119,6 +147,7 @@ async function handleTokenRefresh(): Promise<string | null> {
       }
 
       const body = await response.json();
+      if (issuedAt !== currentScopeGeneration()) return null;
       if (body.success && body.data?.accessToken) {
         state.setAuthToken(body.data.accessToken);
         if (body.data.refreshToken) {
@@ -133,11 +162,17 @@ async function handleTokenRefresh(): Promise<string | null> {
       // Do not log out on network errors to prevent unintentional session termination
       return null;
     } finally {
-      refreshPromise = null;
+      clearTimeout(timeoutId);
+      settled = true;
+      // Only this attempt's own slot: a reset may already have started another.
+      if (refreshController === controller) {
+        refreshController = null;
+        refreshPromise = null;
+      }
     }
   })();
-
-  return refreshPromise;
+  if (!settled) refreshPromise = promise;
+  return promise;
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -167,8 +202,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const url = getApiUrl(path);
   const method = (rest.method ?? 'GET').toUpperCase();
   // Keyed by the account as well as the URL: a 304 must never hand one
-  // account the body another one fetched.
+  // account the body another one fetched. The generation says whether that
+  // account is still the one signed in when the response lands.
   const cacheKey = `${method}:${url}@${currentUserScope()}`;
+  const issuedAt = currentScopeGeneration();
 
   if (method === 'GET') {
     // Prevent stale 304-only responses in RN fetch and keep credit/subscription overviews fresh.
@@ -247,9 +284,16 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
         errorBody = null;
       }
     }
-    if (response.status === 401 && !path.includes('/auth/login') && !path.includes('/auth/refresh')) {
+    // A 401 for the previous account is not refreshed or retried as the
+    // next one: the request simply fails.
+    if (
+      response.status === 401 &&
+      issuedAt === currentScopeGeneration() &&
+      !path.includes('/auth/login') &&
+      !path.includes('/auth/refresh')
+    ) {
       const newAccessToken = await handleTokenRefresh();
-      if (newAccessToken) {
+      if (newAccessToken && issuedAt === currentScopeGeneration()) {
         // Retry original request with new token
         headers.set('Authorization', `Bearer ${newAccessToken}`);
         try {
@@ -274,7 +318,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
           if (response.ok) {
             if (skipJson || response.status === 204) return undefined as T;
             const parsed = (await response.json()) as T;
-            if (method === 'GET') {
+            if (method === 'GET' && issuedAt === currentScopeGeneration()) {
               getResponseCache.set(cacheKey, parsed as unknown);
             }
             return parsed;
@@ -307,7 +351,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   const parsed = (await response.json()) as T;
-  if (method === 'GET') {
+  if (method === 'GET' && issuedAt === currentScopeGeneration()) {
     getResponseCache.set(cacheKey, parsed as unknown);
   }
   return parsed;

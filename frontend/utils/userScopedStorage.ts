@@ -32,9 +32,18 @@ export function scopedKey(name: string, scope: string = currentUserScope()): str
   return `${name}@${scope}`;
 }
 
+/**
+ * While a store is being put back to its defaults for an account change, the
+ * persist middleware must not write those defaults out: by then the key it
+ * writes is the incoming account's — the one whose saved data is about to be
+ * read — so the write would erase that data before the read.
+ */
+let suppressWrites = false;
+
 export const userScopedStorage: StateStorage = {
   getItem: (name) => AsyncStorage.getItem(scopedKey(name)),
-  setItem: (name, value) => AsyncStorage.setItem(scopedKey(name), value),
+  setItem: (name, value) =>
+    suppressWrites ? Promise.resolve() : AsyncStorage.setItem(scopedKey(name), value),
   removeItem: (name) => AsyncStorage.removeItem(scopedKey(name)),
 };
 
@@ -58,8 +67,15 @@ export function registerUserScopedStore(store: unknown): void {
  * previous account's data on screen.
  */
 export async function rehydrateUserScopedStores(): Promise<void> {
-  for (const store of scopedStores) {
-    store.setState(store.getInitialState() as never, true);
+  // setState goes through the persist middleware, which writes synchronously
+  // on every call; the defaults must stay in memory only.
+  suppressWrites = true;
+  try {
+    for (const store of scopedStores) {
+      store.setState(store.getInitialState() as never, true);
+    }
+  } finally {
+    suppressWrites = false;
   }
   await Promise.all(scopedStores.map((store) => store.persist.rehydrate()));
 }

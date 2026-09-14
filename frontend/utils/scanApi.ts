@@ -8,6 +8,7 @@ import {
 import { flattenStructuredData, unwrapApiData } from '@/utils/apiResponse';
 import * as mockScanApi from '@/utils/mockScanApi';
 import { prepareImageForUpload, type PreparedUploadImage } from '@/utils/imagePicker';
+import { registerScopeResetCallback } from '@/utils/userScopedStorage';
 import type {
   AnalyzeScanResponse,
   ClarificationResponse,
@@ -61,10 +62,21 @@ function shouldRetryUpload(error: unknown): boolean {
   return error.status >= 500 || error.status === 408 || error.status === 429;
 }
 
+/**
+ * Aborted on every account change, so a scan request the previous account
+ * started never completes under the next account's token. Requests that have
+ * no controller of their own (the on-demand upload, the analysis) run on it.
+ */
+let scopeAbort = new AbortController();
+registerScopeResetCallback(() => {
+  scopeAbort.abort();
+  scopeAbort = new AbortController();
+});
+
 async function uploadWithRetry(
   path: string,
   prepared: PreparedUploadImage,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined = scopeAbort.signal,
   extraFields?: Record<string, string>,
 ): Promise<ImageUploadResponse> {
   const startedAt = Date.now();
@@ -272,7 +284,10 @@ export async function detectTagArea(imageUri: string): Promise<TagBox | null> {
     const height = num(box.height);
     if (x === null || y === null || !width || !height) return null;
     return { x, y, width, height };
-  } catch {
+  } catch (error) {
+    // A refusal for too many detections is worth telling; any other failure
+    // just leaves the framing to the user.
+    if (error instanceof ApiError && error.status === 429) throw error;
     return null;
   }
 }
@@ -360,6 +375,7 @@ export async function analyzeScan(scanId: string): Promise<AnalyzeScanResponse> 
     method: 'POST',
     body: null,
     timeoutMs: 90000,
+    signal: scopeAbort.signal,
   });
   return normalizeAnalyzeResponse(response);
 }
