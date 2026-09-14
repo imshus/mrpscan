@@ -4,16 +4,17 @@ import { Bell, Heart, Menu } from 'lucide-react-native';
 
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
-import { formatProfileValue, getBusinessProfile } from '@/utils/businessProfile';
+import { getBusinessProfile } from '@/utils/businessProfile';
 
 export function DashboardHeader() {
   const router = useRouter();
-  // The GST-verified business name of the signed-in shop, not a fixed brand.
+  // The shop's own GST-verified name — trade name, or the legal name when the
+  // registration carries no trade name. Never the app's name: showing
+  // "MRPscan" here told every shop it was looking at somebody else's title,
+  // and hid the fact that the name had not loaded. Until it is known the row
+  // simply has no title, and the home screen fetches it on arrival.
   const registration = useAuthStore((s) => s.registration);
-  const businessName = formatProfileValue(
-    getBusinessProfile(registration).businessName,
-    'MRPscan',
-  );
+  const businessName = getBusinessProfile(registration).businessName.trim();
 
   return (
     <View style={styles.header}>

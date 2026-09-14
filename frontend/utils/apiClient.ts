@@ -1,5 +1,6 @@
 import { API_BASE_URL, getApiUrl } from '@/constants/api';
 import { useAuthStore } from '@/store/authStore';
+import { currentUserScope } from '@/utils/userScopedStorage';
 
 export class ApiError extends Error {
   constructor(
@@ -165,7 +166,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   const url = getApiUrl(path);
   const method = (rest.method ?? 'GET').toUpperCase();
-  const cacheKey = `${method}:${url}`;
+  // Keyed by the account as well as the URL: a 304 must never hand one
+  // account the body another one fetched.
+  const cacheKey = `${method}:${url}@${currentUserScope()}`;
 
   if (method === 'GET') {
     // Prevent stale 304-only responses in RN fetch and keep credit/subscription overviews fresh.

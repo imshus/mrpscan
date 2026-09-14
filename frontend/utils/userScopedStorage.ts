@@ -75,11 +75,31 @@ export function registerScopeResetCallback(callback: () => void): void {
   scopeResetCallbacks.push(callback);
 }
 
+/**
+ * Counts account changes. A request captures it before going out and drops
+ * its result when the number has moved: a reset callback can empty a cache,
+ * but it cannot recall a response already on the wire, and that response
+ * would otherwise refill the cache with the previous account's data.
+ */
+let scopeGeneration = 0;
+export function currentScopeGeneration(): number {
+  return scopeGeneration;
+}
+
 let activeScope = currentUserScope();
 useAuthStore.subscribe(() => {
   const next = currentUserScope();
   if (next === activeScope) return;
   activeScope = next;
-  for (const callback of scopeResetCallbacks) callback();
+  scopeGeneration += 1;
+  // Every store's reset runs whatever the others do: one that throws must
+  // not leave the later ones holding the previous account's data.
+  for (const callback of scopeResetCallbacks) {
+    try {
+      callback();
+    } catch (error) {
+      console.warn('[Scope] A reset callback failed', error);
+    }
+  }
   void rehydrateUserScopedStores();
 });

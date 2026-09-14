@@ -10,6 +10,7 @@ import { resolveScannedKarat } from '@/utils/formulaUtils';
 import { calculateScanMrp } from '@/utils/scanApi';
 import { computeOtherChargesTotal, parseNumericValue } from '@/utils/scanPriceCalculation';
 import { parseStoneArraysFromStructuredData } from '@/utils/stoneSequenceUtils';
+import { registerScopeResetCallback } from '@/utils/userScopedStorage';
 
 export interface PricingInput {
   payload: CalculateMrpPayload;
@@ -104,6 +105,13 @@ export function prefetchFirstPricing(scanId: string, input: PricingInput): void 
  * with its own request, which replaces it only if the figures differ.
  */
 const serverPricing = new Map<string, CalculateMrpResponse>();
+
+// A priced scan leaves with the account that made it, like the rest of the
+// scan session — even one only reachable by a scan id nobody else will hold.
+registerScopeResetCallback(() => {
+  prefetched.clear();
+  serverPricing.clear();
+});
 
 export function seedServerPricing(scanId: string, pricing: CalculateMrpResponse): void {
   serverPricing.set(scanId, pricing);

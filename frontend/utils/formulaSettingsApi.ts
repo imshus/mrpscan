@@ -8,6 +8,7 @@ import { useFormulaStore } from '@/store/formulaStore';
 import { apiRequest } from '@/utils/apiClient';
 import { unwrapApiData } from '@/utils/apiResponse';
 import { normalizeKarat } from '@/utils/formulaUtils';
+import { currentScopeGeneration } from '@/utils/userScopedStorage';
 
 type ApiEnvelope = Record<string, unknown> & {
   success?: boolean;
@@ -40,14 +41,25 @@ function normalizeFormulaSettings(raw: Record<string, unknown>): FormulaSettings
   };
 }
 
-export function applyFormulaSettingsToStore(settings: FormulaSettings): void {
+/**
+ * Writes the settings into the store — unless the account changed after they
+ * were requested (`issuedAt`), in which case they price someone else's scans
+ * and are dropped. Returns whether they were applied.
+ */
+export function applyFormulaSettingsToStore(
+  settings: FormulaSettings,
+  issuedAt: number = currentScopeGeneration(),
+): boolean {
+  if (issuedAt !== currentScopeGeneration()) return false;
   useFormulaStore.getState().setActiveFormula(settings.activeFormula);
   useFormulaStore.getState().setFormula2Rules(settings.formula2Rules);
+  return true;
 }
 
 export async function syncFormulaStoreFromApi(): Promise<FormulaSettings> {
+  const issuedAt = currentScopeGeneration();
   const settings = await fetchFormulaSettings();
-  applyFormulaSettingsToStore(settings);
+  applyFormulaSettingsToStore(settings, issuedAt);
   return settings;
 }
 

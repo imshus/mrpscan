@@ -18,6 +18,7 @@ import {
   getKaratOptionsForAdd,
   getKaratOptionsForEdit,
 } from '@/utils/formulaUtils';
+import { currentScopeGeneration } from '@/utils/userScopedStorage';
 
 const BUTTON_GREEN = '#A81F17';
 
@@ -384,13 +385,15 @@ function applySettingsToState(
     setFormula2Rows: (rows: Formula2Row[]) => void;
     setNextRowId: (id: number) => void;
   },
+  issuedAt: number,
 ) {
+  // The account changed while the request was out: these are not its settings.
+  if (!applyFormulaSettingsToStore(settings, issuedAt)) return;
   const { rows, nextRowId } = formula2RulesToRows(settings.formula2Rules);
   setters.setActiveFormula(settings.activeFormula);
   setters.setCommittedFormula(settings.activeFormula);
   setters.setFormula2Rows(rows);
   setters.setNextRowId(nextRowId);
-  applyFormulaSettingsToStore(settings);
 }
 
 export function MasterFormulasModule({ contentContainerStyle }: MasterFormulasModuleProps) {
@@ -407,16 +410,21 @@ export function MasterFormulasModule({ contentContainerStyle }: MasterFormulasMo
   const loadSettings = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const issuedAt = currentScopeGeneration();
     try {
       const settings = await fetchFormulaSettings();
-      applySettingsToState(settings, {
-        setActiveFormula,
-        setCommittedFormula,
-        setFormula2Rows,
-        setNextRowId: (id) => {
-          nextRowIdRef.current = id;
+      applySettingsToState(
+        settings,
+        {
+          setActiveFormula,
+          setCommittedFormula,
+          setFormula2Rows,
+          setNextRowId: (id) => {
+            nextRowIdRef.current = id;
+          },
         },
-      });
+        issuedAt,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load formula settings');
     } finally {
@@ -432,19 +440,24 @@ export function MasterFormulasModule({ contentContainerStyle }: MasterFormulasMo
     async (formula: ActiveFormula, rows: Formula2Row[]) => {
       setSaving(true);
       setError(null);
+      const issuedAt = currentScopeGeneration();
       try {
         const settings = await updateFormulaSettings({
           activeFormula: formula,
           formula2Rules: rows.map((row) => row.karat),
         });
-        applySettingsToState(settings, {
-          setActiveFormula,
-          setCommittedFormula,
-          setFormula2Rows,
-          setNextRowId: (id) => {
-            nextRowIdRef.current = id;
+        applySettingsToState(
+          settings,
+          {
+            setActiveFormula,
+            setCommittedFormula,
+            setFormula2Rows,
+            setNextRowId: (id) => {
+              nextRowIdRef.current = id;
+            },
           },
-        });
+          issuedAt,
+        );
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to save formula settings';
         setError(message);
