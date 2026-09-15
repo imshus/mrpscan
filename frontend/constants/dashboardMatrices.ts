@@ -77,7 +77,6 @@ export const GOLD_MATRIX_SECTIONS: MatrixSection[] = [
  */
 export const OPENING_MATRIX_KEYS: MatrixKey[] = ['24k_mcx', '24k_rtgs', '24k_cash'];
 
-/** Every rate starts ticked, 24K included, until someone unticks one. */
 /**
  * The rates Home should show for these settings. Everything selected is kept
  * as it is; a set with nothing selected at all gets the 24K rates back, so
@@ -96,20 +95,25 @@ export function withOpeningDefaults(
   return merged;
 }
 
+/**
+ * What a shop that has saved nothing sees: the 24K price alone. The lighter
+ * karats are in the Choose Karat menu, off until they are ticked — a new
+ * dashboard opens on one price rather than six cards of them.
+ */
 export const DEFAULT_MATRIX_VALUES: Record<MatrixKey, boolean> = {
   '24k_mcx': true,
   '24k_rtgs': true,
   '24k_cash': true,
-  '22k_rtgs': true,
-  '22k_cash': true,
-  '20k_rtgs': true,
-  '20k_cash': true,
-  '18k_rtgs': true,
-  '18k_cash': true,
-  '14k_rtgs': true,
-  '14k_cash': true,
-  '9k_rtgs': true,
-  '9k_cash': true,
+  '22k_rtgs': false,
+  '22k_cash': false,
+  '20k_rtgs': false,
+  '20k_cash': false,
+  '18k_rtgs': false,
+  '18k_cash': false,
+  '14k_rtgs': false,
+  '14k_cash': false,
+  '9k_rtgs': false,
+  '9k_cash': false,
   // Bhaw rate source: true = JMD Patil live feed, false = Mega Bullion.
   'bhaw_source_jmd': false,
 };
