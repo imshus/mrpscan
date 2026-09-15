@@ -1,84 +1,55 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
-import { MatrixCheckboxRow } from '@/components/settings/MatrixCheckboxRow';
+import {
+  DropdownGroupLabel,
+  DropdownOption,
+  SettingsDropdown,
+} from '@/components/settings/SettingsDropdown';
+import { GOLD_MATRIX_SECTIONS, type MatrixKey } from '@/constants/dashboardMatrices';
 import { Colors, Spacing } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useMatricesStore } from '@/store/matricesStore';
 import { updateDashboardMatrices } from '@/utils/matricesApi';
 
-type DashboardMatrixKey =
-  | '24k_mcx'
-  | '24k_rtgs'
-  | '24k_cash'
-  | '22k_rtgs'
-  | '22k_cash'
-  | '20k_rtgs'
-  | '20k_cash'
-  | '18k_rtgs'
-  | '18k_cash'
-  | '14k_rtgs'
-  | '14k_cash'
-  | '9k_rtgs'
-  | '9k_cash'
-  | 'bhaw_source_jmd';
+type DashboardMatrixValues = Record<MatrixKey, boolean>;
 
-type DashboardMatrixValues = Record<DashboardMatrixKey, boolean>;
-
-type DashboardMatrixSection = {
-  sectionLabel: string;
-  rows: Array<{ key: DashboardMatrixKey; label: string }>;
-};
-
-const DASHBOARD_MATRIX_SECTIONS: DashboardMatrixSection[] = [
-  {
-    sectionLabel: '24K GOLD',
-    rows: [
-      { key: '24k_mcx', label: ' MCX Rate ' },
-      { key: '24k_rtgs', label: ' RTGS Rate ' },
-      { key: '24k_cash', label: ' Cash Rate ' },
-    ],
-  },
-  {
-    sectionLabel: '22K GOLD',
-    rows: [
-      { key: '22k_rtgs', label: ' RTGS Rate ' },
-      { key: '22k_cash', label: ' Cash Rate ' },
-    ],
-  },
-  {
-    sectionLabel: '20K GOLD',
-    rows: [
-      { key: '20k_rtgs', label: ' RTGS Rate ' },
-      { key: '20k_cash', label: ' Cash Rate ' },
-    ],
-  },
-  {
-    sectionLabel: '18K GOLD',
-    rows: [
-      { key: '18k_rtgs', label: ' RTGS Rate ' },
-      { key: '18k_cash', label: ' Cash Rate ' },
-    ],
-  },
-  {
-    sectionLabel: '14K GOLD',
-    rows: [
-      { key: '14k_rtgs', label: ' RTGS Rate ' },
-      { key: '14k_cash', label: ' Cash Rate ' },
-    ],
-  },
-  {
-    sectionLabel: '9K GOLD',
-    rows: [
-      { key: '9k_rtgs', label: ' RTGS Rate ' },
-      { key: '9k_cash', label: ' Cash Rate ' },
-    ],
-  },
+/** Which bullion house the Home gold rate follows. */
+const BULLION_CHOICES: { label: string; jmd: boolean }[] = [
+  { label: 'JMD Patil', jmd: true },
+  { label: 'Mega Bullion', jmd: false },
 ];
+
+interface RateOption {
+  key: MatrixKey;
+  /** The karat band this rate sits under, e.g. "24K GOLD". */
+  group: string;
+  /** The line in the menu, e.g. "MCX Rate". */
+  label: string;
+  /** The name used in the closed box, e.g. "24K MCX". */
+  short: string;
+}
+
+/**
+ * Every rate the Home dashboard can show, in the order it appears there:
+ * 24K MCX / RTGS / Cash first, then 22K and the lighter karats.
+ */
+const RATE_OPTIONS: RateOption[] = GOLD_MATRIX_SECTIONS.flatMap((section) =>
+  section.rows.map((row) => {
+    const label = row.label.trim();
+    const karat = section.sectionLabel.replace(' GOLD', '');
+    return {
+      key: row.key,
+      group: section.sectionLabel,
+      label,
+      short: `${karat} ${label.replace(' Rate', '')}`,
+    };
+  }),
+);
 
 const DEFAULT_DASHBOARD_MATRIX_VALUES: DashboardMatrixValues = {
   '24k_mcx': true,
@@ -104,24 +75,13 @@ function normalizeMatrixValues(values: Record<string, boolean> | null | undefine
   };
 }
 
-/** Radio row for the bhaw rate source (single-select, dot on the right). */
-function RadioRow({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable onPress={onPress} style={styles.radioRow}>
-      <Text style={styles.radioLabel}>{label}</Text>
-      <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
-        {selected ? <View style={styles.radioInner} /> : null}
-      </View>
-    </Pressable>
-  );
+/** What the closed karat box reads: the chosen rates, and how many more. */
+function summarizeRates(values: DashboardMatrixValues): string {
+  const chosen = RATE_OPTIONS.filter((option) => values[option.key]);
+  if (chosen.length === 0) return 'No rates on Home';
+  if (chosen.length === RATE_OPTIONS.length) return 'All rates';
+  const named = chosen.slice(0, 2).map((option) => option.short).join(', ');
+  return chosen.length > 2 ? `${named} +${chosen.length - 2}` : named;
 }
 
 export default function DashboardMatricesScreen() {
@@ -129,15 +89,19 @@ export default function DashboardMatricesScreen() {
   const router = useRouter();
   const storedValues = useMatricesStore((s) => s.values);
   const [draft, setDraft] = useState<DashboardMatrixValues>(() => normalizeMatrixValues(storedValues));
+  // One menu at a time, so a long karat list never hides the field above it.
+  const [openMenu, setOpenMenu] = useState<'bullion' | 'karat' | null>(null);
 
   useEffect(() => {
     setDraft(normalizeMatrixValues(storedValues));
   }, [storedValues]);
 
+  const rateSummary = useMemo(() => summarizeRates(draft), [draft]);
+
   if (!allowed) return null;
 
   const persistToggle = async (
-    key: DashboardMatrixKey,
+    key: MatrixKey,
     nextValue: boolean,
     previousValue: boolean,
   ) => {
@@ -162,19 +126,23 @@ export default function DashboardMatricesScreen() {
     }
   };
 
-  const toggle = (key: DashboardMatrixKey) => {
+  const toggleRate = (key: MatrixKey) => {
     const previousValue = draft[key];
     const nextValue = !previousValue;
     setDraft((current) => ({ ...current, [key]: nextValue }));
     void persistToggle(key, nextValue, previousValue);
   };
 
-  const selectBhawSource = (useJmd: boolean) => {
+  const selectBullion = (useJmd: boolean) => {
+    // A single choice: the menu closes on the way out, whether or not it moved.
+    setOpenMenu(null);
     const previousValue = draft.bhaw_source_jmd;
     if (previousValue === useJmd) return;
     setDraft((current) => ({ ...current, bhaw_source_jmd: useJmd }));
     void persistToggle('bhaw_source_jmd', useJmd, previousValue);
   };
+
+  const bullionLabel = draft.bhaw_source_jmd ? 'JMD Patil' : 'Mega Bullion';
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -190,43 +158,50 @@ export default function DashboardMatricesScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.hint}>Choose which gold rates appear on your Home dashboard.</Text>
+        <Text style={styles.hint}>
+          Choose the bullion house the Home rate follows, and which gold rates appear there.
+        </Text>
 
-        <View style={styles.card}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionHeaderText}>
-              Bhaw Rate Source — adjusts the gold rate on Home
-            </Text>
-          </View>
-          <RadioRow
-            label="JMD Patil"
-            selected={draft.bhaw_source_jmd}
-            onPress={() => selectBhawSource(true)}
-          />
-          <View style={styles.radioDivider} />
-          <RadioRow
-            label="Mega Bullion"
-            selected={!draft.bhaw_source_jmd}
-            onPress={() => selectBhawSource(false)}
-          />
-
-          {DASHBOARD_MATRIX_SECTIONS.map((section) => (
-            <View key={section.sectionLabel}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionHeaderText}>{section.sectionLabel}</Text>
-              </View>
-              {section.rows.map((row, index) => (
-                <MatrixCheckboxRow
-                  key={row.key}
-                  label={row.label.trim()}
-                  checked={draft[row.key]}
-                  onToggle={() => toggle(row.key)}
-                  showDivider={index < section.rows.length - 1}
-                />
-              ))}
-            </View>
+        <SettingsDropdown
+          label="Choose Bullion"
+          value={bullionLabel}
+          open={openMenu === 'bullion'}
+          onPress={() => setOpenMenu((current) => (current === 'bullion' ? null : 'bullion'))}
+        >
+          {BULLION_CHOICES.map((choice, index) => (
+            <DropdownOption
+              key={choice.label}
+              label={choice.label}
+              selected={draft.bhaw_source_jmd === choice.jmd}
+              onPress={() => selectBullion(choice.jmd)}
+              showDivider={index < BULLION_CHOICES.length - 1}
+            />
           ))}
-        </View>
+        </SettingsDropdown>
+
+        <SettingsDropdown
+          label="Choose Karat"
+          value={rateSummary}
+          open={openMenu === 'karat'}
+          onPress={() => setOpenMenu((current) => (current === 'karat' ? null : 'karat'))}
+        >
+          {RATE_OPTIONS.map((option, index) => {
+            const previous = RATE_OPTIONS[index - 1];
+            const isLast = index === RATE_OPTIONS.length - 1;
+            return (
+              <View key={option.key}>
+                {previous?.group !== option.group ? <DropdownGroupLabel label={option.group} /> : null}
+                <DropdownOption
+                  label={option.label}
+                  selected={draft[option.key]}
+                  onPress={() => toggleRate(option.key)}
+                  mode="multi"
+                  showDivider={!isLast && RATE_OPTIONS[index + 1]?.group === option.group}
+                />
+              </View>
+            );
+          })}
+        </SettingsDropdown>
       </ScrollView>
 
       <BottomNav activeRoute="home" />
@@ -272,62 +247,5 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     lineHeight: 17,
     marginBottom: 16,
-  },
-  card: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  sectionHeader: {
-    backgroundColor: Colors.backgroundAlt,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-  },
-  sectionHeaderText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: Colors.textMuted,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  radioRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  radioLabel: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    lineHeight: 20,
-  },
-  radioDivider: {
-    height: 1,
-    backgroundColor: Colors.border,
-  },
-  radioOuter: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioOuterSelected: {
-    borderColor: Colors.metalGold,
-  },
-  radioInner: {
-    width: 11,
-    height: 11,
-    borderRadius: 5.5,
-    backgroundColor: Colors.metalGold,
   },
 });
