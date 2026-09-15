@@ -10,7 +10,11 @@ import {
   DropdownOption,
   SettingsDropdown,
 } from '@/components/settings/SettingsDropdown';
-import { GOLD_MATRIX_SECTIONS, type MatrixKey } from '@/constants/dashboardMatrices';
+import {
+  ALWAYS_ON_MATRIX_KEYS,
+  GOLD_MATRIX_SECTIONS,
+  type MatrixKey,
+} from '@/constants/dashboardMatrices';
 import { Colors, Spacing } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useMatricesStore } from '@/store/matricesStore';
@@ -69,10 +73,13 @@ const DEFAULT_DASHBOARD_MATRIX_VALUES: DashboardMatrixValues = {
 };
 
 function normalizeMatrixValues(values: Record<string, boolean> | null | undefined): DashboardMatrixValues {
-  return {
+  const merged: DashboardMatrixValues = {
     ...DEFAULT_DASHBOARD_MATRIX_VALUES,
     ...(values ?? {}),
   };
+  // Whatever a record saved before this rule says, the 24K rates are on.
+  for (const key of ALWAYS_ON_MATRIX_KEYS) merged[key] = true;
+  return merged;
 }
 
 /** What the closed karat box reads: the chosen rates, and how many more. */
@@ -127,6 +134,7 @@ export default function DashboardMatricesScreen() {
   };
 
   const toggleRate = (key: MatrixKey) => {
+    if (ALWAYS_ON_MATRIX_KEYS.includes(key)) return;
     const previousValue = draft[key];
     const nextValue = !previousValue;
     setDraft((current) => ({ ...current, [key]: nextValue }));
@@ -196,6 +204,8 @@ export default function DashboardMatricesScreen() {
                   selected={draft[option.key]}
                   onPress={() => toggleRate(option.key)}
                   mode="multi"
+                  locked={ALWAYS_ON_MATRIX_KEYS.includes(option.key)}
+                  lockedHint="Always on"
                   showDivider={!isLast && RATE_OPTIONS[index + 1]?.group === option.group}
                 />
               </View>
