@@ -70,12 +70,7 @@ export const GOLD_MATRIX_SECTIONS: MatrixSection[] = [
   },
 ];
 
-/**
- * The 24K rates are the shop's headline price, so Home always shows all
- * three: they are ticked and cannot be switched off.
- */
-export const ALWAYS_ON_MATRIX_KEYS: MatrixKey[] = ['24k_mcx', '24k_rtgs', '24k_cash'];
-
+/** Every rate starts ticked, 24K included, until someone unticks one. */
 export const DEFAULT_MATRIX_VALUES: Record<MatrixKey, boolean> = {
   '24k_mcx': true,
   '24k_rtgs': true,

@@ -5,16 +5,8 @@ import { ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
-import {
-  DropdownGroupLabel,
-  DropdownOption,
-  SettingsDropdown,
-} from '@/components/settings/SettingsDropdown';
-import {
-  ALWAYS_ON_MATRIX_KEYS,
-  GOLD_MATRIX_SECTIONS,
-  type MatrixKey,
-} from '@/constants/dashboardMatrices';
+import { DropdownOption, SettingsDropdown } from '@/components/settings/SettingsDropdown';
+import { GOLD_MATRIX_SECTIONS, type MatrixKey } from '@/constants/dashboardMatrices';
 import { Colors, Spacing } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useMatricesStore } from '@/store/matricesStore';
@@ -30,12 +22,8 @@ const BULLION_CHOICES: { label: string; jmd: boolean }[] = [
 
 interface RateOption {
   key: MatrixKey;
-  /** The karat band this rate sits under, e.g. "24K GOLD". */
-  group: string;
-  /** The line in the menu, e.g. "MCX Rate". */
+  /** The whole name, in the menu and in the closed box: "24K MCX". */
   label: string;
-  /** The name used in the closed box, e.g. "24K MCX". */
-  short: string;
 }
 
 /**
@@ -43,16 +31,10 @@ interface RateOption {
  * 24K MCX / RTGS / Cash first, then 22K and the lighter karats.
  */
 const RATE_OPTIONS: RateOption[] = GOLD_MATRIX_SECTIONS.flatMap((section) =>
-  section.rows.map((row) => {
-    const label = row.label.trim();
-    const karat = section.sectionLabel.replace(' GOLD', '');
-    return {
-      key: row.key,
-      group: section.sectionLabel,
-      label,
-      short: `${karat} ${label.replace(' Rate', '')}`,
-    };
-  }),
+  section.rows.map((row) => ({
+    key: row.key,
+    label: `${section.sectionLabel.replace(' GOLD', '')} ${row.label.trim().replace(' Rate', '')}`,
+  })),
 );
 
 const DEFAULT_DASHBOARD_MATRIX_VALUES: DashboardMatrixValues = {
@@ -73,13 +55,11 @@ const DEFAULT_DASHBOARD_MATRIX_VALUES: DashboardMatrixValues = {
 };
 
 function normalizeMatrixValues(values: Record<string, boolean> | null | undefined): DashboardMatrixValues {
-  const merged: DashboardMatrixValues = {
+  // Nothing saved yet means every rate is on, 24K included.
+  return {
     ...DEFAULT_DASHBOARD_MATRIX_VALUES,
     ...(values ?? {}),
   };
-  // Whatever a record saved before this rule says, the 24K rates are on.
-  for (const key of ALWAYS_ON_MATRIX_KEYS) merged[key] = true;
-  return merged;
 }
 
 /** What the closed karat box reads: the chosen rates, and how many more. */
@@ -87,7 +67,7 @@ function summarizeRates(values: DashboardMatrixValues): string {
   const chosen = RATE_OPTIONS.filter((option) => values[option.key]);
   if (chosen.length === 0) return 'No rates on Home';
   if (chosen.length === RATE_OPTIONS.length) return 'All rates';
-  const named = chosen.slice(0, 2).map((option) => option.short).join(', ');
+  const named = chosen.slice(0, 2).map((option) => option.label).join(', ');
   return chosen.length > 2 ? `${named} +${chosen.length - 2}` : named;
 }
 
@@ -134,7 +114,6 @@ export default function DashboardMatricesScreen() {
   };
 
   const toggleRate = (key: MatrixKey) => {
-    if (ALWAYS_ON_MATRIX_KEYS.includes(key)) return;
     const previousValue = draft[key];
     const nextValue = !previousValue;
     setDraft((current) => ({ ...current, [key]: nextValue }));
@@ -193,24 +172,16 @@ export default function DashboardMatricesScreen() {
           open={openMenu === 'karat'}
           onPress={() => setOpenMenu((current) => (current === 'karat' ? null : 'karat'))}
         >
-          {RATE_OPTIONS.map((option, index) => {
-            const previous = RATE_OPTIONS[index - 1];
-            const isLast = index === RATE_OPTIONS.length - 1;
-            return (
-              <View key={option.key}>
-                {previous?.group !== option.group ? <DropdownGroupLabel label={option.group} /> : null}
-                <DropdownOption
-                  label={option.label}
-                  selected={draft[option.key]}
-                  onPress={() => toggleRate(option.key)}
-                  mode="multi"
-                  locked={ALWAYS_ON_MATRIX_KEYS.includes(option.key)}
-                  lockedHint="Always on"
-                  showDivider={!isLast && RATE_OPTIONS[index + 1]?.group === option.group}
-                />
-              </View>
-            );
-          })}
+          {RATE_OPTIONS.map((option, index) => (
+            <DropdownOption
+              key={option.key}
+              label={option.label}
+              selected={draft[option.key]}
+              onPress={() => toggleRate(option.key)}
+              mode="multi"
+              showDivider={index < RATE_OPTIONS.length - 1}
+            />
+          ))}
         </SettingsDropdown>
       </ScrollView>
 

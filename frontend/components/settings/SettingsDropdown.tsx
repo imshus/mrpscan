@@ -52,9 +52,6 @@ interface DropdownOptionProps {
   onPress: () => void;
   /** `single` marks the one choice; `multi` gives every option its own box. */
   mode?: 'single' | 'multi';
-  /** Chosen and not changeable — shown ticked, with `lockedHint` beside it. */
-  locked?: boolean;
-  lockedHint?: string;
   showDivider?: boolean;
 }
 
@@ -64,25 +61,19 @@ export function DropdownOption({
   selected,
   onPress,
   mode = 'single',
-  locked = false,
-  lockedHint,
   showDivider = true,
 }: DropdownOptionProps) {
   return (
     <>
       <Pressable
-        onPress={locked ? undefined : onPress}
-        disabled={locked}
+        onPress={onPress}
         accessibilityRole={mode === 'multi' ? 'checkbox' : 'radio'}
-        accessibilityState={{ checked: selected, disabled: locked }}
+        accessibilityState={{ checked: selected }}
         style={styles.option}
       >
         <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>{label}</Text>
-        {locked && lockedHint ? <Text style={styles.lockedHint}>{lockedHint}</Text> : null}
         {mode === 'multi' ? (
-          <View
-            style={[styles.checkbox, selected && styles.checkboxChecked, locked && styles.checkboxLocked]}
-          >
+          <View style={[styles.checkbox, selected && styles.checkboxChecked]}>
             {selected ? <Check size={13} color={Colors.white} strokeWidth={3} /> : null}
           </View>
         ) : (
@@ -93,15 +84,6 @@ export function DropdownOption({
       </Pressable>
       {showDivider ? <View style={styles.divider} /> : null}
     </>
-  );
-}
-
-/** A heading inside an open dropdown, for a long list that groups. */
-export function DropdownGroupLabel({ label }: { label: string }) {
-  return (
-    <View style={styles.groupLabelWrap}>
-      <Text style={styles.groupLabel}>{label}</Text>
-    </View>
   );
 }
 
@@ -174,18 +156,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
   },
-  groupLabelWrap: {
-    backgroundColor: Colors.backgroundAlt,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  groupLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    color: Colors.textMuted,
-  },
   checkbox: {
     width: 22,
     height: 22,
@@ -199,16 +169,6 @@ const styles = StyleSheet.create({
   checkboxChecked: {
     backgroundColor: Colors.metalGold,
     borderColor: Colors.metalGold,
-  },
-  checkboxLocked: {
-    opacity: 0.55,
-  },
-  lockedHint: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-    color: Colors.textMuted,
   },
   radioOuter: {
     width: 22,
