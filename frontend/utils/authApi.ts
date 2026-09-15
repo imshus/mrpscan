@@ -482,6 +482,8 @@ export async function registerBusiness(payload: {
   userId?: string;
   /** The name from the signup form; the account is stored under it. */
   fullName?: string;
+  /** Another jeweller's Earn & Invite code, typed at signup. */
+  referralCode?: string;
   businessDetails: {
     businessId: string;
     businessName?: string;
@@ -494,13 +496,15 @@ export async function registerBusiness(payload: {
     password: payload.password,
     userId: payload.userId?.trim() || undefined,
     fullName: payload.fullName?.trim() || undefined,
+    referralCode: payload.referralCode?.trim().toUpperCase() || undefined,
     businessDetails: payload.businessDetails,
   };
   // The server validates strictly, so an API that predates the name field
   // refuses the whole request over it. Signing up matters more than storing
   // the name, so that one refusal is retried without it.
-  const rejectsName = (message: string) =>
-    /fullName/i.test(message) && /not allowed|unknown/i.test(message);
+  const rejectsExtras = (message: string) =>
+    /fullName|referralCode/i.test(message) && /not allowed|unknown/i.test(message);
+  const withoutExtras = { ...body, fullName: undefined, referralCode: undefined };
 
   try {
     let response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/register', {
@@ -510,10 +514,10 @@ export async function registerBusiness(payload: {
     let unwrapped = unwrapEnvelope(response);
     if (!isSuccessfulResponse(response, unwrapped)) {
       const message = resolveApiMessage(response, unwrapped, 'Registration failed.');
-      if (body.fullName && rejectsName(message)) {
+      if ((body.fullName || body.referralCode) && rejectsExtras(message)) {
         response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/register', {
           method: 'POST',
-          body: { ...body, fullName: undefined },
+          body: withoutExtras,
         });
         unwrapped = unwrapEnvelope(response);
       }
@@ -528,11 +532,11 @@ export async function registerBusiness(payload: {
     return { success: true };
   } catch (error) {
     const message = error instanceof ApiError ? error.message : '';
-    if (body.fullName && rejectsName(message)) {
+    if ((body.fullName || body.referralCode) && rejectsExtras(message)) {
       try {
         const retry = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/register', {
           method: 'POST',
-          body: { ...body, fullName: undefined },
+          body: withoutExtras,
         });
         const unwrapped = unwrapEnvelope(retry);
         if (isSuccessfulResponse(retry, unwrapped)) return { success: true };

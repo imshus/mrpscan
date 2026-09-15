@@ -66,6 +66,7 @@ export default function CreatePasswordScreen() {
         password,
         userId: registration.userId,
         fullName: registration.fullName,
+        referralCode: registration.referralCode,
         businessDetails: {
           businessId: registration.businessId,
           businessName: registration.businessName,
