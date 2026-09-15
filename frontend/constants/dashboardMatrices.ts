@@ -70,7 +70,32 @@ export const GOLD_MATRIX_SECTIONS: MatrixSection[] = [
   },
 ];
 
+/**
+ * What Home shows when nothing at all is selected. A blank dashboard is how
+ * an abandoned record reads, not a choice, so the shop's headline price comes
+ * back — 24K MCX, RTGS and Cash.
+ */
+export const OPENING_MATRIX_KEYS: MatrixKey[] = ['24k_mcx', '24k_rtgs', '24k_cash'];
+
 /** Every rate starts ticked, 24K included, until someone unticks one. */
+/**
+ * The rates Home should show for these settings. Everything selected is kept
+ * as it is; a set with nothing selected at all gets the 24K rates back, so
+ * opening the app never lands on a dashboard with no price on it.
+ */
+export function withOpeningDefaults(
+  values: Record<string, boolean>,
+): Record<MatrixKey, boolean> {
+  const merged = { ...DEFAULT_MATRIX_VALUES, ...values } as Record<MatrixKey, boolean>;
+  const anyRateOn = (Object.keys(merged) as MatrixKey[]).some(
+    (key) => key !== 'bhaw_source_jmd' && merged[key],
+  );
+  if (!anyRateOn) {
+    for (const key of OPENING_MATRIX_KEYS) merged[key] = true;
+  }
+  return merged;
+}
+
 export const DEFAULT_MATRIX_VALUES: Record<MatrixKey, boolean> = {
   '24k_mcx': true,
   '24k_rtgs': true,

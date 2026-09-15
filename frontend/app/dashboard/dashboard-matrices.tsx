@@ -6,7 +6,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { DropdownOption, SettingsDropdown } from '@/components/settings/SettingsDropdown';
-import { GOLD_MATRIX_SECTIONS, type MatrixKey } from '@/constants/dashboardMatrices';
+import {
+  GOLD_MATRIX_SECTIONS,
+  OPENING_MATRIX_KEYS,
+  type MatrixKey,
+} from '@/constants/dashboardMatrices';
 import { Colors, Spacing } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useMatricesStore } from '@/store/matricesStore';
@@ -56,10 +60,17 @@ const DEFAULT_DASHBOARD_MATRIX_VALUES: DashboardMatrixValues = {
 
 function normalizeMatrixValues(values: Record<string, boolean> | null | undefined): DashboardMatrixValues {
   // Nothing saved yet means every rate is on, 24K included.
-  return {
+  const merged: DashboardMatrixValues = {
     ...DEFAULT_DASHBOARD_MATRIX_VALUES,
     ...(values ?? {}),
   };
+  // Nothing selected at all is a blank dashboard, which nobody chooses: the
+  // 24K rates come back. Unticking one of them while others stay on is kept.
+  const anyRateOn = RATE_OPTIONS.some((option) => merged[option.key]);
+  if (!anyRateOn) {
+    for (const key of OPENING_MATRIX_KEYS) merged[key] = true;
+  }
+  return merged;
 }
 
 export default function DashboardMatricesScreen() {

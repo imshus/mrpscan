@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import {
   DEFAULT_MATRIX_VALUES,
+  withOpeningDefaults,
   type MatrixKey,
 } from '@/constants/dashboardMatrices';
 import { fetchDashboardMatrices, updateDashboardMatrices } from '@/utils/matricesApi';
@@ -34,9 +35,9 @@ export const useMatricesStore = create<MatricesState>()((set) => ({
       if (updated) {
         // Server response wins per key, but keys it doesn't know about keep the
         // value the user just chose instead of snapping back to the default.
-        set({ values: { ...DEFAULT_MATRIX_VALUES, ...values, ...updated } });
+        set({ values: withOpeningDefaults({ ...values, ...updated }) });
       } else {
-        set({ values });
+        set({ values: withOpeningDefaults(values) });
       }
     } catch (e) {
       console.error(e);
@@ -47,7 +48,8 @@ export const useMatricesStore = create<MatricesState>()((set) => ({
     const fetched = await fetchDashboardMatrices();
     if (fetched) {
       set((state) => ({
-        values: { ...DEFAULT_MATRIX_VALUES, ...state.values, ...fetched },
+        // What the account saved, with the 24K fallback when it saved nothing.
+        values: withOpeningDefaults({ ...state.values, ...fetched }),
         isLoaded: true,
       }));
     } else {
