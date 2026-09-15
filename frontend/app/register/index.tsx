@@ -48,8 +48,6 @@ export default function SignupScreen() {
   const [phone, setPhone] = useState('');
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
-  // Optional: the Earn & Invite code of whoever recommended MRPscan.
-  const [referralCode, setReferralCode] = useState('');
 
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [sending, setSending] = useState(false);
@@ -266,7 +264,6 @@ export default function SignupScreen() {
         phone: normalizedPhone,
         userId: trimmedUserId,
         password,
-        referralCode: referralCode.trim().toUpperCase(),
       });
 
       const result = await sendLoginOtp(normalizedPhone);
@@ -468,28 +465,6 @@ export default function SignupScreen() {
               ) : null}
             </Reveal>
 
-            <Reveal d={6}>
-              <AuthField
-                label="Invite Code (optional)"
-                value={referralCode}
-                onChangeText={(text) => {
-                  // Codes are read off a share message: accept any spacing.
-                  setReferralCode(text.toUpperCase().replace(/[^A-Z0-9 -]/g, '').slice(0, 16));
-                  clearError('referralCode');
-                  invalidateSubmittedSignup();
-                }}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                error={errors.referralCode}
-                onFocus={scrollToBottom}
-                returnKeyType="done"
-                onSubmitEditing={handlePrimaryPress}
-              />
-              <Text style={styles.hintText}>
-                Have a code from another jeweller? They earn credits when you join.
-              </Text>
-            </Reveal>
-
             {codeSent ? (
               <OtpBox
                 value={otp}
@@ -503,7 +478,7 @@ export default function SignupScreen() {
             {validationError ? <AuthErrorText>{validationError}</AuthErrorText> : null}
             {verifying ? <Text style={styles.verifyingText}>Verifying OTP…</Text> : null}
 
-            <Reveal d={7}>
+            <Reveal d={6}>
               <AuthPrimaryButton
                 title={submitLabel}
                 onPress={handlePrimaryPress}
@@ -513,7 +488,7 @@ export default function SignupScreen() {
             </Reveal>
           </Animated.View>
 
-          <Reveal d={8}>
+          <Reveal d={7}>
             <AuthSwitch
               prompt="New user?"
               linkText="Log in"
@@ -553,12 +528,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#1F8A4C',
-  },
-  hintText: {
-    marginTop: 6,
-    fontSize: 11.5,
-    lineHeight: 16,
-    color: Colors.textMuted,
   },
   verifyingText: {
     fontSize: 13,

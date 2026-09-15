@@ -103,7 +103,6 @@ export default function OtpPhoneScreen() {
         password,
         userId: registration.userId,
         fullName: registration.fullName,
-        referralCode: registration.referralCode,
         businessDetails: {
           businessId,
           businessName: registration.businessName,

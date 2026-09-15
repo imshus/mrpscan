@@ -214,7 +214,6 @@ export default function GstVerificationScreen() {
         password,
         userId: registration.userId,
         fullName: registration.fullName,
-        referralCode: registration.referralCode,
         businessDetails: {
           businessId: confirmed.businessId,
           businessName,

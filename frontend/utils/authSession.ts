@@ -1,5 +1,8 @@
+import { DEFAULT_MATRIX_VALUES } from '@/constants/dashboardMatrices';
 import { useAuthStore } from '@/store/authStore';
+import { useMatricesStore } from '@/store/matricesStore';
 import { loginBusiness } from '@/utils/authApi';
+import { updateDashboardMatrices } from '@/utils/matricesApi';
 
 interface BusinessSessionPayload {
   accessToken: string;
@@ -18,8 +21,15 @@ interface BusinessSessionPayload {
  * Puts a signed-in session into the store: the tokens, the role, and the
  * business identity the payload carries. The same writes the login screen
  * makes, so a session opened anywhere else behaves identically.
+ *
+ * `authenticate: false` leaves the session inert — everything is in place but
+ * the app has not been told to show the dashboard yet.
  */
-export function applyBusinessSession(payload: BusinessSessionPayload, loginId: string): void {
+export function applyBusinessSession(
+  payload: BusinessSessionPayload,
+  loginId: string,
+  { authenticate = true }: { authenticate?: boolean } = {},
+): void {
   const store = useAuthStore.getState();
 
   store.setAuthToken(payload.accessToken);
@@ -47,25 +57,46 @@ export function applyBusinessSession(payload: BusinessSessionPayload, loginId: s
     ...(payload.fullName ? { fullName: payload.fullName } : {}),
   });
 
-  store.setAuthenticated(true);
+  if (authenticate) store.setAuthenticated(true);
+}
+
+/**
+ * Saves a new shop's dashboard choice: the 24K price and nothing else.
+ *
+ * A shop that has saved nothing is served the API's own defaults, which on an
+ * older deployment is every rate — so a brand new Home arrived covered in
+ * karat cards whatever the app preferred. Writing the choice once, here, makes
+ * the record itself say 24K, for this phone and every later sign-in.
+ *
+ * A failure is not worth stopping a sign-in for: the app's own default is the
+ * same set, so Home still opens on 24K until a later save succeeds.
+ */
+async function seedDashboardDefaults(): Promise<void> {
+  const values = { ...DEFAULT_MATRIX_VALUES };
+  useMatricesStore.setState({ values, isLoaded: true });
+  try {
+    await updateDashboardMatrices(values);
+  } catch (error) {
+    console.warn('[Signup] Could not save the starting dashboard settings', error);
+  }
 }
 
 /**
  * Signs the person in with the credentials they just registered with, so a
  * finished signup goes to Home instead of asking for them again.
  *
- * Nothing is written to the store until the returned `activate` is called —
- * the signup screens show their "account created" moment first, and setting
- * the session live navigates away.
+ * Nothing is shown until the returned `activate` is called — the signup
+ * screens show their "account created" moment first, and a live session
+ * navigates away from it.
  *
  * Sign-in is by User ID (the server stopped accepting a phone number here),
- * which is why the earlier attempt with `phone` always failed and dropped
- * the new shop on the login screen.
+ * which is why the earlier attempt with `phone` always failed and dropped the
+ * new shop on the login screen.
  */
 export async function prepareSignInAfterSignup(
   loginId: string | undefined,
   password: string | undefined,
-): Promise<{ activate: () => void } | null> {
+): Promise<{ activate: () => Promise<void> } | null> {
   const id = String(loginId ?? '').trim();
   if (!id || !password) return null;
 
@@ -73,5 +104,13 @@ export async function prepareSignInAfterSignup(
   if (!result.success || !result.data) return null;
 
   const payload = result.data;
-  return { activate: () => applyBusinessSession(payload, id) };
+  return {
+    activate: async () => {
+      // The session first, so the save below is made as this shop; the
+      // dashboard is shown only once its starting settings are stored.
+      applyBusinessSession(payload, id, { authenticate: false });
+      await seedDashboardDefaults();
+      useAuthStore.getState().setAuthenticated(true);
+    },
+  };
 }
