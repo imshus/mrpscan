@@ -5,35 +5,33 @@ import { Check, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { Colors, Radius } from '@/constants/theme';
 
 interface SettingsDropdownProps {
-  /** Field label above the closed box. */
-  label: string;
-  /** What is chosen right now, shown on the closed box. */
-  value: string;
+  /** What the button itself says, e.g. "Choose Bullion". */
+  title: string;
   open: boolean;
   onPress: () => void;
   children: ReactNode;
 }
 
 /**
- * A dropdown field for a settings screen: the label above, the current choice
- * in a box, and the options in a panel that opens beneath it.
+ * A button that opens its choices beneath it. The button carries the
+ * question; everything else — the options and which of them are chosen —
+ * lives inside the panel.
  *
- * The panel is part of the page rather than a floating overlay — an overlay
+ * The panel is part of the page rather than a floating overlay: an overlay
  * has to be positioned in window coordinates, which lands in the wrong place
- * on a scrolled screen, and it cannot scroll with the content behind it.
+ * once the screen has scrolled, and it cannot scroll with the page.
  */
-export function SettingsDropdown({ label, value, open, onPress, children }: SettingsDropdownProps) {
+export function SettingsDropdown({ title, open, onPress, children }: SettingsDropdownProps) {
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         style={[styles.trigger, open && styles.triggerOpen]}
       >
-        <Text style={styles.value} numberOfLines={1}>
-          {value}
+        <Text style={styles.title} numberOfLines={1}>
+          {title}
         </Text>
         {open ? (
           <ChevronUp size={18} color={Colors.textMuted} strokeWidth={2.2} />
@@ -89,24 +87,16 @@ export function DropdownOption({
 
 const styles = StyleSheet.create({
   field: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: Colors.brandDeep,
-    marginBottom: 8,
+    marginBottom: 14,
   },
   trigger: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    minHeight: 48,
+    minHeight: 52,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: Radius.tile,
@@ -119,15 +109,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
     borderColor: Colors.metalGoldBorder,
   },
-  value: {
+  title: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: Colors.textPrimary,
   },
   panel: {
     borderWidth: 1,
-    borderTopWidth: 1,
     borderColor: Colors.metalGoldBorder,
     borderBottomLeftRadius: Radius.tile,
     borderBottomRightRadius: Radius.tile,

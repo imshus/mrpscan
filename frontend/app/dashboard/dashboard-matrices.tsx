@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
@@ -62,15 +62,6 @@ function normalizeMatrixValues(values: Record<string, boolean> | null | undefine
   };
 }
 
-/** What the closed karat box reads: the chosen rates, and how many more. */
-function summarizeRates(values: DashboardMatrixValues): string {
-  const chosen = RATE_OPTIONS.filter((option) => values[option.key]);
-  if (chosen.length === 0) return 'No rates on Home';
-  if (chosen.length === RATE_OPTIONS.length) return 'All rates';
-  const named = chosen.slice(0, 2).map((option) => option.label).join(', ');
-  return chosen.length > 2 ? `${named} +${chosen.length - 2}` : named;
-}
-
 export default function DashboardMatricesScreen() {
   const allowed = useRequireSettingsAccess('matrices');
   const router = useRouter();
@@ -82,8 +73,6 @@ export default function DashboardMatricesScreen() {
   useEffect(() => {
     setDraft(normalizeMatrixValues(storedValues));
   }, [storedValues]);
-
-  const rateSummary = useMemo(() => summarizeRates(draft), [draft]);
 
   if (!allowed) return null;
 
@@ -129,8 +118,6 @@ export default function DashboardMatricesScreen() {
     void persistToggle('bhaw_source_jmd', useJmd, previousValue);
   };
 
-  const bullionLabel = draft.bhaw_source_jmd ? 'JMD Patil' : 'Mega Bullion';
-
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       {/* The header stays put; only the settings scroll beneath it. */}
@@ -150,8 +137,7 @@ export default function DashboardMatricesScreen() {
         </Text>
 
         <SettingsDropdown
-          label="Choose Bullion"
-          value={bullionLabel}
+          title="Choose Bullion"
           open={openMenu === 'bullion'}
           onPress={() => setOpenMenu((current) => (current === 'bullion' ? null : 'bullion'))}
         >
@@ -167,8 +153,7 @@ export default function DashboardMatricesScreen() {
         </SettingsDropdown>
 
         <SettingsDropdown
-          label="Choose Karat"
-          value={rateSummary}
+          title="Choose Karat"
           open={openMenu === 'karat'}
           onPress={() => setOpenMenu((current) => (current === 'karat' ? null : 'karat'))}
         >
