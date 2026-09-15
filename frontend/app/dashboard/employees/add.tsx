@@ -52,6 +52,7 @@ export default function AddEmployeeScreen() {
           name: draft.fullName,
           phone: draft.phone,
           email: draft.email,
+          designation: draft.designation,
         });
 
         if (!result.success) {

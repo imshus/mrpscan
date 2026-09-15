@@ -174,6 +174,7 @@ export async function createEmployeeDraft(payload: {
   name: string;
   phone: string;
   email: string;
+  designation?: string;
   permissions: EmployeePermissions;
 }): Promise<{ success: boolean; error?: string }> {
   try {
@@ -183,6 +184,7 @@ export async function createEmployeeDraft(payload: {
         name: payload.name.trim(),
         phone: payload.phone.replace(/\D/g, '').slice(-10),
         email: payload.email.trim().toLowerCase(),
+        designation: payload.designation?.trim() ?? '',
         permissions: mapDraftPermissionsToApi(payload.permissions),
       },
     });
@@ -208,6 +210,7 @@ export async function updateEmployeeApi(
     name?: string;
     phone?: string;
     email?: string;
+    designation?: string;
     permissions?: EmployeePermissions;
     isActive?: boolean;
   }
@@ -217,6 +220,7 @@ export async function updateEmployeeApi(
     if (payload.name) body.name = payload.name.trim();
     if (payload.phone) body.phone = payload.phone.replace(/\D/g, '').slice(-10);
     if (payload.email) body.email = payload.email.trim().toLowerCase();
+    if (typeof payload.designation === 'string') body.designation = payload.designation.trim();
     if (payload.permissions) body.permissions = mapDraftPermissionsToApi(payload.permissions);
     if (typeof payload.isActive === 'boolean') body.isActive = payload.isActive;
 
@@ -258,6 +262,7 @@ export async function finalizeEmployeeCreation(
               name: draftPayload.name,
               phone: draftPayload.phone,
               email: draftPayload.email,
+              designation: draftPayload.designation,
               permissions: mapDraftPermissionsToApi(draftPayload.permissions),
             }
           : null),
@@ -313,6 +318,8 @@ export function buildEmployeeDraftPayload(draft: EmployeeDraft) {
     email:
       draft.email.trim() ||
       `${draft.fullName.split(' ')[0]?.toLowerCase() || 'employee'}@pratham.gmail.com`,
+    // What the roster shows under the name.
+    designation: draft.designation.trim(),
     permissions: draft.permissions,
   };
 }

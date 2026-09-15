@@ -112,6 +112,7 @@ export default function EmployeePermissionsScreen() {
           name: draft.fullName,
           phone: draft.phone,
           email: draft.email,
+          designation: draft.designation,
           permissions: permissions,
         });
         
