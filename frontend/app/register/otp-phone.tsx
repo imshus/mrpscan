@@ -111,6 +111,7 @@ export default function OtpPhoneScreen() {
         mobile: phone,
         password,
         userId: registration.userId,
+        fullName: registration.fullName,
         businessDetails: {
           businessId,
           businessName: registration.businessName,

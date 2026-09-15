@@ -480,6 +480,8 @@ export async function registerBusiness(payload: {
   mobile: string;
   password: string;
   userId?: string;
+  /** The name from the signup form; the account is stored under it. */
+  fullName?: string;
   businessDetails: {
     businessId: string;
     businessName?: string;
@@ -494,6 +496,7 @@ export async function registerBusiness(payload: {
         mobile: payload.mobile.replace(/\D/g, '').slice(-10),
         password: payload.password,
         userId: payload.userId?.trim() || undefined,
+        fullName: payload.fullName?.trim() || undefined,
         businessDetails: payload.businessDetails,
       },
     });
@@ -524,6 +527,8 @@ export async function loginBusiness(mobile: string, password: string): Promise<{
     address?: string;
     phone?: string;
     role?: string;
+    /** The account holder's name, as given at signup. */
+    fullName?: string;
     /** The handle the user signs in with — distinct from the account's id. */
     loginId?: string;
   };
@@ -552,6 +557,7 @@ export async function loginBusiness(mobile: string, password: string): Promise<{
     const address = readString(unwrapped, ['address']);
     const phone = readString(unwrapped, ['phone']);
     const role = readString(unwrapped, ['role']);
+    const fullName = readString(unwrapped, ['fullName']);
     const resolvedLoginId = readString(unwrapped, ['loginId']);
 
     if (!accessToken) {
@@ -569,6 +575,7 @@ export async function loginBusiness(mobile: string, password: string): Promise<{
         address,
         phone,
         role,
+        fullName,
         loginId: resolvedLoginId,
       },
     };
@@ -628,6 +635,8 @@ export async function loginBusinessWithOtp(mobile: string, otp: string): Promise
     address?: string;
     phone?: string;
     role?: string;
+    /** The account holder's name, as given at signup. */
+    fullName?: string;
     /** The handle the user signs in with — distinct from the account's id. */
     loginId?: string;
   };
@@ -657,6 +666,7 @@ export async function loginBusinessWithOtp(mobile: string, otp: string): Promise
     const address = readString(unwrapped, ['address']);
     const phone = readString(unwrapped, ['phone']);
     const role = readString(unwrapped, ['role']);
+    const fullName = readString(unwrapped, ['fullName']);
     const loginId = readString(unwrapped, ['loginId']);
 
     if (!accessToken) {
@@ -674,6 +684,7 @@ export async function loginBusinessWithOtp(mobile: string, otp: string): Promise
         address,
         phone,
         role,
+        fullName,
         loginId,
       },
     };

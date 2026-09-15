@@ -107,6 +107,9 @@ export default function BusinessLoginScreen() {
         // the app shows the user's number.
         phone: payload.phone || '',
         userId: payload.loginId || loginId,
+        // Kept only when the server knows it: an older API would otherwise
+        // blank the name this account signed up with.
+        ...(payload.fullName ? { fullName: payload.fullName } : {}),
       });
 
       if (rememberMe) {

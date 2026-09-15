@@ -65,6 +65,7 @@ export default function CreatePasswordScreen() {
         mobile: registration.phone,
         password,
         userId: registration.userId,
+        fullName: registration.fullName,
         businessDetails: {
           businessId: registration.businessId,
           businessName: registration.businessName,

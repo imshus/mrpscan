@@ -53,6 +53,7 @@ export default function BusinessProfileScreen() {
         // Only overwrite these when the server actually knows them.
         ...(fresh.phone ? { phone: fresh.phone } : {}),
         ...(fresh.loginId ? { userId: fresh.loginId } : {}),
+        ...(fresh.fullName ? { fullName: fresh.fullName } : {}),
       });
     });
     return () => {

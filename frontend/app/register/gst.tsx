@@ -221,6 +221,7 @@ export default function GstVerificationScreen() {
         mobile: phone,
         password,
         userId: registration.userId,
+        fullName: registration.fullName,
         businessDetails: {
           businessId: confirmed.businessId,
           businessName,

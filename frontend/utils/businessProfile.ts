@@ -6,6 +6,8 @@ export interface BusinessProfile {
   businessType: string;
   phone: string;
   address: string;
+  /** The account holder's own name, as given at signup. */
+  fullName: string;
 }
 
 const EMPTY_PROFILE: BusinessProfile = {
@@ -14,6 +16,7 @@ const EMPTY_PROFILE: BusinessProfile = {
   businessType: '',
   phone: '',
   address: '',
+  fullName: '',
 };
 
 function buildProfile(registration: Partial<RegistrationData>): BusinessProfile {
@@ -23,6 +26,7 @@ function buildProfile(registration: Partial<RegistrationData>): BusinessProfile 
     businessType: registration.businessType ?? '',
     phone: registration.phone ?? '',
     address: registration.address ?? '',
+    fullName: registration.fullName ?? '',
   };
 }
 
