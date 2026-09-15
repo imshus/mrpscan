@@ -489,27 +489,66 @@ export async function registerBusiness(payload: {
     address?: string;
   };
 }): Promise<{ success: boolean; error?: string; field?: RegistrationErrorField }> {
+  const body = {
+    mobile: payload.mobile.replace(/\D/g, '').slice(-10),
+    password: payload.password,
+    userId: payload.userId?.trim() || undefined,
+    fullName: payload.fullName?.trim() || undefined,
+    businessDetails: payload.businessDetails,
+  };
+  // The server validates strictly, so an API that predates the name field
+  // refuses the whole request over it. Signing up matters more than storing
+  // the name, so that one refusal is retried without it.
+  const rejectsName = (message: string) =>
+    /fullName/i.test(message) && /not allowed|unknown/i.test(message);
+
   try {
-    const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/register', {
+    let response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/register', {
       method: 'POST',
-      body: {
-        mobile: payload.mobile.replace(/\D/g, '').slice(-10),
-        password: payload.password,
-        userId: payload.userId?.trim() || undefined,
-        fullName: payload.fullName?.trim() || undefined,
-        businessDetails: payload.businessDetails,
-      },
+      body,
     });
-    const unwrapped = unwrapEnvelope(response);
+    let unwrapped = unwrapEnvelope(response);
     if (!isSuccessfulResponse(response, unwrapped)) {
-      return {
-        success: false,
-        error: resolveApiMessage(response, unwrapped, 'Registration failed.'),
-        field: classifyRegistrationError(resolveApiMessage(response, unwrapped, '')),
-      };
+      const message = resolveApiMessage(response, unwrapped, 'Registration failed.');
+      if (body.fullName && rejectsName(message)) {
+        response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/register', {
+          method: 'POST',
+          body: { ...body, fullName: undefined },
+        });
+        unwrapped = unwrapEnvelope(response);
+      }
+      if (!isSuccessfulResponse(response, unwrapped)) {
+        return {
+          success: false,
+          error: resolveApiMessage(response, unwrapped, 'Registration failed.'),
+          field: classifyRegistrationError(resolveApiMessage(response, unwrapped, '')),
+        };
+      }
     }
     return { success: true };
   } catch (error) {
+    const message = error instanceof ApiError ? error.message : '';
+    if (body.fullName && rejectsName(message)) {
+      try {
+        const retry = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/register', {
+          method: 'POST',
+          body: { ...body, fullName: undefined },
+        });
+        const unwrapped = unwrapEnvelope(retry);
+        if (isSuccessfulResponse(retry, unwrapped)) return { success: true };
+        return {
+          success: false,
+          error: resolveApiMessage(retry, unwrapped, 'Registration failed.'),
+          field: classifyRegistrationError(resolveApiMessage(retry, unwrapped, '')),
+        };
+      } catch (retryError) {
+        return {
+          success: false,
+          error: retryError instanceof ApiError ? retryError.message : 'Registration failed.',
+          field: classifyRegistrationError(retryError),
+        };
+      }
+    }
     return {
       success: false,
       error: error instanceof ApiError ? error.message : 'Registration failed.',
