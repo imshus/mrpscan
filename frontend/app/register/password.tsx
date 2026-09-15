@@ -22,6 +22,7 @@ import { Reveal } from '@/components/auth/Reveal';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { registerBusiness } from '@/utils/authApi';
+import { prepareSignInAfterSignup } from '@/utils/authSession';
 import { validateConfirmPassword, validatePassword } from '@/utils/validation';
 
 export default function CreatePasswordScreen() {
@@ -77,6 +78,7 @@ export default function CreatePasswordScreen() {
 
       if (result.success) {
         const phone = registration.phone ?? '';
+        const loginId = registration.userId ?? '';
         updateRegistration({
           password: undefined,
           phone,
@@ -84,10 +86,18 @@ export default function CreatePasswordScreen() {
           gstNumber: registration.gstNumber,
           businessId: registration.businessId,
         });
-        if (phone) {
-          setSavedCredentials(phone);
+        if (loginId) {
+          setSavedCredentials(loginId);
         }
-        router.replace('/login');
+        // Straight to Home with the credentials just registered; the login
+        // screen is only for a sign-in that could not be opened here.
+        const session = await prepareSignInAfterSignup(loginId, password);
+        if (session) {
+          session.activate();
+          router.replace('/dashboard');
+        } else {
+          router.replace('/login');
+        }
       } else {
         setFormError(result.error ?? 'Registration failed');
         triggerShake();

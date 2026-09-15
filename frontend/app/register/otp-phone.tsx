@@ -26,11 +26,11 @@ import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { useDevOtp } from '@/hooks/useDevOtp';
 import { useAuthStore } from '@/store/authStore';
 import {
-  loginBusiness,
   registerBusiness,
   submitBusinessContactDetails,
   verifyBusinessPhoneOtp,
 } from '@/utils/authApi';
+import { prepareSignInAfterSignup } from '@/utils/authSession';
 import { maskPhone, validateOtp } from '@/utils/validation';
 
 const OTP_LENGTH = 6;
@@ -38,16 +38,7 @@ const OTP_LENGTH = 6;
 export default function OtpPhoneScreen() {
   const router = useRouter();
   const registration = useAuthStore((s) => s.registration);
-  const {
-    updateRegistration,
-    setAuthenticated,
-    setAuthToken,
-    setRefreshToken,
-    setUserRole,
-    setIsSuper,
-    setLoggedInEmployee,
-    setSavedCredentials,
-  } = useAuthStore();
+  const { updateRegistration, setSavedCredentials } = useAuthStore();
   const phone = registration.phone ?? '';
   const businessId = registration.businessId;
 
@@ -133,21 +124,14 @@ export default function OtpPhoneScreen() {
         passwordError: undefined,
       });
       setAccountCreated(true);
-      setSavedCredentials(phone);
+      const loginId = registration.userId ?? '';
+      if (loginId) setSavedCredentials(loginId);
 
-      const login = await loginBusiness(phone, password);
-      if (login.success && login.data) {
-        setAuthToken(login.data.accessToken);
-        if (login.data.refreshToken) {
-          setRefreshToken(login.data.refreshToken);
-        }
-        setUserRole(login.data.role === 'EMP' ? 'employee' : 'business');
-        setIsSuper(login.data.role === 'SUPER');
-        setLoggedInEmployee(null);
-        setTimeout(() => setAuthenticated(true), 1600);
-      } else {
-        setTimeout(() => router.replace('/login'), 1600);
-      }
+      const session = await prepareSignInAfterSignup(loginId, password);
+      setTimeout(() => {
+        if (session) session.activate();
+        else router.replace('/login');
+      }, 1600);
     } finally {
       setVerifying(false);
     }
