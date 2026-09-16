@@ -176,8 +176,10 @@ export default function DashboardMatricesScreen() {
       }));
       setOpenMenu(null);
       Alert.alert(
-        `${name} added`,
-        `Home now follows ${name}. A house you add has no live feed, so its rate is the MCX rate plus the RTGS and Cash change saved in Gold Rate Settings.`,
+        'Bullion house saved',
+        `${name} has been added to your list. We'll let you know as soon as its live rates are available.
+
+Until then Home follows the RTGS and Cash change saved in your Gold Rate Settings.`,
       );
       return null;
     } catch (error) {
