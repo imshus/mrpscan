@@ -199,7 +199,7 @@ export default function CreditHistoryScreen() {
         )}
       </ScrollView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

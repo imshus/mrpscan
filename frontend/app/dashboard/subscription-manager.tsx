@@ -436,7 +436,7 @@ export default function SubscriptionManagerScreen() {
         )}
       </View>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

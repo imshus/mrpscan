@@ -139,7 +139,7 @@ export default function PaymentHistoryScreen() {
         )}
       </ScrollView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { usePathname, useRouter, type Href } from 'expo-router';
 import { Home, Phone, ScanLine } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomNavRoute } from '@/types/scanner';
@@ -21,15 +21,27 @@ export function getBottomNavBottom(safeAreaBottom: number): number {
 const ICON_SIZE = 22;
 
 interface BottomNavProps {
-  activeRoute?: BottomNavRoute | 'none';
-  scanButtonVariant?: 'gold' | 'green';
   /** Reports the pill's rendered height so callers can stack content above it. */
   onHeightChange?: (height: number) => void;
 }
 
-export function BottomNav({ activeRoute = 'home', onHeightChange }: BottomNavProps) {
+/**
+ * Which button is lit, read from the route the screen is on.
+ *
+ * Every page used to hand this over itself and nearly all of them said
+ * "home", so Home stayed lit on Masters, Settings, FAQs — everywhere. The
+ * path is the one thing that cannot be out of date.
+ */
+function activeRouteFor(pathname: string): BottomNavRoute | 'none' {
+  if (pathname === '/dashboard') return 'home';
+  if (pathname.startsWith('/dashboard/scanner')) return 'scanner';
+  return 'none';
+}
+
+export function BottomNav({ onHeightChange }: BottomNavProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const activeRoute = activeRouteFor(usePathname());
 
   // navigate, not replace: replace tore down the home screen on the way into
   // the scanner, so coming Home rebuilt it from scratch — a spinner and a

@@ -57,7 +57,7 @@ export default function ContactUsScreen() {
           ))}
         </View>
       </View>
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

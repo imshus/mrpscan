@@ -108,7 +108,7 @@ export default function MarketRatesScreen() {
         onDismiss={() => setToast((prev) => ({ ...prev, visible: false }))}
       />
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
 
     </SafeAreaView>
   );

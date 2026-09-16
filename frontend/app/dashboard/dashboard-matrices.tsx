@@ -181,7 +181,7 @@ export default function DashboardMatricesScreen() {
         </SettingsDropdown>
       </ScrollView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

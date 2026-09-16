@@ -275,7 +275,7 @@ export default function EmployeePermissionsScreen() {
         {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
       </ScrollView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

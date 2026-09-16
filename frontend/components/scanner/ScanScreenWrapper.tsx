@@ -8,7 +8,6 @@ import {
   getBottomNavBottom,
 } from '@/components/dashboard/BottomNav';
 import { ScreenBackHeader } from './ScreenBackHeader';
-import type { BottomNavRoute } from '@/types/scanner';
 
 /**
  * Clear space between a footer button and the top of the nav pill.
@@ -23,8 +22,6 @@ const FOOTER_GAP_ABOVE_NAV = 26;
 interface ScanScreenWrapperProps {
   title: string;
   children: React.ReactNode;
-  activeRoute?: BottomNavRoute;
-  scanButtonVariant?: 'gold' | 'green';
   footer?: React.ReactNode;
   onBack?: () => void;
   className?: string;
@@ -33,8 +30,6 @@ interface ScanScreenWrapperProps {
 export function ScanScreenWrapper({
   title,
   children,
-  activeRoute = 'scanner',
-  scanButtonVariant = 'gold',
   footer,
   onBack,
   className = 'bg-white',
@@ -89,11 +84,7 @@ export function ScanScreenWrapper({
           {footer}
         </View>
       ) : null}
-      <BottomNav
-        activeRoute={activeRoute}
-        scanButtonVariant={scanButtonVariant}
-        onHeightChange={handleNavLayout}
-      />
+      <BottomNav />
     </SafeAreaView>
   );
 }

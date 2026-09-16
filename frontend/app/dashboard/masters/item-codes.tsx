@@ -269,7 +269,7 @@ export default function ItemCodesScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

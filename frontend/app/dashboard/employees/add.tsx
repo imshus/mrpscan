@@ -163,7 +163,7 @@ export default function AddEmployeeScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

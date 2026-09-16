@@ -137,7 +137,7 @@ export default function EmployeeDetailScreen() {
         ) : null}
       </ScrollView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
 
       <DeleteEmployeeModal
         visible={showDelete}

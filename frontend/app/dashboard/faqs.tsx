@@ -218,7 +218,7 @@ export default function FaqsScreen() {
         )}
       </ScrollView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

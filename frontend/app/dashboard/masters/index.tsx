@@ -31,7 +31,7 @@ export default function MastersScreen() {
       <View style={screenStyles.screenBody}>
         <MasterNavList items={visibleItems} />
       </View>
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

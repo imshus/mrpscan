@@ -368,7 +368,7 @@ export default function ReviewResultsScreen() {
         </View>
       </SafeAreaView>
 
-      <BottomNav activeRoute="scanner" scanButtonVariant="gold" />
+      <BottomNav />
     </View>
   );
 }

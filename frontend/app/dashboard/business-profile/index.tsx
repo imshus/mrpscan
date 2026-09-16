@@ -107,7 +107,7 @@ export default function BusinessProfileScreen() {
 
       </ScrollView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

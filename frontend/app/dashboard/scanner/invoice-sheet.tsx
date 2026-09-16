@@ -562,7 +562,7 @@ export default function InvoiceSheetScreen() {
         </View>
       </View>
 
-      <BottomNav activeRoute="scanner" scanButtonVariant="green" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

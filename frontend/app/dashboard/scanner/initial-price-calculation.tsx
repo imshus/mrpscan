@@ -20,7 +20,6 @@ export default function InitialPriceCalculationScreen() {
   return (
     <ScanScreenWrapper
       title="Initial Price Calculation"
-      scanButtonVariant="green"
       footer={
         <PrimaryGreenButton
           title="View Scan Results"

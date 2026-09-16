@@ -130,7 +130,7 @@ export default function SettingsScreen() {
         </View>
       </ScrollView>
 
-      <BottomNav activeRoute="none" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

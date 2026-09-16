@@ -312,7 +312,7 @@ export default function GoldKaratValuesScreen() {
         onDismiss={() => setToast((prev) => ({ ...prev, visible: false }))}
       />
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
 
       <Modal visible={editingGold !== null} transparent animationType="fade" onRequestClose={() => setEditingGold(null)}>
         <View style={screenStyles.modalOverlay}>

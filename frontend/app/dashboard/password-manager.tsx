@@ -168,7 +168,7 @@ export default function PasswordManagerScreen() {
         </View>
       </ScrollView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }
