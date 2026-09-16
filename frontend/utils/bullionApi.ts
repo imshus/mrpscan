@@ -10,41 +10,40 @@ export interface BullionHouse {
   /** What the app sends back when this house is chosen. */
   key: string;
   label: string;
-  /** True for the two houses that publish to the live bhaw feed. */
-  live: boolean;
 }
 
 export interface BullionSources {
+  /** The houses that can be followed: the ones on the live bhaw feed. */
   houses: BullionHouse[];
   selected: string;
-  /** Just the shop's own additions, as the server stores them. */
-  customNames: string[];
+  /** Houses the shop has asked us to add. Not selectable until their rates exist. */
+  requestedNames: string[];
 }
 
 function normalize(raw: unknown): BullionSources | null {
   if (!raw || typeof raw !== 'object') return null;
   const record = raw as Record<string, unknown>;
   const builtIn = Array.isArray(record.builtIn) ? record.builtIn : [];
-  const customNames = Array.isArray(record.customNames)
-    ? record.customNames.map((name) => String(name)).filter(Boolean)
+  const requestedRaw = record.requestedNames ?? record.customNames;
+  const requestedNames = Array.isArray(requestedRaw)
+    ? requestedRaw.map((name) => String(name)).filter(Boolean)
     : [];
 
-  const houses: BullionHouse[] = [
-    ...builtIn.map((house) => {
+  // A requested house is deliberately NOT a choice here: it has no rates yet,
+  // so offering it would price a shop's gold off nothing.
+  const houses: BullionHouse[] = builtIn
+    .map((house) => {
       const entry = (house ?? {}) as Record<string, unknown>;
       return {
         key: String(entry.key ?? ''),
         label: String(entry.label ?? entry.key ?? ''),
-        live: true,
       };
-    }).filter((house) => house.key),
-    // A house the shop added follows no vendor: its rate is the shop's own.
-    ...customNames.map((name) => ({ key: name, label: name, live: false })),
-  ];
+    })
+    .filter((house) => house.key);
 
   return {
     houses,
-    customNames,
+    requestedNames,
     selected: String(record.selected ?? ''),
   };
 }
@@ -69,7 +68,7 @@ export async function fetchBullionSources(): Promise<BullionSources | null> {
  */
 export async function updateBullionSources(payload: {
   selected: string;
-  customNames: string[];
+  requestedNames: string[];
 }): Promise<BullionSources> {
   const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/settings/bullion', {
     method: 'POST',

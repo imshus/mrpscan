@@ -139,7 +139,7 @@ export default function DashboardMatricesScreen() {
 
     const previous = bullion;
     setBullion({ ...bullion, selected: key });
-    void updateBullionSources({ selected: key, customNames: bullion.customNames })
+    void updateBullionSources({ selected: key, requestedNames: bullion.requestedNames })
       .then((saved) => {
         setBullion(saved);
         // The older boolean drives Home until it reloads the setting; keeping
@@ -157,29 +157,32 @@ export default function DashboardMatricesScreen() {
       });
   };
 
-  /** Saves a house the shop added, then follows it. Returns an error to show. */
+  /**
+   * Records a house the shop wants. It is not added to the list and the
+   * followed house does not change: a house with no rates cannot price gold.
+   * Returns an error to show, or null.
+   */
   const addBullion = async (name: string): Promise<string | null> => {
     if (!bullion) return 'The bullion houses are still loading.';
-    const taken = [...bullion.houses.map((house) => house.label), ...bullion.customNames];
-    if (taken.some((existing) => existing.toLowerCase() === name.toLowerCase())) {
-      return 'That bullion house is already in the list.';
+    const known = [...bullion.houses.map((house) => house.label), ...bullion.requestedNames];
+    if (known.some((existing) => existing.toLowerCase() === name.toLowerCase())) {
+      return 'That bullion house is already on your list.';
     }
 
     try {
       const saved = await updateBullionSources({
-        selected: name,
-        customNames: [...bullion.customNames, name],
+        selected: bullion.selected,
+        requestedNames: [...bullion.requestedNames, name],
       });
       setBullion(saved);
-      useMatricesStore.setState((state) => ({
-        values: { ...state.values, bhaw_source_jmd: saved.selected === 'jmd_patil' },
-      }));
       setOpenMenu(null);
+      const following =
+        saved.houses.find((house) => house.key === saved.selected)?.label ?? 'your current house';
       Alert.alert(
         'Bullion house saved',
-        `${name} has been added to your list. We'll let you know as soon as its live rates are available.
+        `${name} has been saved. We'll let you know as soon as its live rates are available in the app.
 
-Until then Home follows the RTGS and Cash change saved in your Gold Rate Settings.`,
+Home keeps following ${following} until then.`,
       );
       return null;
     } catch (error) {
