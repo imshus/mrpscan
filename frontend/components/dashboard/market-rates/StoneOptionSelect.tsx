@@ -121,7 +121,21 @@ export function StoneOptionSelect({
       >
         <Pressable style={styles.sheetOverlay} onPress={closeMenu}>
           <Pressable style={[styles.sheetCard, { maxHeight: maxMenuHeight }]}>
-            <Text style={styles.sheetTitle}>{label}</Text>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>{label}</Text>
+              {allowCustom ? (
+                <Pressable
+                  onPress={openCustomDialog}
+                  accessibilityRole="button"
+                  accessibilityLabel={customLabel}
+                  hitSlop={6}
+                  style={styles.customBtn}
+                >
+                  <Plus size={14} color={Colors.brandDeep} strokeWidth={2.4} />
+                  <Text style={styles.customBtnText}>{customLabel}</Text>
+                </Pressable>
+              ) : null}
+            </View>
             <View style={styles.searchWrap}>
               <TextInput
                 value={search}
@@ -166,14 +180,6 @@ export function StoneOptionSelect({
                     style={styles.menuItem}
                   >
                     <Text style={styles.menuItemMuted}>None</Text>
-                  </Pressable>
-                ) : null
-              }
-              ListFooterComponent={
-                allowCustom ? (
-                  <Pressable onPress={openCustomDialog} style={styles.customItem}>
-                    <Plus size={14} color={Colors.textPrimary} />
-                    <Text style={styles.customText}>{customLabel}</Text>
                   </Pressable>
                 ) : null
               }
@@ -256,12 +262,30 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
   },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 10,
+  },
   sheetTitle: {
     fontSize: 14,
     fontWeight: '700',
     color: Colors.textPrimary,
-    marginBottom: 10,
   },
+  customBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.metalGoldBorder,
+    backgroundColor: Colors.metalGoldBg,
+  },
+  customBtnText: { fontSize: 12.5, fontWeight: '700', color: Colors.brandDeep },
   searchWrap: {
     borderWidth: 1,
     borderColor: Colors.border,
@@ -280,16 +304,6 @@ const styles = StyleSheet.create({
   menuItemText: { fontSize: 14, color: Colors.textPrimary },
   menuItemTextActive: { fontWeight: '700', color: '#A81F17' },
   menuItemMuted: { fontSize: 14, color: Colors.textMuted },
-  customItem: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  customText: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
   dialogOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
