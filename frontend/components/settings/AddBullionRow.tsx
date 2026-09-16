@@ -66,8 +66,6 @@ export function AddBullionRow({ onAdd }: AddBullionRowProps) {
             setName(text);
             if (error) setError(null);
           }}
-          placeholder="Bullion house name"
-          placeholderTextColor={Colors.placeholder}
           autoFocus
           autoCapitalize="words"
           maxLength={40}
