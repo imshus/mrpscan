@@ -22,7 +22,7 @@ import type { ScanItemData, StoneEntry } from '@/types/scanner';
 import { ApiError } from '@/utils/apiClient';
 import { submitReview } from '@/utils/scanApi';
 import { invalidateBackgroundUploads } from '@/utils/uploadPipeline';
-import { itemNameForCode, loadItemCatalogue } from '@/utils/itemCatalogue';
+import { findItemByCode, loadItemCatalogue } from '@/utils/itemCatalogue';
 import { apiKeyForScanField, scanItemToStructuredData } from '@/utils/scanMappers';
 import {
   applyStoneEntriesToScanData,
@@ -233,17 +233,19 @@ export default function ReviewResultsScreen() {
     }
   }, [canEditPurityPercent, scanData.customPurityPercent, handleFieldChange]);
 
-  // The item name follows the item code: a code picked from the catalogue,
-  // or typed in, names the piece; a code the catalogue does not know leaves
-  // the composed name in place.
+  // Name and code follow the tag's number: matched against the saved item
+  // codes, the piece takes that record's name and code; a number the
+  // catalogue does not know leaves the composed name in place.
   useEffect(() => {
     let active = true;
     void loadItemCatalogue().then((items) => {
       if (!active) return;
-      const name = itemNameForCode(scanData.sku, items);
-      if (name !== useScannerStore.getState().scanData.itemName) {
-        handleFieldChange('itemName', name);
-      }
+      const saved = findItemByCode(scanData.sku, items);
+      const current = useScannerStore.getState().scanData;
+      const name = saved?.description ?? '';
+      const code = saved?.code ?? '';
+      if (name !== current.itemName) handleFieldChange('itemName', name);
+      if (code !== current.itemCode) handleFieldChange('itemCode', code);
     });
     return () => {
       active = false;

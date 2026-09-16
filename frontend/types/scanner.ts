@@ -149,6 +149,12 @@ export interface ScanItemData {
    * attached when the code matches; empty when it does not.
    */
   itemName: string;
+  /**
+   * The saved item code the tag's number matched, or the one chosen by hand.
+   * Held apart from `sku` so naming a piece never rewrites the number the
+   * tag was printed with. Empty when no saved code matches.
+   */
+  itemCode: string;
   category: JewelleryType;
   grossWt: string;
   netWt: string;

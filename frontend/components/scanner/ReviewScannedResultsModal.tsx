@@ -479,9 +479,11 @@ export function ReviewScannedResultsModal({
         </View>
         <ItemCodePicker
           visible={codePickerOpen}
-          value={scanData.sku}
+          value={scanData.itemCode || scanData.sku}
           onSelect={(item) => {
-            onFieldChange('sku', item.code);
+            // The tag's own number is left as scanned; only the shop's code
+            // and the name it carries are set from the catalogue.
+            onFieldChange('itemCode', item.code);
             onFieldChange('itemName', item.description);
           }}
           onClose={() => setCodePickerOpen(false)}
