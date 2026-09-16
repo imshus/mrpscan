@@ -47,7 +47,30 @@ jobs:
 
       # The suite runs on fakes — no database, no Redis, no paid API — so it is
       # safe to run on every push and means what it says when it is green.
+      #
+      # Running on fakes is why these values can be placeholders, and config
+      # validation is why they have to be there at all: it refuses to load
+      # without them, which failed 19 tests at require time, before a single
+      # assertion ran. Nothing below is dialled, connected to, or
+      # authenticated against, so none of it belongs in the repository's
+      # secrets — a real key here would only be a key in a build log.
       - run: npm test
+        env:
+          NODE_ENV: test
+          REDIS_URL: redis://127.0.0.1:6379
+          MONGODB_URI: mongodb://127.0.0.1:27017/mrpscan-test
+          JWT_ACCESS_SECRET: test-access-secret
+          JWT_REFRESH_SECRET: test-refresh-secret
+          GEMINI_API_KEY: test-key
+          OPENAI_API_KEY: test-key
+          MSG91_AUTH_KEY: test-key
+          MSG91_TEMPLATE_ID: test-template
+          SANDBOX_API_KEY: test-key
+          SANDBOX_API_SECRET: test-secret
+          # Read straight from process.env by the MCX scheduler rather than
+          # through config: without it the startup fetch is skipped and the
+          # test that counts exactly one fetch fails.
+          METALS_API_KEY: test-key
 
   deploy:
     name: Deploy
