@@ -27,7 +27,7 @@ import {
   seedServerPricing,
 } from '@/utils/pricingPrefetch';
 import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
-import { itemNameForCode, loadItemCatalogue } from '@/utils/itemCatalogue';
+import { findItemByCode, loadItemCatalogue } from '@/utils/itemCatalogue';
 import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
 import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 
@@ -333,10 +333,18 @@ export default function ProcessingScreen() {
       // still awaited; it was started before the analysis and is normally done.
       await formulaSyncPromise;
 
-      // A tag code that is a saved item code names the piece on the card.
+      // The tag's number is looked up in the shop's saved item codes, and a
+      // match names and numbers the piece from that record rather than from
+      // a name composed out of its karat and stone.
       if (adjustedScanData.sku.trim()) {
-        const itemName = itemNameForCode(adjustedScanData.sku, await cataloguePromise);
-        if (itemName) adjustedScanData = { ...adjustedScanData, itemName };
+        const saved = findItemByCode(adjustedScanData.sku, await cataloguePromise);
+        if (saved) {
+          adjustedScanData = {
+            ...adjustedScanData,
+            itemName: saved.description,
+            itemCode: saved.code,
+          };
+        }
       }
 
       // The user may have rescanned while this ran; never write a stale result

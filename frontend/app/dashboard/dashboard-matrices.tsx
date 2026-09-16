@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { AddBullionRow } from '@/components/settings/AddBullionRow';
+import { MessagePopup } from '@/components/settings/MessagePopup';
 import { DropdownOption, SettingsDropdown } from '@/components/settings/SettingsDropdown';
 import {
   GOLD_MATRIX_SECTIONS,
@@ -82,6 +83,8 @@ export default function DashboardMatricesScreen() {
   const [openMenu, setOpenMenu] = useState<'bullion' | 'karat' | null>(null);
   // The houses to choose from: the two on the live feed, plus the shop's own.
   const [bullion, setBullion] = useState<BullionSources | null>(null);
+  // What the popup is saying. It closes itself, so nothing here waits on a tap.
+  const [popup, setPopup] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
     setDraft(normalizeMatrixValues(storedValues));
@@ -120,7 +123,7 @@ export default function DashboardMatricesScreen() {
       }));
     } catch (error) {
       setDraft((current) => ({ ...current, [key]: previousValue }));
-      Alert.alert('Unable to save dashboard settings', 'The change could not be saved. Please try again.');
+      setPopup({ text: 'That change could not be saved. Please try again.', tone: 'error' });
       console.error('Failed to update dashboard matrices', error);
     }
   };
@@ -150,10 +153,10 @@ export default function DashboardMatricesScreen() {
       })
       .catch((error) => {
         setBullion(previous);
-        Alert.alert(
-          'Unable to save the bullion house',
-          error instanceof Error ? error.message : 'The change could not be saved.',
-        );
+        setPopup({
+          text: error instanceof Error ? error.message : 'The change could not be saved.',
+          tone: 'error',
+        });
       });
   };
 
@@ -178,12 +181,12 @@ export default function DashboardMatricesScreen() {
       setOpenMenu(null);
       const following =
         saved.houses.find((house) => house.key === saved.selected)?.label ?? 'your current house';
-      Alert.alert(
-        'Bullion house saved',
-        `${name} has been saved. We'll let you know as soon as its live rates are available in the app.
+      setPopup({
+        text: `${name} has been saved. We'll let you know as soon as its live rates are available in the app.
 
 Home keeps following ${following} until then.`,
-      );
+        tone: 'success',
+      });
       return null;
     } catch (error) {
       return error instanceof Error ? error.message : 'The bullion house could not be saved.';
@@ -249,6 +252,13 @@ Home keeps following ${following} until then.`,
       </ScrollView>
 
       <BottomNav />
+
+      {/* Says what happened and closes itself — there is nothing to acknowledge. */}
+      <MessagePopup
+        message={popup?.text ?? null}
+        tone={popup?.tone}
+        onDismiss={() => setPopup(null)}
+      />
     </SafeAreaView>
   );
 }

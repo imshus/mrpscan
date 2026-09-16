@@ -63,8 +63,16 @@ function codeKey(code: string): string {
 }
 
 /**
- * The saved item whose code is the one printed on the tag — exact first,
- * then ignoring spacing and punctuation. Null when the code is unknown.
+ * The saved item whose code the tag is printed with — exact first, then
+ * ignoring spacing and punctuation, then as the start of the tag's number.
+ *
+ * Tags rarely print the item code alone: a ring coded GR is tagged GR10286,
+ * the code followed by that piece's running number. So a saved code that
+ * begins the tag's number identifies the item, as long as what follows is
+ * digits — otherwise GRT500 would answer to a shop's GR. The longest such
+ * code wins, so GRT is preferred over GR by a shop that saved both.
+ *
+ * Null when nothing saved matches.
  */
 export function findItemByCode(code: string, items: ItemCode[] = getCachedItemCatalogue()): ItemCode | null {
   const wanted = code.trim().toUpperCase();
@@ -73,7 +81,24 @@ export function findItemByCode(code: string, items: ItemCode[] = getCachedItemCa
   if (exact) return exact;
   const key = codeKey(wanted);
   if (!key) return null;
-  return items.find((item) => codeKey(item.code) === key) ?? null;
+  const sameKey = items.find((item) => codeKey(item.code) === key);
+  if (sameKey) return sameKey;
+
+  let prefixed: ItemCode | null = null;
+  let prefixLength = 0;
+  for (const item of items) {
+    const itemKey = codeKey(item.code);
+    // One character is too little to identify an item: half the tags in a
+    // shop would answer to it.
+    if (itemKey.length < 2 || itemKey.length >= key.length) continue;
+    if (!key.startsWith(itemKey)) continue;
+    if (!/^[0-9]/.test(key.slice(itemKey.length))) continue;
+    if (itemKey.length > prefixLength) {
+      prefixed = item;
+      prefixLength = itemKey.length;
+    }
+  }
+  return prefixed;
 }
 
 /** The catalogue name for a tag's code, or empty when the code is not saved. */
