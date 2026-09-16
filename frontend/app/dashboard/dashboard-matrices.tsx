@@ -5,6 +5,7 @@ import { ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
+import { AddBullionRow } from '@/components/settings/AddBullionRow';
 import { DropdownOption, SettingsDropdown } from '@/components/settings/SettingsDropdown';
 import {
   GOLD_MATRIX_SECTIONS,
@@ -14,15 +15,14 @@ import {
 import { Colors, Spacing } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useMatricesStore } from '@/store/matricesStore';
+import {
+  fetchBullionSources,
+  updateBullionSources,
+  type BullionSources,
+} from '@/utils/bullionApi';
 import { updateDashboardMatrices } from '@/utils/matricesApi';
 
 type DashboardMatrixValues = Record<MatrixKey, boolean>;
-
-/** Which bullion house the Home gold rate follows. */
-const BULLION_CHOICES: { label: string; jmd: boolean }[] = [
-  { label: 'JMD Patil', jmd: true },
-  { label: 'Mega Bullion', jmd: false },
-];
 
 interface RateOption {
   key: MatrixKey;
@@ -80,10 +80,22 @@ export default function DashboardMatricesScreen() {
   const [draft, setDraft] = useState<DashboardMatrixValues>(() => normalizeMatrixValues(storedValues));
   // One menu at a time, so a long karat list never hides the field above it.
   const [openMenu, setOpenMenu] = useState<'bullion' | 'karat' | null>(null);
+  // The houses to choose from: the two on the live feed, plus the shop's own.
+  const [bullion, setBullion] = useState<BullionSources | null>(null);
 
   useEffect(() => {
     setDraft(normalizeMatrixValues(storedValues));
   }, [storedValues]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchBullionSources().then((loaded) => {
+      if (!cancelled && loaded) setBullion(loaded);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!allowed) return null;
 
@@ -120,13 +132,57 @@ export default function DashboardMatricesScreen() {
     void persistToggle(key, nextValue, previousValue);
   };
 
-  const selectBullion = (useJmd: boolean) => {
+  const selectBullion = (key: string) => {
     // A single choice: the menu closes on the way out, whether or not it moved.
     setOpenMenu(null);
-    const previousValue = draft.bhaw_source_jmd;
-    if (previousValue === useJmd) return;
-    setDraft((current) => ({ ...current, bhaw_source_jmd: useJmd }));
-    void persistToggle('bhaw_source_jmd', useJmd, previousValue);
+    if (!bullion || bullion.selected === key) return;
+
+    const previous = bullion;
+    setBullion({ ...bullion, selected: key });
+    void updateBullionSources({ selected: key, customNames: bullion.customNames })
+      .then((saved) => {
+        setBullion(saved);
+        // The older boolean drives Home until it reloads the setting; keeping
+        // it in step means the rate does not lag a house behind.
+        useMatricesStore.setState((state) => ({
+          values: { ...state.values, bhaw_source_jmd: saved.selected === 'jmd_patil' },
+        }));
+      })
+      .catch((error) => {
+        setBullion(previous);
+        Alert.alert(
+          'Unable to save the bullion house',
+          error instanceof Error ? error.message : 'The change could not be saved.',
+        );
+      });
+  };
+
+  /** Saves a house the shop added, then follows it. Returns an error to show. */
+  const addBullion = async (name: string): Promise<string | null> => {
+    if (!bullion) return 'The bullion houses are still loading.';
+    const taken = [...bullion.houses.map((house) => house.label), ...bullion.customNames];
+    if (taken.some((existing) => existing.toLowerCase() === name.toLowerCase())) {
+      return 'That bullion house is already in the list.';
+    }
+
+    try {
+      const saved = await updateBullionSources({
+        selected: name,
+        customNames: [...bullion.customNames, name],
+      });
+      setBullion(saved);
+      useMatricesStore.setState((state) => ({
+        values: { ...state.values, bhaw_source_jmd: saved.selected === 'jmd_patil' },
+      }));
+      setOpenMenu(null);
+      Alert.alert(
+        `${name} added`,
+        `Home now follows ${name}. A house you add has no live feed, so its rate is the MCX rate plus the RTGS and Cash change saved in Gold Rate Settings.`,
+      );
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : 'The bullion house could not be saved.';
+    }
   };
 
   return (
@@ -152,15 +208,21 @@ export default function DashboardMatricesScreen() {
           open={openMenu === 'bullion'}
           onPress={() => setOpenMenu((current) => (current === 'bullion' ? null : 'bullion'))}
         >
-          {BULLION_CHOICES.map((choice, index) => (
-            <DropdownOption
-              key={choice.label}
-              label={choice.label}
-              selected={draft.bhaw_source_jmd === choice.jmd}
-              onPress={() => selectBullion(choice.jmd)}
-              showDivider={index < BULLION_CHOICES.length - 1}
-            />
-          ))}
+          {bullion ? (
+            <>
+              {bullion.houses.map((house) => (
+                <DropdownOption
+                  key={house.key}
+                  label={house.label}
+                  selected={bullion.selected === house.key}
+                  onPress={() => selectBullion(house.key)}
+                />
+              ))}
+              <AddBullionRow onAdd={addBullion} />
+            </>
+          ) : (
+            <Text style={styles.loadingText}>Loading the bullion houses…</Text>
+          )}
         </SettingsDropdown>
 
         <SettingsDropdown
@@ -224,5 +286,11 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     lineHeight: 17,
     marginBottom: 16,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
 });
