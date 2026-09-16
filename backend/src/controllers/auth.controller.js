@@ -38,8 +38,15 @@ const submitContactDetails = async (req, res, next) => {
 
 const register = async (req, res, next) => {
   try {
-    const { mobile, password, userId, businessDetails } = req.body;
-    const data = await registrationService.register({ mobile, password, userId, businessDetails });
+    const { mobile, password, userId, fullName, referralCode, businessDetails } = req.body;
+    const data = await registrationService.register({
+      mobile,
+      password,
+      userId,
+      fullName,
+      referralCode,
+      businessDetails,
+    });
     sendSuccess(res, data);
   } catch (err) {
     next(err);
@@ -125,8 +132,14 @@ const verifyPhoneOtp = async (req, res, next) => {
 
 const createPassword = async (req, res, next) => {
   try {
-    const { businessId, password } = req.body;
-    const data = await registrationService.createPassword(businessId, password);
+    const { businessId, password, fullName, referralCode } = req.body;
+    const data = await registrationService.createPassword(
+      businessId,
+      password,
+      undefined,
+      fullName,
+      referralCode,
+    );
     sendSuccess(res, data);
   } catch (err) {
     next(err);
@@ -245,7 +258,7 @@ const refreshToken = async (req, res, next) => {
       throw new Error('UNAUTHORIZED');
     }
     const authService = require('../services/auth.service');
-    const data = authService.refreshTokens(token);
+    const data = await authService.refreshTokens(token);
     sendSuccess(res, data);
   } catch (err) {
     next(err);

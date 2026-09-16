@@ -8,6 +8,7 @@ import type {
 } from '@/types/scanner';
 import { buildQuality } from '@/utils/qualityUtils';
 import { parseWeightValue } from '@/utils/formulaUtils';
+import { resolveWeightAndRate } from '@/utils/stoneWeightRate';
 
 const STONE_ARRAY_KEYS: Record<StoneKind, 'diamonds' | 'colorstones'> = {
   diamond: 'diamonds',
@@ -79,15 +80,21 @@ function normalizeStoneEntry(raw: unknown, stoneType: StoneKind): StoneEntry {
     flattenStoneField(record.quality ?? record[`${prefix}Quality`]) ||
     buildQuality(color, clarity);
 
+  // "1.56/550" on the weight line is a weight and a rate, not a weight.
+  const { weight, rate } = resolveWeightAndRate(
+    flattenStoneField(record.weight ?? record[`${prefix}Weight`]),
+    flattenStoneField(record.rate ?? record[`${prefix}Rate`]),
+  );
+
   return {
     stoneType,
-    weight: flattenStoneField(record.weight ?? record[`${prefix}Weight`]),
+    weight,
     shape: flattenStoneField(record.shape ?? record.diamondShape),
     packetCode,
     color,
     clarity,
     quality,
-    rate: flattenStoneField(record.rate ?? record[`${prefix}Rate`]),
+    rate,
     discountPercent: flattenStoneField(record.discountPercent ?? record.diamondDiscountPercent) || '0',
     pieces: flattenStoneField(record.pieces ?? record.diamondPieces),
   };

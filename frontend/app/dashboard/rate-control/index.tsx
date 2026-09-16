@@ -433,7 +433,7 @@ export default function RateControlScreen() {
         onDismiss={() => setToast((prev) => ({ ...prev, visible: false }))}
       />
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
 
     </SafeAreaView>
   );

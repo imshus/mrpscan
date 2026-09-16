@@ -29,6 +29,7 @@ import { getBusinessProfile } from '@/utils/businessProfile';
 import { formatItemIdentity, resolveItemIdentity } from '@/utils/itemIdentity';
 import { fetchBusinessProfile, type BusinessProfileResponse } from '@/utils/businessProfileApi';
 import { invoicePdfFileName } from '@/utils/invoicePdfCache';
+import { currentScopeGeneration } from '@/utils/userScopedStorage';
 import {
   apiFetchNextInvoiceNumber,
   apiGenerateInvoice,
@@ -65,6 +66,12 @@ function todayStamp(): string {
  * Print hand the fetched PDF to the share sheet, mail composer and print
  * dialog respectively.
  */
+/**
+ * Thrown when the account changed while an invoice action was waiting on the
+ * PDF: the action stops, and nothing is shown to whoever signed in next.
+ */
+class AccountChangedError extends Error {}
+
 export default function InvoiceSheetScreen() {
   const [zoomIndex, setZoomIndex] = useState(1);
   // Controls clear the floating nav using its own geometry, not a guess.
@@ -221,9 +228,16 @@ export default function InvoiceSheetScreen() {
   } | null>(null);
   const renderPdfLocally = async (html: string, number: string): Promise<string | null> => {
     try {
+      const issuedAt = currentScopeGeneration();
       const document = `<!doctype html><html><head><meta charset="utf-8" /><style>html, body { margin: 0; padding: 0; background: #fff; }</style></head><body>${html}</body></html>`;
       // A4 in PDF points.
       const { uri } = await Print.printToFileAsync({ html: document, width: 595, height: 842 });
+      // The account changed while it rendered: the previous account's
+      // document does not stay on the phone.
+      if (issuedAt !== currentScopeGeneration()) {
+        await FileSystem.deleteAsync(uri, { idempotent: true });
+        return null;
+      }
       const named = `${FileSystem.cacheDirectory ?? ''}${invoicePdfFileName(number)}`;
       await FileSystem.deleteAsync(named, { idempotent: true });
       await FileSystem.moveAsync({ from: uri, to: named });
@@ -253,6 +267,10 @@ export default function InvoiceSheetScreen() {
   }, [previewHtml, invoiceNumber]);
 
   const fetchPdfToCache = async () => {
+    const issuedAt = currentScopeGeneration();
+    const assertSameAccount = () => {
+      if (issuedAt !== currentScopeGeneration()) throw new AccountChangedError('The account changed.');
+    };
     // The server call and the local PDF are independent until the assigned
     // number is compared, so they run side by side: the PDF is either done
     // already, still rendering (wait for it), or started right now.
@@ -272,6 +290,7 @@ export default function InvoiceSheetScreen() {
       return uri ? { invoiceNumber, uri } : null;
     })();
     const [result, local] = await Promise.all([generateOnce(), localPromise]);
+    assertSameAccount();
 
     if (pdfCache.current && pdfCache.current.result.invoiceNumber === result.invoiceNumber) {
       const info = await FileSystem.getInfoAsync(pdfCache.current.uri);
@@ -291,6 +310,7 @@ export default function InvoiceSheetScreen() {
               () => null,
             );
       if (html) localUri = await renderPdfLocally(html, result.invoiceNumber);
+      assertSameAccount();
     }
     if (localUri) {
       const entry = { result, fileName, uri: localUri };
@@ -301,8 +321,13 @@ export default function InvoiceSheetScreen() {
     const cached = `${FileSystem.cacheDirectory ?? ''}${fileName}`;
     let downloaded = await FileSystem.downloadAsync(resolveInvoicePdfUrl(result), cached);
     for (let attempt = 0; attempt < 30 && (downloaded.status === 409 || downloaded.status === 425); attempt += 1) {
+      if (issuedAt !== currentScopeGeneration()) break;
       await new Promise((resolve) => setTimeout(resolve, 600));
       downloaded = await FileSystem.downloadAsync(resolveInvoicePdfUrl(result), cached);
+    }
+    if (issuedAt !== currentScopeGeneration()) {
+      await FileSystem.deleteAsync(cached, { idempotent: true });
+      throw new AccountChangedError('The account changed.');
     }
     if (downloaded.status !== 200) {
       throw new Error(`Could not fetch the invoice (HTTP ${downloaded.status}).`);
@@ -348,6 +373,7 @@ export default function InvoiceSheetScreen() {
 
       Alert.alert('Downloaded', `${fileName} has been saved to the folder you chose.`);
     } catch (err) {
+      if (err instanceof AccountChangedError) return;
       const message =
         err instanceof Error ? err.message : 'Invoice download failed. Please try again.';
       Alert.alert('Error', message);
@@ -374,6 +400,7 @@ export default function InvoiceSheetScreen() {
         UTI: 'com.adobe.pdf',
       });
     } catch (err) {
+      if (err instanceof AccountChangedError) return;
       Alert.alert(
         'Error',
         err instanceof Error ? err.message : 'Could not share the invoice.',
@@ -406,6 +433,7 @@ export default function InvoiceSheetScreen() {
         UTI: 'com.adobe.pdf',
       });
     } catch (err) {
+      if (err instanceof AccountChangedError) return;
       Alert.alert('Error', err instanceof Error ? err.message : 'Could not open the share sheet.');
     } finally {
       setWorking(null);
@@ -433,6 +461,7 @@ export default function InvoiceSheetScreen() {
         });
       }
     } catch (err) {
+      if (err instanceof AccountChangedError) return;
       Alert.alert('Error', err instanceof Error ? err.message : 'Could not open email.');
     } finally {
       setWorking(null);
@@ -448,6 +477,7 @@ export default function InvoiceSheetScreen() {
       const { uri } = await fetchPdfToCache();
       await Print.printAsync({ uri });
     } catch (err) {
+      if (err instanceof AccountChangedError) return;
       // User-cancelled print dialogs reject on some devices; do not alert for those.
       const message = err instanceof Error ? err.message : '';
       if (!/cancel/i.test(message)) Alert.alert('Error', message || 'Could not print the invoice.');
@@ -532,7 +562,7 @@ export default function InvoiceSheetScreen() {
         </View>
       </View>
 
-      <BottomNav activeRoute="scanner" scanButtonVariant="green" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

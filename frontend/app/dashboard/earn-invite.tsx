@@ -134,7 +134,7 @@ export default function EarnInviteScreen() {
           </>
         ) : null}
       </ScrollView>
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

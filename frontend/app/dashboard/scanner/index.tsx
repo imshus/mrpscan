@@ -147,7 +147,7 @@ export default function ScannerScreen() {
         ) : null}
       </View>
 
-      <BottomNav activeRoute="scanner" scanButtonVariant="gold" />
+      <BottomNav />
     </View>
   );
 }

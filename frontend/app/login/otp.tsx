@@ -63,6 +63,8 @@ export default function LoginOtpScreen() {
     businessType?: string;
     address?: string;
     phone?: string;
+    /** The account holder's name, as given at signup. */
+    fullName?: string;
   }) => {
     setAuthToken(payload.accessToken);
     if (payload.refreshToken) {
@@ -87,6 +89,7 @@ export default function LoginOtpScreen() {
       businessType: payload.businessType || '',
       address: payload.address || '',
       phone: payload.phone || mobile,
+      ...(payload.fullName ? { fullName: payload.fullName } : {}),
     });
 
     if (rememberMe) {

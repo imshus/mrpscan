@@ -145,7 +145,7 @@ export default function GoldRateSettingsScreen() {
         onDismiss={() => setToast((prev) => ({ ...prev, visible: false }))}
       />
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

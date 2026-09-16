@@ -60,7 +60,7 @@ export default function InventoryScreen() {
         />
       </View>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
 
       <DeleteInventoryModal
         visible={deleteTargetId !== null}

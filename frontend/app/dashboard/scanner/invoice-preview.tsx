@@ -97,7 +97,6 @@ export default function InvoicePreviewScreen() {
     <ScanScreenWrapper
       title="Invoice Generation"
       className="bg-surface-muted"
-      scanButtonVariant="green"
       footer={
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <PrimaryGreenButton title="Preview Invoice" onPress={handleGenerateInvoice} />

@@ -12,7 +12,7 @@ import { isDemoScanMode } from '@/constants/scanMode';
 import { useFormulaStore } from '@/store/formulaStore';
 import { useScannerStore } from '@/store/scannerStore';
 import { ScanStage, type ScanItemData } from '@/types/scanner';
-import { ApiError } from '@/utils/apiClient';
+import { ApiError, isRequestAbortedError } from '@/utils/apiClient';
 import { syncFormulaStoreFromApi } from '@/utils/formulaSettingsApi';
 import {
   applyFormula2KaratConstraint,
@@ -436,6 +436,8 @@ export default function ProcessingScreen() {
         earlyNavRef.current = null;
       }
       setAnalysisPending(false);
+      // Aborted by an account change: nothing to tell whoever signed in next.
+      if (isRequestAbortedError(error)) return;
       const message =
         error instanceof ApiError
           ? error.message

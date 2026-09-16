@@ -123,7 +123,7 @@ export default function BulkUploadScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

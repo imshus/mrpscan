@@ -62,8 +62,12 @@ const checkAvailabilitySchema = Joi.object({
     'object.missing': 'Enter a phone number or User ID to check',
   });
 
+const referralCodeSchema = Joi.string().trim().uppercase().pattern(/^[A-Z0-9 -]{4,16}$/).allow('', null);
+
 const createPasswordSchema = Joi.object({
   businessId: Joi.string().required(),
+  fullName: Joi.string().trim().max(120).allow('').optional(),
+  referralCode: referralCodeSchema.optional(),
   password: Joi.string().min(PASSWORD_MIN_LENGTH).max(128).required(),
   confirmPassword: Joi.any().valid(Joi.ref('password')).required().messages({
     'any.only': 'Passwords do not match'
@@ -74,6 +78,10 @@ const registerSchema = Joi.object({
   mobile: Joi.string().pattern(/^[0-9]{10}$/).required(),
   password: Joi.string().min(PASSWORD_MIN_LENGTH).max(128).required(),
   userId: userIdSchema.optional(),
+  // The name typed on the signup form; optional so an older app still registers.
+  fullName: Joi.string().trim().max(120).allow('').optional(),
+  // Another jeweller's Earn & Invite code, typed at signup.
+  referralCode: referralCodeSchema.optional(),
   businessDetails: Joi.object({
     businessId: Joi.string().required(),
     businessName: Joi.string().allow('').optional(),

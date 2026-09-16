@@ -115,7 +115,7 @@ export default function PurityControlScreen() {
         <PurityCard title="Silver" items={silverItems} onEdit={openEdit} />
       </ScrollView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
 
       <Modal
         visible={editingItem !== null}

@@ -62,10 +62,7 @@ export default function MarketRatesScreen() {
             <View style={screenStyles.screenSection}>
               <GoldRateSettingsRow onPress={() => router.push('/dashboard/gold-rate-settings')} />
               <Pressable onPress={() => router.push('/dashboard/gold-karat-values')} style={styles.sectionRow}>
-                <View style={styles.sectionRowTextWrap}>
-                  <Text style={styles.sectionRowTitle}>Gold Karat Values</Text>
-                  <Text style={styles.sectionRowSubtitle}>Manage karat purity and visibility</Text>
-                </View>
+                <Text style={styles.sectionRowTitle}>Gold Karat Settings</Text>
                 <ChevronRight size={18} color={Colors.textMuted} />
               </Pressable>
             </View>
@@ -111,7 +108,7 @@ export default function MarketRatesScreen() {
         onDismiss={() => setToast((prev) => ({ ...prev, visible: false }))}
       />
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
 
     </SafeAreaView>
   );
@@ -129,7 +126,5 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     backgroundColor: Colors.white,
   },
-  sectionRowTextWrap: { flex: 1, paddingRight: Spacing.sm },
   sectionRowTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
-  sectionRowSubtitle: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
 });

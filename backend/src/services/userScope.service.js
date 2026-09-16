@@ -6,6 +6,7 @@ const { InvoiceCounter } = require('../models/invoiceCounter.model');
 const GoldRate = require('../models/goldRate.model');
 const DiamondRate = require('../models/diamondRate.model');
 const ColorstoneRate = require('../models/colorstoneRate.model');
+const BullionSource = require('../models/bullionSource.model');
 const LabourRate = require('../models/labourRate.model');
 const ItemCode = require('../models/itemCode.model');
 const CustomCharge = require('../models/customCharge.model');
@@ -154,12 +155,17 @@ const ensureUserScopedIndexes = async () => {
   await dropIndexIfPresent(DiamondRate, 'businessId_1_packetCode_1');
   await DiamondRate.syncIndexes();
   await dropIndexIfPresent(ColorstoneRate, 'businessId_1_color_1_clarity_1');
+  // The colour + clarity index became partial when colorstone rates gained a
+  // packet code; the old full one has to go before the partial can take.
+  await dropIndexIfPresent(ColorstoneRate, 'businessId_1_userId_1_color_1_clarity_1');
   await ColorstoneRate.syncIndexes();
   await dropIndexIfPresent(LabourRate, 'businessId_1');
   await LabourRate.syncIndexes();
   // Item codes: one code per business becomes one code per user's list.
   await dropIndexIfPresent(ItemCode, 'businessId_1_code_1');
   await ItemCode.syncIndexes();
+  // The bullion house a shop follows, and the houses it added.
+  await BullionSource.syncIndexes();
   // Charge names: the same, or two users could not keep the same name.
   await dropIndexIfPresent(CustomCharge, 'businessId_1_name_1');
   await CustomCharge.syncIndexes();

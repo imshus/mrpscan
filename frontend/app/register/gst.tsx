@@ -27,11 +27,11 @@ import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import {
   confirmBusinessGst,
-  loginBusiness,
   registerBusiness,
   submitBusinessContactDetails,
   verifyBusinessGst,
 } from '@/utils/authApi';
+import { prepareSignInAfterSignup } from '@/utils/authSession';
 import { normalizeGstNumber, validateGst } from '@/utils/validation';
 
 type GstCheckStatus = 'idle' | 'checking' | 'verified' | 'invalid';
@@ -40,15 +40,7 @@ export default function GstVerificationScreen() {
   const router = useRouter();
   const registration = useAuthStore((s) => s.registration);
   const updateRegistration = useAuthStore((s) => s.updateRegistration);
-  const {
-    setAuthenticated,
-    setAuthToken,
-    setRefreshToken,
-    setUserRole,
-    setIsSuper,
-    setLoggedInEmployee,
-    setSavedCredentials,
-  } = useAuthStore();
+  const setSavedCredentials = useAuthStore((s) => s.setSavedCredentials);
 
   const [gstNumber, setGstNumber] = useState('');
   const [businessName, setBusinessName] = useState('');
@@ -221,6 +213,7 @@ export default function GstVerificationScreen() {
         mobile: phone,
         password,
         userId: registration.userId,
+        fullName: registration.fullName,
         businessDetails: {
           businessId: confirmed.businessId,
           businessName,
@@ -261,21 +254,17 @@ export default function GstVerificationScreen() {
         passwordError: undefined,
       });
       setAccountCreated(true);
-      setSavedCredentials(phone);
+      // Remember the User ID, which is what signing in asks for.
+      const loginId = registration.userId ?? '';
+      if (loginId) setSavedCredentials(loginId);
 
-      const login = await loginBusiness(phone, password);
-      if (login.success && login.data) {
-        setAuthToken(login.data.accessToken);
-        if (login.data.refreshToken) {
-          setRefreshToken(login.data.refreshToken);
-        }
-        setUserRole(login.data.role === 'EMP' ? 'employee' : 'business');
-        setIsSuper(login.data.role === 'SUPER');
-        setLoggedInEmployee(null);
-        setTimeout(() => setAuthenticated(true), 1600);
-      } else {
-        setTimeout(() => router.replace('/login'), 1600);
-      }
+      // Signed in with the credentials just registered, so the shop lands on
+      // Home; the session goes live after the "account created" moment.
+      const session = await prepareSignInAfterSignup(loginId, password);
+      setTimeout(() => {
+        if (session) session.activate();
+        else router.replace('/login');
+      }, 1600);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to confirm GST details.';
       if (isUserIdProblem(message)) {

@@ -12,6 +12,8 @@ export interface RegistrationData {
   fullName?: string;
   companyName?: string;
   userId?: string;
+  /** The Earn & Invite code typed at signup, if any. */
+  referralCode?: string;
   /**
    * Set when a later step (GST confirm) fails for a reason the Get started
    * form owns - e.g. the phone number is already registered. The signup

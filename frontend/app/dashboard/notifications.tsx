@@ -89,7 +89,7 @@ export default function NotificationsScreen() {
           })
         )}
       </ScrollView>
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

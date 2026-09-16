@@ -52,6 +52,7 @@ export default function AddEmployeeScreen() {
           name: draft.fullName,
           phone: draft.phone,
           email: draft.email,
+          designation: draft.designation,
         });
 
         if (!result.success) {
@@ -162,7 +163,7 @@ export default function AddEmployeeScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

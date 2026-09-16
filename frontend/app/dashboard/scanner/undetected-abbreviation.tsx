@@ -198,7 +198,7 @@ export default function UndetectedAbbreviationScreen() {
         </SafeAreaView>
       </ImageBackground>
 
-      <BottomNav activeRoute="scanner" scanButtonVariant="gold" />
+      <BottomNav />
     </View>
   );
 }

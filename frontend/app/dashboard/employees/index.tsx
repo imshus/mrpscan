@@ -116,7 +116,7 @@ export default function EmployeesScreen() {
         </View>
       ) : null}
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

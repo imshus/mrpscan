@@ -478,7 +478,7 @@ export default function DashboardScreen() {
         </View>
       </ScrollView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

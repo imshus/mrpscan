@@ -112,6 +112,7 @@ export default function EmployeePermissionsScreen() {
           name: draft.fullName,
           phone: draft.phone,
           email: draft.email,
+          designation: draft.designation,
           permissions: permissions,
         });
         
@@ -274,7 +275,7 @@ export default function EmployeePermissionsScreen() {
         {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
       </ScrollView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

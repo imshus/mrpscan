@@ -47,6 +47,7 @@ function buildLoginPayload(user, business, tokens) {
     // different values and the names unfortunately collide.
     userId: user._id.toString(),
     loginId: user.userId || '',
+    fullName: user.fullName || '',
     role: user.role,
     businessName: business ? (business.tradeName || business.legalName) : undefined,
     gstNumber: business ? business.gstNumber : undefined,
@@ -154,11 +155,14 @@ const submitContactDetails = async (businessId, phone, referralCode) => {
     if (existingUser.phone === normalizedPhone) throw new Error('PHONE_ALREADY_EXISTS');
   }
 
-  // Link the referrer before any OTP goes out, so a mistyped code fails while
-  // the person is still on the form. Absent code on a resubmit leaves an
-  // earlier link in place.
+  // The referral is NOT recorded here. This endpoint needs no authentication
+  // and takes the businessId from the body, so anyone could name themselves
+  // the referrer of a shop that has not registered yet. The code travels with
+  // the request that completes the registration instead, where the phone has
+  // been proved. A code sent here is only validated, so a typo is still
+  // reported while the form is in front of the person.
   if (referralCode) {
-    await referralService.applyReferralCode({ businessId, code: referralCode });
+    await referralService.resolveReferralCode({ businessId, code: referralCode });
   }
 
   // Save temp state in Redis
@@ -194,7 +198,7 @@ const verifyPhoneOtp = async (businessId, otp) => {
   return { phoneVerified: true };
 };
 
-const createPassword = async (businessId, password, userId) => {
+const createPassword = async (businessId, password, userId, fullName, referralCode) => {
   const stateStr = await redisClient.get(`registration:${businessId}`);
   if (!stateStr) throw new Error('Session expired or incomplete registration');
   
@@ -206,6 +210,10 @@ const createPassword = async (businessId, password, userId) => {
   const business = await Business.findById(businessId);
   if (!business) throw new Error('Business not found');
 
+  // Checked before the account exists, so a mistyped code fails the call
+  // instead of leaving a registered shop with a referral it cannot add later.
+  const referrer = await referralService.resolveReferralCode({ businessId, code: referralCode });
+
   const passwordHash = await bcrypt.hash(password, 10);
 
   // Transactions removed because free-tier M0 clusters have limitations with them
@@ -215,6 +223,7 @@ const createPassword = async (businessId, password, userId) => {
       businessId: business._id,
       phone: state.phone,
       ...(userId ? { userId } : {}),
+      fullName: String(fullName || '').trim(),
       address: business.address || '',
       gstNumber: business.gstNumber || '',
       businessName: business.tradeName || business.legalName || '',
@@ -227,6 +236,11 @@ const createPassword = async (businessId, password, userId) => {
     business.registrationStep = 'PASSWORD_CREATED';
     business.isRegistered = true;
     await business.save();
+
+    // This caller now owns the shop, so their word on who referred it stands.
+    if (referrer) {
+      await referralService.linkReferral({ businessId, referrer });
+    }
 
     await licenseService.ensureLicense(business._id);
     await walletService.ensureWallet(business._id);
@@ -293,6 +307,7 @@ const recoverUserId = async (mobile, otp) => {
     mobile,
     otp,
     route: '/api/v1/auth/forgot-user-id',
+    rejectAlreadyVerified: true,
   });
 
   const normalizedPhone = normalizePhone(mobile);
@@ -309,10 +324,12 @@ const recoverUserId = async (mobile, otp) => {
 };
 
 const loginWithOtp = async (mobile, otp) => {
+  // One OTP, one session: a code that already signed someone in is spent.
   await otpService.verifyOtpByMobile({
     mobile,
     otp,
     route: '/api/v1/auth/login-otp',
+    rejectAlreadyVerified: true,
   });
 
   const normalizedPhone = normalizePhone(mobile);
@@ -406,7 +423,7 @@ const resetForgottenPassword = async (resetToken, newPassword) => {
   return { success: true, message: 'Password reset successfully' };
 };
 
-const register = async ({ mobile, password, userId, businessDetails }) => {
+const register = async ({ mobile, password, userId, fullName, referralCode, businessDetails }) => {
   const businessId = businessDetails?.businessId;
   if (!businessId) {
     throw new Error('REGISTRATION_SESSION_EXPIRED');
@@ -444,10 +461,13 @@ const register = async ({ mobile, password, userId, businessDetails }) => {
     throw new Error('INVALID_MOBILE_NUMBER');
   }
 
+  // The first registrant names the shop; a later account joining an already
+  // registered business does not rename it from an unauthenticated form.
   if (businessDetails.businessName) {
-    await Business.findByIdAndUpdate(businessId, {
-      tradeName: businessDetails.businessName,
-    });
+    await Business.updateOne(
+      { _id: businessId, isRegistered: { $ne: true } },
+      { $set: { tradeName: businessDetails.businessName } },
+    );
   }
 
   const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
@@ -456,7 +476,7 @@ const register = async ({ mobile, password, userId, businessDetails }) => {
     if (existingUserId) throw new Error('USER_ID_ALREADY_EXISTS');
   }
 
-  return createPassword(businessId, password, normalizedUserId || undefined);
+  return createPassword(businessId, password, normalizedUserId || undefined, fullName, referralCode);
 };
 
 const loginEmployee = async ({ phone }, password) => {
@@ -469,13 +489,18 @@ const loginEmployee = async ({ phone }, password) => {
     throw new Error('INVALID_EMPLOYEE_CREDENTIALS');
   }
 
-  const user = await Employee.findOne(query);
-  if (!user || !user.isActive) {
-    throw new Error('INVALID_EMPLOYEE_CREDENTIALS');
+  // Employee phones are not unique across shops (the field carries no unique
+  // index), so the password decides which record is meant rather than
+  // whichever the database returns first.
+  const candidates = await Employee.find({ ...query, isActive: true });
+  let user = null;
+  for (const candidate of candidates) {
+    if (await bcrypt.compare(password, candidate.passwordHash)) {
+      user = candidate;
+      break;
+    }
   }
-
-  const isMatch = await bcrypt.compare(password, user.passwordHash);
-  if (!isMatch) {
+  if (!user) {
     throw new Error('INVALID_EMPLOYEE_CREDENTIALS');
   }
 

@@ -186,7 +186,7 @@ export default function ScanResultsScreen() {
         </View>
       </SafeAreaView>
 
-      <BottomNav activeRoute="scanner" scanButtonVariant="green" />
+      <BottomNav />
     </View>
   );
 }

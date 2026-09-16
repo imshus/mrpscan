@@ -99,7 +99,7 @@ export default function WishlistScreen() {
         </ScrollView>
       )}
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }

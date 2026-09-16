@@ -1,34 +1,54 @@
 const FormulaConfig = require('../models/formulaConfig.model');
 const DashboardMetrics = require('../models/dashboardMetrics.model');
+const BullionSource = require('../models/bullionSource.model');
 const Business = require('../models/business.model');
 const BusinessUser = require('../models/businessUser.model');
 const einvoiceService = require('../services/einvoice.service');
 const { settingsScope, findScopedSetting, upsertScopedSetting } = require('../services/userScope.service');
 
+// A shop that has saved nothing shows the 24K price alone; the lighter
+// karats wait in the Choose Karat menu until they are ticked.
 const DEFAULT_DASHBOARD_MATRIX_VALUES = {
   '24k_mcx': true,
   '24k_rtgs': true,
   '24k_cash': true,
-  '22k_rtgs': true,
-  '22k_cash': true,
-  '20k_rtgs': true,
-  '20k_cash': true,
-  '18k_rtgs': true,
-  '18k_cash': true,
-  '14k_rtgs': true,
-  '14k_cash': true,
-  '9k_rtgs': true,
-  '9k_cash': true,
+  '22k_rtgs': false,
+  '22k_cash': false,
+  '20k_rtgs': false,
+  '20k_cash': false,
+  '18k_rtgs': false,
+  '18k_cash': false,
+  '14k_rtgs': false,
+  '14k_cash': false,
+  '9k_rtgs': false,
+  '9k_cash': false,
   // Bhaw rate source: true = JMD Patil live feed, false = Mega Bullion (supreme changes).
   'bhaw_source_jmd': false,
 };
 
-const normalizeDashboardMatrices = (values = {}) => ({
-  ...DEFAULT_DASHBOARD_MATRIX_VALUES,
-  ...Object.fromEntries(
-    Object.entries(values).filter(([key]) => Object.prototype.hasOwnProperty.call(DEFAULT_DASHBOARD_MATRIX_VALUES, key))
-  ),
-});
+// The three 24K rates are the shop's headline price and what Home falls back
+// to: a record with no rate selected at all leaves the dashboard blank, which
+// is how an abandoned or half-written record reads rather than a choice, so
+// these come back on. Any record with something selected is left exactly as
+// it is — 24K can be switched off like any other rate.
+const OPENING_MATRIX_KEYS = ['24k_mcx', '24k_rtgs', '24k_cash'];
+
+const isRateKey = (key) => key !== 'bhaw_source_jmd';
+
+const normalizeDashboardMatrices = (values = {}) => {
+  const merged = {
+    ...DEFAULT_DASHBOARD_MATRIX_VALUES,
+    ...Object.fromEntries(
+      Object.entries(values).filter(([key]) => Object.prototype.hasOwnProperty.call(DEFAULT_DASHBOARD_MATRIX_VALUES, key))
+    ),
+  };
+
+  const anyRateOn = Object.keys(merged).some((key) => isRateKey(key) && merged[key]);
+  if (!anyRateOn) {
+    for (const key of OPENING_MATRIX_KEYS) merged[key] = true;
+  }
+  return merged;
+};
 
 /**
  * GET /settings/business-profile
@@ -149,7 +169,7 @@ const getBusinessProfile = async (req, res) => {
 
     // The signed-in user's own contact details, not the business owner's.
     const user = req.user.userId
-      ? await BusinessUser.findById(req.user.userId).select('phone userId').lean()
+      ? await BusinessUser.findById(req.user.userId).select('phone userId fullName').lean()
       : null;
 
     return res.status(200).json({
@@ -165,6 +185,8 @@ const getBusinessProfile = async (req, res) => {
         pincode: business.pincode || '',
         phone: user?.phone || '',
         loginId: user?.userId || '',
+        // The account holder's own name, as given at signup.
+        fullName: user?.fullName || '',
         // Printed on the invoice footer.
         bankName: business.bankName || '',
         bankBranch: business.bankBranch || '',
@@ -263,6 +285,120 @@ const updateDashboardMatrices = async (req, res) => {
   }
 };
 
+// The two houses on the live bhaw feed — the only ones a shop can follow.
+// A name a shop adds is kept as a request for that house's rates; it is not
+// a choice, so it never changes what Home costs.
+const BUILT_IN_BULLION = [
+  { key: 'jmd_patil', label: 'JMD Patil' },
+  { key: 'mega_bullion', label: 'Mega Bullion' },
+];
+const MAX_CUSTOM_BULLION = 10;
+const BULLION_NAME_MAX = 40;
+
+const cleanBullionName = (value) => String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, BULLION_NAME_MAX);
+
+/** The names a shop added: trimmed, de-duplicated, and never a built-in. */
+const cleanCustomNames = (values) => {
+  const out = [];
+  const seen = new Set(BUILT_IN_BULLION.flatMap((house) => [house.key, house.label.toLowerCase()]));
+  for (const value of Array.isArray(values) ? values : []) {
+    const name = cleanBullionName(value);
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+    if (out.length >= MAX_CUSTOM_BULLION) break;
+  }
+  return out;
+};
+
+/**
+ * GET /settings/bullion — the houses this account can follow, the one it
+ * follows, and the names it has asked us to add. An account that has never
+ * chosen follows the record the older boolean left behind, so nothing changes
+ * under anyone.
+ */
+const getBullionSources = async (req, res) => {
+  try {
+    const scope = settingsScope(req.user);
+    const [setting, metrics] = await Promise.all([
+      findScopedSetting(BullionSource, scope),
+      findScopedSetting(DashboardMetrics, scope),
+    ]);
+
+    const requestedNames = cleanCustomNames(setting?.customNames);
+    const fallback = metrics?.metricsData?.bhaw_source_jmd ? 'jmd_patil' : 'mega_bullion';
+    const stored = cleanBullionName(setting?.selected);
+    const followable = BUILT_IN_BULLION.map((house) => house.key);
+    const selected = followable.includes(stored) ? stored : fallback;
+
+    return res.status(200).json({
+      success: true,
+      data: { builtIn: BUILT_IN_BULLION, requestedNames, selected },
+    });
+  } catch (error) {
+    console.error('Get Bullion Sources Error:', error);
+    return res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+/**
+ * POST /settings/bullion — the house to follow, and any names the shop has
+ * asked us to add. Only a house on the feed can be followed: a requested name
+ * is recorded and answered later, so it cannot move a shop's price today.
+ */
+const updateBullionSources = async (req, res) => {
+  try {
+    const scope = settingsScope(req.user);
+    const customNames = cleanCustomNames(req.body?.requestedNames ?? req.body?.customNames);
+    const requested = cleanBullionName(req.body?.selected);
+    const followable = BUILT_IN_BULLION.map((house) => house.key);
+
+    if (requested && !followable.includes(requested)) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Pick one of the bullion houses on the feed' });
+    }
+
+    const selected = requested || BUILT_IN_BULLION[1].key;
+    const setting = await upsertScopedSetting(BullionSource, scope, { selected, customNames });
+    if (customNames.length) {
+      // What the shop is waiting for, in the log the team reads.
+      console.info('[BULLION_REQUESTED]', {
+        businessId: String(scope.businessId),
+        userId: scope.userId ? String(scope.userId) : null,
+        names: customNames,
+      });
+    }
+
+    // The older boolean still drives anything that has not read this setting
+    // yet, so it is kept in step: a house the shop added is not JMD Patil.
+    const metrics = await findScopedSetting(DashboardMetrics, scope);
+    await upsertScopedSetting(DashboardMetrics, scope, {
+      metricsData: {
+        ...(metrics?.metricsData || {}),
+        bhaw_source_jmd: selected === 'jmd_patil',
+      },
+    });
+
+    // The rate is cached per account; the choice changes what it should be.
+    const redisService = require('../services/redis.service');
+    await redisService.invalidateGoldRatesCache(scope.businessId.toString());
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        builtIn: BUILT_IN_BULLION,
+        requestedNames: cleanCustomNames(setting.customNames),
+        selected: setting.selected,
+      },
+    });
+  } catch (error) {
+    console.error('Update Bullion Sources Error:', error);
+    return res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
 const getSupremeRates = async (req, res) => {
   try {
     const redisService = require('../services/redis.service');
@@ -337,6 +473,8 @@ module.exports = {
   getFormulaConfig,
   updateFormulaConfig,
   getDashboardMatrices,
-  updateDashboardMatrices
+  updateDashboardMatrices,
+  getBullionSources,
+  updateBullionSources
   ,getSupremeRates, updateSupremeRates
 };

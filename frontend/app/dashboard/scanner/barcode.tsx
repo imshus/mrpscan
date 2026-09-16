@@ -17,6 +17,7 @@ import {
   prewarmImagePreparation,
 } from '@/utils/imagePicker';
 import { createScan, detectTagArea } from '@/utils/scanApi';
+import { currentScopeGeneration } from '@/utils/userScopedStorage';
 import { invalidateBackgroundUploads, startBackgroundSideUpload } from '@/utils/uploadPipeline';
 
 type ConfirmedCapture = {
@@ -115,6 +116,7 @@ export default function BarcodeScannerScreen() {
     operationStartingRef.current = true;
     setIsStartingOperation(true);
     setScanSessionBootstrapping(true);
+    const issuedAt = currentScopeGeneration();
     try {
       resetScanSession();
       resetScanLoading();
@@ -141,6 +143,9 @@ export default function BarcodeScannerScreen() {
         source,
         hasBackImage: Boolean(backUri),
       });
+      // The account changed while the session was being opened: this scan
+      // and its photographs are the previous account's, not the next one's.
+      if (issuedAt !== currentScopeGeneration()) return;
       setScanId(session.scanId);
       setFrontImageUri(frontUri);
       setBackImageUri(backUri);
@@ -284,11 +289,21 @@ export default function BarcodeScannerScreen() {
       // it and the frame goes to it, leaving the user only a nudge to make.
       pickedUriRef.current = uri;
       setFindingTag(true);
-      void detectTagArea(uri).then((box) => {
-        if (pickedUriRef.current !== uri) return;
-        setFindingTag(false);
-        if (box) adjustRef.current?.frameRegion(box);
-      });
+      void detectTagArea(uri).then(
+        (box) => {
+          if (pickedUriRef.current !== uri) return;
+          setFindingTag(false);
+          if (box) adjustRef.current?.frameRegion(box);
+        },
+        (error) => {
+          if (pickedUriRef.current !== uri) return;
+          setFindingTag(false);
+          Alert.alert(
+            'Find the tag',
+            error instanceof Error ? error.message : 'Could not find the tag automatically.',
+          );
+        },
+      );
     } catch {
       setIsPickingImage(false);
       Alert.alert('Upload Error', 'Could not load image from your device. Please try again.');

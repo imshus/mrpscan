@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { ChevronDown, ChevronRight, Settings2, X } from 'lucide-react-native';
+import { ChevronDown, ChevronRight, X } from 'lucide-react-native';
 
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
@@ -34,10 +34,7 @@ interface GoldRateSettingsRowProps {
 export function GoldRateSettingsRow({ onPress }: GoldRateSettingsRowProps) {
   return (
     <Pressable onPress={onPress} style={styles.settingsRow}>
-      <View style={styles.settingsRowLeft}>
-        <Settings2 size={18} color={BUTTON_GREEN} />
-        <Text style={styles.settingsRowText}>Gold Rate Settings</Text>
-      </View>
+      <Text style={styles.settingsRowText}>Gold Rate Settings</Text>
       <ChevronRight size={18} color={Colors.textMuted} />
     </Pressable>
   );
@@ -648,7 +645,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     backgroundColor: Colors.white,
   },
-  settingsRowLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   settingsRowText: { fontSize: 15, fontWeight: '600', color: Colors.textPrimary },
   scannerSection: { gap: Spacing.sm },
   scannerLabel: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },

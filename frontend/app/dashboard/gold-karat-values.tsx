@@ -243,7 +243,7 @@ export default function GoldKaratValuesScreen() {
       <BackgroundPattern />
 
       {/* The header stays put; only the content scrolls beneath it. */}
-      <PageHeader title="Gold Karat Values" />
+      <PageHeader title="Gold Karat Settings" />
       <ScrollView contentContainerStyle={screenStyles.scrollContent} showsVerticalScrollIndicator={false}>
 
         {showGoldLoading ? (
@@ -277,7 +277,7 @@ export default function GoldKaratValuesScreen() {
             {hiddenGoldRates.length > 0 ? (
               <View style={styles.hiddenSection}>
                 <Pressable onPress={toggleHiddenSection} style={styles.hiddenHeader}>
-                  <Text style={styles.hiddenTitle}>Hidden Gold Karat Values ({hiddenGoldRates.length})</Text>
+                  <Text style={styles.hiddenTitle}>Hidden Gold Karats ({hiddenGoldRates.length})</Text>
                   <ChevronDown
                     size={18}
                     color={Colors.textMuted}
@@ -312,7 +312,7 @@ export default function GoldKaratValuesScreen() {
         onDismiss={() => setToast((prev) => ({ ...prev, visible: false }))}
       />
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
 
       <Modal visible={editingGold !== null} transparent animationType="fade" onRequestClose={() => setEditingGold(null)}>
         <View style={screenStyles.modalOverlay}>

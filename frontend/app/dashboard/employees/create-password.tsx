@@ -176,7 +176,7 @@ export default function CreateEmployeePasswordScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <BottomNav activeRoute="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }
