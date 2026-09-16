@@ -42,10 +42,12 @@ export function ColorstoneRatesPanel({ onToast }: ColorstoneRatesPanelProps) {
   const [rates, setRates] = useState<StoneRate[]>([]);
   const [editingRate, setEditingRate] = useState<StoneRate | null>(null);
   const [isNew, setIsNew] = useState(false);
+  const [packetCode, setPacketCode] = useState('');
   const [color, setColor] = useState('');
   const [clarity, setClarity] = useState('');
   const [rateValue, setRateValue] = useState('');
   const [formErrors, setFormErrors] = useState<{
+    packetCode?: string;
     color?: string;
     clarity?: string;
     rate?: string;
@@ -98,6 +100,7 @@ export function ColorstoneRatesPanel({ onToast }: ColorstoneRatesPanelProps) {
   const openAdd = () => {
     setIsNew(true);
     setEditingRate(null);
+    setPacketCode('');
     setColor('');
     setClarity('');
     setRateValue('');
@@ -107,6 +110,7 @@ export function ColorstoneRatesPanel({ onToast }: ColorstoneRatesPanelProps) {
   const openEdit = (rate: StoneRate) => {
     setIsNew(false);
     setEditingRate(rate);
+    setPacketCode(rate.packetCode ?? '');
     setColor(rate.color);
     setClarity(rate.clarity);
     setRateValue(String(rate.rate));
@@ -120,8 +124,15 @@ export function ColorstoneRatesPanel({ onToast }: ColorstoneRatesPanelProps) {
   };
 
   const handleSave = async () => {
+    const trimmedPacketCode = packetCode.trim().toUpperCase();
     const errors = validateStoneRateForm(color, clarity, rateValue, undefined, false);
-    if (errors) {
+    // A packet code names the rate on its own, so it satisfies the
+    // colour-or-clarity requirement.
+    if (errors && trimmedPacketCode) {
+      delete errors.color;
+      delete errors.clarity;
+    }
+    if (errors && Object.keys(errors).length > 0) {
       setFormErrors(errors);
       return;
     }
@@ -136,10 +147,16 @@ export function ColorstoneRatesPanel({ onToast }: ColorstoneRatesPanelProps) {
         trimmedColor,
         trimmedClarity,
         '',
+        trimmedPacketCode,
         editingRate?.id,
       )
     ) {
-      notify('A rate with the same color and clarity already exists.', 'error');
+      notify(
+        trimmedPacketCode
+          ? 'A rate with the same packet code already exists.'
+          : 'A rate with the same color and clarity already exists.',
+        'error',
+      );
       return;
     }
 
@@ -148,6 +165,7 @@ export function ColorstoneRatesPanel({ onToast }: ColorstoneRatesPanelProps) {
       const payload: UpsertStoneRatePayload = {
         color: trimmedColor,
         clarity: trimmedClarity,
+        packetCode: trimmedPacketCode,
         rate,
       };
 
@@ -200,6 +218,7 @@ export function ColorstoneRatesPanel({ onToast }: ColorstoneRatesPanelProps) {
       ) : (
         <View style={styles.table}>
           <View style={[styles.row, styles.headerRow]}>
+            <Text style={[styles.headerCell, styles.packetCell]}>Packet</Text>
             <Text style={[styles.headerCell, styles.colorCell]}>Color</Text>
             <Text style={[styles.headerCell, styles.clarityCell]}>Clarity</Text>
             <Text style={[styles.headerCell, styles.rateCell]}>Rate (₹)</Text>
@@ -213,6 +232,9 @@ export function ColorstoneRatesPanel({ onToast }: ColorstoneRatesPanelProps) {
             const rowBorder = index < rates.length - 1;
             return (
               <View key={rate.id} style={[styles.row, rowBorder && styles.rowBorder]}>
+                <Text style={[styles.cell, styles.packetCell]} numberOfLines={1}>
+                  {rate.packetCode?.trim() ? rate.packetCode.trim() : '—'}
+                </Text>
                 <Text style={[styles.cell, styles.colorCell]} numberOfLines={1}>
                   {formatTableValue(rate.color || 'None')}
                 </Text>
@@ -251,6 +273,7 @@ export function ColorstoneRatesPanel({ onToast }: ColorstoneRatesPanelProps) {
       <ColorstoneRateFormModal
         visible={isNew || editingRate !== null}
         isNew={isNew}
+        packetCode={packetCode}
         color={color}
         clarity={clarity}
         rateValue={rateValue}
@@ -258,6 +281,17 @@ export function ColorstoneRatesPanel({ onToast }: ColorstoneRatesPanelProps) {
         saving={saving}
         colorOptions={colorOptions}
         clarityOptions={clarityOptions}
+        onPacketCodeChange={(value) => {
+          setPacketCode(value.toUpperCase());
+          if (formErrors.packetCode || formErrors.color || formErrors.clarity) {
+            setFormErrors((prev) => ({
+              ...prev,
+              packetCode: undefined,
+              color: undefined,
+              clarity: undefined,
+            }));
+          }
+        }}
         onColorChange={(value) => {
           setColor(value);
           if (formErrors.color || formErrors.clarity) {
@@ -351,9 +385,10 @@ const styles = StyleSheet.create({
   rowBorder: {
     ...screenStyles.tableRowBorder,
   },
-  colorCell: { flex: 1 },
-  clarityCell: { flex: 1 },
-  rateCell: { flex: 1 },
+  packetCell: { flex: 1.2, minWidth: 0 },
+  colorCell: { flex: 0.9, minWidth: 0 },
+  clarityCell: { flex: 0.9, minWidth: 0 },
+  rateCell: { flex: 1, minWidth: 0 },
   actionCell: { width: 44, alignItems: 'center', justifyContent: 'center' },
   deleteHeaderCell: { paddingRight: 6 },
   deleteActionCell: { paddingRight: 6 },

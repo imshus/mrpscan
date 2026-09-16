@@ -17,13 +17,15 @@ import { Colors, Radius } from '@/constants/theme';
 interface ColorstoneRateFormModalProps {
   visible: boolean;
   isNew: boolean;
+  packetCode: string;
   color: string;
   clarity: string;
   rateValue: string;
-  errors: { color?: string; clarity?: string; rate?: string };
+  errors: { packetCode?: string; color?: string; clarity?: string; rate?: string };
   saving?: boolean;
   colorOptions: readonly StoneSelectOption[];
   clarityOptions: readonly StoneSelectOption[];
+  onPacketCodeChange: (value: string) => void;
   onColorChange: (value: string) => void;
   onClarityChange: (value: string) => void;
   onRateChange: (value: string) => void;
@@ -37,6 +39,7 @@ interface ColorstoneRateFormModalProps {
 export function ColorstoneRateFormModal({
   visible,
   isNew,
+  packetCode,
   color,
   clarity,
   rateValue,
@@ -44,6 +47,7 @@ export function ColorstoneRateFormModal({
   saving = false,
   colorOptions,
   clarityOptions,
+  onPacketCodeChange,
   onColorChange,
   onClarityChange,
   onRateChange,
@@ -62,8 +66,30 @@ export function ColorstoneRateFormModal({
           </Pressable>
           <Text style={styles.title}>{isNew ? 'Add' : 'Edit'} Colorstone Rate</Text>
           <Text style={styles.hint}>
-            Select Color only, Clarity only, or both. At least one is required.
+            Enter Packet Code or select Color or Clarity. At least one is required.
           </Text>
+
+          <Text style={styles.fieldLabel}>Packet Code (Optional)</Text>
+          <TextInput
+            value={packetCode}
+            onChangeText={onPacketCodeChange}
+            accessibilityLabel="Packet Code (Optional)"
+            autoCapitalize="characters"
+            style={[styles.input, errors.packetCode ? styles.inputError : null]}
+          />
+          {errors.packetCode ? <Text style={styles.error}>{errors.packetCode}</Text> : null}
+
+          <Text style={[styles.fieldLabel, styles.fieldLabelSpaced]}>Rate (₹)</Text>
+          <TextInput
+            value={rateValue}
+            onChangeText={onRateChange}
+            keyboardType="decimal-pad"
+            accessibilityLabel="Rate (₹)"
+            style={[styles.input, errors.rate ? styles.inputError : null]}
+          />
+          {errors.rate ? <Text style={styles.error}>{errors.rate}</Text> : null}
+
+          <View style={styles.selectSpacer} />
 
           <StoneOptionSelect
             label="Color"
@@ -95,16 +121,6 @@ export function ColorstoneRateFormModal({
             validateCustomValue={(value) => validateCustomValue?.(value, 'clarity') ?? null}
             customAutoCapitalize="none"
           />
-
-          <Text style={styles.fieldLabel}>Rate (₹)</Text>
-          <TextInput
-            value={rateValue}
-            onChangeText={onRateChange}
-            keyboardType="decimal-pad"
-            accessibilityLabel="Rate (₹)"
-            style={[styles.input, errors.rate ? styles.inputError : null]}
-          />
-          {errors.rate ? <Text style={styles.error}>{errors.rate}</Text> : null}
 
           <View style={styles.actions}>
             <Pressable onPress={onClose} style={styles.cancelBtn}>
@@ -153,6 +169,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 6,
   },
+  fieldLabelSpaced: { marginTop: 14 },
+  // The selects carry their own label spacing; this keeps the first one off
+  // the rate field above it.
+  selectSpacer: { height: 14 },
   input: {
     minHeight: 48,
     borderWidth: 1,
