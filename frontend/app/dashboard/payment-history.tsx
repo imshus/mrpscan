@@ -222,11 +222,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: Colors.textPrimary,
+    // Yields the width so a long payment type wraps instead of pushing the
+    // amount beside it off the card.
+    flex: 1,
+    paddingRight: 10,
   },
   rowAmount: {
     fontSize: 13,
     fontWeight: '800',
     color: Colors.primary,
+    flexShrink: 0,
+    textAlign: 'right',
   },
   rowMeta: {
     marginTop: 2,
