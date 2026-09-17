@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.amitaashitsolution",
-      "buildNumber": "176",
+      "buildNumber": "227",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
