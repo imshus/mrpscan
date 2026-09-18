@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 
@@ -192,79 +192,18 @@ export default function GstVerificationScreen() {
         address,
       });
 
-      // Phone and password are owned by the "Get started" form. If either is
-      // missing, send the user back to the screen that can fix it — showing a
-      // password or phone message under the GSTIN input is wrong.
+      // The phone belongs to the "Get started" form; a message about it does
+      // not belong under the GSTIN input.
       const phone = registration.phone?.replace(/\D/g, '').slice(0, 10);
-      const password = registration.password;
       if (!phone || phone.length !== 10) {
         sendBackToPhone('Enter a valid 10-digit phone number.');
         return;
       }
-      if (!password) {
-        // Back to the Get started form, which owns the password field.
-        router.back();
-        return;
-      }
 
-      // Phone OTP was already verified on the "Get started" form, so finish
-      // registration here — mockup shows the success toast on this screen.
-      const registered = await registerBusiness({
-        mobile: phone,
-        password,
-        userId: registration.userId,
-        fullName: registration.fullName,
-        businessDetails: {
-          businessId: confirmed.businessId,
-          businessName,
-          businessType,
-          address,
-        },
-      });
-
-      if (!registered.success) {
-        // Older backend without pre-GST OTP support — fall back to its
-        // businessId-bound OTP round.
-        if (registered.error?.toLowerCase().includes('verify mobile')) {
-          await submitBusinessContactDetails({ businessId: confirmed.businessId, phone });
-          router.push('/register/otp-phone');
-          return;
-        }
-        if (registered.field === 'userId' || isUserIdProblem(registered.error)) {
-          sendBackToUserId(registered.error ?? 'This User ID is already taken.');
-          return;
-        }
-        if (registered.field === 'phone' || isPhoneProblem(registered.error)) {
-          sendBackToPhone(registered.error ?? 'This phone number cannot be used.');
-          return;
-        }
-        if (registered.field === 'password' || isPasswordProblem(registered.error)) {
-          sendBackToPassword(registered.error ?? 'Please choose a different password.');
-          return;
-        }
-        setFormError(registered.error ?? 'Registration failed.');
-        triggerShake();
-        return;
-      }
-
-      updateRegistration({
-        password: undefined,
-        phoneError: undefined,
-        userIdError: undefined,
-        passwordError: undefined,
-      });
-      setAccountCreated(true);
-      // Remember the User ID, which is what signing in asks for.
-      const loginId = registration.userId ?? '';
-      if (loginId) setSavedCredentials(loginId);
-
-      // Signed in with the credentials just registered, so the shop lands on
-      // Home; the session goes live after the "account created" moment.
-      const session = await prepareSignInAfterSignup(loginId, password);
-      setTimeout(() => {
-        if (session) session.activate();
-        else router.replace('/login');
-      }, 1600);
+      // The account is created on the next screen, together with the MPIN:
+      // there is nothing to create until the credential it signs in with
+      // exists. The success moment moves there with it.
+      router.push('/register/mpin' as Href);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to confirm GST details.';
       if (isUserIdProblem(message)) {

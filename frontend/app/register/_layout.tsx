@@ -15,6 +15,7 @@ export default function RegisterLayout() {
       <Stack.Screen name="contact" />
       <Stack.Screen name="otp-phone" />
       <Stack.Screen name="password" />
+      <Stack.Screen name="mpin" />
     </Stack>
   );
 }

@@ -95,12 +95,13 @@ async function seedDashboardDefaults(): Promise<void> {
  */
 export async function prepareSignInAfterSignup(
   loginId: string | undefined,
-  password: string | undefined,
+  credential: string | { mpin?: string; password?: string } | undefined,
 ): Promise<{ activate: () => Promise<void> } | null> {
   const id = String(loginId ?? '').trim();
-  if (!id || !password) return null;
+  const secret = typeof credential === 'string' ? { password: credential } : (credential || {});
+  if (!id || !(secret.mpin || secret.password)) return null;
 
-  const result = await loginBusiness(id, password);
+  const result = await loginBusiness(id, secret);
   if (!result.success || !result.data) return null;
 
   const payload = result.data;
