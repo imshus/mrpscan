@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 
@@ -21,23 +20,25 @@ import {
   useShake,
 } from '@/components/auth/AuthKit';
 import { Reveal } from '@/components/auth/Reveal';
+import { MPIN_LENGTH, MpinInput } from '@/components/ui/MpinInput';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { loginBusiness } from '@/utils/authApi';
 
-/**
- * Sign-in is by User ID only, so the value is used exactly as typed. It is
- * never reinterpreted as a phone number: a User ID made of digits belongs to
- * whoever registered it.
- */
-function toLoginId(raw: string): string {
-  return raw.trim();
+/** Ten digits, however the number was typed or pasted. */
+function toPhone(raw: string): string {
+  return raw.replace(/\D/g, '').slice(-10);
+}
+
+function maskPhone(phone: string): string {
+  return phone.length === 10 ? `${phone.slice(0, 2)} ••••• ${phone.slice(-3)}` : phone;
 }
 
 export default function BusinessLoginScreen() {
   const router = useRouter();
   const {
     rememberMe,
+    savedPhone,
     setAuthenticated,
     setAuthToken,
     setRefreshToken,
@@ -48,32 +49,44 @@ export default function BusinessLoginScreen() {
     updateRegistration,
   } = useAuthStore();
 
-  // Always start blank — never pre-fill the User ID from cached/saved data.
-  // The one exception is an id handed over by Forgot User ID in this same
-  // session: the user just recovered it and asked to be taken here with it, so
-  // it comes from the navigation, never from storage.
-  const { userId: recoveredUserId } = useLocalSearchParams<{ userId?: string }>();
-  const [userId, setUserId] = useState(
-    typeof recoveredUserId === 'string' ? recoveredUserId : '',
-  );
-  const [password, setPassword] = useState('');
+  // The mockup's sign-in is the MPIN alone, over "Welcome back" — it assumes
+  // the device knows whose shop it is. It does, once this one has signed in
+  // here before. A phone that never has (or was wiped by a new build) is asked
+  // for the number first, since four digits alone name nobody.
+  const remembered = toPhone(savedPhone || '');
+  const [phone, setPhone] = useState(remembered);
+  const [askForNumber, setAskForNumber] = useState(remembered.length !== 10);
+  const [mpin, setMpin] = useState('');
   const [invalid, setInvalid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
 
-  const handleLogin = async () => {
-    const loginId = toLoginId(userId);
-    if (!loginId || !password) {
+  const handleLogin = async (submittedMpin = mpin) => {
+    const loginPhone = toPhone(phone);
+    if (loginPhone.length !== 10 || submittedMpin.length !== MPIN_LENGTH) {
       setInvalid(true);
       triggerShake();
       return;
     }
 
     setLoading(true);
-    console.log('[auth] Password Login');
     try {
-      const result = await loginBusiness(loginId, password);
+      const result = await loginBusiness(loginPhone, { mpin: submittedMpin });
+
+      // The account exists but has no MPIN — everyone who registered before
+      // MPINs did. Send them to set one rather than showing them an error
+      // about a credential they were never given.
+      if (result.code === 'MPIN_NOT_SET') {
+        setMpin('');
+        router.push({
+          pathname: '/login/set-mpin',
+          params: { phone: loginPhone, mode: 'first' },
+        } as unknown as Href);
+        return;
+      }
+
       if (!result.success || !result.data) {
+        setMpin('');
         setInvalid(true);
         triggerShake();
         return;
@@ -102,21 +115,17 @@ export default function BusinessLoginScreen() {
         gstNumber: payload.gstNumber || '',
         businessType: payload.businessType || '',
         address: payload.address || '',
-        // Only ever the real phone number. Falling back to the login ID here
-        // stored a User ID in the phone field, which then surfaced anywhere
-        // the app shows the user's number.
-        phone: payload.phone || '',
-        userId: payload.loginId || loginId,
-        // Kept only when the server knows it: an older API would otherwise
-        // blank the name this account signed up with.
+        phone: payload.phone || loginPhone,
+        ...(payload.loginId ? { userId: payload.loginId } : {}),
         ...(payload.fullName ? { fullName: payload.fullName } : {}),
       });
 
+      // Remembered so the next sign-in is the MPIN alone, the way the mockup
+      // shows it. It is a phone number, not a credential.
       if (rememberMe) {
-        setSavedCredentials(loginId);
+        setSavedCredentials(loginPhone);
       }
 
-      console.log('[auth] Navigation Success');
       router.replace('/dashboard');
     } finally {
       setLoading(false);
@@ -125,10 +134,7 @@ export default function BusinessLoginScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior="padding"
-      >
+      <KeyboardAvoidingView style={styles.flex} behavior="padding">
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -137,63 +143,79 @@ export default function BusinessLoginScreen() {
           <AuthBrand />
 
           <Animated.View style={[styles.form, shakeStyle]}>
+            {!askForNumber ? (
+              <Reveal d={1}>
+                <Text style={styles.welcome}>Welcome back</Text>
+                <View style={styles.knownRow}>
+                  <Text style={styles.knownPhone}>+91 {maskPhone(remembered)}</Text>
+                  <Pressable
+                    onPress={() => {
+                      setAskForNumber(true);
+                      setPhone('');
+                      setMpin('');
+                      setInvalid(false);
+                    }}
+                    hitSlop={6}
+                  >
+                    <Text style={styles.forgotLink}>Use another number</Text>
+                  </Pressable>
+                </View>
+              </Reveal>
+            ) : (
+              <Reveal d={1}>
+                <AuthField
+                  label="Phone No."
+                  prefix="+91"
+                  value={phone}
+                  onChangeText={(text) => {
+                    setPhone(text.replace(/\D/g, '').slice(0, 10));
+                    setInvalid(false);
+                  }}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  autoComplete="tel"
+                  error={invalid ? '' : null}
+                />
+              </Reveal>
+            )}
+
             <Reveal d={2}>
-              <AuthField
-                label="User ID"
-                value={userId}
-                onChangeText={(text) => {
-                  setUserId(text);
+              <MpinInput
+                label="Enter MPIN"
+                value={mpin}
+                onChange={(next) => {
+                  setMpin(next);
                   setInvalid(false);
                 }}
-                autoCapitalize="none"
-                autoCorrect={false}
+                autoFocus={!askForNumber}
+                onComplete={(complete) => void handleLogin(complete)}
                 error={invalid ? '' : null}
               />
               <Pressable
-                onPress={() => router.push('/login/forgot-user-id')}
+                onPress={() => router.push({
+                  pathname: '/login/set-mpin',
+                  params: { phone: toPhone(phone), mode: 'forgot' },
+                } as unknown as Href)}
                 style={styles.forgotRow}
                 hitSlop={6}
               >
-                <Text style={styles.forgotLink}>Forgot User ID?</Text>
+                <Text style={styles.forgotLink}>Forgot MPIN?</Text>
               </Pressable>
             </Reveal>
 
-            <Reveal d={3}>
-              <AuthField
-                label="Password"
-                password
-                value={password}
-                onChangeText={(text) => {
-                  setPassword(text);
-                  setInvalid(false);
-                }}
-                autoCapitalize="none"
-                error={invalid ? '' : null}
-              />
-              <Pressable
-                onPress={() => router.push('/login/forgot-password')}
-                style={styles.forgotRow}
-                hitSlop={6}
-              >
-                <Text style={styles.forgotLink}>Forgot password?</Text>
-              </Pressable>
-            </Reveal>
+            {invalid ? <AuthErrorText center>Incorrect MPIN.</AuthErrorText> : null}
 
-            {invalid ? (
-              <AuthErrorText center>Incorrect User ID or Password.</AuthErrorText>
-            ) : null}
-
-            <Reveal d={5}>
+            <Reveal d={4}>
               <AuthPrimaryButton
                 title="Log In"
-                onPress={handleLogin}
+                onPress={() => void handleLogin()}
                 loading={loading}
                 style={styles.cta}
               />
             </Reveal>
           </Animated.View>
 
-          <Reveal d={6}>
+          <Reveal d={5}>
             <AuthSwitch
               prompt="New to MRPscan?"
               linkText="Create an account"
@@ -207,31 +229,29 @@ export default function BusinessLoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  flex: {
-    flex: 1,
-  },
+  safeArea: { flex: 1, backgroundColor: Colors.background },
+  flex: { flex: 1 },
   scrollContent: {
-    paddingHorizontal: 28,
-    paddingTop: 64,
-    paddingBottom: 40,
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 32,
   },
-  form: {
-    gap: 16,
+  form: { gap: 18 },
+  welcome: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    marginBottom: 6,
   },
-  forgotRow: {
-    alignSelf: 'flex-end',
-    marginTop: 8,
+  knownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  forgotLink: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.brandDeep,
-  },
-  cta: {
-    marginTop: 6,
-  },
+  knownPhone: { fontSize: 15, fontWeight: '600', color: Colors.textSecondary },
+  forgotRow: { alignSelf: 'flex-end', marginTop: 8 },
+  forgotLink: { fontSize: 13, fontWeight: '600', color: Colors.brandDeep },
+  cta: { marginTop: 4 },
 });

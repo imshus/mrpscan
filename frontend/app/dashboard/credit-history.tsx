@@ -151,7 +151,7 @@ export default function CreditHistoryScreen() {
               pageData.records.map((item) => (
                 <View key={`${item.id}-${item.createdAt}`} style={styles.row}>
                   <View style={styles.rowHead}>
-                    <View>
+                    <View style={styles.rowTexts}>
                       <Text style={styles.rowType}>{normalizeTitle(item.type)}</Text>
                       <Text style={styles.rowDesc}>{item.note || 'Wallet transaction completed'}</Text>
                     </View>
@@ -276,7 +276,15 @@ const styles = StyleSheet.create({
   rowHead: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    // Level with the title rather than floating against the middle of a
+    // description that now wraps onto a second and third line.
+    alignItems: 'flex-start',
+  },
+  rowTexts: {
+    // Takes the room that is left and wraps inside it, so the amount beside
+    // it is never pushed past the edge of the card.
+    flex: 1,
+    paddingRight: 10,
   },
   rowType: {
     fontSize: 14,
@@ -291,6 +299,10 @@ const styles = StyleSheet.create({
   rowAmount: {
     fontSize: 16,
     fontWeight: '800',
+    // A rupee figure is the one thing on this row that must never be cut: it
+    // keeps its width whatever the note does, and reads from the right.
+    flexShrink: 0,
+    textAlign: 'right',
   },
   amountCredit: {
     color: Colors.successText,

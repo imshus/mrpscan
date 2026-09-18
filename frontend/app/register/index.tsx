@@ -26,28 +26,28 @@ import { Colors } from '@/constants/theme';
 import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { useAuthStore } from '@/store/authStore';
 import { checkRegistrationAvailability, sendLoginOtp, verifyLoginOtp } from '@/utils/authApi';
-import { validatePassword, validatePhone } from '@/utils/validation';
+import { validatePhone } from '@/utils/validation';
 
 const OTP_LENGTH = 6;
 const AVAILABILITY_ERROR = 'Could not check availability. Check your connection and try again.';
 type Availability = 'checking' | 'available' | 'taken' | 'error' | null;
 
 /**
- * Mockup "Get started" signup form (design-mockup #screenSignup):
- * Full Name, Company Name, Phone No., Create User ID, Password.
+ * The mockup's Create New Account screen (design-mockup #screenSignup): a full
+ * name and a phone number, and nothing else. The company name comes from the
+ * GST lookup two steps on, and the credential is the MPIN set at the end — so
+ * neither is asked for here.
+ *
  * Submit sends the phone OTP and opens the inline OTP box (mockup
  * .otp-collapse); once the code auto-verifies, the flow continues
- * to GST verification.
+ * to GST verification, and from there to the MPIN that creates the account.
  */
 export default function SignupScreen() {
   const router = useRouter();
   const updateRegistration = useAuthStore((s) => s.updateRegistration);
 
   const [fullName, setFullName] = useState('');
-  const [company, setCompany] = useState('');
   const [phone, setPhone] = useState('');
-  const [userId, setUserId] = useState('');
-  const [password, setPassword] = useState('');
 
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [sending, setSending] = useState(false);
@@ -58,17 +58,13 @@ export default function SignupScreen() {
   const [verifying, setVerifying] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
 
-  // Instant availability feedback for phone and User ID.
+  // Instant availability feedback for the phone number, which is now the only
+  // thing that has to be free before the OTP is sent.
   const [phoneStatus, setPhoneStatus] = useState<Availability>(null);
-  const [userIdStatus, setUserIdStatus] = useState<Availability>(null);
   const phoneCheckSeq = useRef(0);
-  const userIdCheckSeq = useRef(0);
 
   const scrollRef = useRef<ScrollView>(null);
-  const companyRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
-  const userIdRef = useRef<TextInput>(null);
-  const passwordRef = useRef<TextInput>(null);
 
   // Keyboard-avoiding padding alone leaves bottom fields right at the keyboard
   // edge; nudge the scroll after the keyboard settles so they stay visible.
@@ -102,22 +98,11 @@ export default function SignupScreen() {
   // number is already registered. Show it here, on the field that owns it.
   const registration = useAuthStore((s) => s.registration);
   useEffect(() => {
-    if (!registration.phoneError && !registration.userIdError && !registration.passwordError) return;
-    setErrors((prev) => ({
-      ...prev,
-      ...(registration.phoneError ? { phone: registration.phoneError } : {}),
-      ...(registration.userIdError ? { userId: registration.userIdError } : {}),
-      ...(registration.passwordError ? { password: registration.passwordError } : {}),
-    }));
+    if (!registration.phoneError) return;
+    setErrors((prev) => ({ ...prev, phone: registration.phoneError ?? null }));
     triggerShake();
-    updateRegistration({ phoneError: undefined, userIdError: undefined, passwordError: undefined });
-  }, [
-    registration.phoneError,
-    registration.userIdError,
-    registration.passwordError,
-    triggerShake,
-    updateRegistration,
-  ]);
+    updateRegistration({ phoneError: undefined });
+  }, [registration.phoneError, triggerShake, updateRegistration]);
 
   // Instant backend check: the moment a full phone number is typed, ask
   // whether it is free and say so right on the field.
@@ -153,44 +138,6 @@ export default function SignupScreen() {
     };
   }, [normalizedPhone]);
 
-  // Same for the User ID, once it reaches the minimum length.
-  const trimmedUserId = userId.trim();
-  useEffect(() => {
-    const seq = ++userIdCheckSeq.current;
-    // The database is the authority on a User ID: it owns both the format
-    // rules and uniqueness. Anything non-empty goes to the server, and its
-    // reply is what the user sees.
-    if (!trimmedUserId) {
-      setUserIdStatus(null);
-      setErrors((prev) => ({ ...prev, userId: null }));
-      return;
-    }
-    setUserIdStatus('checking');
-    const timer = setTimeout(async () => {
-      const result = await checkRegistrationAvailability({ mobile: '', userId: trimmedUserId });
-      if (seq !== userIdCheckSeq.current) return;
-      if (!result.success) {
-        setUserIdStatus('error');
-        setErrors((prev) => ({ ...prev, userId: result.error ?? AVAILABILITY_ERROR }));
-        return;
-      }
-      if (result.userIdTaken) {
-        setUserIdStatus('taken');
-        setErrors((prev) => ({
-          ...prev,
-          userId: 'This User ID is already taken. Please choose another.',
-        }));
-      } else {
-        setUserIdStatus('available');
-        setErrors((prev) => ({ ...prev, userId: null }));
-      }
-    }, 450);
-    return () => {
-      clearTimeout(timer);
-      if (userIdCheckSeq.current === seq) userIdCheckSeq.current += 1;
-    };
-  }, [trimmedUserId]);
-
   const clearError = (key: string) =>
     setErrors((prev) => (prev[key] ? { ...prev, [key]: null } : prev));
 
@@ -208,10 +155,7 @@ export default function SignupScreen() {
   const handleSubmit = async () => {
     const nextErrors: Record<string, string | null> = {
       fullName: fullName.trim() ? null : 'Please enter your full name',
-      company: company.trim() ? null : 'Please enter your company name',
       phone: validatePhone(normalizedPhone),
-      userId: trimmedUserId ? null : 'User ID is required',
-      password: validatePassword(password),
     };
     setErrors(nextErrors);
     setValidationError(null);
@@ -223,47 +167,35 @@ export default function SignupScreen() {
 
     setSending(true);
     try {
-      // Uniqueness lives on this page: verify phone + User ID are free before
-      // the OTP is ever sent, so taken values error on their own fields here.
+      // The number is the account's identity now, so it has to be free before
+      // an OTP is spent on it — and a taken one errors on its own field.
       const availability = await checkRegistrationAvailability({
         mobile: normalizedPhone,
-        userId: trimmedUserId,
+        userId: '',
       });
       phoneCheckSeq.current += 1;
-      userIdCheckSeq.current += 1;
 
       if (!availability.success) {
         setPhoneStatus('error');
-        setUserIdStatus('error');
         setValidationError(availability.error ?? AVAILABILITY_ERROR);
         triggerShake();
         return;
       }
 
       setPhoneStatus(availability.phoneTaken ? 'taken' : 'available');
-      setUserIdStatus(availability.userIdTaken ? 'taken' : 'available');
-      if (availability.phoneTaken || availability.userIdTaken) {
+      if (availability.phoneTaken) {
         setErrors((prev) => ({
           ...prev,
-          ...(availability.phoneTaken
-            ? { phone: 'This phone number is already associated with an account.' }
-            : {}),
-          ...(availability.userIdTaken
-            ? { userId: 'This User ID is already taken. Please choose another.' }
-            : {}),
+          phone: 'This phone number is already associated with an account.',
         }));
         triggerShake();
         return;
       }
 
-      // Persist only a draft that has passed the authoritative backend check.
-      // This prevents known-invalid fields from reaching the GST step.
+      // Only a draft the backend has already accepted reaches the GST step.
       updateRegistration({
         fullName: fullName.trim(),
-        companyName: company.trim(),
         phone: normalizedPhone,
-        userId: trimmedUserId,
-        password,
       });
 
       const result = await sendLoginOtp(normalizedPhone);
@@ -346,7 +278,7 @@ export default function SignupScreen() {
           <AuthBackButton onPress={() => router.back()} />
 
           <Reveal d={0}>
-            <AuthTitle>Get started</AuthTitle>
+            <AuthTitle>Create New Account</AuthTitle>
           </Reveal>
 
           <Animated.View style={[styles.form, shakeStyle]}>
@@ -361,25 +293,6 @@ export default function SignupScreen() {
                 }}
                                 autoComplete="name"
                 error={errors.fullName}
-                returnKeyType="next"
-                submitBehavior="submit"
-                onSubmitEditing={() => companyRef.current?.focus()}
-              />
-            </Reveal>
-
-            <Reveal d={2}>
-              <AuthField
-                label="Company Name"
-                value={company}
-                onChangeText={(text) => {
-                  setCompany(text);
-                  clearError('company');
-                  invalidateSubmittedSignup();
-                }}
-                                autoComplete="organization"
-                error={errors.company}
-                ref={companyRef}
-                onFocus={() => scrollToInput(companyRef, 150)}
                 returnKeyType="next"
                 submitBehavior="submit"
                 onSubmitEditing={() => phoneRef.current?.focus()}
@@ -402,66 +315,13 @@ export default function SignupScreen() {
                 onFocus={() => scrollToInput(phoneRef, 240)}
                 returnKeyType="next"
                 submitBehavior="submit"
-                onSubmitEditing={() => userIdRef.current?.focus()}
+                onSubmitEditing={handlePrimaryPress}
               />
               {phoneStatus === 'checking' ? (
                 <Text style={styles.checkingText}>Checking availability…</Text>
               ) : null}
               {phoneStatus === 'available' ? (
                 <Text style={styles.availableText}>✓ Phone number available</Text>
-              ) : null}
-            </Reveal>
-
-            <Reveal d={4}>
-              <AuthField
-                label="Create User ID"
-                value={userId}
-                onChangeText={(text) => {
-                  const nextUserId = text.replace(/\s/g, '');
-                  setUserId(nextUserId);
-                  // No local rule here: the pending server check decides.
-                  setErrors((prev) => ({ ...prev, userId: null }));
-                  invalidateSubmittedSignup();
-                }}
-                                autoCapitalize="none"
-                autoCorrect={false}
-                error={errors.userId}
-                ref={userIdRef}
-                onFocus={scrollToBottom}
-                returnKeyType="next"
-                submitBehavior="submit"
-                onSubmitEditing={() => passwordRef.current?.focus()}
-              />
-              {userIdStatus === 'checking' ? (
-                <Text style={styles.checkingText}>Checking availability…</Text>
-              ) : null}
-              {userIdStatus === 'available' ? (
-                <Text style={styles.availableText}>✓ User ID available</Text>
-              ) : null}
-            </Reveal>
-
-            <Reveal d={5}>
-              <AuthField
-                label="Password"
-                password
-                value={password}
-                onChangeText={(text) => {
-                  setPassword(text);
-                  setErrors((prev) => ({
-                    ...prev,
-                    password: text ? validatePassword(text) : null,
-                  }));
-                  invalidateSubmittedSignup();
-                }}
-                                autoCapitalize="none"
-                error={errors.password}
-                ref={passwordRef}
-                onFocus={scrollToBottom}
-                returnKeyType="done"
-                onSubmitEditing={handlePrimaryPress}
-              />
-              {password && !errors.password ? (
-                <Text style={styles.availableText}>✓ Password meets the requirements</Text>
               ) : null}
             </Reveal>
 
@@ -489,8 +349,11 @@ export default function SignupScreen() {
           </Animated.View>
 
           <Reveal d={7}>
+            {/* This screen is where the app now opens, so the way back to
+                Login has to read correctly: the person who needs it is not a
+                new user, they are one who already has an account. */}
             <AuthSwitch
-              prompt="New user?"
+              prompt="Already have an account?"
               linkText="Log in"
               onPress={() => router.replace('/login')}
             />

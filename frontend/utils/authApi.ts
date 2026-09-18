@@ -363,6 +363,40 @@ export async function resetForgottenPassword(
   }
 }
 
+/**
+ * Sets the MPIN behind the same OTP-verified token the password reset uses —
+ * both for an owner who forgot theirs and for one whose account predates
+ * MPINs and has none yet.
+ */
+export async function setMpinWithResetToken(
+  resetToken: string,
+  mpin: string,
+  confirmMpin: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
+      '/auth/forgot-password/set-mpin',
+      {
+        method: 'POST',
+        body: { resetToken, mpin, confirmMpin },
+      },
+    );
+    const unwrapped = unwrapEnvelope(response);
+    if (!isSuccessfulResponse(response, unwrapped)) {
+      return {
+        success: false,
+        error: resolveApiMessage(response, unwrapped, 'Could not set the MPIN.'),
+      };
+    }
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof ApiError ? error.message : 'Could not set the MPIN.',
+    };
+  }
+}
+
 export async function createBusinessPassword(payload: {
   businessId: string;
   password: string;
@@ -478,7 +512,10 @@ export async function lookupAccount(payload: {
 
 export async function registerBusiness(payload: {
   mobile: string;
-  password: string;
+  /** The four digits the owner will sign in with. */
+  mpin?: string;
+  /** Still sent by a caller that predates the MPIN; the server takes either. */
+  password?: string;
   userId?: string;
   /** The name from the signup form; the account is stored under it. */
   fullName?: string;
@@ -493,7 +530,8 @@ export async function registerBusiness(payload: {
 }): Promise<{ success: boolean; error?: string; field?: RegistrationErrorField }> {
   const body = {
     mobile: payload.mobile.replace(/\D/g, '').slice(-10),
-    password: payload.password,
+    ...(payload.mpin ? { mpin: payload.mpin } : {}),
+    ...(payload.password ? { password: payload.password } : {}),
     userId: payload.userId?.trim() || undefined,
     fullName: payload.fullName?.trim() || undefined,
     referralCode: payload.referralCode?.trim().toUpperCase() || undefined,
@@ -561,8 +599,23 @@ export async function registerBusiness(payload: {
   }
 }
 
-export async function loginBusiness(mobile: string, password: string): Promise<{
+/**
+ * Signs an owner in with a phone number and a 4-digit MPIN.
+ *
+ * `credential` still accepts a plain string, which is the password an older
+ * call site passes with a User ID; the server takes either while builds that
+ * predate the MPIN are still in use.
+ *
+ * A `code` of MPIN_NOT_SET means the account is real but has no MPIN yet —
+ * every account created before this — and the screen sends it to set one over
+ * an OTP rather than reporting a wrong credential.
+ */
+export async function loginBusiness(
+  mobile: string,
+  credential: string | { mpin?: string; password?: string },
+): Promise<{
   success: boolean;
+  code?: string;
   data?: BusinessLoginResponse & {
     businessName?: string;
     gstNumber?: string;
@@ -578,17 +631,25 @@ export async function loginBusiness(mobile: string, password: string): Promise<{
   error?: string;
 }> {
   try {
-    // Sign-in is by User ID only, so send exactly what was typed. Stripping
-    // formatting would corrupt IDs containing dots, underscores or hyphens.
+    // Sent exactly as typed. The server reads ten digits as a phone number and
+    // anything else as a User ID, and stripping formatting here would corrupt
+    // an ID containing dots, underscores or hyphens.
     const loginId = mobile.trim();
+    const { mpin, password } = typeof credential === 'string'
+      ? { mpin: undefined, password: credential }
+      : credential;
+
     const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/login', {
       method: 'POST',
-      body: { mobile: loginId, password },
+      body: { mobile: loginId, ...(mpin ? { mpin } : { password }) },
     });
     const unwrapped = unwrapEnvelope(response);
     if (!isSuccessfulResponse(response, unwrapped)) {
       return {
         success: false,
+        // The server's own code, so "no MPIN yet" can be told apart from a
+        // wrong one by the screen rather than by matching on wording.
+        code: readString(response as Record<string, unknown>, ['error']) || undefined,
         error: resolveApiMessage(response, unwrapped, 'Login failed.'),
       };
     }

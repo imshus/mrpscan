@@ -50,8 +50,19 @@ export function applyUploadSigning(projectRoot, { required = false } = {}) {
         'Place the keystore Play expects in frontend/credentials/ (see docs/play-upload-key.md) or, after a Play upload-key reset, update expected-upload-sha1.txt.';
       // The Play bundle must not be built with the wrong key; a test APK may be,
       // since it never goes to Play.
-      if (required) throw new Error(message);
-      console.warn(`[UPLOAD_KEY_MISMATCH] ${message} Building the test APK with it anyway.`);
+      //
+      // ALLOW_UPLOAD_KEY_MISMATCH=1 builds the bundle anyway, for the case where
+      // a bundle is wanted for something other than this listing — bundletool
+      // on a test device, or an upload-key reset that Play has since accepted
+      // but expected-upload-sha1.txt has not caught up with. It stays loud:
+      // nothing signed with this key uploads until Play expects it.
+      const overridden = /^(1|true|yes)$/i.test(String(process.env.ALLOW_UPLOAD_KEY_MISMATCH || ''));
+      if (required && !overridden) throw new Error(message);
+      if (overridden) {
+        console.warn(`[UPLOAD_KEY_MISMATCH_OVERRIDDEN] ${message} Building anyway because ALLOW_UPLOAD_KEY_MISMATCH is set.`);
+      } else {
+        console.warn(`[UPLOAD_KEY_MISMATCH] ${message} Building the test APK with it anyway.`);
+      }
     } else {
       console.log(`Release signing: upload key fingerprint verified (${actual})`);
     }
