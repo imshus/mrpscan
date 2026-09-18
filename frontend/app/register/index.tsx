@@ -489,8 +489,11 @@ export default function SignupScreen() {
           </Animated.View>
 
           <Reveal d={7}>
+            {/* This screen is where the app now opens, so the way back to
+                Login has to read correctly: the person who needs it is not a
+                new user, they are one who already has an account. */}
             <AuthSwitch
-              prompt="New user?"
+              prompt="Already have an account?"
               linkText="Log in"
               onPress={() => router.replace('/login')}
             />
