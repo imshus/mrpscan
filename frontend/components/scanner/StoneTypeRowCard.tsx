@@ -1,15 +1,12 @@
 import { memo, useCallback, useEffect, useRef } from 'react';
 
 import {
-  MetalFieldSlot,
   MetalGrid,
   MetalInput,
   MetalTile,
   MetalValueBox,
 } from '@/components/scanner/ReviewCardKit';
-import { SearchableSelectDropdown } from '@/components/scanner/SearchableSelectDropdown';
 import { useStoneRateFetch } from '@/hooks/useStoneRateFetch';
-import { DIAMOND_SHAPE_OPTIONS } from '@/constants/stoneRateOptions';
 import type { StoneKind } from '@/types/scanner';
 import { buildQuality } from '@/utils/qualityUtils';
 import { computeStoneAmountWithDiscount, computeStoneAmount } from '@/utils/scanPriceCalculation';
@@ -41,6 +38,13 @@ interface StoneTypeRowCardProps {
   sequenceIndex: number;
   values: StoneTypeRowValues;
   editable?: boolean;
+  /**
+   * Marks the values this stone needs and does not have, once the shop has
+   * tried to move on. A stone the tag printed but did not spell out has to be
+   * filled in before it can be priced, and a blank box gives no sign of that
+   * on its own.
+   */
+  missing?: boolean;
   // The row binds its own indices so the parent can hand every row the same
   // callback instance instead of a fresh closure per render, which is what
   // lets React.memo skip rows that did not change.
@@ -82,6 +86,7 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
   values,
   attention,
   editable = false,
+  missing = false,
   onChange,
   onRateErrorChange,
   shapeOptions,
@@ -103,23 +108,6 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
     if (raw.toLowerCase() === 'none') return '';
     const match = shapeOptions?.find((opt) => opt.value.toLowerCase() === raw.toLowerCase());
     return match?.value ?? raw;
-  })();
-  const dropdownOptions = (() => {
-    const rawOptions = [
-      { value: '', label: 'None' },
-      ...(shapeOptions ?? DIAMOND_SHAPE_OPTIONS).map((opt) => ({
-        value: opt.value,
-        label: opt.label ?? opt.value,
-      })),
-    ];
-    const seen = new Set<string>();
-    return rawOptions.filter((option) => {
-      const normalized = option.value.trim().toLowerCase();
-      const key = normalized === 'none' ? '' : normalized;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
   })();
   // Diamond Rate setup permits any one of packet code, shape, color or clarity.
   const hasLookupCriteria =
@@ -182,73 +170,41 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
     emitChange({ clarity, quality: buildQuality(values.color, clarity) });
   };
 
-  const handleDiscountChange = (text: string) => {
-    // Keep the text as typed (one decimal point at most) rather than
-    // round-tripping it through a number: String(parseFloat('5.')) is '5',
-    // which ate the decimal point the moment it was pressed and made a
-    // fractional discount impossible to enter. Clamp only when out of range.
-    const cleaned = text.replace(/[^0-9.]/g, '');
-    if (!cleaned) {
-      emitChange({ discountPercent: '' });
-      return;
-    }
-    const [integerPart = '', ...rest] = cleaned.split('.');
-    const next = cleaned.includes('.') ? `${integerPart}.${rest.join('')}` : integerPart;
-    if (next === '.') {
-      emitChange({ discountPercent: '' });
-      return;
-    }
-    const parsed = Number.parseFloat(next);
-    if (Number.isFinite(parsed) && parsed > 100) {
-      emitChange({ discountPercent: '100' });
-      return;
-    }
-    emitChange({ discountPercent: next });
-  };
 
   return (
     <MetalTile title={title} tone={stoneType === 'diamond' ? 'diamond' : 'plain'}>
       <MetalGrid>
-        {stoneType === 'diamond' ? (
-          <MetalFieldSlot label="Shape" attention={attention?.shape}>
-            <SearchableSelectDropdown compact
-              value={resolvedShape}
-              options={dropdownOptions}
-              onChange={(shape) => emitChange({ shape })}
-              placeholder="None"
-              containerClassName="w-full"
+        {/* A diamond shows the four the design gives it — weight, rate, packet
+            code, amount — and nothing else. Shape, colour, clarity and the
+            discount are still read from the tag and still price the stone;
+            they are simply not four more boxes to read past on a counter. A
+            colorstone keeps its colour and clarity, which are what identifies
+            one. */}
+        {stoneType === 'colorstone' ? (
+          <>
+            <MetalInput
+              label="Color"
+              value={values.color}
+              onChangeText={handleColorChange}
+              editable={editable}
+              attention={attention?.color}
             />
-          </MetalFieldSlot>
+            <MetalInput
+              label="Clarity"
+              value={values.clarity}
+              onChangeText={handleClarityChange}
+              editable={editable}
+              attention={attention?.clarity}
+            />
+          </>
         ) : null}
-        {stoneType === 'diamond' ? (
-          <MetalInput
-            label="Packet Code"
-            value={values.packetCode ?? ''}
-            onChangeText={(packetCode) => emitChange({ packetCode })}
-            editable={editable}
-            attention={attention?.packetCode}
-          />
-        ) : null}
-        <MetalInput
-          label="Color"
-          value={values.color}
-          onChangeText={handleColorChange}
-          editable={editable}
-          attention={attention?.color}
-        />
-        <MetalInput
-          label="Clarity"
-          value={values.clarity}
-          onChangeText={handleClarityChange}
-          editable={editable}
-          attention={attention?.clarity}
-        />
         <MetalInput
           label={labels.weight}
           value={values.weight}
           onChangeText={(weight) => emitChange({ weight })}
           editable={editable}
           attention={attention?.weight}
+          invalid={missing && !values.weight.trim()}
         />
         <MetalInput
           label={labels.rate}
@@ -262,14 +218,15 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
           attention={
             stoneType === 'colorstone' && (attention?.rate || (rateNotFound && !values.rate))
           }
+          invalid={missing && !values.rate.trim()}
         />
         {stoneType === 'diamond' ? (
           <MetalInput
-            label={labels.discount ?? 'Discount'}
-            value={values.discountPercent ?? ''}
-            onChangeText={handleDiscountChange}
+            label="Packet Code"
+            value={values.packetCode ?? ''}
+            onChangeText={(packetCode) => emitChange({ packetCode })}
             editable={editable}
-            keyboardType="decimal-pad"
+            attention={attention?.packetCode}
           />
         ) : null}
         <MetalValueBox label={labels.amount} value={formatInr(amount)} amount />

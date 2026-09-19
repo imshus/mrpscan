@@ -210,6 +210,12 @@ interface MetalInputProps {
   fullWidth?: boolean;
   /** Retained for callers that provide confidence metadata; no visual marker is shown. */
   attention?: boolean;
+  /**
+   * The mockup's `.metal-field.invalid` — a value the scan needs and does not
+   * have. Shown only once the shop has tried to move on, so a field is never
+   * red before there was anything to get wrong.
+   */
+  invalid?: boolean;
   onFocus?: ComponentProps<typeof TextInput>['onFocus'];
   onBlur?: ComponentProps<typeof TextInput>['onBlur'];
 }
@@ -223,6 +229,7 @@ export function MetalInput({
   amount = false,
   prefix,
   fullWidth,
+  invalid = false,
   onFocus,
   onBlur,
 }: MetalInputProps) {
@@ -242,6 +249,7 @@ export function MetalInput({
       style={[
         prefix ? styles.inputIconInput : styles.metalInput,
         !prefix && amount && styles.metalInputAmount,
+        !prefix && invalid && styles.metalInputInvalid,
       ]}
     />
   );
@@ -249,7 +257,7 @@ export function MetalInput({
   return (
     <MetalFieldSlot label={label} fullWidth={fullWidth}>
       {prefix ? (
-        <View style={styles.inputIcon}>
+        <View style={[styles.inputIcon, invalid && styles.metalInputInvalid]}>
           <Text style={styles.inputIconPrefix}>{prefix}</Text>
           {input}
         </View>
@@ -514,6 +522,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.textMuted,
     marginBottom: 4,
+  },
+  metalInputInvalid: {
+    borderColor: Colors.dangerText,
+    borderWidth: 1.5,
   },
   metalInput: {
     width: '100%',
