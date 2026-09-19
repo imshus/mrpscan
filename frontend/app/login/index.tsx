@@ -233,9 +233,12 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
+    // Anchored to the top rather than centred: the MPIN field takes focus on
+    // arrival, so the keyboard is already up, and centring in what is left of
+    // the screen dropped the title and fields to the bottom of it.
     paddingHorizontal: 24,
-    paddingVertical: 32,
+    paddingTop: 24,
+    paddingBottom: 40,
   },
   form: { gap: 18 },
   welcome: {

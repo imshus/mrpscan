@@ -3,12 +3,14 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Check, ChevronLeft } from 'lucide-react-native';
+import { Check, ChevronDown, ChevronLeft, ChevronUp } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GradientView } from '@/components/ui/GradientView';
@@ -18,6 +20,7 @@ import { useAuthStore } from '@/store/authStore';
 import type { SubscriptionOverview } from '@/types/subscription';
 import {
   createApplicationPurchaseOrder,
+  createCreditRechargeOrder,
   fetchSubscriptionOverview,
   isPaymentCancellation,
   markPaymentFailure,
@@ -43,6 +46,10 @@ function getRazorpayCheckout(): RazorpayModule | null {
     return null;
   }
 }
+
+// A shop topping up mid-day wants fifty rupees of credits, not five hundred.
+const MIN_RECHARGE = 50;
+const QUICK_AMOUNTS = [50, 100, 250, 500];
 
 function assertRazorpayReady(): void {
   if (Constants.appOwnership === 'expo') {
@@ -186,16 +193,58 @@ export default function PurchaseLicenseScreen() {
     }
   }, [canManagePayments, router, runRazorpayCheckout]);
 
+  // Credits, on the same screen as the comparison: a shop that decides against
+  // the licence for now still needs a way to keep scanning.
+  const [rechargeOpen, setRechargeOpen] = useState(true);
+  const [rechargeAmount, setRechargeAmount] = useState('');
+  const rechargeValue = Number(rechargeAmount || 0);
+  const rechargeReady = Number.isFinite(rechargeValue) && rechargeValue >= MIN_RECHARGE;
+
+  const handleRecharge = useCallback(async () => {
+    if (!canManagePayments) {
+      Alert.alert('Recharge Credits', 'Only the shop owner can buy credits.');
+      return;
+    }
+    if (!rechargeReady) {
+      Alert.alert('Recharge Credits', `Minimum purchase of ₹${MIN_RECHARGE} credits is allowed.`);
+      return;
+    }
+
+    setBusy(true);
+    try {
+      assertRazorpayReady();
+      const order = await createCreditRechargeOrder(rechargeValue);
+      await runRazorpayCheckout(order);
+      setRechargeAmount('');
+      await loadOverview();
+      Alert.alert('Recharge Credits', `₹${rechargeValue} of credits has been added.`);
+    } catch (error) {
+      if (!isPaymentCancellation(error)) {
+        Alert.alert(
+          'Recharge Credits',
+          error instanceof Error ? error.message : 'The recharge could not be completed.',
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, [canManagePayments, loadOverview, rechargeReady, rechargeValue, runRazorpayCheckout]);
+
   const purchaseState = useMemo(() => toPurchaseState(overview), [overview]);
   const displayPrice = rupees(overview?.applicationPrice || 12000);
   const bonusCredits = overview?.purchasedBonusCreditsConfigured || 1000;
-  const trialDays = overview?.trialDaysConfigured || 10;
+  const trialDays = overview?.trialDaysConfigured || 7;
   const trialCredits = overview?.freeTrialCreditsConfigured || overview?.trialCredits || 10;
   const isPurchased = purchaseState === 'PERMANENT';
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <View style={styles.screen}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.screen}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
             <ChevronLeft size={18} color={Colors.textPrimary} strokeWidth={2.2} />
@@ -236,20 +285,12 @@ export default function PurchaseLicenseScreen() {
                   <View style={styles.featureList}>
                     <Feature text={`${trialDays} day free trial`} tone="trial" />
                     <Feature text={`Free ${trialCredits} credits`} tone="trial" />
+                    <Feature text="1 GST (Unlimited Users)" tone="trial" />
+                    <Feature text="Admin Control live rates" tone="trial" />
                     <Feature text="Pay per scan" tone="trial" />
+                    <Feature text="24×7 Customer Agent" tone="trial" />
                     <Feature text="Credit recharge when low" tone="trial" />
                   </View>
-                  <Pressable
-                    disabled={isPurchased}
-                    onPress={() => router.replace('/dashboard')}
-                    style={[
-                      styles.keepBtn,
-                      styles.panelAction,
-                      isPurchased && styles.btnDisabled,
-                    ]}
-                  >
-                    <Text style={styles.keepBtnText}>Keep Using</Text>
-                  </Pressable>
                 </GradientView>
 
                 <View style={styles.divider} />
@@ -268,9 +309,12 @@ export default function PurchaseLicenseScreen() {
                     Subscription
                   </Text>
                   <View style={styles.featureList}>
-                    <Feature text="Everything in free trial" tone="paid" />
+                    <Feature text="Life time access" tone="paid" />
                     <Feature text={`Free ${bonusCredits} Credits`} tone="paid" />
-                    <Feature text={displayPrice} sub="(one time purchase)" tone="paid" />
+                    <Feature text="+ Everything in Free trial" tone="paid" />
+                    {/* GST is charged on top, so the figure says so rather
+                        than reading as the whole of what is due. */}
+                    <Feature text={`${displayPrice} + GST`} sub="(one time purchase)" tone="paid" />
                   </View>
                   <Pressable
                     disabled={busy || isPurchased}
@@ -301,9 +345,73 @@ export default function PurchaseLicenseScreen() {
             <Text style={styles.footnote}>
               One-time payment · No recurring charges · Instant activation
             </Text>
+
+            <Text style={styles.sectionHeading}>Need More Credits?</Text>
+            <View style={styles.rechargeCard}>
+              <Pressable
+                onPress={() => setRechargeOpen((open) => !open)}
+                style={styles.rechargeHeader}
+                accessibilityRole="button"
+              >
+                <Text style={styles.rechargeTitle}>Recharge Credits</Text>
+                {rechargeOpen ? (
+                  <ChevronUp size={18} color={Colors.textMuted} />
+                ) : (
+                  <ChevronDown size={18} color={Colors.textMuted} />
+                )}
+              </Pressable>
+
+              {rechargeOpen ? (
+                <View style={styles.rechargeBody}>
+                  <Text style={styles.rechargeLabel}>Enter Credit amount</Text>
+                  <Text style={styles.rechargeHint}>
+                    Minimum purchase of ₹{MIN_RECHARGE} credits is allowed
+                  </Text>
+
+                  <View style={styles.amountField}>
+                    <Text style={styles.amountPrefix}>₹</Text>
+                    <TextInput
+                      value={rechargeAmount}
+                      onChangeText={(text) => setRechargeAmount(text.replace(/[^0-9]/g, ''))}
+                      keyboardType="number-pad"
+                      maxLength={7}
+                      placeholder="0"
+                      placeholderTextColor={Colors.placeholder}
+                      style={styles.amountInput}
+                      accessibilityLabel="Credit amount"
+                    />
+                  </View>
+
+                  <View style={styles.quickRow}>
+                    {QUICK_AMOUNTS.map((amount) => (
+                      <Pressable
+                        key={amount}
+                        onPress={() => setRechargeAmount(String(amount))}
+                        style={[
+                          styles.quickPill,
+                          rechargeValue === amount && styles.quickPillActive,
+                        ]}
+                      >
+                        <Text style={styles.quickPillText}>+₹{amount}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <Pressable
+                    onPress={handleRecharge}
+                    disabled={busy || !rechargeReady}
+                    style={[styles.rechargeBtn, (busy || !rechargeReady) && styles.btnDisabled]}
+                  >
+                    <Text style={styles.rechargeBtnText}>
+                      {busy ? 'Processing…' : 'Recharge Now'}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
           </View>
         )}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -386,16 +494,6 @@ const styles = StyleSheet.create({
     color: Colors.white,
     width: '100%',
   },
-  keepBtn: {
-    height: 46,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  keepBtnText: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
   purchaseBtn: {
     height: 46,
     backgroundColor: Colors.white,
@@ -471,12 +569,78 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  flex: { flex: 1 },
   screen: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: Spacing.screenHorizontal,
     paddingTop: 8,
     paddingBottom: 96,
   },
+  sectionHeading: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    marginTop: 22,
+    marginBottom: 10,
+  },
+  rechargeCard: {
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.tile,
+    paddingHorizontal: Spacing.lg,
+  },
+  rechargeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+  },
+  rechargeTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
+  rechargeBody: { paddingBottom: 18, gap: 10 },
+  rechargeLabel: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
+  rechargeHint: { fontSize: 11.5, color: Colors.accentGold, marginTop: -6 },
+  amountField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.backgroundAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.input,
+    paddingHorizontal: 14,
+    height: 46,
+  },
+  amountPrefix: { fontSize: 15, fontWeight: '700', color: Colors.textMuted },
+  amountInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    padding: 0,
+  },
+  quickRow: { flexDirection: 'row', gap: 8 },
+  quickPill: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 36,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundAlt,
+  },
+  quickPillActive: { borderColor: Colors.accentGold, borderWidth: 1.5 },
+  quickPillText: { fontSize: 12.5, fontWeight: '800', color: Colors.accentGold },
+  rechargeBtn: {
+    height: 46,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primaryButton,
+    marginTop: 4,
+  },
+  rechargeBtnText: { fontSize: 14, fontWeight: '800', color: Colors.white },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

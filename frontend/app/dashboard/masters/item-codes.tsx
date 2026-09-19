@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Trash2 } from 'lucide-react-native';
+import { Pencil, Trash2 } from 'lucide-react-native';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
@@ -29,6 +29,9 @@ interface RowState {
   id: string | null;
   name: string;
   code: string;
+  /** Held as typed, so a cleared field stays cleared rather than becoming 0. */
+  wastage: string;
+  labour: string;
   /** Edited since its last save; blur, + Add and leaving the screen flush it. */
   dirty?: boolean;
 }
@@ -36,7 +39,18 @@ interface RowState {
 let rowKeySeed = 0;
 const nextRowKey = () => `row-${rowKeySeed++}`;
 
-const emptyRow = (): RowState => ({ key: nextRowKey(), id: null, name: '', code: '' });
+const emptyRow = (): RowState => ({
+  key: nextRowKey(),
+  id: null,
+  name: '',
+  code: '',
+  wastage: '',
+  labour: '',
+});
+
+/** A stored figure as it belongs in a text field: absent reads as empty. */
+const figureText = (value: number | null | undefined) =>
+  value === null || value === undefined ? '' : String(value);
 
 export default function ItemCodesScreen() {
   const [rows, setRows] = useState<RowState[]>([]);
@@ -51,6 +65,8 @@ export default function ItemCodesScreen() {
   const resaveKeys = useRef(new Set<string>());
   // The cleanup that saves on leaving the screen reads through this ref,
   // because the closure it was created in holds stale rows.
+  // The name field of each row, so the pencil can put the cursor in it.
+  const nameInputs = useRef(new Map<string, TextInput | null>());
   const rowsRef = useRef<RowState[]>([]);
   rowsRef.current = rows;
   // Autosave: each keystroke restarts a short timer for that line, so a
@@ -67,6 +83,8 @@ export default function ItemCodesScreen() {
         id: item.id,
         name: item.description,
         code: item.code,
+        wastage: figureText(item.wastage),
+        labour: figureText(item.labour),
       }));
       // The sheet always ends with a blank line to type into, like the mockup.
       setRows([...loaded, emptyRow()]);
@@ -98,9 +116,18 @@ export default function ItemCodesScreen() {
         id: row.id ?? undefined,
         code,
         description: row.name.trim(),
+        wastage: row.wastage.trim(),
+        labour: row.labour.trim(),
       });
       if (saved) {
-        updateRow(row.key, { id: saved.id, code: saved.code, name: saved.description, dirty: false });
+        updateRow(row.key, {
+          id: saved.id,
+          code: saved.code,
+          name: saved.description,
+          wastage: figureText(saved.wastage),
+          labour: figureText(saved.labour),
+          dirty: false,
+        });
       }
       // The scanner names tags from this list; make it fetch the new line.
       invalidateItemCatalogue();
@@ -229,35 +256,90 @@ export default function ItemCodesScreen() {
                 {rows.map((row, index) => (
                   <View key={row.key} style={[styles.row, index > 0 && styles.rowDivider]}>
                     <Text style={styles.rowIndex}>{index + 1}.</Text>
-                    <View style={styles.field}>
-                      <Text style={styles.fieldLabel}>ITEM NAME</Text>
-                      <TextInput
-                        value={row.name}
-                        onChangeText={(text) => {
-                          updateRow(row.key, { name: text, dirty: true });
-                          scheduleAutosave(row.key);
-                        }}
-                        onBlur={() => handleBlur(row.key)}
-                        style={styles.fieldInput}
-                      />
+
+                    <View style={styles.fieldGrid}>
+                      <View style={styles.fieldPair}>
+                        <View style={styles.field}>
+                          <Text style={styles.fieldLabel}>ITEM NAME</Text>
+                          <TextInput
+                            ref={(node) => {
+                              nameInputs.current.set(row.key, node);
+                            }}
+                            value={row.name}
+                            onChangeText={(text) => {
+                              updateRow(row.key, { name: text, dirty: true });
+                              scheduleAutosave(row.key);
+                            }}
+                            onBlur={() => handleBlur(row.key)}
+                            style={styles.fieldInput}
+                          />
+                        </View>
+                        <View style={styles.field}>
+                          <Text style={styles.fieldLabel}>ITEM CODE</Text>
+                          <TextInput
+                            value={row.code}
+                            onChangeText={(text) => {
+                              updateRow(row.key, { code: text.toUpperCase(), dirty: true });
+                              scheduleAutosave(row.key);
+                            }}
+                            onBlur={() => handleBlur(row.key)}
+                            autoCapitalize="characters"
+                            maxLength={40}
+                            style={styles.fieldInput}
+                          />
+                        </View>
+                      </View>
+
+                      <View style={styles.fieldPair}>
+                        <View style={styles.field}>
+                          <Text style={styles.fieldLabel}>WASTAGE</Text>
+                          <TextInput
+                            value={row.wastage}
+                            onChangeText={(text) => {
+                              // A percentage: digits and one point, nothing else.
+                              const cleaned = text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                              updateRow(row.key, { wastage: cleaned, dirty: true });
+                              scheduleAutosave(row.key);
+                            }}
+                            onBlur={() => handleBlur(row.key)}
+                            keyboardType="decimal-pad"
+                            maxLength={6}
+                            style={styles.fieldInput}
+                          />
+                        </View>
+                        <View style={styles.field}>
+                          <Text style={styles.fieldLabel}>LABOUR</Text>
+                          <TextInput
+                            value={row.labour}
+                            onChangeText={(text) => {
+                              const cleaned = text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                              updateRow(row.key, { labour: cleaned, dirty: true });
+                              scheduleAutosave(row.key);
+                            }}
+                            onBlur={() => handleBlur(row.key)}
+                            keyboardType="decimal-pad"
+                            maxLength={9}
+                            style={styles.fieldInput}
+                          />
+                        </View>
+                      </View>
                     </View>
-                    <View style={styles.field}>
-                      <Text style={styles.fieldLabel}>ITEM CODE</Text>
-                      <TextInput
-                        value={row.code}
-                        onChangeText={(text) => {
-                          updateRow(row.key, { code: text.toUpperCase(), dirty: true });
-                          scheduleAutosave(row.key);
-                        }}
-                        onBlur={() => handleBlur(row.key)}
-                        autoCapitalize="characters"
-                        maxLength={40}
-                        style={styles.fieldInput}
-                      />
+
+                    <View style={styles.rowActions}>
+                      <Pressable onPress={() => handleDelete(row)} hitSlop={8} style={styles.trashBtn}>
+                        <Trash2 size={15} color={Colors.brandDeep} />
+                      </Pressable>
+                      {/* Every field is editable where it stands, so this puts
+                          the cursor in the row rather than opening a form. */}
+                      <Pressable
+                        onPress={() => nameInputs.current.get(row.key)?.focus()}
+                        hitSlop={8}
+                        accessibilityLabel="Edit this item code"
+                        style={styles.editBtn}
+                      >
+                        <Pencil size={14} color={Colors.textSecondary} />
+                      </Pressable>
                     </View>
-                    <Pressable onPress={() => handleDelete(row)} hitSlop={8} style={styles.trashBtn}>
-                      <Trash2 size={15} color={Colors.brandDeep} />
-                    </Pressable>
                   </View>
                 ))}
               </View>
@@ -305,6 +387,26 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: Spacing.md,
     paddingVertical: Spacing.md,
+  },
+  fieldGrid: {
+    flex: 1,
+    gap: Spacing.md,
+  },
+  fieldPair: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  rowActions: {
+    gap: 8,
+    paddingTop: 6,
+  },
+  editBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.backgroundAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   rowDivider: {
     borderTopWidth: 1,

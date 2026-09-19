@@ -76,6 +76,11 @@ function currencyNoDecimal(value: number): string {
   })}`;
 }
 
+// What the design offers: a shop topping up mid-day wants fifty rupees of
+// credits, not five hundred.
+const MIN_RECHARGE = 50;
+const QUICK_AMOUNTS = [50, 100, 250, 500];
+
 const BOTTOM_NAV_HEIGHT = 70;
 const BOTTOM_NAV_OFFSET = -4;
 
@@ -102,7 +107,7 @@ export default function SubscriptionManagerScreen() {
   const [busy, setBusy] = useState(false);
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null);
   const [rechargeAmount, setRechargeAmount] = useState('');
-  const [selectedAmount, setSelectedAmount] = useState<number>(500);
+  const [selectedAmount, setSelectedAmount] = useState<number>(MIN_RECHARGE);
   const [usingCustomAmount, setUsingCustomAmount] = useState(false);
 
   const canManagePayments = userRole === 'business';
@@ -189,10 +194,13 @@ export default function SubscriptionManagerScreen() {
 
   const handleStartTrial = async () => {
     await runAction(async () => {
-      await startFreeTrial();
+      const started = await startFreeTrial();
       Alert.alert(
         'Free Trial Started',
-        '100 free scanning credits have been granted.\n\nYour free trial is valid for 10 days.',
+        `${started.creditBalance} scanning credits have been granted.`
+          + (started.trialDays
+            ? `\n\nYour free trial is valid for ${started.trialDays} days.`
+            : '\n\nYour free trial is now active.'),
       );
     });
   };
@@ -203,6 +211,10 @@ export default function SubscriptionManagerScreen() {
       Alert.alert('Recharge Credits', 'Please enter a valid recharge amount.');
       return;
     }
+    if (amount < MIN_RECHARGE) {
+      Alert.alert('Recharge Credits', `Minimum purchase of ₹${MIN_RECHARGE} credits is allowed.`);
+      return;
+    }
 
     await runAction(async () => {
       assertRazorpayReady();
@@ -210,8 +222,6 @@ export default function SubscriptionManagerScreen() {
       await runRazorpayCheckout(order);
     });
   };
-
-  const quickAmounts = [500, 1000, 5000, 10000];
 
   const selectQuickAmount = (amount: number) => {
     setUsingCustomAmount(false);
@@ -325,7 +335,7 @@ export default function SubscriptionManagerScreen() {
                   <Text style={styles.cardHelper}>Add credits to your wallet</Text>
 
                   <View style={styles.quickAmountGrid}>
-                    {quickAmounts.map((amount) => {
+                    {QUICK_AMOUNTS.map((amount) => {
                       const isSelected = !usingCustomAmount && selectedAmount === amount;
                       const tierLabel = amount === 500
                         ? 'Starter'

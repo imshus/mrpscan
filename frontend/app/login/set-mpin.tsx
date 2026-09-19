@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -12,7 +12,7 @@ import {
   useShake,
 } from '@/components/auth/AuthKit';
 import { Reveal } from '@/components/auth/Reveal';
-import { MPIN_LENGTH, MpinInput } from '@/components/ui/MpinInput';
+import { MPIN_LENGTH, MpinInput, type MpinInputHandle } from '@/components/ui/MpinInput';
 import { OtpInput } from '@/components/ui/OtpInput';
 import { Colors } from '@/constants/theme';
 import {
@@ -53,6 +53,7 @@ export default function SetMpinScreen() {
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
+  const confirmRef = useRef<MpinInputHandle>(null);
 
   const sendCode = async () => {
     const normalized = phone.replace(/\D/g, '').slice(-10);
@@ -95,13 +96,13 @@ export default function SetMpinScreen() {
     }
   };
 
-  const save = async () => {
+  const save = async (confirmed = confirm) => {
     if (mpin.length !== MPIN_LENGTH) {
       setMpinError('Enter a 4-digit MPIN');
       triggerShake();
       return;
     }
-    if (mpin !== confirm) {
+    if (mpin !== confirmed) {
       setMpinError("MPINs don't match");
       triggerShake();
       return;
@@ -111,7 +112,7 @@ export default function SetMpinScreen() {
     setSaving(true);
     setMpinError(null);
     try {
-      const result = await setMpinWithResetToken(resetToken, mpin, confirm);
+      const result = await setMpinWithResetToken(resetToken, mpin, mpin);
       if (!result.success) {
         setMpinError(result.error ?? 'Could not set the MPIN.');
         triggerShake();
@@ -201,17 +202,19 @@ export default function SetMpinScreen() {
                       setMpinError(null);
                     }}
                     autoFocus
+                    onComplete={() => confirmRef.current?.focus()}
                   />
                 </Reveal>
                 <Reveal d={2}>
                   <MpinInput
+                    ref={confirmRef}
                     label="Confirm MPIN"
                     value={confirm}
                     onChange={(next) => {
                       setConfirm(next);
                       setMpinError(null);
                     }}
-                    onComplete={() => void save()}
+                    onComplete={(confirmed) => void save(confirmed)}
                   />
                 </Reveal>
                 {mpinError ? <AuthErrorText center>{mpinError}</AuthErrorText> : null}
@@ -232,9 +235,12 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
+    // Anchored to the top rather than centred: the MPIN field takes focus on
+    // arrival, so the keyboard is already up, and centring in what is left of
+    // the screen dropped the title and fields to the bottom of it.
     paddingHorizontal: 24,
-    paddingVertical: 32,
+    paddingTop: 24,
+    paddingBottom: 40,
   },
   backBtn: {
     width: 40,

@@ -1,6 +1,7 @@
 import type {
   Formula2Row,
   FormulaSettings,
+  SalesInvoiceLayout,
   UpdateFormulaSettingsPayload,
 } from '@/types/formulaSettings';
 import type { ActiveFormula } from '@/store/formulaStore';
@@ -34,10 +35,25 @@ function normalizeFormula2Rules(value: unknown): string[] {
   return rules.length > 0 ? rules : [...DEFAULT_FORMULA2_RULES];
 }
 
+const INVOICE_LAYOUTS: SalesInvoiceLayout[] = [
+  'SEPARATE',
+  'GOLD_WITH_LABOUR',
+  'GOLD_WITH_WASTAGE',
+];
+
+function normalizeSalesInvoiceLayout(value: unknown): SalesInvoiceLayout {
+  return INVOICE_LAYOUTS.includes(value as SalesInvoiceLayout)
+    ? (value as SalesInvoiceLayout)
+    // Separate lines is the default, and what an API that predates the
+    // setting leaves unsaid.
+    : 'SEPARATE';
+}
+
 function normalizeFormulaSettings(raw: Record<string, unknown>): FormulaSettings {
   return {
     activeFormula: normalizeActiveFormula(raw.activeFormula),
     formula2Rules: normalizeFormula2Rules(raw.formula2Rules),
+    salesInvoiceLayout: normalizeSalesInvoiceLayout(raw.salesInvoiceLayout),
   };
 }
 
@@ -89,6 +105,7 @@ export async function updateFormulaSettings(
     body: {
       activeFormula: payload.activeFormula,
       formula2Rules: payload.formula2Rules,
+      ...(payload.salesInvoiceLayout ? { salesInvoiceLayout: payload.salesInvoiceLayout } : {}),
     },
   });
   const unwrapped = unwrapApiData(response);
