@@ -9,6 +9,7 @@ import { BottomNav } from '@/components/dashboard/BottomNav';
 import { OtpBox } from '@/components/auth/OtpBox';
 import { Reveal } from '@/components/auth/Reveal';
 import { ErrorText } from '@/components/ui/ErrorText';
+import { PhoneInput } from '@/components/ui/PhoneInput';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { TextField } from '@/components/ui/TextField';
 import { ProfileUpdatedPopup } from '@/components/settings/ProfileUpdatedPopup';
@@ -22,8 +23,16 @@ import {
   type GstPreview,
 } from '@/utils/profileEditApi';
 import { friendlyServerMessage } from '@/utils/serverMessages';
+import { ApiError } from '@/utils/apiClient';
 
 const tenDigits = (value: string) => value.replace(/\D/g, '').slice(-10);
+
+/** True when the server refused with this exact code. */
+const refusedWith = (error: unknown, code: string) =>
+  error instanceof ApiError &&
+  typeof error.body === 'object' &&
+  error.body !== null &&
+  (error.body as { error?: unknown }).error === code;
 
 /**
  * Changing the phone number and the GSTIN.
@@ -72,9 +81,12 @@ export default function EditBusinessProfileScreen() {
     setSaving(true);
     setError(null);
     try {
+      // The code goes with every save now, whichever field changed.
+      const proof = code ?? otp;
       const result = await applyProfileChanges(editToken, {
-        ...(phoneChanged ? { phone, otp: code ?? otp } : {}),
+        ...(phoneChanged ? { phone } : {}),
         ...(gstChanged ? { gstNumber } : {}),
+        ...(proof ? { otp: proof } : {}),
       });
 
       updateRegistration({
@@ -108,13 +120,21 @@ export default function EditBusinessProfileScreen() {
         setGstChecking(false);
       }
 
-      if (phoneChanged) {
+      // Every change is proved with a code: to the new number when that is
+      // what is changing, to the account's own number otherwise.
+      try {
         await sendProfilePhoneOtp(editToken, phone);
         setOtpSent(true);
         return;
+      } catch (caught) {
+        // A server from before this rule only sends codes for a new number
+        // and refuses the same one; there, the save goes through as it did.
+        if (!phoneChanged && refusedWith(caught, 'PHONE_UNCHANGED')) {
+          await save();
+          return;
+        }
+        throw caught;
       }
-
-      await save();
     } catch (caught) {
       setGstChecking(false);
       setError(friendlyServerMessage(caught, 'These changes could not be saved.'));
@@ -138,16 +158,19 @@ export default function EditBusinessProfileScreen() {
           </View>
         </View>
 
-        <TextField
+        {/* The app's own phone field: +91 in front, digits only, and it stops
+            at ten. The plain field kept the LAST ten digits, so typing into a
+            full number slid the whole thing left — the first digit fell off
+            and the new one landed at the end. */}
+        <PhoneInput
           label="Phone No."
           value={phone}
           onChangeText={(text) => {
-            setPhone(tenDigits(text));
+            setPhone(text);
             setOtpSent(false);
             setOtp('');
             setError(null);
           }}
-          keyboardType="phone-pad"
           editable={!otpSent && !saving}
         />
 
@@ -198,7 +221,11 @@ export default function EditBusinessProfileScreen() {
         {otpSent ? (
           <Reveal d={1}>
             <OtpBox
-              label="Enter the 6-digit code sent to your new number"
+              label={
+                phoneChanged
+                  ? 'Enter the 6-digit code sent to your new number'
+                  : 'Enter the 6-digit code sent to your number'
+              }
               value={otp}
               onChange={(value) => {
                 setOtp(value);
