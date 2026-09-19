@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ScannerFinalTab } from '@/components/scanner/ScannerFinalTab';
 import { PriceCard } from '@/components/scanner/PriceCard';
@@ -324,42 +324,29 @@ export function ReviewScannedResultsModal({
    *
    * A diamond with no weight or no rate prices at nothing, so the MRP comes
    * out as if the stone were not there — a gold price on a diamond piece.
-   * Rather than let that reach an invoice, Generate Invoice turns the empty
-   * boxes red and says what is missing.
+   * Generate Invoice turns those boxes red instead of billing it. The red is
+   * the whole message: a popup would say the same thing over the top of the
+   * very fields it is pointing at, and have to be dismissed to reach them.
    */
   const [showMissingStones, setShowMissingStones] = useState(false);
-  const incompleteStones = useMemo(() => {
-    const incomplete = (entries: StoneEntry[], label: string) =>
-      entries
-        .map((entry, index) => ({ entry, index }))
-        .filter(({ entry }) => !entry.weight?.trim() || !entry.rate?.trim())
-        .map(({ index }) => (entries.length > 1 ? `${label} ${index + 1}` : label));
-
-    return [
-      ...incomplete(diamondEntries, 'Diamond'),
-      ...incomplete(colorstoneEntries, 'Colorstone'),
-    ];
+  const hasIncompleteStones = useMemo(() => {
+    const incomplete = (entry: StoneEntry) => !entry.weight?.trim() || !entry.rate?.trim();
+    return diamondEntries.some(incomplete) || colorstoneEntries.some(incomplete);
   }, [diamondEntries, colorstoneEntries]);
 
   // Once everything is filled the red goes away on its own, so a shop that
   // fixes it is not left looking at a warning about nothing.
   useEffect(() => {
-    if (incompleteStones.length === 0) setShowMissingStones(false);
-  }, [incompleteStones.length]);
+    if (!hasIncompleteStones) setShowMissingStones(false);
+  }, [hasIncompleteStones]);
 
   const handleGenerateInvoice = useCallback(() => {
-    if (incompleteStones.length > 0) {
+    if (hasIncompleteStones) {
       setShowMissingStones(true);
-      Alert.alert(
-        'Fill in the stone details',
-        `${incompleteStones.join(', ')} ${
-          incompleteStones.length > 1 ? 'have' : 'has'
-        } no weight or rate yet. Enter them so the stone is priced, or remove it.`,
-      );
       return;
     }
     onGenerateInvoice();
-  }, [incompleteStones, onGenerateInvoice]);
+  }, [hasIncompleteStones, onGenerateInvoice]);
 
   useEffect(() => {
     // Nothing to resolve until the tag's own karat is in: writing the 14K
