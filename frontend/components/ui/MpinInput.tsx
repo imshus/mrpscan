@@ -44,7 +44,16 @@ export const MpinInput = forwardRef<MpinInputHandle, MpinInputProps>(function Mp
 
   // Lets the screen move focus on from here — Create to Confirm, without the
   // shop having to reach for the second field.
-  useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }), []);
+  //
+  // Deferred by a tick on purpose. This is called from inside the previous
+  // field's change handler, and Android discards a focus request made while
+  // that field is still settling its own — so the jump worked nowhere but in
+  // theory until the call waited for the keystroke to finish.
+  useImperativeHandle(
+    ref,
+    () => ({ focus: () => setTimeout(() => inputRef.current?.focus(), 0) }),
+    [],
+  );
 
   const handleChange = (text: string) => {
     const cleaned = text.replace(/\D/g, '').slice(0, MPIN_LENGTH);

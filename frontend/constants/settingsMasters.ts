@@ -38,4 +38,10 @@ export const MASTER_RATES_ITEMS: MasterNavItem[] = [
     subtitle: '',
     route: '/dashboard/masters/item-codes',
   },
+  {
+    id: 'sales-invoice',
+    title: 'Sales Invoice',
+    subtitle: '',
+    route: '/dashboard/masters/sales-invoice',
+  },
 ];
