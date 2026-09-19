@@ -1,8 +1,7 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ChevronRight, Pencil } from 'lucide-react-native';
 
-import { GradientView } from '@/components/ui/GradientView';
-import { Colors, Fonts, Gradients } from '@/constants/theme';
+import { Colors, Fonts, Surfaces } from '@/constants/theme';
 
 interface BusinessProfileBannerProps {
   businessName: string;
@@ -27,11 +26,9 @@ export function BusinessProfileBanner({
   const initial = businessName.trim().charAt(0).toUpperCase() || 'B';
 
   return (
-    <GradientView
-      colors={Gradients.trial}
-      borderRadius={20}
-      style={styles.profileCard}
-    >
+    // Solid, at the shop's asking: the gradient's washed light end read as a
+    // faded card rather than a coloured one.
+    <View style={[styles.profileCard, styles.profileCardSolid]}>
       <View style={styles.avatarWrap}>
         {logoUri ? (
           <Image source={{ uri: logoUri }} style={styles.logo} resizeMode="cover" />
@@ -66,11 +63,15 @@ export function BusinessProfileBanner({
       {showChevron ? (
         <ChevronRight size={18} color="rgba(255,255,255,0.85)" strokeWidth={2.2} />
       ) : null}
-    </GradientView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  profileCardSolid: {
+    backgroundColor: Surfaces.trial,
+    borderRadius: 20,
+  },
   editBtn: {
     flexShrink: 0,
     width: 34,
