@@ -20,9 +20,9 @@ function calculateBhawRates({
   fallbackRtgsBhaw = 0,
 }) {
   const base = Number.isFinite(mcxBaseRate) ? mcxBaseRate : 0;
-  const isLive = vendor !== null;
-  const cashBhaw = vendor ? vendor.cashBhaw : fallbackCashBhaw;
-  const rtgsBhaw = vendor ? vendor.rtgsBhaw : fallbackRtgsBhaw;
+  const cashBhaw = vendor?.cashBhaw ?? fallbackCashBhaw;
+  const rtgsBhaw = vendor?.rtgsBhaw ?? fallbackRtgsBhaw;
+  const isLive = vendor?.cashBhaw != null && vendor?.rtgsBhaw != null;
   return {
     cashRate: Math.round(base + cashBhaw + businessCashChange),
     rtgsRate: Math.round(base + rtgsBhaw + businessRtgsChange),
@@ -88,4 +88,43 @@ test('a non-numeric MCX rate does not produce NaN rates', () => {
   const r = calculateBhawRates({ mcxBaseRate: Number.NaN, vendor: JMD });
   assert.ok(Number.isFinite(r.cashRate));
   assert.ok(Number.isFinite(r.rtgsRate));
+});
+
+/**
+ * A house that publishes only one side. The feed carries several of these —
+ * Mega Bullion quotes MCX and nothing else — and they now reach this function
+ * as a vendor with nulls rather than being dropped before it.
+ */
+test('a missing cash bhaw falls back instead of becoming zero', () => {
+  const partial = { source: 'shri_sai', name: 'Shri Sai Jewels', cashBhaw: null, rtgsBhaw: 4002 };
+  const r = calculateBhawRates({
+    mcxBaseRate: MCX,
+    vendor: partial,
+    fallbackCashBhaw: -3200,
+    fallbackRtgsBhaw: 4800,
+  });
+
+  assert.equal(r.cashBhaw, -3200, 'the fallback, not 0');
+  assert.equal(r.cashRate, MCX - 3200);
+  assert.equal(r.rtgsBhaw, 4002, 'the side it did publish is still live');
+  assert.equal(r.rtgsRate, MCX + 4002);
+  assert.equal(r.isLive, false, 'half a board is not a live quote');
+});
+
+test('a house publishing neither side prices exactly as no house at all', () => {
+  const empty = { source: 'mega_bullion', name: 'Mega Bullion', cashBhaw: null, rtgsBhaw: null };
+  const withEmpty = calculateBhawRates({
+    mcxBaseRate: MCX,
+    vendor: empty,
+    fallbackCashBhaw: -3200,
+    fallbackRtgsBhaw: 4800,
+  });
+  const withNone = calculateBhawRates({
+    mcxBaseRate: MCX,
+    vendor: null,
+    fallbackCashBhaw: -3200,
+    fallbackRtgsBhaw: 4800,
+  });
+
+  assert.deepEqual(withEmpty, withNone);
 });

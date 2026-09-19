@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useBhawRates } from '@/hooks/useBhawRates';
+import { formatBhaw } from '@/utils/bhawApi';
 import {
   ActivityIndicator,
   Alert,
@@ -400,8 +401,20 @@ export default function DashboardScreen() {
                   borderRadius={14}
                   style={styles.mcxTopCard}
                 >
-                  <Text style={styles.mcxTopLabel}>MCX Gold Rate (24 Kt)</Text>
-                  <Text style={styles.mcxTopValue}>₹ {(mcxFinalRate ?? mcxLiveRate).toLocaleString('en-IN')}</Text>
+                  <View style={styles.mcxTopRow}>
+                    <Text style={styles.mcxTopLabel}>MCX Gold Rate (24 Kt)</Text>
+                    <Text style={styles.mcxTopValue}>₹ {(mcxFinalRate ?? mcxLiveRate).toLocaleString('en-IN')}</Text>
+                  </View>
+
+                  {/* The badla bhaw the house is quoting over that MCX rate —
+                      the figure that turns it into what the shop buys at, and
+                      the one a jeweller checks against the board. */}
+                  <View style={styles.mcxBhawRow}>
+                    <RateBadge value={formatBhaw(bhaw.vendor?.cashBhaw)} label="Cash" />
+                    <RateBadge value={formatBhaw(bhaw.vendor?.rtgsBhaw)} label="RTGS" />
+                  </View>
+
+                  <Text style={styles.mcxSourceLine}>rate by {bhaw.vendorName}</Text>
                 </GradientView>
               ) : null}
 
@@ -581,14 +594,29 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0,0,0,0.08)',
     paddingHorizontal: 18,
     paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: 14,
     shadowColor: '#786441',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
     shadowRadius: 20,
     elevation: 4,
+  },
+  mcxTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+  },
+  mcxBhawRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  mcxSourceLine: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    opacity: 0.55,
+    textAlign: 'center',
   },
   mcxTopLabel: {
     fontSize: 13.6,
