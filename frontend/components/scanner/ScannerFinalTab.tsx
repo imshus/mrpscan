@@ -8,6 +8,7 @@ import {
   type LaborSectionValues,
 } from '@/components/scanner/LaborSection';
 import { LabourChargeResultSection } from '@/components/scanner/LabourChargeResultSection';
+import { WastageSection } from '@/components/scanner/WastageSection';
 import { MrpBreakdownCard } from '@/components/scanner/MrpBreakdownCard';
 import { FinNote, FinRow, MetalTile } from '@/components/scanner/ReviewCardKit';
 import { RawMaterialGoldSectionInteractive } from '@/components/scanner/RawMaterialGoldSection';
@@ -54,6 +55,8 @@ interface ScannerFinalTabProps {
   gstNote?: string;
   calculationRateAccess?: 'rtgs' | 'cash' | 'both';
   clubDiamonds?: boolean;
+  /** Turns the empty, needed stone boxes red once Generate Invoice is tried. */
+  highlightMissingStones?: boolean;
   clubColorstones?: boolean;
   onToggleClubDiamonds?: (enabled: boolean) => void;
   onToggleClubColorstones?: (enabled: boolean) => void;
@@ -83,6 +86,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
   gstNote = 'MRP = Gold + Stones + Labour + Other Charges (server verified)',
   calculationRateAccess = 'both',
   clubDiamonds = false,
+  highlightMissingStones = false,
   clubColorstones = false,
   onToggleClubDiamonds,
   onToggleClubColorstones,
@@ -262,24 +266,6 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
 
       {editable ? (
         <>
-          {diamonds.length > 1 || clubDiamonds ? (
-            <View className="mb-3 rounded-[14px] border border-border bg-white px-3.5 py-3">
-              <Pressable
-                onPress={() => onToggleClubDiamonds?.(!clubDiamonds)}
-                className="flex-row items-center gap-2"
-              >
-                <View
-                  className={`h-4 w-4 items-center justify-center rounded border ${
-                    clubDiamonds ? 'border-primary bg-primary' : 'border-border bg-white'
-                  }`}
-                >
-                  {clubDiamonds ? <Check size={12} color="#FFFFFF" /> : null}
-                </View>
-                <Text className="text-[12.8px] font-semibold text-text-primary">Club Diamonds</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
           {/* The entry object itself is the values prop: updateStoneEntryAtIndex
               keeps untouched entries by reference, so sibling rows stay memoized
               while one row is being typed into. */}
@@ -288,6 +274,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
               key={`diamond-${block.index}`}
               title={clubDiamonds ? 'Diamond' : `Diamond ${idx + 1}`}
               stoneType="diamond"
+              missing={highlightMissingStones}
               entryIndex={block.index}
               sequenceIndex={idx}
               values={block.entry}
@@ -322,6 +309,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
               key={`colorstone-${block.index}`}
               title={clubColorstones ? 'Colorstone' : `Colorstone ${idx + 1}`}
               stoneType="colorstone"
+              missing={highlightMissingStones}
               entryIndex={block.index}
               sequenceIndex={diamondBlocks.length + idx}
               values={block.entry}
@@ -348,6 +336,14 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
       ) : (
         <LabourChargeResultSection pricing={pricing} />
       )}
+
+      {/* Under labour, as the design orders them: the two charges on top of
+          the metal, then anything the shop adds by hand. */}
+      <WastageSection
+        code={pricing.wastageCode}
+        percent={pricing.wastagePercent}
+        amountDisplay={pricing.wastageDisplay}
+      />
 
       {editable ? (
         <OtherChargesSection

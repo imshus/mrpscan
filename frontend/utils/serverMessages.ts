@@ -27,12 +27,33 @@ function looksLikeCode(text: string): boolean {
 }
 
 /**
+ * Sentences for the failures that never reach the error handler at all.
+ *
+ * A 404 on an endpoint the app knows how to call does not mean the shop did
+ * anything wrong: it means the server it is talking to is older than the app.
+ * "Request failed (404)" tells a jeweller nothing and reads like their fault.
+ */
+const STATUS_MESSAGES: Record<number, string> = {
+  404: 'This is not available on the server yet. It will work once the app is updated on our side.',
+  502: 'The server is not reachable just now. Please try again in a moment.',
+  503: 'The server is busy just now. Please try again in a moment.',
+  504: 'The server took too long to answer. Please try again.',
+};
+
+/**
  * What to show a shop for a failed request: the mapped sentence for a known
  * code, the server's own message when it wrote one, and the caller's fallback
  * when all that came back was an unrecognised code.
  */
 export function friendlyServerMessage(error: unknown, fallback: string): string {
   const raw = error instanceof ApiError || error instanceof Error ? error.message.trim() : '';
+
+  // The status first: an endpoint the server does not have answers with its
+  // own generic text, which would otherwise be shown verbatim.
+  if (error instanceof ApiError && error.status && STATUS_MESSAGES[error.status]) {
+    return STATUS_MESSAGES[error.status];
+  }
+
   if (!raw) return fallback;
 
   const mapped = MESSAGES[raw];

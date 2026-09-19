@@ -1,5 +1,5 @@
-import { Image, StyleSheet, Text, View } from 'react-native';
-import { ChevronRight } from 'lucide-react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ChevronRight, Pencil } from 'lucide-react-native';
 
 import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Fonts, Gradients } from '@/constants/theme';
@@ -9,6 +9,12 @@ interface BusinessProfileBannerProps {
   secondaryText?: string;
   logoUri?: string | null;
   showChevron?: boolean;
+  /**
+   * The pencil on the banner (mockup `.set-profile-edit-btn`). Present only
+   * where something can actually be edited, which is the shop owner's own
+   * Profile screen.
+   */
+  onEditPress?: () => void;
 }
 
 export function BusinessProfileBanner({
@@ -16,6 +22,7 @@ export function BusinessProfileBanner({
   secondaryText,
   logoUri,
   showChevron = true,
+  onEditPress,
 }: BusinessProfileBannerProps) {
   const initial = businessName.trim().charAt(0).toUpperCase() || 'B';
 
@@ -44,6 +51,18 @@ export function BusinessProfileBanner({
         ) : null}
       </View>
 
+      {onEditPress ? (
+        <Pressable
+          onPress={onEditPress}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Edit phone or GST"
+          style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
+        >
+          <Pencil size={16} color="#fff" strokeWidth={2} />
+        </Pressable>
+      ) : null}
+
       {showChevron ? (
         <ChevronRight size={18} color="rgba(255,255,255,0.85)" strokeWidth={2.2} />
       ) : null}
@@ -52,6 +71,21 @@ export function BusinessProfileBanner({
 }
 
 const styles = StyleSheet.create({
+  editBtn: {
+    flexShrink: 0,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  editBtnPressed: {
+    backgroundColor: 'rgba(255,255,255,0.26)',
+    transform: [{ scale: 0.92 }],
+  },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',

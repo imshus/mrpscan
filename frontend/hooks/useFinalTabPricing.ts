@@ -49,6 +49,10 @@ const defaultPricing: FinalTabPricingResult = {
   useFixedAmountMode: false,
   labourAmount: 0,
   labourDisplay: '—',
+  wastageCode: '',
+  wastagePercent: 0,
+  wastageAmount: 0,
+  wastageDisplay: '—',
   otherChargesAmount: 0,
   otherChargesDisplay: '—',
   ultimateMrp: 0,
@@ -249,6 +253,7 @@ export function useFinalTabPricing({
           grossWtGrams,
         );
         const backendLabourAmount = res.breakdown.labourAmount;
+        const backendWastageAmount = Number(res.breakdown.wastageAmount) || 0;
         const backendOtherCharges = res.breakdown.otherCharges;
         const finalTotal = res.finalMRP;
 
@@ -292,6 +297,13 @@ export function useFinalTabPricing({
           useFixedAmountMode: labour.mode === 'fixedAmount',
           labourAmount: backendLabourAmount,
           labourDisplay: formatIndianCurrency(backendLabourAmount),
+          // Priced from the item's own wastage, which only the server can
+          // read; an item without one sends nothing and the tile stays blank.
+          wastageCode: res.breakdown.wastageCode || '',
+          wastagePercent: Number(res.breakdown.wastagePercent) || 0,
+          wastageAmount: backendWastageAmount,
+          wastageDisplay:
+            backendWastageAmount > 0 ? formatIndianCurrency(backendWastageAmount) : '—',
           otherChargesAmount: backendOtherCharges,
           otherChargesDisplay: formatIndianCurrency(backendOtherCharges),
           ultimateMrp: finalTotal,

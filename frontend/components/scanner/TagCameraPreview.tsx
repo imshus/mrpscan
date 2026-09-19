@@ -50,29 +50,76 @@ async function cropToFrame(
     return uri;
   }
 
-  const scale = Math.max(viewSize.width / photoWidth, viewSize.height / photoHeight);
-  if (!Number.isFinite(scale) || scale <= 0) return uri;
+  // The mapping below only holds while the photo stands the same way up as the
+  // preview it was framed in. Plenty of Android cameras hand back the sensor's
+  // own landscape frame with an EXIF tag saying "turn this a quarter", and
+  // measuring a portrait preview against those numbers puts the crop somewhere
+  // else entirely — a blank corner of the card, and a scan with no values on
+  // that phone while the same tag reads fine on the next one.
+  const previewIsPortrait = viewSize.height >= viewSize.width;
+  let source = { uri, width: photoWidth, height: photoHeight };
 
-  const offsetX = (photoWidth * scale - viewSize.width) / 2;
-  const offsetY = (photoHeight * scale - viewSize.height) / 2;
+  if (previewIsPortrait !== (source.height >= source.width)) {
+    // Saving the file again bakes the rotation into the pixels, after which
+    // the reported size is the size the framing was done against.
+    try {
+      const upright = await manipulateAsync(uri, [], { compress: 1, format: SaveFormat.JPEG });
+      if (upright?.uri && upright.width && upright.height) {
+        source = { uri: upright.uri, width: upright.width, height: upright.height };
+      }
+    } catch (error) {
+      console.warn('Could not normalise the capture orientation:', error);
+    }
+  }
+
+  if (previewIsPortrait !== (source.height >= source.width)) {
+    // Still lying the other way: which quarter turn was applied is not
+    // recoverable from here, so any crop would be a guess cut out of the wrong
+    // place. The whole photo still carries the tag, and the reader magnifies
+    // parts of whatever it is given.
+    console.warn('Capture is sideways to the preview; sending the whole photo.');
+    return source.uri;
+  }
+
+  const scale = Math.max(viewSize.width / source.width, viewSize.height / source.height);
+  if (!Number.isFinite(scale) || scale <= 0) return source.uri;
+
+  const offsetX = (source.width * scale - viewSize.width) / 2;
+  const offsetY = (source.height * scale - viewSize.height) / 2;
 
   const frameLeft = (viewSize.width - SCANNER_FRAME_WIDTH) / 2;
   const frameTop = viewSize.height / 2 - SCANNER_FRAME_HEIGHT * SCANNER_FRAME_VERTICAL_BIAS;
 
-  const originX = clamp(Math.round((frameLeft + offsetX) / scale), 0, photoWidth - 1);
-  const originY = clamp(Math.round((frameTop + offsetY) / scale), 0, photoHeight - 1);
-  const width = clamp(Math.round(SCANNER_FRAME_WIDTH / scale), 1, photoWidth - originX);
-  const height = clamp(Math.round(SCANNER_FRAME_HEIGHT / scale), 1, photoHeight - originY);
+  const originX = clamp(Math.round((frameLeft + offsetX) / scale), 0, source.width - 1);
+  const originY = clamp(Math.round((frameTop + offsetY) / scale), 0, source.height - 1);
+  const width = clamp(Math.round(SCANNER_FRAME_WIDTH / scale), 1, source.width - originX);
+  const height = clamp(Math.round(SCANNER_FRAME_HEIGHT / scale), 1, source.height - originY);
+
+  // A rectangle that no longer has the frame's shape was cut short by an edge,
+  // which means the mapping did not describe this photo. Better a whole photo
+  // than a slice of one.
+  const framePlausible =
+    Math.abs(width / height - SCANNER_FRAME_WIDTH / SCANNER_FRAME_HEIGHT) <
+    (SCANNER_FRAME_WIDTH / SCANNER_FRAME_HEIGHT) * 0.15;
+  if (!framePlausible) {
+    console.warn('Framed region does not fit this photo; sending the whole photo.', {
+      photo: `${source.width}x${source.height}`,
+      view: `${Math.round(viewSize.width)}x${Math.round(viewSize.height)}`,
+      crop: `${width}x${height}`,
+    });
+    return source.uri;
+  }
 
   try {
-    const result = await manipulateAsync(uri, [{ crop: { originX, originY, width, height } }], {
-      compress: 0.92,
-      format: SaveFormat.JPEG,
-    });
+    const result = await manipulateAsync(
+      source.uri,
+      [{ crop: { originX, originY, width, height } }],
+      { compress: 0.92, format: SaveFormat.JPEG },
+    );
     return result.uri;
   } catch (error) {
-    console.warn("Failed to crop capture to the scan frame, using full photo:", error);
-    return uri;
+    console.warn('Failed to crop capture to the scan frame, using full photo:', error);
+    return source.uri;
   }
 }
 
