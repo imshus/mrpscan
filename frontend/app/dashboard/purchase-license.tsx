@@ -189,7 +189,7 @@ export default function PurchaseLicenseScreen() {
   const purchaseState = useMemo(() => toPurchaseState(overview), [overview]);
   const displayPrice = rupees(overview?.applicationPrice || 12000);
   const bonusCredits = overview?.purchasedBonusCreditsConfigured || 1000;
-  const trialDays = overview?.trialDaysConfigured || 10;
+  const trialDays = overview?.trialDaysConfigured || 7;
   const trialCredits = overview?.freeTrialCreditsConfigured || overview?.trialCredits || 10;
   const isPurchased = purchaseState === 'PERMANENT';
 

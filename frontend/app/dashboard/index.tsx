@@ -328,11 +328,16 @@ export default function DashboardScreen() {
   const handleStartTrial = useCallback(async () => {
     try {
       setTrialActionLoading(true);
-      await startFreeTrial();
+      // The numbers come back from the server, so this cannot go stale when
+      // the trial length or the credit grant changes in billing settings.
+      const started = await startFreeTrial();
       await loadMarketData(false);
       Alert.alert(
         'Free Trial Started',
-        '10 free scanning credits have been granted.\n\nYour free trial is valid for 10 days.',
+        `${started.creditBalance} scanning credits have been granted.`
+          + (started.trialDays
+            ? `\n\nYour free trial is valid for ${started.trialDays} days.`
+            : '\n\nYour free trial is now active.'),
         [{ text: 'Continue' }],
       );
     } catch (error) {

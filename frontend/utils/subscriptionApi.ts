@@ -120,7 +120,7 @@ function toOverview(raw: Record<string, unknown>): SubscriptionOverview {
     scannerEnabled: Boolean(raw.scannerEnabled),
     rechargeEnabled: Boolean(raw.rechargeEnabled),
     paymentHistoryEnabled: Boolean(raw.paymentHistoryEnabled),
-    trialDays: Number(raw.trialDays || 10),
+    trialDays: Number(raw.trialDays || 7),
     trialCredits: Number(raw.trialCredits || 100),
     trialStartDate: (raw.trialStartDate as string) || null,
     trialEndDate: (raw.trialEndDate as string) || null,
@@ -146,7 +146,7 @@ function toOverview(raw: Record<string, unknown>): SubscriptionOverview {
     applicationPrice: Number(raw.applicationPrice || 12000),
     freeTrialCreditsConfigured: Number(raw.freeTrialCreditsConfigured || 100),
     purchasedBonusCreditsConfigured: Number(raw.purchasedBonusCreditsConfigured || 1000),
-    trialDaysConfigured: Number(raw.trialDaysConfigured || 10),
+    trialDaysConfigured: Number(raw.trialDaysConfigured || 7),
     lastScanCost: Number(raw.lastScanCost || 0),
     lastScanAt: (raw.lastScanAt as string) || null,
   };
@@ -163,7 +163,17 @@ export async function fetchSubscriptionOverview(): Promise<SubscriptionOverview>
   return toOverview(unwrapped);
 }
 
-export async function startFreeTrial(): Promise<void> {
+/**
+ * Starts the free trial and returns what the server actually granted: the
+ * window it runs for and the credits now in the wallet. The screens say those
+ * numbers rather than their own, so changing the trial in billing settings
+ * cannot leave the app telling a shop something untrue.
+ */
+export async function startFreeTrial(): Promise<{
+  trialDays: number;
+  trialEndDate?: string;
+  creditBalance: number;
+}> {
   const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/subscription/trial/start', {
     method: 'POST',
     body: {},
@@ -172,6 +182,18 @@ export async function startFreeTrial(): Promise<void> {
   if (!isSuccessfulResponse(response, unwrapped)) {
     throw new Error(resolveApiMessage(response, unwrapped, 'Failed to start free trial.'));
   }
+
+  const start = typeof unwrapped.trialStartDate === 'string' ? Date.parse(unwrapped.trialStartDate) : NaN;
+  const end = typeof unwrapped.trialEndDate === 'string' ? Date.parse(unwrapped.trialEndDate) : NaN;
+  const days = Number.isFinite(start) && Number.isFinite(end) && end > start
+    ? Math.round((end - start) / 86_400_000)
+    : 0;
+
+  return {
+    trialDays: days,
+    trialEndDate: typeof unwrapped.trialEndDate === 'string' ? unwrapped.trialEndDate : undefined,
+    creditBalance: Number(unwrapped.creditBalance || 0),
+  };
 }
 
 export async function purchaseApplicationPlaceholder(): Promise<void> {

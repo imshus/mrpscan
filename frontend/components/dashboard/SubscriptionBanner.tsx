@@ -37,9 +37,13 @@ function buildDaysLeftLabel(
     if (Number.isFinite(endsAt)) {
       const diffMs = endsAt - Date.now();
       if (diffMs <= 0) return 'Ends today';
-      const totalHours = Math.ceil(diffMs / (60 * 60 * 1000));
+      const totalHours = diffMs / (60 * 60 * 1000);
       if (totalHours <= 24) return 'Ends today';
-      const totalDays = Math.ceil(totalHours / 24);
+      // Rounded, and from the milliseconds in one step. Rounding the hours up
+      // and then the days up again turned any sliver over a whole day into a
+      // whole extra day, so a seven-day trial read as eight the moment it
+      // started — the phone's clock is never exactly the server's.
+      const totalDays = Math.round(diffMs / (24 * 60 * 60 * 1000));
       return `${totalDays} day${totalDays === 1 ? '' : 's'} left`;
     }
   }
@@ -52,7 +56,7 @@ export function SubscriptionBanner({
   licenseStatus,
   trialDaysRemaining = 0,
   trialEndDate,
-  trialDays = 10,
+  trialDays = 7,
   onStartTrial,
   onPurchase,
   trialExpiredAt,
@@ -105,7 +109,7 @@ export function SubscriptionBanner({
     }
     if (trialEnded) return 'Free trial ended';
     if (showTrialOnboarding) {
-      const days = Math.max(1, Math.round(Number(trialDays || 10)));
+      const days = Math.max(1, Math.round(Number(trialDays || 7)));
       return `${days} day${days === 1 ? '' : 's'} left`;
     }
     return buildDaysLeftLabel(trialEndDate, trialDaysRemaining);

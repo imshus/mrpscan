@@ -189,10 +189,13 @@ export default function SubscriptionManagerScreen() {
 
   const handleStartTrial = async () => {
     await runAction(async () => {
-      await startFreeTrial();
+      const started = await startFreeTrial();
       Alert.alert(
         'Free Trial Started',
-        '100 free scanning credits have been granted.\n\nYour free trial is valid for 10 days.',
+        `${started.creditBalance} scanning credits have been granted.`
+          + (started.trialDays
+            ? `\n\nYour free trial is valid for ${started.trialDays} days.`
+            : '\n\nYour free trial is now active.'),
       );
     });
   };

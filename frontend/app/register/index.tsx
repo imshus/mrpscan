@@ -23,7 +23,7 @@ import {
 import { AccountCreatedPopup } from '@/components/auth/AccountCreatedPopup';
 import { OtpBox } from '@/components/auth/OtpBox';
 import { Reveal } from '@/components/auth/Reveal';
-import { MPIN_LENGTH, MpinInput } from '@/components/ui/MpinInput';
+import { MPIN_LENGTH, MpinInput, type MpinInputHandle } from '@/components/ui/MpinInput';
 import { Colors } from '@/constants/theme';
 import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { useAuthStore } from '@/store/authStore';
@@ -98,6 +98,7 @@ export default function SignupScreen() {
 
   const scrollRef = useRef<ScrollView>(null);
   const phoneRef = useRef<TextInput>(null);
+  const confirmMpinRef = useRef<MpinInputHandle>(null);
   const normalizedPhone = phone.replace(/\D/g, '').slice(0, 10);
   const normalizedGst = normalizeGstNumber(gstNumber);
 
@@ -282,14 +283,14 @@ export default function SignupScreen() {
     }
   };
 
-  const createAccount = async () => {
+  const createAccount = async (confirmed = confirmMpin) => {
     if (!business) return;
     if (mpin.length !== MPIN_LENGTH) {
       setMpinError('Enter a 4-digit MPIN');
       triggerShake();
       return;
     }
-    if (mpin !== confirmMpin) {
+    if (mpin !== confirmed) {
       setMpinError("MPINs don't match");
       triggerShake();
       return;
@@ -484,15 +485,19 @@ export default function SignupScreen() {
                       setMpinError(null);
                     }}
                     autoFocus
+                    // Straight on to Confirm, rather than leaving the shop to
+                    // find the second field itself.
+                    onComplete={() => confirmMpinRef.current?.focus()}
                   />
                   <MpinInput
+                    ref={confirmMpinRef}
                     label="Confirm"
                     value={confirmMpin}
                     onChange={(next) => {
                       setConfirmMpin(next);
                       setMpinError(null);
                     }}
-                    onComplete={() => void createAccount()}
+                    onComplete={(confirmed) => void createAccount(confirmed)}
                   />
                 </View>
                 {mpinError ? <AuthErrorText>{mpinError}</AuthErrorText> : null}
