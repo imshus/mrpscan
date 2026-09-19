@@ -227,6 +227,7 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
             onChangeText={(packetCode) => emitChange({ packetCode })}
             editable={editable}
             attention={attention?.packetCode}
+            invalid={missing && !values.packetCode?.trim()}
           />
         ) : null}
         <MetalValueBox label={labels.amount} value={formatInr(amount)} amount />

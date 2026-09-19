@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, Vibration, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { ScannerFinalTab } from '@/components/scanner/ScannerFinalTab';
 import { PriceCard } from '@/components/scanner/PriceCard';
@@ -11,6 +12,7 @@ import {
 import { ChevronDown, RefreshCw } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 import { ItemCodePicker } from '@/components/scanner/ItemCodePicker';
+import { useShake } from '@/components/auth/AuthKit';
 import { useFormulaStore } from '@/store/formulaStore';
 import type { ScanItemData, StoneEntry, StructuredScanData } from '@/types/scanner';
 import { resolveItemIdentity } from '@/utils/itemIdentity';
@@ -329,9 +331,15 @@ export function ReviewScannedResultsModal({
    * very fields it is pointing at, and have to be dismissed to reach them.
    */
   const [showMissingStones, setShowMissingStones] = useState(false);
+  const [shakeStyle, triggerShake] = useShake();
   const hasIncompleteStones = useMemo(() => {
-    const incomplete = (entry: StoneEntry) => !entry.weight?.trim() || !entry.rate?.trim();
-    return diamondEntries.some(incomplete) || colorstoneEntries.some(incomplete);
+    // A diamond needs its packet code as well: it is what the stone is looked
+    // up by in the shop's own rate table.
+    const bare = (entry: StoneEntry) => !entry.weight?.trim() || !entry.rate?.trim();
+    return (
+      diamondEntries.some((entry) => bare(entry) || !entry.packetCode?.trim()) ||
+      colorstoneEntries.some(bare)
+    );
   }, [diamondEntries, colorstoneEntries]);
 
   // Once everything is filled the red goes away on its own, so a shop that
@@ -342,11 +350,15 @@ export function ReviewScannedResultsModal({
 
   const handleGenerateInvoice = useCallback(() => {
     if (hasIncompleteStones) {
+      // Red boxes, one shake and one buzz — the same refusal a wrong MPIN
+      // gives, which is a language the hand already knows.
       setShowMissingStones(true);
+      triggerShake();
+      Vibration.vibrate(80);
       return;
     }
     onGenerateInvoice();
-  }, [hasIncompleteStones, onGenerateInvoice]);
+  }, [hasIncompleteStones, onGenerateInvoice, triggerShake]);
 
   useEffect(() => {
     // Nothing to resolve until the tag's own karat is in: writing the 14K
@@ -526,6 +538,7 @@ export function ReviewScannedResultsModal({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        <Animated.View style={shakeStyle}>
         <ScannerFinalTab
           scanData={scanData}
           structuredData={structuredData}
@@ -550,6 +563,7 @@ export function ReviewScannedResultsModal({
           onStoneEntryChange={handleStoneEntryChange}
           onRateErrorChange={handleStoneRateErrorChange}
         />
+        </Animated.View>
 
         {hasRateError ? (
           <Text style={styles.rateError}>

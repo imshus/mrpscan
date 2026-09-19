@@ -340,9 +340,12 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
       {/* Under labour, as the design orders them: the two charges on top of
           the metal, then anything the shop adds by hand. */}
       <WastageSection
-        code={pricing.wastageCode}
+        code={pricing.wastageCode || scanData.itemCode || undefined}
         percent={pricing.wastagePercent}
         amountDisplay={pricing.wastageDisplay}
+        editable={editable}
+        percentOverride={scanData.wastagePercent}
+        onPercentChange={(text) => onFieldChange?.('wastagePercent', text)}
       />
 
       {editable ? (

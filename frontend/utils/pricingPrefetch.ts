@@ -49,6 +49,11 @@ export function derivePricingInput(
     // The wastage the shop charges is kept against the item code, so the
     // server needs to know which item this is before it can price it.
     itemCode: scanData.itemCode || scanData.sku || undefined,
+    // Sent only when typed: an empty box means "the item's own figure", and
+    // sending 0 instead would wipe wastage off the price.
+    ...(scanData.wastagePercent?.trim()
+      ? { wastagePercent: parseNumericValue(scanData.wastagePercent) }
+      : {}),
     diamonds: diamonds.map((d) => ({
       weight: parseNumericValue(d.weight) || 0,
       rate: parseNumericValue(d.rate) || 0,

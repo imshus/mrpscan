@@ -1,5 +1,6 @@
 import { useId, useState, type RefObject } from 'react';
 import {
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -8,7 +9,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useRouter, type Href } from 'expo-router';
-import { ChevronLeft, Trash2 } from 'lucide-react-native';
+import { Check, ChevronLeft, Trash2 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
@@ -104,6 +105,12 @@ interface ScannerScreenLayoutProps {
    */
   photoLayer?: (frame: { x: number; y: number; width: number; height: number }) => React.ReactNode;
   cameraRef?: RefObject<TagCameraPreviewRef | null>;
+  /**
+   * The side already in hand, shown as a small ticked thumbnail above the
+   * instruction while the other side is framed — proof the first photo is
+   * kept, rather than a screen that looks like starting over.
+   */
+  capturedPreviewUri?: string | null;
   headerContent?: React.ReactNode;
   controlsHidden?: boolean;
   /** Releases the camera while the gallery picker is open. */
@@ -128,6 +135,7 @@ export function ScannerScreenLayout({
   frameInteractive = false,
   photoLayer,
   cameraRef,
+  capturedPreviewUri,
   headerContent,
   controlsHidden = false,
   cameraPaused = false,
@@ -269,6 +277,22 @@ export function ScannerScreenLayout({
         </Text>
       ) : null}
 
+      {capturedPreviewUri && rootSize.height > 0 ? (
+        <View
+          style={[styles.capturedThumbWrap, { top: Math.max(frameTop - 36, 70) - 86 }]}
+          pointerEvents="none"
+        >
+          <Image
+            source={{ uri: capturedPreviewUri }}
+            style={styles.capturedThumb}
+            resizeMode="cover"
+          />
+          <View style={styles.capturedTick}>
+            <Check size={11} color={Colors.white} strokeWidth={3.2} />
+          </View>
+        </View>
+      ) : null}
+
       {headerContent ? <View style={styles.headerContent}>{headerContent}</View> : null}
 
       {cameraPermissionGranted || photoLayer ? (
@@ -373,6 +397,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  },
+  capturedThumbWrap: {
+    position: 'absolute',
+    alignSelf: 'center',
+    zIndex: 4,
+  },
+  capturedThumb: {
+    width: 92,
+    height: 58,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: '#1A1712',
+  },
+  capturedTick: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2FA35C',
+    borderWidth: 1.5,
+    borderColor: '#0B0906',
   },
   // Mockup .cap-instruction: centered 36px above the frame, inset 16px.
   instruction: {
