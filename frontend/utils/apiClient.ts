@@ -192,8 +192,16 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   let requestBody: BodyInit | undefined;
-  if (body instanceof FormData || typeof body === 'string') {
+  if (body instanceof FormData) {
     requestBody = body;
+  } else if (typeof body === 'string') {
+    requestBody = body;
+    // A caller that stringified its own JSON still needs the header, or the
+    // server's JSON parser skips the body and every field arrives undefined —
+    // which is how a correct MPIN was refused for a whole day.
+    if (!headers.has('Content-Type') && /^\s*[[{]/.test(body)) {
+      headers.set('Content-Type', 'application/json');
+    }
   } else if (body != null) {
     headers.set('Content-Type', 'application/json');
     requestBody = JSON.stringify(body);

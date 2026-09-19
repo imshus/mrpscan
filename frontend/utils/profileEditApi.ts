@@ -43,7 +43,7 @@ const unwrap = <T,>(response: ApiEnvelope<T>, fallback: string): T => {
 export async function startProfileEdit(mpin: string): Promise<string> {
   const response = await apiRequest<ApiEnvelope<{ editToken: string }>>(
     '/settings/business-profile/verify-mpin',
-    { method: 'POST', body: JSON.stringify({ mpin }) },
+    { method: 'POST', body: { mpin } },
   );
   return unwrap(response, 'Could not confirm your MPIN.').editToken;
 }
@@ -52,7 +52,7 @@ export async function startProfileEdit(mpin: string): Promise<string> {
 export async function previewGstChange(editToken: string, gstNumber: string): Promise<GstPreview> {
   const response = await apiRequest<ApiEnvelope<GstPreview>>(
     '/settings/business-profile/gst-preview',
-    { method: 'POST', body: JSON.stringify({ editToken, gstNumber }) },
+    { method: 'POST', body: { editToken, gstNumber } },
   );
   return unwrap(response, 'Could not verify that GST number.');
 }
@@ -61,7 +61,7 @@ export async function previewGstChange(editToken: string, gstNumber: string): Pr
 export async function sendProfilePhoneOtp(editToken: string, phone: string): Promise<void> {
   const response = await apiRequest<ApiEnvelope<{ phone: string }>>(
     '/settings/business-profile/phone-otp',
-    { method: 'POST', body: JSON.stringify({ editToken, phone }) },
+    { method: 'POST', body: { editToken, phone } },
   );
   unwrap(response, 'Could not send the code to that number.');
 }
@@ -76,7 +76,7 @@ export async function applyProfileChanges(
 ): Promise<ProfileUpdateResult> {
   const response = await apiRequest<ApiEnvelope<ProfileUpdateResult>>('/settings/business-profile', {
     method: 'POST',
-    body: JSON.stringify({ editToken, ...changes }),
+    body: { editToken, ...changes },
   });
   return unwrap(response, 'Could not save these changes.');
 }
