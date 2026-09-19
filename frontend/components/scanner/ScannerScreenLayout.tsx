@@ -362,7 +362,7 @@ export function ScannerScreenLayout({
                     <Text style={styles.orLabel}>OR</Text>
                     <Pressable onPress={onCalculatePress} style={styles.actionSlot}>
                       <View style={[styles.actionButton, styles.actionButtonSolid]}>
-                        <Text style={styles.scanLabel}>Calculate</Text>
+                        <Text style={styles.scanLabel}>Calculate directly</Text>
                       </View>
                     </Pressable>
                   </>
