@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 
 import {
+  FinalLabourAmountTile,
   getLaborValuesFromScanData,
   LaborSection,
   type LaborSectionValues,
@@ -340,13 +341,23 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
       {/* Under labour, as the design orders them: the two charges on top of
           the metal, then anything the shop adds by hand. */}
       <WastageSection
-        code={pricing.wastageCode || scanData.itemCode || undefined}
+        code={pricing.wastageCode || scanData.itemCode || scanData.sku || undefined}
         percent={pricing.wastagePercent}
         amountDisplay={pricing.wastageDisplay}
         editable={editable}
         percentOverride={scanData.wastagePercent}
         onPercentChange={(text) => onFieldChange?.('wastagePercent', text)}
       />
+
+      {/* Moved below Wastage at the shop's asking: the two tiles read as one
+          block of charges, and the total strip closes them off. */}
+      {editable ? (
+        <FinalLabourAmountTile
+          values={laborValues}
+          grossWeightGrams={scanData.grossWt}
+          netWeightGrams={scanData.netWt}
+        />
+      ) : null}
 
       {editable ? (
         <OtherChargesSection
