@@ -420,7 +420,7 @@ export default function DashboardScreen() {
                 <TimeTile />
               </View>
 
-              {mcxLiveRate != null && show24kMcx ? (
+              {(bhaw.mcxIsLive || mcxLiveRate != null) && show24kMcx ? (
                 <GradientView
                   colors={Gradients.metallic}
                   borderRadius={14}
@@ -428,7 +428,10 @@ export default function DashboardScreen() {
                 >
                   <View style={styles.mcxTopRow}>
                     <Text style={styles.mcxTopLabel}>MCX Gold Rate (24 Kt)</Text>
-                    <Text style={styles.mcxTopValue}>₹ {(mcxFinalRate ?? mcxLiveRate).toLocaleString('en-IN')}</Text>
+                    {/* The board's own Gold Future MCX — the same figure the
+                        Dashboard Settings cards print — not the rates API's
+                        adjusted copy of it. */}
+                    <Text style={styles.mcxTopValue}>₹ {bhaw.mcxRate.toLocaleString('en-IN')}</Text>
                   </View>
 
                   {/* The badla bhaw the house is quoting over that MCX rate —

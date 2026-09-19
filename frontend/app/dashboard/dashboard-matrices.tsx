@@ -88,8 +88,15 @@ export default function DashboardMatricesScreen() {
   // The live boards behind the cards. Polling is shared with Home, so opening
   // this screen costs one request rather than a second feed.
   const vendors = useBhawStore((state) => state.vendors);
+  const bhawProvider = useBhawStore((state) => state.provider);
   const startBhawPolling = useBhawStore((state) => state.startPolling);
   useEffect(() => startBhawPolling(), [startBhawPolling]);
+  useEffect(() => {
+    void useBhawStore.getState().hydrateProvider();
+  }, []);
+  // What the tick sits on: the locally followed house first (it answers
+  // instantly and survives cold starts), the server's record behind it.
+  const selectedSource = bhawProvider || bullion?.selected || '';
   // What the popup is saying. It closes itself, so nothing here waits on a tap.
   const [popup, setPopup] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
 
@@ -143,27 +150,27 @@ export default function DashboardMatricesScreen() {
   };
 
   const selectBullion = (key: string) => {
-    // A single choice: the menu closes on the way out, whether or not it moved.
     setOpenMenu(null);
-    if (!bullion || bullion.selected === key) return;
+    if (selectedSource === key) return;
 
+    // The phone follows the house at once — Home's rates and the tick are
+    // driven from here — and the server records it behind. A server that does
+    // not know a newer house yet clamps its own record without pulling the
+    // phone off the house the shop chose.
+    useBhawStore.getState().setProvider(key);
+    useMatricesStore.setState((state) => ({
+      values: { ...state.values, bhaw_source_jmd: key === 'jmd_patil' },
+    }));
+
+    if (!bullion) return;
     const previous = bullion;
     setBullion({ ...bullion, selected: key });
     void updateBullionSources({ selected: key, requestedNames: bullion.requestedNames })
       .then((saved) => {
         setBullion(saved);
-        // The older boolean drives Home until it reloads the setting; keeping
-        // it in step means the rate does not lag a house behind.
-        useMatricesStore.setState((state) => ({
-          values: { ...state.values, bhaw_source_jmd: saved.selected === 'jmd_patil' },
-        }));
       })
-      .catch((error) => {
+      .catch(() => {
         setBullion(previous);
-        setPopup({
-          text: error instanceof Error ? error.message : 'The change could not be saved.',
-          tone: 'error',
-        });
       });
   };
 
@@ -220,15 +227,15 @@ Home keeps following ${following} until then.`,
 
         {/* Each house as its own board, so the choice is made on the rates
             themselves rather than on a name in a list. */}
-        {bullion ? (
+        {vendors.length > 0 ? (
           <>
-            {bullion.houses.map((house) => (
+            {vendors.map((vendor) => (
               <BullionHouseCard
-                key={house.key}
-                name={house.label}
-                vendor={vendors.find((entry) => entry.source === house.key) ?? null}
-                selected={bullion.selected === house.key}
-                onSelect={() => selectBullion(house.key)}
+                key={String(vendor.source)}
+                name={vendor.name}
+                vendor={vendor}
+                selected={selectedSource === vendor.source}
+                onSelect={() => selectBullion(String(vendor.source))}
               />
             ))}
             <AddBullionRow onAdd={addBullion} />
