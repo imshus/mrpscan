@@ -46,6 +46,9 @@ export function derivePricingInput(
     labourWeightBasis: scanData.labourWeightBasis,
     calculationMode: scanData.calculationRate,
     otherCharges: otherChargesTotal,
+    // The wastage the shop charges is kept against the item code, so the
+    // server needs to know which item this is before it can price it.
+    itemCode: scanData.itemCode || scanData.sku || undefined,
     diamonds: diamonds.map((d) => ({
       weight: parseNumericValue(d.weight) || 0,
       rate: parseNumericValue(d.rate) || 0,

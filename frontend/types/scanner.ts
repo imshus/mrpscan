@@ -305,6 +305,10 @@ export interface CalculateMrpPayload {
   labourWeightBasis?: LabourWeightBasis;
   calculationMode?: 'rtgs' | 'cash';
   otherCharges?: number;
+  /** The shop's item code for this piece: what its wastage is kept against. */
+  itemCode?: string;
+  /** Overrides the item's own wastage, for a piece that is an exception. */
+  wastagePercent?: number;
   diamonds: Array<{ weight: number; rate: number; discountPercent?: number }>;
   colorstones: Array<{ weight: number; rate: number }>;
 }
@@ -318,6 +322,11 @@ export interface CalculateMrpResponse {
     goldAmount: number;
     labourAmount: number;
     labourChargeType: string;
+    /** Blank when the item carries no wastage, so the tile stays empty. */
+    wastageCode?: string;
+    wastagePercent?: number;
+    wastageWeightGrams?: number;
+    wastageAmount?: number;
     otherCharges: number;
     subtotal?: number;
   };

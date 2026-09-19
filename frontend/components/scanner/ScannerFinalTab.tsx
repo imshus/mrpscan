@@ -8,6 +8,7 @@ import {
   type LaborSectionValues,
 } from '@/components/scanner/LaborSection';
 import { LabourChargeResultSection } from '@/components/scanner/LabourChargeResultSection';
+import { WastageSection } from '@/components/scanner/WastageSection';
 import { MrpBreakdownCard } from '@/components/scanner/MrpBreakdownCard';
 import { FinNote, FinRow, MetalTile } from '@/components/scanner/ReviewCardKit';
 import { RawMaterialGoldSectionInteractive } from '@/components/scanner/RawMaterialGoldSection';
@@ -348,6 +349,14 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
       ) : (
         <LabourChargeResultSection pricing={pricing} />
       )}
+
+      {/* Under labour, as the design orders them: the two charges on top of
+          the metal, then anything the shop adds by hand. */}
+      <WastageSection
+        code={pricing.wastageCode}
+        percent={pricing.wastagePercent}
+        amountDisplay={pricing.wastageDisplay}
+      />
 
       {editable ? (
         <OtherChargesSection

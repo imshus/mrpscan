@@ -65,6 +65,15 @@ export interface FinalTabPricingResult {
   useFixedAmountMode: boolean;
   labourAmount: number;
   labourDisplay: string;
+  /**
+   * Wastage, as the server priced it. Absent on the local estimate, which has
+   * no item master to read the percentage from — so a screen showing it must
+   * treat 0 and "not known yet" the same way, which is to show nothing.
+   */
+  wastageCode?: string;
+  wastagePercent?: number;
+  wastageAmount?: number;
+  wastageDisplay?: string;
   otherChargesAmount: number;
   otherChargesDisplay: string;
   ultimateMrp: number;
@@ -386,8 +395,15 @@ export function withStoneRows(
   const colorstoneAmount = stoneRows
     .filter((row) => row.stoneType === 'colorstone')
     .reduce((sum, row) => sum + row.amount, 0);
+  // Wastage came from the server and nothing here changes it, but it must be
+  // added back: leaving it out would quietly drop it from the MRP the moment
+  // a stone row was edited.
   const ultimateMrp =
-    pricing.goldBasePrice + totalStoneAmount + pricing.labourAmount + pricing.otherChargesAmount;
+    pricing.goldBasePrice +
+    totalStoneAmount +
+    pricing.labourAmount +
+    (pricing.wastageAmount ?? 0) +
+    pricing.otherChargesAmount;
 
   return {
     ...pricing,
