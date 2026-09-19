@@ -27,7 +27,7 @@ export default function ContactUsScreen() {
     },
     {
       id: 'call',
-      title: 'Talk to Our Agent (24/7)',
+      title: 'Request for Custom Feature',
       subtitle: '',
       onPress: () => void talkToAgent(),
     },
