@@ -4,7 +4,7 @@ import { Bell, Heart, Menu } from 'lucide-react-native';
 
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
-import { getBusinessProfile } from '@/utils/businessProfile';
+import { getBusinessProfile, toTitleCase } from '@/utils/businessProfile';
 
 export function DashboardHeader() {
   const router = useRouter();
@@ -26,8 +26,12 @@ export function DashboardHeader() {
         <Menu size={18} color={Colors.textPrimary} />
       </Pressable>
 
-      <Text style={styles.brandTitle} numberOfLines={1}>
-        {businessName}
+      {/* Two lines, and cased as a name rather than shouted. The GST registry
+          returns the legal name in capitals, so a single line turned most
+          shops into "PRATHAM INTERNATI…" — the one thing on the screen that
+          is theirs, cut in half. */}
+      <Text style={styles.brandTitle} numberOfLines={2}>
+        {toTitleCase(businessName)}
       </Text>
 
       <Pressable

@@ -50,16 +50,41 @@ function sortGoldRates(rates: GoldRate[]): GoldRate[] {
   });
 }
 
-/** Champagne metallic badge showing one rate value + label (mockup .dash-rate-badge). */
-function RateBadge({ value, label }: { value: string; label: string }) {
+/**
+ * Champagne metallic badge showing one rate value + label (mockup
+ * .dash-rate-badge).
+ *
+ * `light` is for the two badla bhaw tiles, which sit on the metallic MCX card
+ * rather than on white: the same champagne fill there made them disappear
+ * into the card they were meant to stand out from.
+ */
+function RateBadge({
+  value,
+  label,
+  light = false,
+}: {
+  value: string;
+  label: string;
+  light?: boolean;
+}) {
+  const body = (
+    <>
+      <Text style={[styles.rateBadgeValue, light && styles.rateBadgeValueLight]}>{value}</Text>
+      <Text style={styles.rateBadgeLabel}>{label}</Text>
+    </>
+  );
+
+  if (light) {
+    return <View style={[styles.rateBadge, styles.rateBadgeLight]}>{body}</View>;
+  }
+
   return (
     <GradientView
       colors={Gradients.metallic}
       borderRadius={10}
       style={styles.rateBadge}
     >
-      <Text style={styles.rateBadgeValue}>{value}</Text>
-      <Text style={styles.rateBadgeLabel}>{label}</Text>
+      {body}
     </GradientView>
   );
 }
@@ -410,8 +435,8 @@ export default function DashboardScreen() {
                       the figure that turns it into what the shop buys at, and
                       the one a jeweller checks against the board. */}
                   <View style={styles.mcxBhawRow}>
-                    <RateBadge value={formatBhaw(bhaw.vendor?.cashBhaw)} label="Cash" />
-                    <RateBadge value={formatBhaw(bhaw.vendor?.rtgsBhaw)} label="RTGS" />
+                    <RateBadge value={formatBhaw(bhaw.vendor?.cashBhaw)} label="Cash" light />
+                    <RateBadge value={formatBhaw(bhaw.vendor?.rtgsBhaw)} label="RTGS" light />
                   </View>
 
                   <Text style={styles.mcxSourceLine}>rate by {bhaw.vendorName}</Text>
@@ -663,6 +688,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  rateBadgeLight: {
+    backgroundColor: '#FCF8EF',
+    borderRadius: 10,
+    borderColor: 'rgba(0,0,0,0.06)',
+    paddingVertical: 11,
+  },
+  rateBadgeValueLight: { fontSize: 17, fontWeight: '800' },
   rateBadgeValue: {
     fontSize: 13.8,
     fontWeight: '700',
