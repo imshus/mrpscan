@@ -70,7 +70,7 @@ function RateBadge({
   const body = (
     <>
       <Text style={[styles.rateBadgeValue, light && styles.rateBadgeValueLight]}>{value}</Text>
-      <Text style={styles.rateBadgeLabel}>{label}</Text>
+      <Text style={[styles.rateBadgeLabel, light && styles.rateBadgeLabelLight]}>{label}</Text>
     </>
   );
 
@@ -618,8 +618,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.08)',
     paddingHorizontal: 18,
-    paddingVertical: 16,
-    gap: 14,
+    paddingVertical: 19,
+    gap: 19,
     shadowColor: '#786441',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -637,20 +637,20 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   mcxSourceLine: {
-    fontSize: 11.5,
+    fontSize: 12.5,
     fontWeight: '600',
     color: Colors.textPrimary,
     opacity: 0.55,
     textAlign: 'center',
   },
   mcxTopLabel: {
-    fontSize: 13.6,
+    fontSize: 15,
     fontWeight: '600',
     color: Colors.textPrimary,
     opacity: 0.7,
   },
   mcxTopValue: {
-    fontSize: 18.4,
+    fontSize: 20.5,
     fontWeight: '800',
     color: Colors.textPrimary,
   },
@@ -690,11 +690,13 @@ const styles = StyleSheet.create({
   },
   rateBadgeLight: {
     backgroundColor: '#FCF8EF',
-    borderRadius: 10,
+    borderRadius: 12,
     borderColor: 'rgba(0,0,0,0.06)',
-    paddingVertical: 11,
+    paddingVertical: 17,
+    gap: 2,
   },
-  rateBadgeValueLight: { fontSize: 17, fontWeight: '800' },
+  rateBadgeValueLight: { fontSize: 21, fontWeight: '800' },
+  rateBadgeLabelLight: { fontSize: 12.5 },
   rateBadgeValue: {
     fontSize: 13.8,
     fontWeight: '700',

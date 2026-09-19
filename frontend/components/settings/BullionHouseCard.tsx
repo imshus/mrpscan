@@ -104,12 +104,14 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     marginBottom: 10,
   },
-  // The followed house is warm, not just outlined: on a cream page a white
-  // card and a gold border read as two separate signals for one choice.
+  // The followed house keeps the white fill and is marked by its border alone.
+  // A warmer fill was tried and is wrong: against a cream page white already
+  // reads as warm, and tinting it further closed the gap with the page instead
+  // of opening one. The border is a muted tan rather than the brand's gold,
+  // which at 1.5px around a whole card shouted louder than the tick.
   cardSelected: {
-    borderColor: Colors.accentGold,
+    borderColor: '#AF9B70',
     borderWidth: 1.5,
-    backgroundColor: '#FDF8E9',
   },
   head: {
     flexDirection: 'row',
