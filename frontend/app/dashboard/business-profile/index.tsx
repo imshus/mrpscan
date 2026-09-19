@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter, type Href } from 'expo-router';
 
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { BottomNav } from '@/components/dashboard/BottomNav';
@@ -8,6 +9,7 @@ import { BusinessProfileBanner } from '@/components/settings/BusinessProfileBann
 import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Spacing } from '@/constants/theme';
+import { useSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useAuthStore } from '@/store/authStore';
 import { getBusinessProfile, formatProfileValue } from '@/utils/businessProfile';
 import { fetchBusinessProfile } from '@/utils/businessProfileApi';
@@ -34,8 +36,12 @@ function DetailRow({ label, value, multiline, last }: DetailRowProps) {
 }
 
 export default function BusinessProfileScreen() {
+  const router = useRouter();
   const registration = useAuthStore((s) => s.registration);
   const updateRegistration = useAuthStore((s) => s.updateRegistration);
+  // The phone number carries the licence and the GSTIN names the business on
+  // its invoices, so both are the owner's to change and nobody else's.
+  const { isOwner } = useSettingsAccess();
 
   // Read the business identity from the database on open. The cached copy from
   // login renders immediately so nothing flashes empty, and a failed request
@@ -86,6 +92,11 @@ export default function BusinessProfileScreen() {
                   : 'Registered Organization'
           }
           showChevron={false}
+          onEditPress={
+            isOwner
+              ? () => router.push('/dashboard/business-profile/verify' as Href)
+              : undefined
+          }
         />
 
         <View style={styles.detailsCard}>
