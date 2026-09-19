@@ -46,6 +46,15 @@ export const Colors = {
   diamondBg: '#EAF3FB',
   diamondBorder: '#BCDCF4',
 
+  // Labour green and wastage plum: the other two tinted tiles on the review
+  // card, so each part of the price is told apart at a glance.
+  labour: '#2F7D5C',
+  labourBg: '#EAF5EF',
+  labourBorder: '#C3E3D3',
+  wastage: '#8A5A7A',
+  wastageBg: '#F8EEF5',
+  wastageBorder: '#E7D1E0',
+
   // Metallic champagne gradient stops (rate cards / time tile)
   metallic1: '#F5EFE0',
   metallic2: '#DDD0B0',

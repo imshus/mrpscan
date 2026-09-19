@@ -143,7 +143,7 @@ export function PillButton({ title, onPress, variant, disabled, icon, style, lar
 
 /* ==================== .metal-tile / .gold-tile / .diamond-tile / .labour-tile ==================== */
 
-export type MetalTileTone = 'gold' | 'diamond' | 'plain';
+export type MetalTileTone = 'gold' | 'diamond' | 'labour' | 'wastage' | 'plain';
 
 interface MetalTileProps {
   title?: string;
@@ -154,6 +154,8 @@ interface MetalTileProps {
 const TILE_TONES: Record<MetalTileTone, { bg: string; border: string; title: string }> = {
   gold: { bg: Colors.metalGoldBg, border: Colors.metalGoldBorder, title: Colors.metalGold },
   diamond: { bg: Colors.diamondBg, border: Colors.diamondBorder, title: Colors.diamond },
+  labour: { bg: Colors.labourBg, border: Colors.labourBorder, title: Colors.labour },
+  wastage: { bg: Colors.wastageBg, border: Colors.wastageBorder, title: Colors.wastage },
   plain: { bg: Colors.white, border: Colors.border, title: Colors.textPrimary },
 };
 

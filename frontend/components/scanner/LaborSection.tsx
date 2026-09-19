@@ -119,7 +119,7 @@ export const LaborSection = memo(function LaborSection({
 
   return (
     <>
-      <MetalTile title="Labour Charge" tone="plain">
+      <MetalTile title="Labour Charge" tone="labour">
         <MetalGrid>
           <MetalInput
             label="Labour Rate"

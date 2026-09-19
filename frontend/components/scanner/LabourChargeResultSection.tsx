@@ -23,7 +23,7 @@ export function LabourChargeResultSection({ pricing }: LabourChargeResultSection
 
   return (
     <>
-      <MetalTile title="Labour Charge" tone="plain">
+      <MetalTile title="Labour Charge" tone="labour">
         <FinRow label="Input Mode" value={modeLabel} />
         <Text style={styles.modeHint}>{modeHint}</Text>
       </MetalTile>
