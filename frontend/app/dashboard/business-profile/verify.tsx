@@ -5,6 +5,7 @@ import { useRouter, type Href } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
+import { useAuthStore } from '@/store/authStore';
 import { MpinInput, MPIN_LENGTH, type MpinInputHandle } from '@/components/ui/MpinInput';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Colors, Spacing } from '@/constants/theme';
@@ -81,6 +82,21 @@ export default function ConfirmMpinForProfileEdit() {
           disabled={mpin.length !== MPIN_LENGTH}
           style={styles.cta}
         />
+
+        {/* The same way out the sign-in screen has. Without it, a shop whose
+            remembered MPIN is not the registered one is simply stuck here. */}
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: '/login/set-mpin',
+              params: { phone: useAuthStore.getState().registration.phone || '' },
+            } as unknown as Href)
+          }
+          hitSlop={8}
+          style={styles.forgotWrap}
+        >
+          <Text style={styles.forgotLink}>Forgot MPIN?</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -113,4 +129,6 @@ const styles = StyleSheet.create({
     marginBottom: 26,
   },
   cta: { marginTop: 22 },
+  forgotWrap: { alignSelf: 'center', marginTop: 18 },
+  forgotLink: { fontSize: 13.5, fontWeight: '700', color: Colors.brandDeep },
 });
