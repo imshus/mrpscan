@@ -1,13 +1,16 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
 import {
   BHAW_POLL_INTERVAL_MS,
   BHAW_PROVIDERS,
+  feedMcxSell,
   fetchBhawVendors,
   selectVendor,
   type BhawProvider,
   type BhawVendor,
 } from '@/utils/bhawApi';
+import { scopedKey } from '@/utils/userScopedStorage';
 import { calculateBhawRates, type BhawRates } from '@/utils/bhawCalculation';
 
 /**
@@ -19,8 +22,11 @@ import { calculateBhawRates, type BhawRates } from '@/utils/bhawCalculation';
  * (matricesStore `bhaw_source_jmd`) and pushed in via setProvider.
  */
 
+/** Which house this account follows, remembered across cold starts. */
+const PROVIDER_KEY = 'bullion-provider';
+
 interface BhawState {
-  provider: BhawProvider;
+  provider: string;
   vendors: BhawVendor[];
   /** True once a fetch has completed, successfully or not. */
   isLoaded: boolean;
@@ -28,7 +34,11 @@ interface BhawState {
   error: string | null;
   lastUpdatedAt: string | null;
 
-  setProvider: (provider: BhawProvider) => void;
+  setProvider: (provider: string) => void;
+  /** Reads the remembered house once, before the first paint that shows it. */
+  hydrateProvider: () => Promise<void>;
+  /** The board's own "Gold Future MCX" sell, or null while the feed is out. */
+  mcxSell: () => number | null;
   refresh: () => Promise<void>;
   /** Polls while a screen is mounted; returns the unsubscribe. */
   startPolling: () => () => void;
@@ -49,7 +59,10 @@ let subscribers = 0;
 let inFlight: Promise<void> | null = null;
 
 export const useBhawStore = create<BhawState>()((set, get) => ({
-  provider: BHAW_PROVIDERS.MEGA_BULLION,
+  // Empty until the remembered choice is read (or the legacy toggle answers
+  // for accounts that never picked): a hardcoded default here would shadow
+  // both for the first paint.
+  provider: '',
   vendors: [],
   isLoaded: false,
   isRefreshing: false,
@@ -59,7 +72,20 @@ export const useBhawStore = create<BhawState>()((set, get) => ({
   setProvider: (provider) => {
     if (get().provider === provider) return;
     set({ provider });
+    // Per account: a shared phone must not follow one shop's house for another.
+    AsyncStorage.setItem(scopedKey(PROVIDER_KEY), provider).catch(() => {});
   },
+
+  hydrateProvider: async () => {
+    try {
+      const stored = await AsyncStorage.getItem(scopedKey(PROVIDER_KEY));
+      if (stored) set({ provider: stored });
+    } catch {
+      // The default provider is a working answer; a failed read is not news.
+    }
+  },
+
+  mcxSell: () => feedMcxSell(get().vendors),
 
   refresh: async () => {
     if (inFlight) return inFlight;

@@ -19,6 +19,8 @@ const BHAW_TIMEOUT_MS = 8_000;
 export const BHAW_PROVIDERS = {
   JMD_PATIL: 'jmd_patil',
   MEGA_BULLION: 'mega_bullion',
+  SHRI_SAI: 'shri_sai',
+  SHRI_GANESH: 'shri_ganesh',
 } as const;
 
 export type BhawProvider = (typeof BHAW_PROVIDERS)[keyof typeof BHAW_PROVIDERS];
@@ -118,9 +120,24 @@ export async function fetchBhawVendors(): Promise<BhawVendor[]> {
 /** Picks one provider out of the feed by its `source` key. */
 export function selectVendor(
   vendors: BhawVendor[],
-  provider: BhawProvider,
+  provider: BhawProvider | string,
 ): BhawVendor | null {
   return vendors.find((vendor) => vendor.source === provider) ?? null;
+}
+
+/**
+ * The MCX figure the boards themselves print — the "Gold Future MCX" sell.
+ *
+ * Every house on the feed carries the same MCX line, so the first one that
+ * has it speaks for the market. This is the number the Home card shows: the
+ * shop asked for the board's own figure, not the rates API's copy of it.
+ */
+export function feedMcxSell(vendors: BhawVendor[]): number | null {
+  for (const vendor of vendors) {
+    const row = vendor.rows.find((entry) => /gold\s*future\s*mcx/i.test(entry.label));
+    if (row && row.sell !== null && Number.isFinite(row.sell)) return row.sell;
+  }
+  return null;
 }
 
 /** Signed rupee value for display, e.g. "−3,200" / "+4,800". */
