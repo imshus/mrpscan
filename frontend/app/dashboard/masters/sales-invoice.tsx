@@ -8,6 +8,7 @@ import { BottomNav } from '@/components/dashboard/BottomNav';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import type { SalesInvoiceLayout } from '@/types/formulaSettings';
 import { fetchFormulaSettings, updateFormulaSettings } from '@/utils/formulaSettingsApi';
+import { friendlyServerMessage } from '@/utils/serverMessages';
 
 /**
  * How a sales invoice groups what was scanned.
@@ -74,13 +75,24 @@ export default function SalesInvoiceScreen() {
         formula2Rules: settings.formula2Rules,
         salesInvoiceLayout: value,
       });
+
+      // The request succeeded but the answer is not what was asked for, which
+      // means the API does not know this setting yet: an older deployment
+      // drops the field and replies with the default. Say that, rather than
+      // moving the tick back and leaving the shop to wonder why.
+      if (saved.salesInvoiceLayout !== value) {
+        setLayout(previous);
+        Alert.alert(
+          'Sales Invoice',
+          'This setting is not available on the server yet, so the choice could not be saved.',
+        );
+        return;
+      }
+
       setLayout(saved.salesInvoiceLayout);
     } catch (error) {
       setLayout(previous);
-      Alert.alert(
-        'Sales Invoice',
-        error instanceof Error ? error.message : 'Could not save this setting.',
-      );
+      Alert.alert('Sales Invoice', friendlyServerMessage(error, 'Could not save this setting.'));
     } finally {
       setSaving(false);
     }

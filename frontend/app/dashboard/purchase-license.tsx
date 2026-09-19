@@ -27,6 +27,7 @@ import {
   validateRazorpayPaymentResult,
   verifyPayment,
 } from '@/utils/subscriptionApi';
+import { friendlyServerMessage } from '@/utils/serverMessages';
 import Constants from 'expo-constants';
 
 type RazorpayModule = {
@@ -222,7 +223,7 @@ export default function PurchaseLicenseScreen() {
       if (!isPaymentCancellation(error)) {
         Alert.alert(
           'Recharge Credits',
-          error instanceof Error ? error.message : 'The recharge could not be completed.',
+          friendlyServerMessage(error, 'The recharge could not be completed.'),
         );
       }
     } finally {
