@@ -279,7 +279,13 @@ export function ScannerScreenLayout({
 
       {capturedPreviewUri && rootSize.height > 0 ? (
         <View
-          style={[styles.capturedThumbWrap, { top: Math.max(frameTop - 36, 70) - 86 }]}
+          style={[
+            styles.capturedThumbWrap,
+            // The same size as the capture frame, sitting above the
+            // instruction; clamped so a short screen cannot push it under
+            // the top bar.
+            { top: Math.max(Math.max(frameTop - 36, 70) - (SCANNER_FRAME_HEIGHT + 16), 64) },
+          ]}
           pointerEvents="none"
         >
           <Image
@@ -404,9 +410,11 @@ const styles = StyleSheet.create({
     zIndex: 4,
   },
   capturedThumb: {
-    width: 92,
-    height: 58,
-    borderRadius: 10,
+    // The captured side at the size it was framed at — the scan area's own
+    // width and height — so what is in hand can actually be read.
+    width: SCANNER_FRAME_WIDTH,
+    height: SCANNER_FRAME_HEIGHT,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.35)',
     backgroundColor: '#1A1712',
