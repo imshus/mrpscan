@@ -291,17 +291,6 @@ export default function PurchaseLicenseScreen() {
                     <Feature text="24×7 Customer Agent" tone="trial" />
                     <Feature text="Credit recharge when low" tone="trial" />
                   </View>
-                  <Pressable
-                    disabled={isPurchased}
-                    onPress={() => router.replace('/dashboard')}
-                    style={[
-                      styles.keepBtn,
-                      styles.panelAction,
-                      isPurchased && styles.btnDisabled,
-                    ]}
-                  >
-                    <Text style={styles.keepBtnText}>Keep Using</Text>
-                  </Pressable>
                 </GradientView>
 
                 <View style={styles.divider} />
@@ -505,16 +494,6 @@ const styles = StyleSheet.create({
     color: Colors.white,
     width: '100%',
   },
-  keepBtn: {
-    height: 46,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  keepBtnText: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
   purchaseBtn: {
     height: 46,
     backgroundColor: Colors.white,

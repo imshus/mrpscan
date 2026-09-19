@@ -21,6 +21,10 @@ export default function MastersScreen() {
     if (item.id === 'rates-labour') return access.canEditLabour;
     // The item-code catalogue is the shop's to shape, so the tile is the owner's.
     if (item.id === 'item-codes') return userRole === 'business';
+    // How an invoice reads is the shop's decision too: it goes to customers.
+    if (item.id === 'sales-invoice') return userRole === 'business';
+    // Anything without a case above is hidden rather than shown by accident —
+    // which is also why a new tile must be named here, not only in the list.
     return false;
   });
 
