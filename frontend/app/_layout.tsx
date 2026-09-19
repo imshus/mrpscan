@@ -106,6 +106,9 @@ export default function RootLayout() {
   // blocking the first frame on it only prolonged the native splash.
   const [, fontError] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    // The display serif the design is set in; titles fall back to the system
+    // serif for the frames before it lands.
+    'PlayfairDisplay-Bold': require('../assets/fonts/PlayfairDisplay-Bold.ttf'),
   });
 
   // Scan-reveal opening (ported from design-mockup): the splash overlay plays

@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 
 /**
  * MRPscan brand theme — cream/red palette from design-mockup/styles.css.
@@ -96,11 +95,11 @@ export const FLAT_SURFACES = true;
 
 /** Serif display face approximating the mockup's Playfair Display. */
 export const Fonts = {
-  display: Platform.select({
-    ios: 'Georgia',
-    android: 'serif',
-    default: "Georgia, 'Playfair Display', serif",
-  }) as string,
+  // Bundled at assets/fonts and registered under this name in app/_layout;
+  // the design's titles are set in it. Until the file registers (the first
+  // frames of a cold start) the name simply misses and the platform serif
+  // stands in.
+  display: 'PlayfairDisplay-Bold',
 } as const;
 
 /** Consistent spacing scale used across StyleSheet and layout helpers. */
