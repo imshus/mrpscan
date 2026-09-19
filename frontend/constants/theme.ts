@@ -91,7 +91,7 @@ export const Surfaces = {
 } as const;
 
 /** true = GradientView paints a flat Surfaces colour (no gradient, sheen or top highlight). */
-export const FLAT_SURFACES = false;
+export const FLAT_SURFACES = true;
 
 /** Serif display face approximating the mockup's Playfair Display. */
 export const Fonts = {
