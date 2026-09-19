@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useState } from 'react';
 
 import {
   AmountTile,
@@ -89,6 +89,46 @@ function formatInr(amount: number): string {
   return `₹${Math.round(amount).toLocaleString('en-IN')}`;
 }
 
+/**
+ * The labour figure as typed: rate times the chosen weight, before the server
+ * has said anything. Exported so the Final Labour Amount strip can live where
+ * the screen puts it — below Wastage — while staying in step with every
+ * keystroke in the tile above.
+ */
+export function computeFinalLabourAmount(
+  values: Pick<LaborSectionValues, 'labourChargeAmount' | 'labourChargeUnit' | 'labourWeightBasis'>,
+  grossWeightGrams: string,
+  netWeightGrams: string,
+): number {
+  const grossWt = parseWeightValue(grossWeightGrams);
+  const netWt = parseWeightValue(netWeightGrams);
+  const selectedWeight = values.labourWeightBasis === 'gross' ? grossWt : netWt;
+  const rate = Number(values.labourChargeAmount) || 0;
+  if (rate <= 0 || selectedWeight <= 0) return 0;
+  if (values.labourChargeUnit === 'Per 10 Gram') {
+    return selectedWeight * (rate / 10);
+  }
+  return selectedWeight * rate;
+}
+
+/** The strip itself, formatted the way the tile used to show it. */
+export function FinalLabourAmountTile({
+  values,
+  grossWeightGrams,
+  netWeightGrams,
+}: {
+  values: LaborSectionValues;
+  grossWeightGrams: string;
+  netWeightGrams: string;
+}) {
+  return (
+    <AmountTile
+      label="Final Labour Amount"
+      value={formatInr(computeFinalLabourAmount(values, grossWeightGrams, netWeightGrams))}
+    />
+  );
+}
+
 export const LaborSection = memo(function LaborSection({
   values,
   onChange,
@@ -97,18 +137,6 @@ export const LaborSection = memo(function LaborSection({
   pureWeightDisplay = '—',
   goldAmountDisplay = '—',
 }: LaborSectionProps) {
-  const grossWt = parseWeightValue(grossWeightGrams);
-  const netWt = parseWeightValue(netWeightGrams);
-  const selectedWeight = values.labourWeightBasis === 'gross' ? grossWt : netWt;
-
-  const computedLaborAmount = useMemo(() => {
-    const rate = Number(values.labourChargeAmount) || 0;
-    if (rate <= 0 || selectedWeight <= 0) return 0;
-    if (values.labourChargeUnit === 'Per 10 Gram') {
-      return selectedWeight * (rate / 10);
-    }
-    return selectedWeight * rate;
-  }, [selectedWeight, values.labourChargeAmount, values.labourChargeUnit]);
 
   const handleChargeChange = (text: string) => {
     const next = sanitizeChargeAmount(text);
@@ -137,8 +165,6 @@ export const LaborSection = memo(function LaborSection({
           </MetalFieldSlot>
         </MetalGrid>
       </MetalTile>
-
-      <AmountTile label="Final Labour Amount" value={formatInr(computedLaborAmount)} />
     </>
   );
 });

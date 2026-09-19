@@ -323,7 +323,11 @@ export default function BarcodeScannerScreen() {
         onCalculatePress={onSecondSide && !pickedPhoto ? handleCalculateFromCapture : undefined}
         // The side already taken, ticked, above the frame: the screen asks
         // for the back of the tag while showing the front is safely in hand.
-        capturedPreviewUri={onSecondSide && !pickedPhoto ? frontImageUri : undefined}
+        // The capture path holds that side locally until the scan starts, so
+        // the store's uri alone left the camera flow with no thumbnail.
+        capturedPreviewUri={
+          onSecondSide && !pickedPhoto ? confirmedFront?.uri ?? frontImageUri : undefined
+        }
         photoLayer={
           pickedPhoto
             ? (frame) => (

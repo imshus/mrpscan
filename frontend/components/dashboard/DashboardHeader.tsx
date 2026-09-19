@@ -70,7 +70,8 @@ const styles = StyleSheet.create({
   menuBtn: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    // The design's rounded square; a circle here made it a second bell.
+    borderRadius: 12,
     backgroundColor: Colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
@@ -89,7 +90,11 @@ const styles = StyleSheet.create({
   },
   brandTitle: {
     flex: 1,
-    fontSize: 16,
+    // Measured off the design: ~17px per line, wrapping after the first word
+    // of a two-word name because the title column is narrow, not wide.
+    fontSize: 17,
+    lineHeight: 21,
+    maxWidth: '52%',
     fontWeight: '700',
     fontFamily: Fonts.display,
     color: Colors.textPrimary,
