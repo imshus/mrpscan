@@ -5,6 +5,7 @@ import { Bell, Heart, Menu } from 'lucide-react-native';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { getBusinessProfile, toTitleCase } from '@/utils/businessProfile';
+import { useUnseenNotifications } from '@/hooks/useUnseenNotifications';
 
 export function DashboardHeader() {
   const router = useRouter();
@@ -15,6 +16,7 @@ export function DashboardHeader() {
   // simply has no title, and the home screen fetches it on arrival.
   const registration = useAuthStore((s) => s.registration);
   const businessName = getBusinessProfile(registration).businessName.trim();
+  const unseenNotifications = useUnseenNotifications();
 
   return (
     <View style={styles.header}>
@@ -40,6 +42,9 @@ export function DashboardHeader() {
         onPress={() => router.push('/dashboard/notifications' as Href)}
       >
         <Bell size={16} color={Colors.textPrimary} />
+        {/* The mockup's .dash-bell-dot: something has arrived that this
+            account has not opened yet. */}
+        {unseenNotifications ? <View style={styles.bellDot} /> : null}
       </Pressable>
 
       <Pressable
@@ -69,6 +74,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  bellDot: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.accentGold,
+    // Ringed in the page colour so it stays a dot against the bell behind it.
+    borderWidth: 1.5,
+    borderColor: Colors.background,
   },
   brandTitle: {
     flex: 1,
