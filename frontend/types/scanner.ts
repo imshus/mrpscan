@@ -180,6 +180,12 @@ export interface ScanItemData {
   labourChargeAmount: string;
   labourChargeUnit: LabourChargeUnit;
   labourWeightBasis: LabourWeightBasis;
+  /**
+   * A wastage % typed on the review screen for this scan alone. Empty means
+   * the item master's own figure applies; the server treats a sent value as
+   * the override.
+   */
+  wastagePercent?: string;
   calculationRate: 'rtgs' | 'cash';
   otherChargesAmount: string;
   otherChargesItems: OtherChargeItem[];

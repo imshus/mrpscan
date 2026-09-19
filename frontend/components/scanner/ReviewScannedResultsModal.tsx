@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, Vibration, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { ScannerFinalTab } from '@/components/scanner/ScannerFinalTab';
 import { PriceCard } from '@/components/scanner/PriceCard';
@@ -11,6 +12,7 @@ import {
 import { ChevronDown, RefreshCw } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 import { ItemCodePicker } from '@/components/scanner/ItemCodePicker';
+import { useShake } from '@/components/auth/AuthKit';
 import { useFormulaStore } from '@/store/formulaStore';
 import type { ScanItemData, StoneEntry, StructuredScanData } from '@/types/scanner';
 import { resolveItemIdentity } from '@/utils/itemIdentity';
@@ -324,42 +326,39 @@ export function ReviewScannedResultsModal({
    *
    * A diamond with no weight or no rate prices at nothing, so the MRP comes
    * out as if the stone were not there — a gold price on a diamond piece.
-   * Rather than let that reach an invoice, Generate Invoice turns the empty
-   * boxes red and says what is missing.
+   * Generate Invoice turns those boxes red instead of billing it. The red is
+   * the whole message: a popup would say the same thing over the top of the
+   * very fields it is pointing at, and have to be dismissed to reach them.
    */
   const [showMissingStones, setShowMissingStones] = useState(false);
-  const incompleteStones = useMemo(() => {
-    const incomplete = (entries: StoneEntry[], label: string) =>
-      entries
-        .map((entry, index) => ({ entry, index }))
-        .filter(({ entry }) => !entry.weight?.trim() || !entry.rate?.trim())
-        .map(({ index }) => (entries.length > 1 ? `${label} ${index + 1}` : label));
-
-    return [
-      ...incomplete(diamondEntries, 'Diamond'),
-      ...incomplete(colorstoneEntries, 'Colorstone'),
-    ];
+  const [shakeStyle, triggerShake] = useShake();
+  const hasIncompleteStones = useMemo(() => {
+    // A diamond needs its packet code as well: it is what the stone is looked
+    // up by in the shop's own rate table.
+    const bare = (entry: StoneEntry) => !entry.weight?.trim() || !entry.rate?.trim();
+    return (
+      diamondEntries.some((entry) => bare(entry) || !entry.packetCode?.trim()) ||
+      colorstoneEntries.some(bare)
+    );
   }, [diamondEntries, colorstoneEntries]);
 
   // Once everything is filled the red goes away on its own, so a shop that
   // fixes it is not left looking at a warning about nothing.
   useEffect(() => {
-    if (incompleteStones.length === 0) setShowMissingStones(false);
-  }, [incompleteStones.length]);
+    if (!hasIncompleteStones) setShowMissingStones(false);
+  }, [hasIncompleteStones]);
 
   const handleGenerateInvoice = useCallback(() => {
-    if (incompleteStones.length > 0) {
+    if (hasIncompleteStones) {
+      // Red boxes, one shake and one buzz — the same refusal a wrong MPIN
+      // gives, which is a language the hand already knows.
       setShowMissingStones(true);
-      Alert.alert(
-        'Fill in the stone details',
-        `${incompleteStones.join(', ')} ${
-          incompleteStones.length > 1 ? 'have' : 'has'
-        } no weight or rate yet. Enter them so the stone is priced, or remove it.`,
-      );
+      triggerShake();
+      Vibration.vibrate(80);
       return;
     }
     onGenerateInvoice();
-  }, [incompleteStones, onGenerateInvoice]);
+  }, [hasIncompleteStones, onGenerateInvoice, triggerShake]);
 
   useEffect(() => {
     // Nothing to resolve until the tag's own karat is in: writing the 14K
@@ -539,6 +538,7 @@ export function ReviewScannedResultsModal({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        <Animated.View style={shakeStyle}>
         <ScannerFinalTab
           scanData={scanData}
           structuredData={structuredData}
@@ -563,6 +563,7 @@ export function ReviewScannedResultsModal({
           onStoneEntryChange={handleStoneEntryChange}
           onRateErrorChange={handleStoneRateErrorChange}
         />
+        </Animated.View>
 
         {hasRateError ? (
           <Text style={styles.rateError}>

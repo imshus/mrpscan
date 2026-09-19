@@ -47,10 +47,13 @@ export function calculateBhawRates({
   fallbackRtgsBhaw = 0,
 }: BhawRateInputs): BhawRates {
   const base = Number.isFinite(mcxBaseRate) ? mcxBaseRate : 0;
-  const isLive = vendor !== null;
 
-  const cashBhaw = vendor ? vendor.cashBhaw : fallbackCashBhaw;
-  const rtgsBhaw = vendor ? vendor.rtgsBhaw : fallbackRtgsBhaw;
+  // Each side falls back on its own. A house that publishes RTGS but not cash
+  // is common before its counter opens, and taking its null as zero would
+  // quote cash at the bare MCX rate — a real price, silently wrong.
+  const cashBhaw = vendor?.cashBhaw ?? fallbackCashBhaw;
+  const rtgsBhaw = vendor?.rtgsBhaw ?? fallbackRtgsBhaw;
+  const isLive = vendor?.cashBhaw != null && vendor?.rtgsBhaw != null;
 
   return {
     cashRate: Math.round(base + cashBhaw + businessCashChange),

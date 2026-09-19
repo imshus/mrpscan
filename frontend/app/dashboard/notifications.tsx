@@ -15,6 +15,7 @@ import {
   type AppNotification,
   type NotificationKind,
 } from '@/utils/notificationsApi';
+import { markNotificationsSeen } from '@/hooks/useUnseenNotifications';
 
 const KIND_STYLE: Record<NotificationKind, { Icon: typeof Gift; bg: string; color: string }> = {
   referral_purchase: { Icon: PartyPopper, bg: Colors.metalGoldBg, color: Colors.metalGold },
@@ -35,6 +36,9 @@ export default function NotificationsScreen() {
     setLoading(true);
     try {
       setItems(await fetchNotifications());
+      // Opening the screen is what clears the bell's dot; nothing server-side
+      // records a notification as read.
+      void markNotificationsSeen();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load notifications.');
     } finally {

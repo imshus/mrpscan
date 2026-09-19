@@ -35,6 +35,7 @@ export default function BarcodeScannerScreen() {
     promise: Promise<CreateScanResponse>;
   } | null>(null);
   const selectedType = useScannerStore((s) => s.selectedType);
+  const frontImageUri = useScannerStore((s) => s.frontImageUri);
   const setScanId = useScannerStore((s) => s.setScanId);
   const setFrontImageUri = useScannerStore((s) => s.setFrontImageUri);
   const setBackImageUri = useScannerStore((s) => s.setBackImageUri);
@@ -320,6 +321,9 @@ export default function BarcodeScannerScreen() {
         onUploadPress={onSecondSide || pickedPhoto ? undefined : handleUpload}
         onDeletePress={onSecondSide || pickedPhoto ? handleDiscardScan : undefined}
         onCalculatePress={onSecondSide && !pickedPhoto ? handleCalculateFromCapture : undefined}
+        // The side already taken, ticked, above the frame: the screen asks
+        // for the back of the tag while showing the front is safely in hand.
+        capturedPreviewUri={onSecondSide && !pickedPhoto ? frontImageUri : undefined}
         photoLayer={
           pickedPhoto
             ? (frame) => (

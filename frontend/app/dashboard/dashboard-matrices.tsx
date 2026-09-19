@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { AddBullionRow } from '@/components/settings/AddBullionRow';
+import { BullionHouseCard } from '@/components/settings/BullionHouseCard';
 import { MessagePopup } from '@/components/settings/MessagePopup';
 import { DropdownOption, SettingsDropdown } from '@/components/settings/SettingsDropdown';
 import {
@@ -15,6 +16,7 @@ import {
 } from '@/constants/dashboardMatrices';
 import { Colors, Spacing } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
+import { useBhawStore } from '@/store/bhawStore';
 import { useMatricesStore } from '@/store/matricesStore';
 import {
   fetchBullionSources,
@@ -83,6 +85,11 @@ export default function DashboardMatricesScreen() {
   const [openMenu, setOpenMenu] = useState<'bullion' | 'karat' | null>(null);
   // The houses to choose from: the two on the live feed, plus the shop's own.
   const [bullion, setBullion] = useState<BullionSources | null>(null);
+  // The live boards behind the cards. Polling is shared with Home, so opening
+  // this screen costs one request rather than a second feed.
+  const vendors = useBhawStore((state) => state.vendors);
+  const startBhawPolling = useBhawStore((state) => state.startPolling);
+  useEffect(() => startBhawPolling(), [startBhawPolling]);
   // What the popup is saying. It closes itself, so nothing here waits on a tap.
   const [popup, setPopup] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
 
@@ -208,30 +215,27 @@ Home keeps following ${following} until then.`,
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.hint}>
-          Choose the bullion house the Home rate follows, and which gold rates appear there.
+          Choose which gold rates appear on your Home dashboard.
         </Text>
 
-        <SettingsDropdown
-          title="Choose Bullion"
-          open={openMenu === 'bullion'}
-          onPress={() => setOpenMenu((current) => (current === 'bullion' ? null : 'bullion'))}
-        >
-          {bullion ? (
-            <>
-              {bullion.houses.map((house) => (
-                <DropdownOption
-                  key={house.key}
-                  label={house.label}
-                  selected={bullion.selected === house.key}
-                  onPress={() => selectBullion(house.key)}
-                />
-              ))}
-              <AddBullionRow onAdd={addBullion} />
-            </>
-          ) : (
-            <Text style={styles.loadingText}>Loading the bullion houses…</Text>
-          )}
-        </SettingsDropdown>
+        {/* Each house as its own board, so the choice is made on the rates
+            themselves rather than on a name in a list. */}
+        {bullion ? (
+          <>
+            {bullion.houses.map((house) => (
+              <BullionHouseCard
+                key={house.key}
+                name={house.label}
+                vendor={vendors.find((entry) => entry.source === house.key) ?? null}
+                selected={bullion.selected === house.key}
+                onSelect={() => selectBullion(house.key)}
+              />
+            ))}
+            <AddBullionRow onAdd={addBullion} />
+          </>
+        ) : (
+          <Text style={styles.loadingText}>Loading the bullion houses…</Text>
+        )}
 
         <SettingsDropdown
           title="Choose Karat"

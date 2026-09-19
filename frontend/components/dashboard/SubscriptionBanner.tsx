@@ -28,28 +28,34 @@ type Props = {
   loading?: boolean;
 };
 
-function buildDaysLeftLabel(
+/**
+ * Whole days left on the trial, or 0 for one that runs out today.
+ *
+ * Rounded from the milliseconds in one step. Rounding the hours up and then
+ * the days up again turned any sliver over a whole day into a whole extra
+ * day, so a seven-day trial read as eight the moment it started — the phone's
+ * clock is never exactly the server's.
+ */
+function trialDaysLeft(
   trialEndDate: string | null | undefined,
   fallbackDays: number,
-): string {
+): number {
   if (trialEndDate) {
     const endsAt = new Date(trialEndDate).getTime();
     if (Number.isFinite(endsAt)) {
       const diffMs = endsAt - Date.now();
-      if (diffMs <= 0) return 'Ends today';
-      const totalHours = diffMs / (60 * 60 * 1000);
-      if (totalHours <= 24) return 'Ends today';
-      // Rounded, and from the milliseconds in one step. Rounding the hours up
-      // and then the days up again turned any sliver over a whole day into a
-      // whole extra day, so a seven-day trial read as eight the moment it
-      // started — the phone's clock is never exactly the server's.
-      const totalDays = Math.round(diffMs / (24 * 60 * 60 * 1000));
-      return `${totalDays} day${totalDays === 1 ? '' : 's'} left`;
+      if (diffMs <= 0) return 0;
+      if (diffMs / (60 * 60 * 1000) <= 24) return 0;
+      return Math.round(diffMs / (24 * 60 * 60 * 1000));
     }
   }
-  const days = Math.max(0, Math.ceil(Number(fallbackDays || 0)));
-  if (days > 0) return `${days} day${days === 1 ? '' : 's'} left`;
-  return 'Ends today';
+  return Math.max(0, Math.ceil(Number(fallbackDays || 0)));
+}
+
+/** "Free trial ends in 7 days" — the whole sentence, as the design has it. */
+function buildTrialSentence(days: number): string {
+  if (days <= 0) return 'Free trial ends today';
+  return `Free trial ends in ${days} day${days === 1 ? '' : 's'}`;
 }
 
 export function SubscriptionBanner({
@@ -93,7 +99,15 @@ export function SubscriptionBanner({
     ]).start();
   }, [fadeAnim, liftAnim, licenseStatus]);
 
-  const headline = hasLicence ? 'Your subscription is active' : 'Buy premium';
+  // A running trial says the whole thing on one line — "Free trial ends in 7
+  // days" — rather than a heading over a number, which read as two unrelated
+  // facts stacked on each other.
+  const headline = useMemo(() => {
+    if (hasLicence) return 'Your subscription is active';
+    if (trialEnded) return 'Free trial ended';
+    if (showTrialOnboarding) return 'Start your free trial';
+    return buildTrialSentence(trialDaysLeft(trialEndDate, trialDaysRemaining));
+  }, [hasLicence, showTrialOnboarding, trialDaysRemaining, trialEndDate, trialEnded]);
 
   const actionLabel = showTrialOnboarding ? 'Start Free Trial →' : 'Purchase License →';
   const handlePress = showTrialOnboarding ? onStartTrial : onPurchase;
@@ -107,12 +121,13 @@ export function SubscriptionBanner({
         ? `${Math.max(0, Math.round(creditBalance)).toLocaleString('en-IN')} credits left`
         : null;
     }
-    if (trialEnded) return 'Free trial ended';
+    if (trialEnded) return null;
     if (showTrialOnboarding) {
       const days = Math.max(1, Math.round(Number(trialDays || 7)));
-      return `${days} day${days === 1 ? '' : 's'} left`;
+      return `${days} day${days === 1 ? '' : 's'} free`;
     }
-    return buildDaysLeftLabel(trialEndDate, trialDaysRemaining);
+    // The headline already carries the days, so a second line would repeat it.
+    return null;
   }, [
     creditBalance,
     hasLicence,

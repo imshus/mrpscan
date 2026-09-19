@@ -23,14 +23,34 @@ export const BHAW_PROVIDERS = {
 
 export type BhawProvider = (typeof BHAW_PROVIDERS)[keyof typeof BHAW_PROVIDERS];
 
+/** One line of a house's published board: "99.50 Gold Cash", sell 150400. */
+export interface BhawRow {
+  label: string;
+  buy: number | null;
+  sell: number | null;
+}
+
 export interface BhawVendor {
   source: BhawProvider | string;
   name: string;
-  /** Premium (+) or discount (−) over MCX for cash settlement, in rupees. */
-  cashBhaw: number;
-  /** Premium (+) or discount (−) over MCX for RTGS settlement, in rupees. */
-  rtgsBhaw: number;
+  /**
+   * Premium (+) or discount (−) over MCX, in rupees.
+   *
+   * Null when the house has not published that side today — several quote
+   * only MCX until their counter opens. Null is not zero: zero would mean
+   * "no premium" and would misprice every item, so anything that computes a
+   * rate must treat null as "no live figure" and fall back.
+   */
+  cashBhaw: number | null;
+  rtgsBhaw: number | null;
+  /** The house's own board, shown on the Dashboard Settings card. */
+  rows: BhawRow[];
   updatedAt: string;
+}
+
+/** True when this house has published both sides and can price a scan. */
+export function hasLiveBhaw(vendor: BhawVendor | null): boolean {
+  return vendor !== null && vendor.cashBhaw !== null && vendor.rtgsBhaw !== null;
 }
 
 function toNumber(value: unknown): number | null {
@@ -50,13 +70,28 @@ function normalizeVendor(raw: unknown): BhawVendor | null {
   const cashBhaw = toNumber(row.cash_bhaw);
   const rtgsBhaw = toNumber(row.rtgs_bhaw);
 
-  // A provider that has not published yet must not silently become 0, which
-  // would read as "no premium" and misprice every item.
-  if (!source || cashBhaw === null || rtgsBhaw === null) return null;
+  // Only a house with no identity at all is dropped. One that has not
+  // published its bhaw yet is kept, with nulls: Dashboard Settings lists
+  // every house the feed carries, and showing a dash against one is how a
+  // shop sees that it has nothing to follow there yet. Pricing refuses a
+  // null separately — see hasLiveBhaw.
+  if (!source) return null;
+
+  const rows = Array.isArray(row.rows)
+    ? row.rows
+        .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+        .map((entry) => ({
+          label: typeof entry.label === 'string' ? entry.label : '',
+          buy: toNumber(entry.buy),
+          sell: toNumber(entry.sell),
+        }))
+        .filter((entry) => entry.label)
+    : [];
 
   return {
     source,
     name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : source,
+    rows,
     cashBhaw,
     rtgsBhaw,
     updatedAt: typeof row.timestamp === 'string' ? row.timestamp : '',

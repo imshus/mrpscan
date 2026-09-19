@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useBhawRates } from '@/hooks/useBhawRates';
+import { formatBhaw } from '@/utils/bhawApi';
 import {
   ActivityIndicator,
   Alert,
@@ -49,16 +50,41 @@ function sortGoldRates(rates: GoldRate[]): GoldRate[] {
   });
 }
 
-/** Champagne metallic badge showing one rate value + label (mockup .dash-rate-badge). */
-function RateBadge({ value, label }: { value: string; label: string }) {
+/**
+ * Champagne metallic badge showing one rate value + label (mockup
+ * .dash-rate-badge).
+ *
+ * `light` is for the two badla bhaw tiles, which sit on the metallic MCX card
+ * rather than on white: the same champagne fill there made them disappear
+ * into the card they were meant to stand out from.
+ */
+function RateBadge({
+  value,
+  label,
+  light = false,
+}: {
+  value: string;
+  label: string;
+  light?: boolean;
+}) {
+  const body = (
+    <>
+      <Text style={[styles.rateBadgeValue, light && styles.rateBadgeValueLight]}>{value}</Text>
+      <Text style={[styles.rateBadgeLabel, light && styles.rateBadgeLabelLight]}>{label}</Text>
+    </>
+  );
+
+  if (light) {
+    return <View style={[styles.rateBadge, styles.rateBadgeLight]}>{body}</View>;
+  }
+
   return (
     <GradientView
       colors={Gradients.metallic}
       borderRadius={10}
       style={styles.rateBadge}
     >
-      <Text style={styles.rateBadgeValue}>{value}</Text>
-      <Text style={styles.rateBadgeLabel}>{label}</Text>
+      {body}
     </GradientView>
   );
 }
@@ -400,8 +426,20 @@ export default function DashboardScreen() {
                   borderRadius={14}
                   style={styles.mcxTopCard}
                 >
-                  <Text style={styles.mcxTopLabel}>MCX Gold Rate (24 Kt)</Text>
-                  <Text style={styles.mcxTopValue}>₹ {(mcxFinalRate ?? mcxLiveRate).toLocaleString('en-IN')}</Text>
+                  <View style={styles.mcxTopRow}>
+                    <Text style={styles.mcxTopLabel}>MCX Gold Rate (24 Kt)</Text>
+                    <Text style={styles.mcxTopValue}>₹ {(mcxFinalRate ?? mcxLiveRate).toLocaleString('en-IN')}</Text>
+                  </View>
+
+                  {/* The badla bhaw the house is quoting over that MCX rate —
+                      the figure that turns it into what the shop buys at, and
+                      the one a jeweller checks against the board. */}
+                  <View style={styles.mcxBhawRow}>
+                    <RateBadge value={formatBhaw(bhaw.vendor?.cashBhaw)} label="Cash" light />
+                    <RateBadge value={formatBhaw(bhaw.vendor?.rtgsBhaw)} label="RTGS" light />
+                  </View>
+
+                  <Text style={styles.mcxSourceLine}>rate by {bhaw.vendorName}</Text>
                 </GradientView>
               ) : null}
 
@@ -580,24 +618,39 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.08)',
     paddingHorizontal: 18,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingVertical: 19,
+    gap: 19,
     shadowColor: '#786441',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
     shadowRadius: 20,
     elevation: 4,
   },
+  mcxTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+  },
+  mcxBhawRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  mcxSourceLine: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    opacity: 0.55,
+    textAlign: 'center',
+  },
   mcxTopLabel: {
-    fontSize: 13.6,
+    fontSize: 15,
     fontWeight: '600',
     color: Colors.textPrimary,
     opacity: 0.7,
   },
   mcxTopValue: {
-    fontSize: 18.4,
+    fontSize: 20.5,
     fontWeight: '800',
     color: Colors.textPrimary,
   },
@@ -635,6 +688,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  rateBadgeLight: {
+    backgroundColor: '#FCF8EF',
+    borderRadius: 12,
+    borderColor: 'rgba(0,0,0,0.06)',
+    paddingVertical: 17,
+    gap: 2,
+  },
+  rateBadgeValueLight: { fontSize: 21, fontWeight: '800' },
+  rateBadgeLabelLight: { fontSize: 12.5 },
   rateBadgeValue: {
     fontSize: 13.8,
     fontWeight: '700',
