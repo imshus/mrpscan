@@ -1,8 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { CheckCircle2 } from 'lucide-react-native';
-
-import { Colors, Radius } from '@/constants/theme';
+import { Check } from 'lucide-react-native';
 
 interface ProfileUpdatedPopupProps {
   /** Called when it closes itself, which is when the shop lands back on Profile. */
@@ -42,7 +40,7 @@ export function ProfileUpdatedPopup({ onDone, duration = 1800 }: ProfileUpdatedP
       <Pressable style={styles.backdrop} onPress={() => done.current()} accessibilityRole="button">
         <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
           <View style={styles.iconWrap}>
-            <CheckCircle2 size={26} color={Colors.successText} strokeWidth={2.2} />
+            <Check size={15} color="#FFFFFF" strokeWidth={3} />
           </View>
           <Text style={styles.title}>Your profile has been updated successfully</Text>
         </Animated.View>
@@ -51,10 +49,13 @@ export function ProfileUpdatedPopup({ onDone, duration = 1800 }: ProfileUpdatedP
   );
 }
 
+// The mockup's `.success-toast.center-popup`, taken as written: an ink-dark
+// horizontal toast — solid green check circle, cream text beside it — centred
+// over a 45% backdrop, not a white card.
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(21, 18, 13, 0.4)',
+    backgroundColor: 'rgba(21, 18, 13, 0.45)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 28,
@@ -62,31 +63,32 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 320,
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: Radius.card,
-    paddingHorizontal: 24,
-    paddingVertical: 26,
+    gap: 10,
+    backgroundColor: '#15120D',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     shadowColor: '#15120D',
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.25,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 10 },
     elevation: 8,
   },
   iconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.successBg,
-    marginBottom: 14,
+    backgroundColor: '#1A8A4A',
   },
   title: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    lineHeight: 21,
+    flex: 1,
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#FFFDF9',
+    lineHeight: 18,
   },
 });
