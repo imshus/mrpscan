@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   KeyboardAvoidingView,
   Pressable,
@@ -24,6 +25,7 @@ import { MPIN_LENGTH, MpinInput } from '@/components/ui/MpinInput';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { loginBusiness } from '@/utils/authApi';
+import { REMEMBERED_PHONE_KEY } from '@/utils/clearAppState';
 
 /** Ten digits, however the number was typed or pasted. */
 function toPhone(raw: string): string {
@@ -56,6 +58,25 @@ export default function BusinessLoginScreen() {
   const remembered = toPhone(savedPhone || '');
   const [phone, setPhone] = useState(remembered);
   const [askForNumber, setAskForNumber] = useState(remembered.length !== 10);
+
+  // After a new build's wipe the store starts empty, but the number itself
+  // survives under its own spared key — read it back so the screen greets the
+  // shop instead of asking who they are after every update.
+  useEffect(() => {
+    if (remembered.length === 10) return;
+    let cancelled = false;
+    void AsyncStorage.getItem(REMEMBERED_PHONE_KEY).then((stored: string | null) => {
+      const digits = toPhone(stored || '');
+      if (cancelled || digits.length !== 10) return;
+      setSavedCredentials(digits);
+      setPhone(digits);
+      setAskForNumber(false);
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [mpin, setMpin] = useState('');
   const [invalid, setInvalid] = useState(false);
   const [loading, setLoading] = useState(false);

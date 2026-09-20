@@ -4,6 +4,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const APP_STORAGE_PREFIX = 'pratham-';
 
 /**
+ * The sign-in number this device remembers, kept OUTSIDE the stores so a new
+ * build's wipe leaves it standing: the wipe exists to stop one build
+ * inheriting another's cached data, and a phone number typed by the owner is
+ * not cache — losing it just made every update re-ask who the shop is.
+ */
+export const REMEMBERED_PHONE_KEY = 'pratham-remembered-phone';
+
+/** Keys the build wipe deliberately leaves alone. */
+const SPARED_KEYS = new Set<string>([REMEMBERED_PHONE_KEY]);
+
+/**
  * The persisted store names. Each is stored under one key per account
  * (see `utils/userScopedStorage.ts`), except the session itself.
  */
@@ -27,7 +38,7 @@ export const PERSISTED_STORE_KEYS = [
 export async function clearPersistedAppState(): Promise<void> {
   try {
     const keys = await AsyncStorage.getAllKeys();
-    const ours = keys.filter((key) => key.startsWith(APP_STORAGE_PREFIX));
+    const ours = keys.filter((key) => key.startsWith(APP_STORAGE_PREFIX) && !SPARED_KEYS.has(key));
     if (ours.length > 0) {
       await AsyncStorage.multiRemove(ours);
     }

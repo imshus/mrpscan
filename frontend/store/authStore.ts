@@ -20,6 +20,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 const APP_BUILD = String(Constants.expoConfig?.version ?? 'dev');
 
 import type { LoginMethod, RegistrationData } from '@/types/auth';
+import { REMEMBERED_PHONE_KEY } from '@/utils/clearAppState';
 
 function getPersistedRegistration(
   registration: Partial<RegistrationData>,
@@ -86,7 +87,12 @@ export const useAuthStore = create<AuthState>()(
       setLoggedInEmployee: (id) => set({ loggedInEmployeeId: id }),
       setRememberMe: (value) => set({ rememberMe: value }),
       setLoginMethod: (method) => set({ loginMethod: method }),
-      setSavedCredentials: (phone) => set({ savedPhone: phone }),
+      setSavedCredentials: (phone) => {
+        set({ savedPhone: phone });
+        // Mirrored into the key the build wipe spares, so the next install
+        // still knows whose shop this is and asks for the MPIN alone.
+        if (phone) AsyncStorage.setItem(REMEMBERED_PHONE_KEY, phone).catch(() => {});
+      },
       setSavedEmployeePhone: (phone) => set({ savedEmployeePhone: phone }),
       updateRegistration: (data) =>
         set((state) => ({ registration: { ...state.registration, ...data } })),
