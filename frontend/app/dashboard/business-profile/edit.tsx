@@ -24,6 +24,7 @@ import {
 } from '@/utils/profileEditApi';
 import { friendlyServerMessage } from '@/utils/serverMessages';
 import { ApiError } from '@/utils/apiClient';
+import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 
 const tenDigits = (value: string) => value.replace(/\D/g, '').slice(-10);
 
@@ -73,6 +74,22 @@ export default function EditBusinessProfileScreen() {
   useEffect(() => {
     if (!editToken) router.replace('/dashboard/business-profile');
   }, [editToken, router]);
+
+  // The code fills itself when the SMS lands, same as every other
+  // verification screen: Play services asks once ("Allow MRPscan to read
+  // this message?"), the six digits appear, and the save runs.
+  useAndroidOtpAutofill({
+    enabled: otpSent && !done,
+    onCodeDetected: (detectedOtp) => {
+      setOtp(detectedOtp);
+      setError(null);
+      void save(detectedOtp);
+    },
+    onDetectionError: () => {
+      // The Autofill link and typing remain; a missed read is not an error
+      // worth showing over the code entry.
+    },
+  });
 
   /** Applies the change; called once the code is in, or straight away. */
   const save = async (code?: string) => {
