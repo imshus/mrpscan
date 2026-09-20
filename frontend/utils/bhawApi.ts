@@ -105,7 +105,17 @@ export async function fetchBhawVendors(): Promise<BhawVendor[]> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), BHAW_TIMEOUT_MS);
   try {
-    const response = await fetch(BHAW_URL, { signal: controller.signal });
+    // Cache-proofed both ways: RN's fetch on Android happily re-serves a
+    // cached GET, which left the boards frozen on old figures while the feed
+    // moved. The headers refuse the cache and the timestamped URL makes each
+    // poll a request nothing has ever cached.
+    const response = await fetch(`${BHAW_URL}?t=${Date.now()}`, {
+      signal: controller.signal,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, max-age=0',
+        Pragma: 'no-cache',
+      },
+    });
     if (!response.ok) throw new Error(`Bhaw API returned ${response.status}`);
 
     const payload: unknown = await response.json();
