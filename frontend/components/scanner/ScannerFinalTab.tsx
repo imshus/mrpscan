@@ -333,6 +333,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
           netWeightGrams={scanData.netWt}
           pureWeightDisplay={pricing.pureWtDisplay}
           goldAmountDisplay={pricing.goldBasePriceDisplay}
+          missing={highlightMissingStones}
         />
       ) : (
         <LabourChargeResultSection pricing={pricing} />
