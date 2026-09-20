@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthBackButton, AuthErrorText, AuthField, AuthPrimaryButton } from '@/components/auth/AuthKit';
@@ -191,7 +191,15 @@ export default function ForgotMpinScreen() {
             <View style={styles.footer}>
               <AuthPrimaryButton
                 title="Back to Log In"
-                onPress={() => router.replace('/login')}
+                // The shop has just chosen these four digits and is looking
+                // at them; handing them to Log In alongside the number means
+                // the only thing left to do there is press the button.
+                onPress={() =>
+                  router.replace({
+                    pathname: '/login',
+                    params: { phone, mpin: savedMpin },
+                  } as unknown as Href)
+                }
               />
             </View>
           ) : null}

@@ -4,15 +4,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const APP_STORAGE_PREFIX = 'pratham-';
 
 /**
- * The sign-in number this device remembers, kept OUTSIDE the stores so a new
- * build's wipe leaves it standing: the wipe exists to stop one build
- * inheriting another's cached data, and a phone number typed by the owner is
- * not cache — losing it just made every update re-ask who the shop is.
+ * The sign-in number this device remembers, kept OUTSIDE the stores so it
+ * survives signing out and reopening the app. It does NOT survive a new
+ * build: the shop asked for a new install to start completely blank, so this
+ * goes with everything else and that install opens on Create New Account.
  */
 export const REMEMBERED_PHONE_KEY = 'pratham-remembered-phone';
 
-/** Keys the build wipe deliberately leaves alone. */
-const SPARED_KEYS = new Set<string>([REMEMBERED_PHONE_KEY]);
+/**
+ * Keys the build wipe leaves alone — none. A new install carries nothing
+ * over from the one before it, at the shop's asking.
+ */
+const SPARED_KEYS = new Set<string>();
 
 /**
  * The persisted store names. Each is stored under one key per account

@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 
@@ -51,11 +51,18 @@ export default function BusinessLoginScreen() {
     updateRegistration,
   } = useAuthStore();
 
+  // What Forgot MPIN hands back after a reset: the number it verified and the
+  // four digits just chosen. Both are filled in here so the shop lands on a
+  // finished form and only has to press Log In.
+  const params = useLocalSearchParams<{ phone?: string; mpin?: string }>();
+  const handedBackPhone = toPhone(String(params.phone || ''));
+  const handedBackMpin = String(params.mpin || '').replace(/\D/g, '').slice(0, MPIN_LENGTH);
+
   // The mockup's sign-in is the MPIN alone, over "Welcome back" — it assumes
   // the device knows whose shop it is. It does, once this one has signed in
   // here before. A phone that never has (or was wiped by a new build) is asked
   // for the number first, since four digits alone name nobody.
-  const remembered = toPhone(savedPhone || '');
+  const remembered = handedBackPhone.length === 10 ? handedBackPhone : toPhone(savedPhone || '');
   const [phone, setPhone] = useState(remembered);
   const [askForNumber, setAskForNumber] = useState(remembered.length !== 10);
 
@@ -77,7 +84,7 @@ export default function BusinessLoginScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const [mpin, setMpin] = useState('');
+  const [mpin, setMpin] = useState(handedBackMpin);
   const [invalid, setInvalid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [shakeStyle, triggerShake] = useShake();

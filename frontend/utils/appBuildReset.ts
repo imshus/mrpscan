@@ -1,25 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
-import { clearPersistedAppState, REMEMBERED_PHONE_KEY } from './clearAppState';
-
-/**
- * Pulls the remembered sign-in number out of the auth store before the wipe
- * removes it. Builds older than the spared key kept the number only inside
- * the store, so without this one rescue the first upgrade still forgot it.
- */
-async function preserveRememberedPhone(): Promise<void> {
-  try {
-    const existing = await AsyncStorage.getItem(REMEMBERED_PHONE_KEY);
-    if (existing) return;
-    const rawAuth = await AsyncStorage.getItem('pratham-auth');
-    if (!rawAuth) return;
-    const phone = String(JSON.parse(rawAuth)?.state?.savedPhone ?? '').replace(/\D/g, '').slice(-10);
-    if (phone.length === 10) await AsyncStorage.setItem(REMEMBERED_PHONE_KEY, phone);
-  } catch {
-    // The number is a convenience; a failed rescue must not block the start.
-  }
-}
+import { clearPersistedAppState } from './clearAppState';
 
 /** Where the build that last wrote this device's data is recorded. */
 const BUILD_KEY = 'pratham-build';
@@ -51,7 +33,6 @@ export async function resetIfNewBuild(): Promise<boolean> {
       return false;
     }
 
-    await preserveRememberedPhone();
     await clearPersistedAppState();
     await AsyncStorage.setItem(BUILD_KEY, APP_BUILD);
     return true;
