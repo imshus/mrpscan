@@ -65,8 +65,17 @@ class SmsUserConsentModule : Module() {
   }
 
   private fun start() {
-    // null sender = accept a code from any number.
+    // null sender = accept a code from any number. The task fails quietly on
+    // devices whose Play services refuse it (missing, stale, or an OEM build),
+    // and a swallowed failure looks exactly like "nothing appeared" — so it is
+    // surfaced as an event the JS side can fall back on.
     SmsRetriever.getClient(context).startSmsUserConsent(null)
+      .addOnFailureListener { error ->
+        sendEvent(
+          EVENT_ERROR,
+          mapOf("error" to (error.message ?: "Could not start SMS user consent")),
+        )
+      }
 
     val smsReceiver = object : BroadcastReceiver() {
       override fun onReceive(receiverContext: Context?, intent: Intent?) {
