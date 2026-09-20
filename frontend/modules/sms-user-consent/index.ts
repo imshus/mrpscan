@@ -5,6 +5,8 @@ import type { EventSubscription } from 'expo-modules-core';
 interface SmsUserConsentModule {
   startListening(): void;
   stopListening(): void;
+  /** 11-char zero-tap hash for this signing key; "" if unreadable. */
+  getAppHash(): string;
   addListener(
     event: 'onSmsReceived',
     listener: (payload: { message: string }) => void,
