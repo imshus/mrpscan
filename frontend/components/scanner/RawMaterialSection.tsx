@@ -204,7 +204,6 @@ export const RawMaterialSection = memo(function RawMaterialSection({
               value={resolvedKarat ?? ''}
               options={displayedKaratOptions ?? []}
               onChange={handleKaratSelect}
-              placeholder="Select karat"
               containerClassName="w-full"
             />
           </MetalFieldSlot>
@@ -233,7 +232,6 @@ export const RawMaterialSection = memo(function RawMaterialSection({
               value={calculationMode ?? 'rtgs'}
               options={RATE_OPTIONS}
               onChange={(value) => onFieldChange?.('calculationRate', value)}
-              placeholder="Select gold rate"
               containerClassName="w-full"
             />
           </MetalFieldSlot>

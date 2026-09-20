@@ -13,7 +13,6 @@ interface TextFieldProps {
   editable?: boolean;
   rightElement?: React.ReactNode;
   className?: string;
-  placeholder?: string;
 }
 
 export function TextField({
@@ -26,7 +25,6 @@ export function TextField({
   editable = true,
   rightElement,
   className = '',
-  placeholder,
 }: TextFieldProps) {
   return (
     <View className={`mb-4 ${className}`}>
@@ -37,7 +35,6 @@ export function TextField({
         <TextInput
           value={value}
           onChangeText={onChangeText}
-          placeholder={placeholder}
           placeholderTextColor={Colors.placeholder}
           autoCapitalize={autoCapitalize}
           keyboardType={keyboardType}

@@ -15,7 +15,6 @@ export function EmployeeSearchBar({ value, onChangeText }: EmployeeSearchBarProp
       <TextInput
         value={value}
         onChangeText={onChangeText}
-        placeholder="Search Employee"
         placeholderTextColor={Colors.textMuted}
         style={styles.input}
       />

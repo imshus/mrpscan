@@ -135,7 +135,6 @@ export default function ForgotMpinScreen() {
             }}
             keyboardType="phone-pad"
             editable={!sent}
-            placeholder="+91 98765 43210"
             verifyLabel={sending ? 'Sending…' : sent ? 'Sent' : 'Send code'}
             onVerifyPress={() => void send()}
             verifyDisabled={sent || sending}

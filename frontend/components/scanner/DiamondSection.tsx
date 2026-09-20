@@ -123,7 +123,6 @@ export const DiamondSection = memo(function DiamondSection({
               value={values.shape}
               options={dropdownOptions}
               onChange={(shape) => onChange({ shape })}
-              placeholder="None"
               containerClassName="mb-2.5"
             />
           </FormFieldGridItem>

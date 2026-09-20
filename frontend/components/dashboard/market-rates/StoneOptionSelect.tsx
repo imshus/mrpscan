@@ -36,7 +36,7 @@ export function StoneOptionSelect({
   value,
   options,
   onChange,
-  placeholder = 'Select',
+  placeholder = '',
   allowClear = true,
   error,
   allowCustom = false,
@@ -140,7 +140,6 @@ export function StoneOptionSelect({
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Search"
                 accessibilityLabel="Search"
                 placeholderTextColor={Colors.placeholder}
                 style={styles.searchInput}

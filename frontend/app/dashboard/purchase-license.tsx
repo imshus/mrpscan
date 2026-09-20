@@ -376,7 +376,6 @@ export default function PurchaseLicenseScreen() {
                       onChangeText={(text) => setRechargeAmount(text.replace(/[^0-9]/g, ''))}
                       keyboardType="number-pad"
                       maxLength={7}
-                      placeholder="0"
                       placeholderTextColor={Colors.placeholder}
                       style={styles.amountInput}
                       accessibilityLabel="Credit amount"
