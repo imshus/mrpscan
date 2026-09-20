@@ -214,8 +214,8 @@ export default function BusinessLoginScreen() {
               />
               <Pressable
                 onPress={() => router.push({
-                  pathname: '/login/set-mpin',
-                  params: { phone: toPhone(phone), mode: 'forgot' },
+                  pathname: '/login/forgot-mpin',
+                  params: { phone: toPhone(phone) },
                 } as unknown as Href)}
                 style={styles.forgotRow}
                 hitSlop={6}

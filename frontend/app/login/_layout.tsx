@@ -13,6 +13,7 @@ export default function LoginLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="forgot-user-id" />
       <Stack.Screen name="forgot-password" />
+      <Stack.Screen name="forgot-mpin" />
       <Stack.Screen name="otp" />
     </Stack>
   );

@@ -250,7 +250,6 @@ export default function EditBusinessProfileScreen() {
             <View style={styles.cardBody}>
               <PhoneInput
                 label="Enter new phone number"
-                placeholder="XXXXX XXXXX"
                 value={phone}
                 onChangeText={(text) => {
                   setPhone(text);
@@ -288,7 +287,6 @@ export default function EditBusinessProfileScreen() {
             <View style={styles.cardBody}>
               <TextField
                 label="Enter new GST number"
-                placeholder="22AAAAA0000A1Z5"
                 value={gstNumber}
                 onChangeText={(text) => {
                   setGstNumber(text.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 15));
