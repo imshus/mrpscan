@@ -140,6 +140,18 @@ export function feedMcxSell(vendors: BhawVendor[]): number | null {
   return null;
 }
 
+/**
+ * One sell figure off a house's board — "99.50 Gold Cash", "99.50 Gold RTGS" —
+ * or null when that house has not published it. The Home tiles print these
+ * over the bhaw, so the shop reads the rate and the premium behind it in one
+ * glance, both straight from the board.
+ */
+export function boardSell(vendor: BhawVendor | null, label: RegExp): number | null {
+  if (!vendor) return null;
+  const row = vendor.rows.find((entry) => label.test(entry.label));
+  return row && row.sell !== null && Number.isFinite(row.sell) ? row.sell : null;
+}
+
 /** Signed rupee value for display, e.g. "−3,200" / "+4,800". */
 export function formatBhaw(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';

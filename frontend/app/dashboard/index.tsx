@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useBhawRates } from '@/hooks/useBhawRates';
-import { formatBhaw } from '@/utils/bhawApi';
+import { boardSell, formatBhaw } from '@/utils/bhawApi';
 import {
   ActivityIndicator,
   Alert,
@@ -86,6 +86,24 @@ function RateBadge({
     >
       {body}
     </GradientView>
+  );
+}
+
+/**
+ * One of the two big tiles on the MCX card: the house's own Cash or RTGS
+ * rate on top — the figure off its board — and the badla bhaw that produced
+ * it underneath. Two numbers a jeweller reads together, now read together.
+ * A house that has not published shows a dash, never a zero.
+ */
+function BhawTile({ rate, bhaw, label }: { rate: number | null; bhaw: string; label: string }) {
+  return (
+    <View style={styles.bhawTile}>
+      <Text style={styles.bhawTileRate}>
+        {rate === null ? '—' : `₹ ${rate.toLocaleString('en-IN')}`}
+      </Text>
+      <Text style={styles.bhawTileBhaw}>{bhaw}</Text>
+      <Text style={styles.bhawTileLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -438,8 +456,16 @@ export default function DashboardScreen() {
                       the figure that turns it into what the shop buys at, and
                       the one a jeweller checks against the board. */}
                   <View style={styles.mcxBhawRow}>
-                    <RateBadge value={formatBhaw(bhaw.vendor?.cashBhaw)} label="Cash" light />
-                    <RateBadge value={formatBhaw(bhaw.vendor?.rtgsBhaw)} label="RTGS" light />
+                    <BhawTile
+                      rate={boardSell(bhaw.vendor, /gold\s*cash/i)}
+                      bhaw={formatBhaw(bhaw.vendor?.cashBhaw)}
+                      label="Cash"
+                    />
+                    <BhawTile
+                      rate={boardSell(bhaw.vendor, /gold\s*rtgs/i)}
+                      bhaw={formatBhaw(bhaw.vendor?.rtgsBhaw)}
+                      label="RTGS"
+                    />
                   </View>
 
                   <Text style={styles.mcxSourceLine}>rate by {bhaw.vendorName}</Text>
@@ -691,6 +717,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  bhawTile: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    paddingVertical: 18,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
+    backgroundColor: '#FCF8EF',
+  },
+  bhawTileRate: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary },
+  bhawTileBhaw: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, opacity: 0.8 },
+  bhawTileLabel: { fontSize: 12.5, color: Colors.textPrimary, opacity: 0.7 },
   rateBadgeLight: {
     backgroundColor: '#FCF8EF',
     borderRadius: 12,

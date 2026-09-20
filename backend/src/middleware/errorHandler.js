@@ -33,7 +33,12 @@ const errorHandler = (err, req, res, next) => {
     'GST_UNCHANGED': { status: 400, msg: 'That is already the GST number on this business.' },
     'INVALID_PHONE_NUMBER': { status: 400, msg: 'Enter a valid 10-digit mobile number.' },
     'NOTHING_TO_CHANGE': { status: 400, msg: 'Nothing was changed.' },
+    'OTP_REQUIRED': { status: 400, msg: 'Enter the 6-digit code sent to your phone to save this change.' },
     'BUSINESS_NOT_FOUND': { status: 404, msg: 'This business could not be found.' },
+    'SCAN_IMAGES_MISSING': {
+      status: 410,
+      msg: 'That photo is no longer on the server. Please capture the tag again.',
+    },
     'GST_VERIFICATION_UNAVAILABLE': {
       status: 503,
       msg: 'GST verification is not available right now, so the number was not changed.',
