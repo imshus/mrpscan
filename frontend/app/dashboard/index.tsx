@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useBhawRates } from '@/hooks/useBhawRates';
-import { boardSell, formatBhaw } from '@/utils/bhawApi';
+import { boardSell } from '@/utils/bhawApi';
 import {
   ActivityIndicator,
   Alert,
@@ -91,17 +91,16 @@ function RateBadge({
 
 /**
  * One of the two big tiles on the MCX card: the house's own Cash or RTGS
- * rate on top — the figure off its board — and the badla bhaw that produced
- * it underneath, back at the shop's asking. A house that has not published
- * shows a dash, never a zero.
+ * rate off its board, over its label. The signed badla figures under them
+ * came off again at the shop's asking — the board rate already carries the
+ * bhaw. A house that has not published shows a dash, never a zero.
  */
-function BhawTile({ rate, bhaw, label }: { rate: number | null; bhaw: string; label: string }) {
+function BhawTile({ rate, label }: { rate: number | null; label: string }) {
   return (
     <View style={styles.bhawTile}>
       <Text style={styles.bhawTileRate}>
         {rate === null ? '—' : `₹ ${rate.toLocaleString('en-IN')}`}
       </Text>
-      <Text style={styles.bhawTileBhaw}>{bhaw}</Text>
       <Text style={styles.bhawTileLabel}>{label}</Text>
     </View>
   );
@@ -456,16 +455,8 @@ export default function DashboardScreen() {
                       the badla bhaw that produced it, and the house's name
                       underneath — restored at the shop's asking. */}
                   <View style={styles.mcxBhawRow}>
-                    <BhawTile
-                      rate={boardSell(bhaw.vendor, /gold\s*cash/i)}
-                      bhaw={formatBhaw(bhaw.vendor?.cashBhaw)}
-                      label="Cash"
-                    />
-                    <BhawTile
-                      rate={boardSell(bhaw.vendor, /gold\s*rtgs/i)}
-                      bhaw={formatBhaw(bhaw.vendor?.rtgsBhaw)}
-                      label="RTGS"
-                    />
+                    <BhawTile rate={boardSell(bhaw.vendor, /gold\s*cash/i)} label="Cash" />
+                    <BhawTile rate={boardSell(bhaw.vendor, /gold\s*rtgs/i)} label="RTGS" />
                   </View>
 
                   <Text style={styles.mcxSourceLine}>rate by {bhaw.vendorName}</Text>
@@ -696,7 +687,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FCF8EF',
   },
   bhawTileRate: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary },
-  bhawTileBhaw: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, opacity: 0.8 },
   bhawTileLabel: { fontSize: 12.5, color: Colors.textPrimary, opacity: 0.7 },
   rateCard: {
     backgroundColor: Colors.white,
