@@ -334,13 +334,16 @@ export function ReviewScannedResultsModal({
   const [shakeStyle, triggerShake] = useShake();
   const hasIncompleteStones = useMemo(() => {
     // A diamond needs its packet code as well: it is what the stone is looked
-    // up by in the shop's own rate table.
+    // up by in the shop's own rate table. The labour rate is on the same
+    // footing — an empty one prices the making at nothing — so it goes red
+    // with the same shake instead of billing a piece with no labour on it.
     const bare = (entry: StoneEntry) => !entry.weight?.trim() || !entry.rate?.trim();
     return (
       diamondEntries.some((entry) => bare(entry) || !entry.packetCode?.trim()) ||
-      colorstoneEntries.some(bare)
+      colorstoneEntries.some(bare) ||
+      !scanData.labourChargeAmount?.trim()
     );
-  }, [diamondEntries, colorstoneEntries]);
+  }, [diamondEntries, colorstoneEntries, scanData.labourChargeAmount]);
 
   // Once everything is filled the red goes away on its own, so a shop that
   // fixes it is not left looking at a warning about nothing.

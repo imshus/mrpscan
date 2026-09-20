@@ -70,7 +70,6 @@ export function RawMaterialGoldSectionInteractive({
             value={pricing.selectedKarat}
             options={KARAT_DROPDOWN_OPTIONS.map((option) => ({ value: option, label: option }))}
             onChange={onKaratChange}
-            placeholder="Select karat"
             containerClassName="flex-1"
           />
         </View>

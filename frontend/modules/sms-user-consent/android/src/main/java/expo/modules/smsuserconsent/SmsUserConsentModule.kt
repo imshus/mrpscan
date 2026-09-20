@@ -5,12 +5,20 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.content.pm.Signature
 import android.os.Build
+import android.util.Base64
+import android.util.Log
 import com.google.android.gms.auth.api.phone.SmsRetriever
 import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.common.api.Status
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+
+private const val TAG = "SmsUserConsent"
 
 private const val CONSENT_REQUEST_CODE = 51789
 private const val EVENT_RECEIVED = "onSmsReceived"
@@ -44,6 +52,13 @@ class SmsUserConsentModule : Module() {
       stop()
     }
 
+    // The 11-character code Google's zero-tap SMS Retriever matches against.
+    // Put it at the end of the OTP SMS template and the code fills with no
+    // tap at all; it changes with the signing key, never at runtime.
+    Function("getAppHash") {
+      appHashes().firstOrNull() ?: ""
+    }
+
     OnActivityResult { _, payload ->
       if (payload.requestCode != CONSENT_REQUEST_CODE) return@OnActivityResult
 
@@ -65,8 +80,30 @@ class SmsUserConsentModule : Module() {
   }
 
   private fun start() {
-    // null sender = accept a code from any number.
+    // null sender = accept a code from any number. The task fails quietly on
+    // devices whose Play services refuse it (missing, stale, or an OEM build),
+    // and a swallowed failure looks exactly like "nothing appeared" — so it is
+    // surfaced as an event the JS side can fall back on.
     SmsRetriever.getClient(context).startSmsUserConsent(null)
+      .addOnSuccessListener { Log.i(TAG, "startSmsUserConsent: listening") }
+      .addOnFailureListener { error ->
+        Log.w(TAG, "startSmsUserConsent failed: " + (error.message ?: "unknown"))
+        sendEvent(
+          EVENT_ERROR,
+          mapOf("error" to (error.message ?: "Could not start SMS user consent")),
+        )
+      }
+
+    // Google's zero-tap path runs alongside consent: when the SMS template
+    // ends with this app's 11-character hash, the broadcast carries the whole
+    // message and no dialog is needed. Costs nothing when the hash is absent —
+    // it just times out quietly. The hash is logged so it can be read off
+    // `adb logcat` and pasted into the MSG91 template.
+    Log.i(TAG, "Zero-tap app hash(es): " + appHashes().joinToString(","))
+    SmsRetriever.getClient(context).startSmsRetriever()
+      .addOnFailureListener { error ->
+        Log.w(TAG, "startSmsRetriever failed: " + (error.message ?: "unknown"))
+      }
 
     val smsReceiver = object : BroadcastReceiver() {
       override fun onReceive(receiverContext: Context?, intent: Intent?) {
@@ -83,6 +120,13 @@ class SmsUserConsentModule : Module() {
         if (intent?.action != SmsRetriever.SMS_RETRIEVED_ACTION) return
 
         val extras = intent.extras ?: return
+        Log.i(
+          TAG,
+          "SMS broadcast: status=" +
+            ((extras.get(SmsRetriever.EXTRA_STATUS) as? Status)?.statusCode ?: "none") +
+            " direct=" + extras.containsKey(SmsRetriever.EXTRA_SMS_MESSAGE) +
+            " consent=" + extras.containsKey(SmsRetriever.EXTRA_CONSENT_INTENT),
+        )
 
         // NB: the typed Bundle.getParcelable(key, Class) overload MUST NOT be used
         // here. On Android 13 it runs
@@ -96,16 +140,29 @@ class SmsUserConsentModule : Module() {
 
         when (status?.statusCode) {
           CommonStatusCodes.SUCCESS -> {
+            // Zero-tap retriever first: when the template carries the app
+            // hash, the message itself is in the broadcast and no dialog is
+            // needed at all.
+            val directMessage = extras.getString(SmsRetriever.EXTRA_SMS_MESSAGE)
+            if (directMessage != null) {
+              sendEvent(EVENT_RECEIVED, mapOf("message" to directMessage))
+              return
+            }
+
             @Suppress("DEPRECATION")
             val consentIntent = extras.get(SmsRetriever.EXTRA_CONSENT_INTENT) as? Intent
 
             val activity = appContext.currentActivity
             if (consentIntent != null && activity != null) {
               try {
+                Log.i(TAG, "Launching consent dialog")
                 activity.startActivityForResult(consentIntent, CONSENT_REQUEST_CODE)
               } catch (error: Exception) {
+                Log.w(TAG, "Consent dialog failed: " + (error.message ?: "unknown"))
                 sendEvent(EVENT_ERROR, mapOf("error" to (error.message ?: "Could not show consent dialog")))
               }
+            } else {
+              Log.w(TAG, "Consent intent or activity missing (activity=" + (activity != null) + ")")
             }
           }
 
@@ -124,6 +181,45 @@ class SmsUserConsentModule : Module() {
       context.registerReceiver(smsReceiver, filter, SmsRetriever.SEND_PERMISSION, null)
     }
     receiver = smsReceiver
+  }
+
+  /**
+   * Google's AppSignatureHelper algorithm: SHA-256 over "package signature",
+   * first 9 bytes, base64, first 11 characters. One hash per signing cert.
+   */
+  private fun appHashes(): List<String> {
+    return try {
+      val packageName = context.packageName
+      val pm = context.packageManager
+      val signatures: List<Signature> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        val info = pm.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+        val signingInfo = info.signingInfo
+        when {
+          signingInfo == null -> emptyList()
+          signingInfo.hasMultipleSigners() -> signingInfo.apkContentsSigners.toList()
+          else -> signingInfo.signingCertificateHistory.toList()
+        }
+      } else {
+        @Suppress("DEPRECATION")
+        pm.getPackageInfo(packageName, PackageManager.GET_SIGNATURES).signatures?.toList()
+          ?: emptyList()
+      }
+
+      signatures.mapNotNull { signature ->
+        try {
+          val digest = MessageDigest.getInstance("SHA-256")
+          digest.update("$packageName ${signature.toCharsString()}".toByteArray(StandardCharsets.UTF_8))
+          Base64.encodeToString(digest.digest().copyOfRange(0, 9), Base64.NO_PADDING or Base64.NO_WRAP)
+            .substring(0, 11)
+        } catch (error: Exception) {
+          Log.w(TAG, "Could not hash a signing certificate: " + (error.message ?: "unknown"))
+          null
+        }
+      }
+    } catch (error: Exception) {
+      Log.w(TAG, "Could not read signing certificates: " + (error.message ?: "unknown"))
+      emptyList()
+    }
   }
 
   private fun stop() {

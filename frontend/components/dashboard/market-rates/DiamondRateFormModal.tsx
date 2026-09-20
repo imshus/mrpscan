@@ -91,7 +91,6 @@ export function DiamondRateFormModal({
             value={shape}
             options={shapeOptions}
             onChange={onShapeChange}
-            placeholder="None"
             allowClear
             error={errors.shape}
             allowCustom
@@ -106,7 +105,6 @@ export function DiamondRateFormModal({
             value={color}
             options={colorOptions}
             onChange={onColorChange}
-            placeholder="Select color"
             allowClear
             error={errors.color}
             allowCustom
@@ -121,7 +119,6 @@ export function DiamondRateFormModal({
             value={clarity}
             options={clarityOptions}
             onChange={onClarityChange}
-            placeholder="Select clarity"
             allowClear
             error={errors.clarity}
             allowCustom

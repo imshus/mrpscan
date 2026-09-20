@@ -13,6 +13,19 @@ import { Colors } from '@/constants/theme';
 
 const OTP_LENGTH = 6;
 
+/**
+ * The code out of whatever "Copy OTP" put on the clipboard. Truecaller and
+ * some keyboards copy it grouped ("664 068"), so a digits-only pass runs
+ * before the exact-length match; anything longer or shorter is not an OTP.
+ * Exported for the other code entry (OtpInput) so both read the same way.
+ */
+export function extractClipboardOtp(text: string | null | undefined): string | null {
+  const direct = (text || '').match(new RegExp(`\\b(\\d{${OTP_LENGTH}})\\b`));
+  if (direct) return direct[1];
+  const squashed = (text || '').replace(/[\s-]+/g, '');
+  return new RegExp(`^\\d{${OTP_LENGTH}}$`).test(squashed) ? squashed : null;
+}
+
 interface OtpBoxProps {
   value: string;
   onChange: (value: string) => void;
@@ -44,6 +57,34 @@ export function OtpBox({
   const [focused, setFocused] = useState(false);
   const [autofillMsg, setAutofillMsg] = useState<string | null>(null);
 
+  // Live values for the clipboard listener, which must not re-subscribe on
+  // every keystroke or parent render.
+  const valueRef = useRef(value);
+  const onChangeRef = useRef(onChange);
+  valueRef.current = value;
+  onChangeRef.current = onChange;
+
+  // Fills the boxes the moment a code lands on the clipboard — the path that
+  // works even when Google's consent sheet never shows (e.g. Truecaller owns
+  // SMS on the device: its popup has a Copy OTP button, and that tap is
+  // enough). Only while the boxes are still empty, only while this screen is
+  // open, and only reading the clipboard after it visibly changed.
+  useEffect(() => {
+    const subscription = Clipboard.addClipboardListener(() => {
+      if (valueRef.current.length >= OTP_LENGTH) return;
+      void Clipboard.getStringAsync()
+        .then((text) => {
+          const code = extractClipboardOtp(text);
+          if (code) {
+            setAutofillMsg(null);
+            onChangeRef.current(code);
+          }
+        })
+        .catch(() => {});
+    });
+    return () => subscription.remove();
+  }, []);
+
   useEffect(() => {
     if (remaining <= 0) return;
     const id = setInterval(() => setRemaining((r) => r - 1), 1000);
@@ -72,10 +113,10 @@ export function OtpBox({
   const handleAutofill = async () => {
     try {
       const text = await Clipboard.getStringAsync();
-      const match = (text || '').match(new RegExp(`\\b(\\d{${OTP_LENGTH}})\\b`));
-      if (match) {
+      const code = extractClipboardOtp(text);
+      if (code) {
         setAutofillMsg(null);
-        onChange(match[1]);
+        onChange(code);
         return;
       }
       setAutofillMsg('No code found — copy the OTP SMS, then tap Autofill.');

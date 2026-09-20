@@ -59,7 +59,6 @@ export function ItemCodePicker({ visible, value, onSelect, onClose }: ItemCodePi
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Search code or item name"
             placeholderTextColor={Colors.placeholder}
             autoCapitalize="characters"
             autoCorrect={false}

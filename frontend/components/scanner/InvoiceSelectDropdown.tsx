@@ -20,7 +20,7 @@ export function InvoiceSelectDropdown<T extends string | number>({
   options,
   onChange,
   formatOption = (option) => String(option),
-  placeholder = 'Select',
+  placeholder = '',
   containerClassName = 'flex-1',
 }: InvoiceSelectDropdownProps<T>) {
   const [open, setOpen] = useState(false);

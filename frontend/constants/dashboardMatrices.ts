@@ -73,9 +73,9 @@ export const GOLD_MATRIX_SECTIONS: MatrixSection[] = [
 /**
  * What Home shows when nothing at all is selected. A blank dashboard is how
  * an abandoned record reads, not a choice, so the shop's headline price comes
- * back — 24K MCX, RTGS and Cash.
+ * back — the MCX card alone, at the shop's asking.
  */
-export const OPENING_MATRIX_KEYS: MatrixKey[] = ['24k_mcx', '24k_rtgs', '24k_cash'];
+export const OPENING_MATRIX_KEYS: MatrixKey[] = ['24k_mcx'];
 
 /**
  * The rates Home should show for these settings. Everything selected is kept
@@ -96,14 +96,14 @@ export function withOpeningDefaults(
 }
 
 /**
- * What a shop that has saved nothing sees: the 24K price alone. The lighter
- * karats are in the Choose Karat menu, off until they are ticked — a new
- * dashboard opens on one price rather than six cards of them.
+ * What a shop that has saved nothing sees: the MCX card alone. The 24K
+ * RTGS/Cash card and the lighter karats live in the settings, off until
+ * they are ticked — a new dashboard opens on one price, not a wall of them.
  */
 export const DEFAULT_MATRIX_VALUES: Record<MatrixKey, boolean> = {
   '24k_mcx': true,
-  '24k_rtgs': true,
-  '24k_cash': true,
+  '24k_rtgs': false,
+  '24k_cash': false,
   '22k_rtgs': false,
   '22k_cash': false,
   '20k_rtgs': false,

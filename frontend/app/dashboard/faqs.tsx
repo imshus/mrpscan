@@ -109,7 +109,6 @@ export default function FaqsScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder={language === 'hi' ? 'सवाल खोजें' : 'Search FAQs'}
             placeholderTextColor={Colors.placeholder}
             style={styles.searchInput}
           />

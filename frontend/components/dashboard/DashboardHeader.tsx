@@ -98,6 +98,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontFamily: Fonts.display,
     color: Colors.textPrimary,
+    // Playfair carries oversized metrics, so Android's font padding left the
+    // glyphs riding ~8px above the row's centre line — the name floated over
+    // the menu, bell and Wishlist. Stripping the padding and centring inside
+    // the line box puts all four on one line, as the shop asked.
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   wishlistBtn: {
     flexDirection: 'row',

@@ -20,6 +20,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 const APP_BUILD = String(Constants.expoConfig?.version ?? 'dev');
 
 import type { LoginMethod, RegistrationData } from '@/types/auth';
+import { REMEMBERED_PHONE_KEY } from '@/utils/clearAppState';
 
 function getPersistedRegistration(
   registration: Partial<RegistrationData>,
@@ -86,7 +87,12 @@ export const useAuthStore = create<AuthState>()(
       setLoggedInEmployee: (id) => set({ loggedInEmployeeId: id }),
       setRememberMe: (value) => set({ rememberMe: value }),
       setLoginMethod: (method) => set({ loginMethod: method }),
-      setSavedCredentials: (phone) => set({ savedPhone: phone }),
+      setSavedCredentials: (phone) => {
+        set({ savedPhone: phone });
+        // Mirrored into the key the build wipe spares, so the next install
+        // still knows whose shop this is and asks for the MPIN alone.
+        if (phone) AsyncStorage.setItem(REMEMBERED_PHONE_KEY, phone).catch(() => {});
+      },
       setSavedEmployeePhone: (phone) => set({ savedEmployeePhone: phone }),
       updateRegistration: (data) =>
         set((state) => ({ registration: { ...state.registration, ...data } })),
@@ -127,13 +133,18 @@ export const useAuthStore = create<AuthState>()(
         if (!state) return;
 
         // A session restored from a different build is not trusted: the new
-        // APK asks for credentials rather than reusing what was cached. The
-        // remembered identifiers go too, so nothing from the previous install
-        // can sign anyone in or be offered back in the login fields.
+        // APK asks for the MPIN again rather than reusing a cached session.
+        //
+        // The shop's own phone number is NOT part of that: it is not a
+        // credential, it opens nothing on its own, and the wipe already
+        // spares it on purpose (REMEMBERED_PHONE_KEY) so an update costs four
+        // digits instead of a form. Clearing it here undid that every single
+        // build — the login screen came up blank and, worse, a phone with no
+        // remembered number used to be sent to Create New Account. The
+        // employee phone goes, since that one names a different person.
         const restoredBuild = (state as { appBuild?: string }).appBuild;
         if (!error && restoredBuild !== APP_BUILD) {
           state.logout();
-          state.setSavedCredentials('');
           state.setSavedEmployeePhone('');
           state.setRememberMe(false);
         }

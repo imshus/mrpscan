@@ -238,8 +238,6 @@ export const OtherChargesSection = memo(function OtherChargesSection({
                 value={selectedChargeName}
                 options={chargeDropdownOptions}
                 onChange={handleChargeNameSelect}
-                placeholder="Select charge"
-                searchPlaceholder="Search charge"
                 containerClassName="w-full"
               />
             </View>

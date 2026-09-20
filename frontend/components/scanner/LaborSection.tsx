@@ -33,6 +33,8 @@ interface LaborSectionProps {
   netWeightGrams?: string;
   pureWeightDisplay?: string;
   goldAmountDisplay?: string;
+  /** Generate was refused and an empty Labour Rate is one of the reasons. */
+  missing?: boolean;
 }
 
 function sanitizePurityInput(text: string): string {
@@ -136,6 +138,7 @@ export const LaborSection = memo(function LaborSection({
   netWeightGrams = '',
   pureWeightDisplay = '—',
   goldAmountDisplay = '—',
+  missing = false,
 }: LaborSectionProps) {
 
   const handleChargeChange = (text: string) => {
@@ -155,6 +158,7 @@ export const LaborSection = memo(function LaborSection({
             onChangeText={handleChargeChange}
             keyboardType="number-pad"
             prefix="₹"
+            invalid={missing && !values.labourChargeAmount.trim()}
           />
           <MetalFieldSlot label="Weight Used">
             <WeightDropdown

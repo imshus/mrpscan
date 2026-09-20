@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 
+import { extractClipboardOtp } from '@/components/auth/OtpBox';
 import { Colors } from '@/constants/theme';
 import { ErrorText } from './ErrorText';
 
@@ -15,6 +17,26 @@ const OTP_LENGTH = 6;
 export function OtpInput({ value, onChange, error }: OtpInputProps) {
   const inputRef = useRef<TextInput>(null);
   const digits = value.padEnd(OTP_LENGTH, ' ').split('').slice(0, OTP_LENGTH);
+
+  // Same clipboard autofill as OtpBox: a code that lands on the clipboard
+  // (Truecaller's Copy OTP, the SMS notification's Copy) fills the cells by
+  // itself while they are still empty.
+  const valueRef = useRef(value);
+  const onChangeRef = useRef(onChange);
+  valueRef.current = value;
+  onChangeRef.current = onChange;
+  useEffect(() => {
+    const subscription = Clipboard.addClipboardListener(() => {
+      if (valueRef.current.length >= OTP_LENGTH) return;
+      void Clipboard.getStringAsync()
+        .then((text) => {
+          const code = extractClipboardOtp(text);
+          if (code) onChangeRef.current(code);
+        })
+        .catch(() => {});
+    });
+    return () => subscription.remove();
+  }, []);
 
   const handleChange = (text: string) => {
     const cleaned = text.replace(/\D/g, '').slice(0, OTP_LENGTH);

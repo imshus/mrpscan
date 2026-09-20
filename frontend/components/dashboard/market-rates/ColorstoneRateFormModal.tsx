@@ -96,7 +96,6 @@ export function ColorstoneRateFormModal({
             value={color}
             options={colorOptions}
             onChange={onColorChange}
-            placeholder="Select color"
             error={errors.color}
             allowCustom
             customLabel="Custom Color"
@@ -111,7 +110,6 @@ export function ColorstoneRateFormModal({
             value={clarity}
             options={clarityOptions}
             onChange={onClarityChange}
-            placeholder="Select clarity"
             error={errors.clarity}
             allowCustom
             customLabel="Custom Clarity"

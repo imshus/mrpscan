@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   KeyboardAvoidingView,
   Pressable,
@@ -7,7 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 
@@ -24,6 +25,7 @@ import { MPIN_LENGTH, MpinInput } from '@/components/ui/MpinInput';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { loginBusiness } from '@/utils/authApi';
+import { REMEMBERED_PHONE_KEY } from '@/utils/clearAppState';
 
 /** Ten digits, however the number was typed or pasted. */
 function toPhone(raw: string): string {
@@ -49,14 +51,40 @@ export default function BusinessLoginScreen() {
     updateRegistration,
   } = useAuthStore();
 
+  // What Forgot MPIN hands back after a reset: the number it verified and the
+  // four digits just chosen. Both are filled in here so the shop lands on a
+  // finished form and only has to press Log In.
+  const params = useLocalSearchParams<{ phone?: string; mpin?: string }>();
+  const handedBackPhone = toPhone(String(params.phone || ''));
+  const handedBackMpin = String(params.mpin || '').replace(/\D/g, '').slice(0, MPIN_LENGTH);
+
   // The mockup's sign-in is the MPIN alone, over "Welcome back" — it assumes
   // the device knows whose shop it is. It does, once this one has signed in
   // here before. A phone that never has (or was wiped by a new build) is asked
   // for the number first, since four digits alone name nobody.
-  const remembered = toPhone(savedPhone || '');
+  const remembered = handedBackPhone.length === 10 ? handedBackPhone : toPhone(savedPhone || '');
   const [phone, setPhone] = useState(remembered);
   const [askForNumber, setAskForNumber] = useState(remembered.length !== 10);
-  const [mpin, setMpin] = useState('');
+
+  // After a new build's wipe the store starts empty, but the number itself
+  // survives under its own spared key — read it back so the screen greets the
+  // shop instead of asking who they are after every update.
+  useEffect(() => {
+    if (remembered.length === 10) return;
+    let cancelled = false;
+    void AsyncStorage.getItem(REMEMBERED_PHONE_KEY).then((stored: string | null) => {
+      const digits = toPhone(stored || '');
+      if (cancelled || digits.length !== 10) return;
+      setSavedCredentials(digits);
+      setPhone(digits);
+      setAskForNumber(false);
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [mpin, setMpin] = useState(handedBackMpin);
   const [invalid, setInvalid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
@@ -193,8 +221,8 @@ export default function BusinessLoginScreen() {
               />
               <Pressable
                 onPress={() => router.push({
-                  pathname: '/login/set-mpin',
-                  params: { phone: toPhone(phone), mode: 'forgot' },
+                  pathname: '/login/forgot-mpin',
+                  params: { phone: toPhone(phone) },
                 } as unknown as Href)}
                 style={styles.forgotRow}
                 hitSlop={6}
