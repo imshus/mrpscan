@@ -18,6 +18,7 @@ import { Colors, Fonts } from '@/constants/theme';
 import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import {
   requestPasswordReset,
+  revealStoredMpin,
   setMpinWithResetToken,
   verifyPasswordResetOtp,
 } from '@/utils/authApi';
@@ -26,11 +27,16 @@ const tenDigits = (value: string) => value.replace(/\D/g, '').slice(0, 10);
 
 /**
  * Forgot MPIN, on one screen as the design draws it: the number with a Send
- * chip in the field, the code card underneath, then the MPIN large and red
+ * pill in the field, the code card underneath, then the MPIN large and red
  * under "YOUR MPIN", and Back to Log In.
  *
- * The MPIN it shows is a fresh one the shop sets after the code — the stored
- * one lives only as a hash and cannot be read back, by design.
+ * The code now buys the MPIN itself. The server keeps a sealed copy beside
+ * the bcrypt hash and hands it back once the OTP has proved the phone, so the
+ * shop reads its own four digits and types nothing.
+ *
+ * An account whose MPIN was set before that copy existed has nothing to show,
+ * and only there does the screen fall back to choosing a new one — sealed as
+ * it is saved, so the next visit shows it.
  */
 export default function ForgotMpinScreen() {
   const router = useRouter();
@@ -79,6 +85,14 @@ export default function ForgotMpinScreen() {
         return;
       }
       setResetToken(result.resetToken);
+
+      // The code is accepted, so ask for the MPIN itself. When the server has
+      // a readable copy this screen is finished — the card shows it and the
+      // shop never types anything. When it has none (an account whose MPIN
+      // was set before the server kept one) the set-a-new-one card appears
+      // instead, which is the only thing left that can help.
+      const revealed = await revealStoredMpin(result.resetToken);
+      if (revealed.mpin) setSavedMpin(revealed.mpin);
     } finally {
       setVerifying(false);
     }
@@ -142,16 +156,24 @@ export default function ForgotMpinScreen() {
 
           {error ? <AuthErrorText>{error}</AuthErrorText> : null}
 
-          {sent && !resetToken ? (
+          {/* The card stays on screen after the code is accepted, as the
+              design draws it — the six digits still showing above the MPIN
+              rather than vanishing the moment they work. It just stops
+              listening once there is nothing left for it to verify. */}
+          {sent ? (
             <Reveal d={0}>
               <OtpBox
                 value={otp}
                 onChange={(value) => {
+                  if (resetToken) return;
                   setOtp(value);
                   setError(null);
                   if (value.length === 6) void verify(value);
                 }}
-                onResend={() => void requestPasswordReset(phone)}
+                autoFocus={!resetToken}
+                onResend={() => {
+                  if (!resetToken) void requestPasswordReset(phone);
+                }}
               />
             </Reveal>
           ) : null}
@@ -160,6 +182,10 @@ export default function ForgotMpinScreen() {
             <Reveal d={0}>
               <View style={styles.mpinCard}>
                 <Text style={[styles.mpinCardLabel, styles.setLabel]}>SET YOUR NEW MPIN</Text>
+                <Text style={styles.setNote}>
+                  This account was created before we could show an MPIN back.
+                  Choose one now and it will be shown here from next time.
+                </Text>
                 {/* The card centres its children, which left the boxes with no
                     width to flex into — four hairlines instead of four squares.
                     This wrapper hands them the card's full width back. */}
@@ -252,7 +278,14 @@ const styles = StyleSheet.create({
     color: Colors.brandDeep,
     letterSpacing: 4,
   },
-  setLabel: { marginBottom: 6 },
+  setLabel: { marginBottom: 2 },
+  setNote: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
   mpinInputWrap: { alignSelf: 'stretch' },
   footer: { marginTop: 4 },
 });

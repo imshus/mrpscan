@@ -397,6 +397,44 @@ export async function setMpinWithResetToken(
   }
 }
 
+/**
+ * The MPIN already on the account, behind the same OTP-backed reset token.
+ *
+ * `mpin` is null when the account's MPIN was set before the server kept a
+ * readable copy — there is nothing to show for those, so the screen offers to
+ * set a new one instead. A server that does not know this route yet answers
+ * 404, which reads the same way.
+ */
+export async function revealStoredMpin(
+  resetToken: string,
+): Promise<{ success: boolean; mpin: string | null; error?: string }> {
+  try {
+    const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
+      '/auth/forgot-password/reveal-mpin',
+      {
+        method: 'POST',
+        body: { resetToken },
+      },
+    );
+    const unwrapped = unwrapEnvelope(response);
+    if (!isSuccessfulResponse(response, unwrapped)) {
+      return {
+        success: false,
+        mpin: null,
+        error: resolveApiMessage(response, unwrapped, 'Could not read the MPIN.'),
+      };
+    }
+    const value = readString(unwrapped, ['mpin']);
+    return { success: true, mpin: value && /^\d{4,6}$/.test(value) ? value : null };
+  } catch (error) {
+    return {
+      success: false,
+      mpin: null,
+      error: error instanceof ApiError ? error.message : 'Could not read the MPIN.',
+    };
+  }
+}
+
 export async function createBusinessPassword(payload: {
   businessId: string;
   password: string;
