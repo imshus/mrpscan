@@ -160,15 +160,20 @@ export default function ForgotMpinScreen() {
             <Reveal d={0}>
               <View style={styles.mpinCard}>
                 <Text style={[styles.mpinCardLabel, styles.setLabel]}>SET YOUR NEW MPIN</Text>
-                <MpinInput
-                  value={mpin}
-                  onChange={(value: string) => {
-                    setMpin(value);
-                    setError(null);
-                  }}
-                  onComplete={(complete: string) => void save(complete)}
-                  autoFocus
-                />
+                {/* The card centres its children, which left the boxes with no
+                    width to flex into — four hairlines instead of four squares.
+                    This wrapper hands them the card's full width back. */}
+                <View style={styles.mpinInputWrap}>
+                  <MpinInput
+                    value={mpin}
+                    onChange={(value: string) => {
+                      setMpin(value);
+                      setError(null);
+                    }}
+                    onComplete={(complete: string) => void save(complete)}
+                    autoFocus
+                  />
+                </View>
               </View>
             </Reveal>
           ) : null}
@@ -240,5 +245,6 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
   },
   setLabel: { marginBottom: 6 },
+  mpinInputWrap: { alignSelf: 'stretch' },
   footer: { marginTop: 4 },
 });
