@@ -10,6 +10,7 @@ interface PhoneInputProps {
   onChangeText: (text: string) => void;
   error?: string | null;
   editable?: boolean;
+  placeholder?: string;
 }
 
 export function PhoneInput({
@@ -18,6 +19,7 @@ export function PhoneInput({
   onChangeText,
   error,
   editable = true,
+  placeholder,
 }: PhoneInputProps) {
   return (
     <View className="mb-4">
@@ -32,6 +34,7 @@ export function PhoneInput({
         <TextInput
           value={value}
           onChangeText={(text) => onChangeText(text.replace(/\D/g, '').slice(0, 10))}
+          placeholder={placeholder}
           placeholderTextColor={Colors.placeholder}
           keyboardType="phone-pad"
           editable={editable}
