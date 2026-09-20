@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useBhawRates } from '@/hooks/useBhawRates';
+import { boardSell, formatBhaw } from '@/utils/bhawApi';
 import {
   ActivityIndicator,
   Alert,
@@ -85,6 +86,24 @@ function RateBadge({
     >
       {body}
     </GradientView>
+  );
+}
+
+/**
+ * One of the two big tiles on the MCX card: the house's own Cash or RTGS
+ * rate on top — the figure off its board — and the badla bhaw that produced
+ * it underneath, back at the shop's asking. A house that has not published
+ * shows a dash, never a zero.
+ */
+function BhawTile({ rate, bhaw, label }: { rate: number | null; bhaw: string; label: string }) {
+  return (
+    <View style={styles.bhawTile}>
+      <Text style={styles.bhawTileRate}>
+        {rate === null ? '—' : `₹ ${rate.toLocaleString('en-IN')}`}
+      </Text>
+      <Text style={styles.bhawTileBhaw}>{bhaw}</Text>
+      <Text style={styles.bhawTileLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -432,6 +451,24 @@ export default function DashboardScreen() {
                         adjusted copy of it. */}
                     <Text style={styles.mcxTopValue}>₹ {bhaw.mcxRate.toLocaleString('en-IN')}</Text>
                   </View>
+
+                  {/* The house's Cash and RTGS off its own board, each over
+                      the badla bhaw that produced it, and the house's name
+                      underneath — restored at the shop's asking. */}
+                  <View style={styles.mcxBhawRow}>
+                    <BhawTile
+                      rate={boardSell(bhaw.vendor, /gold\s*cash/i)}
+                      bhaw={formatBhaw(bhaw.vendor?.cashBhaw)}
+                      label="Cash"
+                    />
+                    <BhawTile
+                      rate={boardSell(bhaw.vendor, /gold\s*rtgs/i)}
+                      bhaw={formatBhaw(bhaw.vendor?.rtgsBhaw)}
+                      label="RTGS"
+                    />
+                  </View>
+
+                  <Text style={styles.mcxSourceLine}>rate by {bhaw.vendorName}</Text>
                 </GradientView>
               ) : null}
 
@@ -610,7 +647,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.08)',
     paddingHorizontal: 18,
-    paddingVertical: 12,
+    paddingVertical: 19,
+    gap: 19,
     shadowColor: '#786441',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -634,6 +672,32 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.textPrimary,
   },
+  mcxBhawRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  mcxSourceLine: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    opacity: 0.55,
+    textAlign: 'center',
+  },
+  bhawTile: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    paddingVertical: 18,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
+    backgroundColor: '#FCF8EF',
+  },
+  bhawTileRate: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary },
+  bhawTileBhaw: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, opacity: 0.8 },
+  bhawTileLabel: { fontSize: 12.5, color: Colors.textPrimary, opacity: 0.7 },
   rateCard: {
     backgroundColor: Colors.white,
     borderRadius: 14,
