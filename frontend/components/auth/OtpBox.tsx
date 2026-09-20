@@ -17,8 +17,9 @@ const OTP_LENGTH = 6;
  * The code out of whatever "Copy OTP" put on the clipboard. Truecaller and
  * some keyboards copy it grouped ("664 068"), so a digits-only pass runs
  * before the exact-length match; anything longer or shorter is not an OTP.
+ * Exported for the other code entry (OtpInput) so both read the same way.
  */
-function extractClipboardOtp(text: string | null | undefined): string | null {
+export function extractClipboardOtp(text: string | null | undefined): string | null {
   const direct = (text || '').match(new RegExp(`\\b(\\d{${OTP_LENGTH}})\\b`));
   if (direct) return direct[1];
   const squashed = (text || '').replace(/[\s-]+/g, '');

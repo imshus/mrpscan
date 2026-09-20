@@ -14,6 +14,7 @@ import {
 import { Reveal } from '@/components/auth/Reveal';
 import { MPIN_LENGTH, MpinInput, type MpinInputHandle } from '@/components/ui/MpinInput';
 import { OtpInput } from '@/components/ui/OtpInput';
+import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { Colors } from '@/constants/theme';
 import {
   requestPasswordReset,
@@ -95,6 +96,20 @@ export default function SetMpinScreen() {
       setVerifying(false);
     }
   };
+
+  // The code fills itself when the SMS lands, same as every other
+  // verification screen: listening only while the code entry is on screen.
+  useAndroidOtpAutofill({
+    enabled: deliveryHint !== null && resetToken === null,
+    onCodeDetected: (detectedOtp) => {
+      setOtp(detectedOtp);
+      setOtpError(null);
+      void verify(detectedOtp);
+    },
+    onDetectionError: () => {
+      // Typing and the clipboard fill remain.
+    },
+  });
 
   const save = async (confirmed = confirm) => {
     if (mpin.length !== MPIN_LENGTH) {
