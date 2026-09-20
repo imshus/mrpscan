@@ -135,7 +135,8 @@ export default function ForgotMpinScreen() {
             }}
             keyboardType="phone-pad"
             editable={!sent}
-            verifyLabel={sending ? 'Sending…' : sent ? 'Sent' : 'Send'}
+            placeholder="+91 98765 43210"
+            verifyLabel={sending ? 'Sending…' : sent ? 'Sent' : 'Send code'}
             onVerifyPress={() => void send()}
             verifyDisabled={sent || sending}
           />
@@ -159,7 +160,7 @@ export default function ForgotMpinScreen() {
           {resetToken && !savedMpin ? (
             <Reveal d={0}>
               <View style={styles.mpinCard}>
-                <Text style={styles.mpinCardLabel}>SET YOUR NEW MPIN</Text>
+                <Text style={[styles.mpinCardLabel, styles.setLabel]}>SET YOUR NEW MPIN</Text>
                 <MpinInput
                   value={mpin}
                   onChange={(value: string) => {
@@ -182,13 +183,14 @@ export default function ForgotMpinScreen() {
             </Reveal>
           ) : null}
 
-          <View style={styles.footer}>
-            <AuthPrimaryButton
-              title="Back to Log In"
-              onPress={() => router.replace('/login')}
-              loading={saving || verifying}
-            />
-          </View>
+          {savedMpin ? (
+            <View style={styles.footer}>
+              <AuthPrimaryButton
+                title="Back to Log In"
+                onPress={() => router.replace('/login')}
+              />
+            </View>
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -199,38 +201,45 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
   flex: { flex: 1 },
   content: { paddingHorizontal: 24, paddingTop: 14, paddingBottom: 32 },
+  // .auth-title: Playfair 1.85rem, -0.01em.
   title: {
-    fontSize: 26,
+    fontSize: 29.5,
     fontFamily: Fonts.display,
     color: Colors.textPrimary,
+    letterSpacing: -0.3,
     marginTop: 14,
-    marginBottom: 8,
   },
-  sub: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19, marginBottom: 20 },
-  // The design's dashed cream card, shared by the set stage and the reveal.
+  // .auth-sub: text-dim, 0.92rem, line-height 1.5, 30px below.
+  sub: { fontSize: 14.5, color: Colors.textMuted, lineHeight: 22, marginTop: 10, marginBottom: 30 },
+  // .recovered-card, to the pixel: bg-alt, 1px dashed border, radius 14,
+  // 22/20 padding, 6 gap, 18 below. Shared by the set stage and the reveal.
   mpinCard: {
     marginTop: 16,
+    marginBottom: 18,
     backgroundColor: Colors.backgroundAlt,
     borderWidth: 1,
     borderColor: Colors.border,
     borderStyle: 'dashed',
     borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 22,
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
   },
+  // .recovered-label: 0.78rem, 600, uppercase, 0.05em, text-dim.
   mpinCardLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.2,
+    fontSize: 12.5,
+    fontWeight: '600',
+    letterSpacing: 0.6,
     color: Colors.textMuted,
   },
+  // .recovered-value: Playfair 1.7rem, gold-deep, 0.15em.
   mpinDigits: {
-    fontSize: 34,
+    fontSize: 27,
     fontFamily: Fonts.display,
-    color: Colors.brand,
-    letterSpacing: 6,
+    color: Colors.brandDeep,
+    letterSpacing: 4,
   },
-  footer: { marginTop: 24 },
+  setLabel: { marginBottom: 6 },
+  footer: { marginTop: 4 },
 });
