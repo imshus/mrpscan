@@ -85,7 +85,9 @@ class SmsUserConsentModule : Module() {
     // and a swallowed failure looks exactly like "nothing appeared" — so it is
     // surfaced as an event the JS side can fall back on.
     SmsRetriever.getClient(context).startSmsUserConsent(null)
+      .addOnSuccessListener { Log.i(TAG, "startSmsUserConsent: listening") }
       .addOnFailureListener { error ->
+        Log.w(TAG, "startSmsUserConsent failed: " + (error.message ?: "unknown"))
         sendEvent(
           EVENT_ERROR,
           mapOf("error" to (error.message ?: "Could not start SMS user consent")),
@@ -118,6 +120,13 @@ class SmsUserConsentModule : Module() {
         if (intent?.action != SmsRetriever.SMS_RETRIEVED_ACTION) return
 
         val extras = intent.extras ?: return
+        Log.i(
+          TAG,
+          "SMS broadcast: status=" +
+            ((extras.get(SmsRetriever.EXTRA_STATUS) as? Status)?.statusCode ?: "none") +
+            " direct=" + extras.containsKey(SmsRetriever.EXTRA_SMS_MESSAGE) +
+            " consent=" + extras.containsKey(SmsRetriever.EXTRA_CONSENT_INTENT),
+        )
 
         // NB: the typed Bundle.getParcelable(key, Class) overload MUST NOT be used
         // here. On Android 13 it runs
@@ -146,10 +155,14 @@ class SmsUserConsentModule : Module() {
             val activity = appContext.currentActivity
             if (consentIntent != null && activity != null) {
               try {
+                Log.i(TAG, "Launching consent dialog")
                 activity.startActivityForResult(consentIntent, CONSENT_REQUEST_CODE)
               } catch (error: Exception) {
+                Log.w(TAG, "Consent dialog failed: " + (error.message ?: "unknown"))
                 sendEvent(EVENT_ERROR, mapOf("error" to (error.message ?: "Could not show consent dialog")))
               }
+            } else {
+              Log.w(TAG, "Consent intent or activity missing (activity=" + (activity != null) + ")")
             }
           }
 
