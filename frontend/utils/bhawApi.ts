@@ -12,8 +12,8 @@
 
 const BHAW_URL = 'https://17gdivfex7.execute-api.ap-south-1.amazonaws.com/bhaw';
 
-/** Long enough to be current, short enough not to hammer the endpoint. */
-export const BHAW_POLL_INTERVAL_MS = 60_000;
+/** Every 30 seconds, at the shop's asking: a bhaw that moved is money. */
+export const BHAW_POLL_INTERVAL_MS = 30_000;
 const BHAW_TIMEOUT_MS = 8_000;
 
 export const BHAW_PROVIDERS = {
