@@ -17,7 +17,7 @@ import {
   prewarmImagePreparation,
 } from '@/utils/imagePicker';
 import { createScan, detectTagArea } from '@/utils/scanApi';
-import { cropToTagBox, uprightCopy, withTimeout } from '@/utils/tagCrop';
+import { cropToTagBox, detectionCopy, uprightCopy, withTimeout } from '@/utils/tagCrop';
 import { currentScopeGeneration } from '@/utils/userScopedStorage';
 import { invalidateBackgroundUploads, startBackgroundSideUpload } from '@/utils/uploadPipeline';
 
@@ -218,9 +218,13 @@ export default function BarcodeScannerScreen() {
     try {
       const upright = await uprightCopy(capture.full);
       if (!upright) return capture.framed;
-      // The finder looks at the very file that gets cut, so its fractions
-      // land exactly where it saw the tag.
-      const box = await withTimeout(detectTagArea(upright.uri), AUTO_FRAME_TIMEOUT_MS);
+      // The finder is shown a small copy of the very file that gets cut, so
+      // its fractions land exactly where it saw the tag — and it answers in
+      // a fraction of the time a full-size upload took.
+      const box = await withTimeout(
+        detectTagArea(await detectionCopy(upright)),
+        AUTO_FRAME_TIMEOUT_MS,
+      );
       if (token !== captureTokenRef.current) return null;
       if (!box) return capture.framed;
       return (await cropToTagBox(upright, box)) ?? capture.framed;
@@ -342,7 +346,7 @@ export default function BarcodeScannerScreen() {
         // says the tag is and where the cut is made agree even on a photo
         // carrying a rotation tag.
         const upright = await uprightCopy(uri);
-        const box = upright ? await detectTagArea(upright.uri) : null;
+        const box = upright ? await detectTagArea(await detectionCopy(upright)) : null;
         if (pickedUriRef.current !== uri) return;
         const cropped = upright && box ? await cropToTagBox(upright, box) : null;
         if (pickedUriRef.current !== uri) return;

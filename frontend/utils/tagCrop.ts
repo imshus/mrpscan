@@ -19,10 +19,14 @@ export interface UprightImage {
  * fractions out of a file that is secretly lying on its side lands the crop
  * in a blank corner. Finding and cutting on this one upright copy keeps the
  * two in agreement.
+ *
+ * Saved at 0.9 rather than lossless: the crop taken from it is re-encoded at
+ * 0.92 regardless, so the extra bytes bought nothing and the encode of a
+ * full-size gallery photo was a visible part of the wait.
  */
 export async function uprightCopy(uri: string): Promise<UprightImage | null> {
   try {
-    const result = await manipulateAsync(uri, [], { compress: 1, format: SaveFormat.JPEG });
+    const result = await manipulateAsync(uri, [], { compress: 0.9, format: SaveFormat.JPEG });
     if (!result?.uri || !result.width || !result.height) return null;
     return { uri: result.uri, width: result.width, height: result.height };
   } catch (error) {
@@ -31,23 +35,72 @@ export async function uprightCopy(uri: string): Promise<UprightImage | null> {
   }
 }
 
+/**
+ * Longest edge of the copy the finder is shown. Locating a label needs far
+ * less than reading one: the upload path sends up to 2400px because the
+ * reader magnifies digits, but the finder only has to say where the white
+ * card is. A quarter of the pixels goes up in a fraction of the time.
+ */
+const DETECTION_MAX_EDGE_PX = 1280;
+
+/**
+ * A small, fast copy of the upright photo for the finder to look at. Its
+ * answer is fractions of width and height, which do not change with scale,
+ * so the cut is still made from the full-size upright image. Falls back to
+ * the full-size copy if the resize fails; slower, never wrong.
+ */
+export async function detectionCopy(image: UprightImage): Promise<string> {
+  const longest = Math.max(image.width, image.height);
+  if (longest <= DETECTION_MAX_EDGE_PX) return image.uri;
+  const resize =
+    image.width >= image.height
+      ? { width: DETECTION_MAX_EDGE_PX }
+      : { height: DETECTION_MAX_EDGE_PX };
+  try {
+    const result = await manipulateAsync(image.uri, [{ resize }], {
+      compress: 0.7,
+      format: SaveFormat.JPEG,
+    });
+    return result?.uri || image.uri;
+  } catch (error) {
+    console.warn('Could not make a detection copy; sending the full photo:', error);
+    return image.uri;
+  }
+}
+
 /** Below this share of the photo on either side, the "tag" is a speck or a slip. */
 const MIN_BOX_FRACTION = 0.04;
+
+/**
+ * Extra room around the finder's box, as a share of the box's own size.
+ *
+ * A vision model places a box roughly, not to the pixel: its edges are
+ * routinely off by a tenth of the box or more in one direction. Cut exactly
+ * to its answer and that tenth is the top line of the tag — the diamond
+ * weight, or the net weight — gone from the photo before the reader ever
+ * sees it, which is exactly what happened on the shop's first try. Air
+ * around a tag costs nothing, since the reader magnifies parts of whatever
+ * it is given; a clipped line costs a field.
+ */
+const BOX_MARGIN = 0.15;
 
 /**
  * Cuts the tag the finder pointed at out of the upright photo.
  *
  * The box arrives as fractions of the image's own width and height, already
- * padded a little by the server so the print has air around it. Anything that
- * does not describe a real rectangle — off the edge, vanishingly small, a
- * crop that fails — answers null, and the caller keeps whatever it had.
+ * padded a little by the server; it is widened again here by BOX_MARGIN of
+ * its own size. Anything that does not describe a real rectangle — off the
+ * edge, vanishingly small, a crop that fails — answers null, and the caller
+ * keeps whatever it had.
  */
 export async function cropToTagBox(image: UprightImage, box: TagBox): Promise<string | null> {
   const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
-  const left = clamp01(box.x);
-  const top = clamp01(box.y);
-  const right = clamp01(box.x + box.width);
-  const bottom = clamp01(box.y + box.height);
+  const padX = box.width * BOX_MARGIN;
+  const padY = box.height * BOX_MARGIN;
+  const left = clamp01(box.x - padX);
+  const top = clamp01(box.y - padY);
+  const right = clamp01(box.x + box.width + padX);
+  const bottom = clamp01(box.y + box.height + padY);
   if (right - left < MIN_BOX_FRACTION || bottom - top < MIN_BOX_FRACTION) return null;
 
   const originX = Math.round(left * image.width);

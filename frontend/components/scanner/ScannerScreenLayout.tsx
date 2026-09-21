@@ -291,7 +291,11 @@ export function ScannerScreenLayout({
           <Image
             source={{ uri: capturedPreviewUri }}
             style={styles.capturedThumb}
-            resizeMode="cover"
+            // The whole crop, letterboxed, never a cover-fit slice of it: this
+            // thumbnail is the shop's proof of what was kept, and a cover-fit
+            // hid the top line of a tag that the file still had — or did not.
+            // It has to show the truth either way.
+            resizeMode="contain"
           />
           <View style={styles.capturedTick}>
             <Check size={11} color={Colors.white} strokeWidth={3.2} />
