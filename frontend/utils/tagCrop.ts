@@ -44,27 +44,28 @@ export async function uprightCopy(uri: string): Promise<UprightImage | null> {
 const DETECTION_MAX_EDGE_PX = 1280;
 
 /**
- * A small, fast copy of the upright photo for the finder to look at. Its
- * answer is fractions of width and height, which do not change with scale,
- * so the cut is still made from the full-size upright image. Falls back to
- * the full-size copy if the resize fails; slower, never wrong.
+ * A small, fast copy of the photo for the finder to look at, made straight
+ * from the original so it can be on its way before the full-size upright
+ * copy exists. Both come out of the same loader, which applies the file's
+ * rotation tag on the way in, so the finder's fractions — which do not
+ * change with scale — land on the upright image exactly where it saw the
+ * tag, and the cut is still made from the full-size one.
+ *
+ * Resized on width alone: a portrait photo comes out a little taller than
+ * DETECTION_MAX_EDGE_PX, which costs a few kilobytes and nothing else, and
+ * spares a separate read of the file's size just to pick an axis. Falls back
+ * to the original if the resize fails; slower, never wrong.
  */
-export async function detectionCopy(image: UprightImage): Promise<string> {
-  const longest = Math.max(image.width, image.height);
-  if (longest <= DETECTION_MAX_EDGE_PX) return image.uri;
-  const resize =
-    image.width >= image.height
-      ? { width: DETECTION_MAX_EDGE_PX }
-      : { height: DETECTION_MAX_EDGE_PX };
+export async function detectionCopy(uri: string): Promise<string> {
   try {
-    const result = await manipulateAsync(image.uri, [{ resize }], {
+    const result = await manipulateAsync(uri, [{ resize: { width: DETECTION_MAX_EDGE_PX } }], {
       compress: 0.7,
       format: SaveFormat.JPEG,
     });
-    return result?.uri || image.uri;
+    return result?.uri || uri;
   } catch (error) {
     console.warn('Could not make a detection copy; sending the full photo:', error);
-    return image.uri;
+    return uri;
   }
 }
 

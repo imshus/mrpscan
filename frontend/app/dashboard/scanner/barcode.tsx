@@ -30,17 +30,20 @@ type ConfirmedCapture = {
  * How long the tag finder gets before a side is left as captured. It runs
  * behind the shop now, not in front of it, so this bounds wasted work, not
  * a wait: the side is already confirmed and the shop already moved on.
+ * Generous on purpose — while the server's finder still thinks at full
+ * effort, eight seconds abandoned answers that were seconds from landing.
  */
-const AUTO_FRAME_TIMEOUT_MS = 8000;
+const AUTO_FRAME_TIMEOUT_MS = 15000;
 
 /**
- * How long Calculate waits for a finder still running on either side. The
- * finder usually lands during the seconds spent lining up the second side;
- * when it has not, a couple of seconds is worth the better crop, and past
- * that the side goes up as captured, exactly as it did before there was a
- * finder at all.
+ * How long Calculate waits for a finder still running on either side: not
+ * at all. It was three seconds, and with the finder on the server still
+ * thinking at full effort those three seconds were paid on nearly every
+ * Calculate — a stall the shop felt every time. The finder is a bonus: when
+ * it has landed its crop is used, and when it has not the side goes up as
+ * captured, which is exactly what the reader always used to get.
  */
-const REFINE_WAIT_AT_CALCULATE_MS = 3000;
+const REFINE_WAIT_AT_CALCULATE_MS = 0;
 
 export default function BarcodeScannerScreen() {
   const router = useRouter();
@@ -110,7 +113,9 @@ export default function BarcodeScannerScreen() {
         ? 'Back side captured — tap Calculate to continue'
         : 'Align back side of tag inside frame';
   const instruction =
-    refining.front || refining.back ? `Adjusting tag… ${baseInstruction}` : baseInstruction;
+    refining.front || refining.back
+      ? `Adjusting tag in background · ${baseInstruction}`
+      : baseInstruction;
 
   useEffect(() => {
     if (!isFocused) return;
@@ -258,16 +263,19 @@ export default function BarcodeScannerScreen() {
     let work: Promise<void> | undefined;
     work = (async () => {
       try {
-        const upright = await uprightCopy(fullUri);
-        if (!upright) return;
-        // The finder is shown a small copy of the very file that gets cut, so
-        // its fractions land exactly where it saw the tag — and it answers in
-        // a fraction of the time a full-size upload took.
+        // The full-size upright copy is the slowest thing the phone does
+        // here, and the finder does not need it: the small copy for the
+        // finder comes straight from the original and goes on its way,
+        // while the upright copy is made during the network wait instead of
+        // before it. It is only awaited once there is a box to cut.
+        const uprightPromise = uprightCopy(fullUri);
         const box = await withTimeout(
-          detectTagArea(await detectionCopy(upright)),
+          detectTagArea(await detectionCopy(fullUri)),
           AUTO_FRAME_TIMEOUT_MS,
         );
         if (!box || token !== captureTokenRef.current) return;
+        const upright = await uprightPromise;
+        if (!upright) return;
         const cropped = await cropToTagBox(upright, box);
         if (!cropped || token !== captureTokenRef.current) return;
 
@@ -375,7 +383,7 @@ export default function BarcodeScannerScreen() {
     // A finder still at work is given a short moment; past that the sides go
     // up as captured, which is what the reader always used to get.
     const pending = Object.values(refineRef.current);
-    if (pending.length > 0) {
+    if (pending.length > 0 && REFINE_WAIT_AT_CALCULATE_MS > 0) {
       setIsStartingOperation(true);
       try {
         await withTimeout(Promise.all(pending), REFINE_WAIT_AT_CALCULATE_MS);
