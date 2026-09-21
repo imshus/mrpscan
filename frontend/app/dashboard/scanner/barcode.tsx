@@ -251,7 +251,12 @@ export default function BarcodeScannerScreen() {
   ) => {
     const token = captureTokenRef.current;
     setRefining((prev) => ({ ...prev, [side]: true }));
-    const work = (async () => {
+    // Declared before the closure that names it: the finally below compares
+    // against it, and a const initialised by that same closure is not yet
+    // assigned in the compiler's eyes. At run time it is, since the closure
+    // cannot reach its finally before its first await returns.
+    let work: Promise<void> | undefined;
+    work = (async () => {
       try {
         const upright = await uprightCopy(fullUri);
         if (!upright) return;
