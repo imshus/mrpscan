@@ -16,7 +16,8 @@ import {
   pickImageFromGallery,
   prewarmImagePreparation,
 } from '@/utils/imagePicker';
-import { createScan, detectTagArea } from '@/utils/scanApi';
+import { createScan, detectTagArea, type TagBox } from '@/utils/scanApi';
+import { boxAgreement, findTagLocally } from '@/utils/localTagFinder';
 import {
   cropToTagBox,
   detectionCopy,
@@ -40,6 +41,20 @@ type ConfirmedCapture = {
  * effort, eight seconds abandoned answers that were seconds from landing.
  */
 const AUTO_FRAME_TIMEOUT_MS = 15000;
+
+/**
+ * How long the on-device finder may take before the model's pass goes ahead
+ * without it. It usually answers in well under a second; this only stops a
+ * stuck resize from holding up the second pass.
+ */
+const LOCAL_FINDER_TIMEOUT_MS = 2500;
+
+/**
+ * Overlap (intersection over union) above which the model's box counts as
+ * the same tag the phone already cut to, so the side is left alone rather
+ * than re-cut and re-uploaded for a difference nobody would see.
+ */
+const FINDER_AGREEMENT = 0.7;
 
 /**
  * How long Calculate waits for a finder still running on either side: not
@@ -239,17 +254,22 @@ export default function BarcodeScannerScreen() {
 
     // The web fallback yields one photo; it stands in for both.
     const fallback = await captureScanImageFallback();
-    return fallback ? { framed: fallback, full: fallback, upright: null } : null;
+    return fallback ? { framed: fallback, full: fallback, upright: null, frame: null } : null;
   };
 
   /**
-   * Finds the white tag in the whole photo and cuts to it, behind the shop's
-   * back: the side is already confirmed with what was captured, and the shop
-   * is already lining up the next one. When the finder lands — usually in
-   * those same seconds — the crop replaces the side, its thumbnail, and its
-   * upload, which the pipeline supersedes cleanly. When it does not (no tag
-   * seen, a slow or refused finder, a crop that fails) the side simply stays
-   * as captured, exactly what it was before there was a finder at all.
+   * Cuts the side to the white tag, behind the shop's back, in two passes.
+   *
+   * The side is already confirmed with what was captured and the shop is
+   * lining up the next one. The first pass runs on the phone and lands in
+   * about a second: it takes the brightest solid rectangle inside the
+   * framing for the tag, and its crop replaces the side, its thumbnail and
+   * its upload, which the pipeline supersedes cleanly. The second pass is
+   * the model's finder, which knows a card from a bright cloth; when it
+   * agrees with the first it changes nothing, and when it does not — or the
+   * first pass saw nothing — its crop takes over. A side neither pass can
+   * place stays as captured, exactly what it was before there was a finder
+   * at all.
    *
    * Nothing is swapped behind a side the shop has since replaced or dropped:
    * the token and the uri both have to still match.
@@ -260,6 +280,7 @@ export default function BarcodeScannerScreen() {
     confirmedUri: string,
     source: CaptureSource,
     upright?: UprightImage | null,
+    frame?: TagBox | null,
   ) => {
     const token = captureTokenRef.current;
     setRefining((prev) => ({ ...prev, [side]: true }));
@@ -269,27 +290,16 @@ export default function BarcodeScannerScreen() {
     // cannot reach its finally before its first await returns.
     let work: Promise<void> | undefined;
     work = (async () => {
-      try {
-        // A camera capture arrives with its upright size already known —
-        // the framing just measured it — so the cut is made from that very
-        // file. Re-saving a whole photo only to learn its size was the
-        // slowest thing the phone did here, on every capture, and it ran
-        // alongside the finder's copy and slowed that down too. A gallery
-        // photo's size is unknown, so it still gets the copy, made during
-        // the network wait and only awaited once there is a box to cut.
-        const uprightPromise = upright ? Promise.resolve(upright) : uprightCopy(fullUri);
-        const box = await withTimeout(
-          detectTagArea(await detectionCopy(fullUri, upright ?? undefined)),
-          AUTO_FRAME_TIMEOUT_MS,
-        );
-        if (!box || token !== captureTokenRef.current) return;
-        const photo = await uprightPromise;
-        if (!photo) return;
-        const cropped = await cropToTagBox(photo, box);
-        if (!cropped || token !== captureTokenRef.current) return;
+      // What the side currently shows for this capture — the confirmed
+      // photo, then the first pass's crop once that is in place — and the
+      // box that crop was cut to.
+      const shown: { uri: string; box: TagBox | null } = { uri: confirmedUri, box: null };
 
+      const applyBox = async (photo: UprightImage, box: TagBox): Promise<boolean> => {
+        const cropped = await cropToTagBox(photo, box);
+        if (!cropped || token !== captureTokenRef.current) return false;
         const current = side === 'front' ? confirmedFrontRef.current : confirmedBackRef.current;
-        if (!current || current.uri !== confirmedUri) return;
+        if (!current || current.uri !== shown.uri) return false;
 
         const swapped = { uri: cropped, source };
         if (side === 'front') setConfirmedFront(swapped);
@@ -301,6 +311,37 @@ export default function BarcodeScannerScreen() {
           // carries this one instead.
           startBackgroundSideUpload(prewarmedSession.promise, side, cropped);
         }
+        shown.uri = cropped;
+        shown.box = box;
+        return true;
+      };
+
+      try {
+        // A camera capture arrives with its upright size already known —
+        // the framing just measured it — so the cut is made from that very
+        // file. A gallery photo's size is unknown, so it gets a copy, made
+        // while the finders work and only awaited once there is a box to cut.
+        const uprightPromise = upright ? Promise.resolve(upright) : uprightCopy(fullUri);
+        // One small copy serves both passes: the phone reads it, the model
+        // is sent it.
+        const smallUri = await detectionCopy(fullUri, upright ?? undefined);
+
+        const localBox = await withTimeout(findTagLocally(smallUri, frame), LOCAL_FINDER_TIMEOUT_MS);
+        if (token !== captureTokenRef.current) return;
+        if (localBox) {
+          const photo = await uprightPromise;
+          if (photo && (await applyBox(photo, localBox))) {
+            // The shop has its adjustment; the model's pass is a silent check.
+            setRefining((prev) => ({ ...prev, [side]: false }));
+          }
+        }
+
+        const box = await withTimeout(detectTagArea(smallUri), AUTO_FRAME_TIMEOUT_MS);
+        if (!box || token !== captureTokenRef.current) return;
+        if (shown.box && boxAgreement(shown.box, box) >= FINDER_AGREEMENT) return;
+        const photo = await uprightPromise;
+        if (!photo) return;
+        await applyBox(photo, box);
       } catch (error) {
         console.warn('Tag finder failed; the side stays as captured:', error);
       } finally {
@@ -363,7 +404,7 @@ export default function BarcodeScannerScreen() {
     const side = captureStep === 'second' ? 'back' : 'front';
     if (side === 'back') confirmBackCapture(capture.framed, 'camera');
     else confirmFrontCapture(capture.framed, 'camera');
-    refineSide(side, capture.full, capture.framed, 'camera', capture.upright);
+    refineSide(side, capture.full, capture.framed, 'camera', capture.upright, capture.frame);
   };
 
   /** The bin beside the frame: drop the framed photo, or the scan itself. */

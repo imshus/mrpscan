@@ -23,6 +23,7 @@ import {
   SCANNER_FRAME_VERTICAL_BIAS,
   SCANNER_FRAME_WIDTH,
 } from '@/constants/scannerFrame';
+import type { TagBox } from '@/utils/scanApi';
 import type { UprightImage } from '@/utils/tagCrop';
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -46,15 +47,17 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
  * so the tag finder can cut from the same file without re-saving the whole
  * photo just to learn its size. Null when the size was never known or the
  * mapping did not describe this photo, and the finder makes its own copy.
+ * `frame` is the region that was cut, as fractions of that upright photo:
+ * where the shop lined the tag up, which the on-device finder searches.
  */
 async function cropToFrame(
   uri: string,
   photoWidth: number | undefined,
   photoHeight: number | undefined,
   viewSize: { width: number; height: number },
-): Promise<{ uri: string; upright: UprightImage | null }> {
+): Promise<{ uri: string; upright: UprightImage | null; frame: TagBox | null }> {
   if (!photoWidth || !photoHeight || !viewSize.width || !viewSize.height) {
-    return { uri, upright: null };
+    return { uri, upright: null, frame: null };
   }
 
   // The mapping below only holds while the photo stands the same way up as the
@@ -88,11 +91,11 @@ async function cropToFrame(
     // place. The whole photo still carries the tag, and the reader magnifies
     // parts of whatever it is given.
     console.warn('Capture is sideways to the preview; sending the whole photo.');
-    return { uri: source.uri, upright: null };
+    return { uri: source.uri, upright: null, frame: null };
   }
 
   const scale = Math.max(viewSize.width / source.width, viewSize.height / source.height);
-  if (!Number.isFinite(scale) || scale <= 0) return { uri: source.uri, upright: null };
+  if (!Number.isFinite(scale) || scale <= 0) return { uri: source.uri, upright: null, frame: null };
 
   const offsetX = (source.width * scale - viewSize.width) / 2;
   const offsetY = (source.height * scale - viewSize.height) / 2;
@@ -117,8 +120,15 @@ async function cropToFrame(
       view: `${Math.round(viewSize.width)}x${Math.round(viewSize.height)}`,
       crop: `${width}x${height}`,
     });
-    return { uri: source.uri, upright: null };
+    return { uri: source.uri, upright: null, frame: null };
   }
+
+  const frame: TagBox = {
+    x: originX / source.width,
+    y: originY / source.height,
+    width: width / source.width,
+    height: height / source.height,
+  };
 
   try {
     const result = await manipulateAsync(
@@ -126,10 +136,10 @@ async function cropToFrame(
       [{ crop: { originX, originY, width, height } }],
       { compress: 0.92, format: SaveFormat.JPEG },
     );
-    return { uri: result.uri, upright: source };
+    return { uri: result.uri, upright: source, frame };
   } catch (error) {
     console.warn('Failed to crop capture to the scan frame, using full photo:', error);
-    return { uri: source.uri, upright: source };
+    return { uri: source.uri, upright: source, frame };
   }
 }
 
@@ -150,6 +160,8 @@ export type TagCapture = {
    * size for itself.
    */
   upright: UprightImage | null;
+  /** Where in `full` the shop framed the tag, as fractions; null when unknown. */
+  frame: TagBox | null;
 };
 
 export type TagCameraPreviewRef = {
@@ -193,13 +205,13 @@ export const TagCameraPreview = forwardRef<TagCameraPreviewRef, TagCameraPreview
       });
       if (!photo?.uri) return null;
 
-      const { uri: framed, upright } = await cropToFrame(
+      const { uri: framed, upright, frame } = await cropToFrame(
         photo.uri,
         photo.width,
         photo.height,
         viewSize,
       );
-      return { framed, full: upright?.uri ?? photo.uri, upright };
+      return { framed, full: upright?.uri ?? photo.uri, upright, frame };
     } catch {
       return null;
     }
