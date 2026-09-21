@@ -427,7 +427,11 @@ export default function DashboardScreen() {
                     trialDaysRemaining={subscriptionOverview?.trialDaysRemaining || 0}
                     trialHoursRemaining={subscriptionOverview?.trialHoursRemaining || 0}
                     trialEndDate={subscriptionOverview?.trialEndDate || null}
-                    trialDays={subscriptionOverview?.trialDays ?? subscriptionOverview?.trialDaysConfigured ?? 10}
+                    // The configured length first: a trial that has not started
+                    // is offered whatever the shop will actually get, and the
+                    // licence's own figure — written when the licence was — can
+                    // still say 10 on an account from before the seven-day rule.
+                    trialDays={subscriptionOverview?.trialDaysConfigured ?? subscriptionOverview?.trialDays ?? 7}
                     onStartTrial={handleStartTrial}
                     onPurchase={handlePurchaseLicense}
                     trialExpiredAt={subscriptionOverview?.trialExpiredAt || null}
