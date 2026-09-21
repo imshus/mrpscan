@@ -259,9 +259,12 @@ export default function DashboardScreen() {
       mcxRate: mcxLiveRate ?? undefined,
     } satisfies GoldRate;
   }, [cashFinalRate, goldTaxSettings, mcxFinalRate, mcxLiveRate, rtgsFinalRate, sortedGoldRates]);
-  const show24kMcx = matrixValues['24k_mcx' as MatrixKey] !== false;
-  const show24kRtgs = matrixValues['24k_rtgs' as MatrixKey] !== false;
-  const show24kCash = matrixValues['24k_cash' as MatrixKey] !== false;
+  // Shown only when the value says so. These read `!== false` before, which
+  // made a key that was simply absent count as on — the opposite of a rule
+  // whose whole point is that nothing but MCX appears unless it is chosen.
+  const show24kMcx = matrixValues['24k_mcx' as MatrixKey] === true;
+  const show24kRtgs = matrixValues['24k_rtgs' as MatrixKey] === true;
+  const show24kCash = matrixValues['24k_cash' as MatrixKey] === true;
   const show24kRateCard = show24kRtgs || show24kCash;
 
   const loadMarketData = useCallback(async (showLoader = true) => {
