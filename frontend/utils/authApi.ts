@@ -270,6 +270,37 @@ export async function verifyLoginOtp(
   }
 }
 
+/**
+ * Whether a number is on an account, and whether that account has an MPIN.
+ *
+ * The login screen asks this as soon as it has ten digits, so its link can
+ * say "Create MPIN" to an account that never had one rather than "Forgot
+ * MPIN?". Null on any failure or on a server from before the field existed,
+ * which the screen reads as "assume the usual" and keeps the forgot link.
+ */
+export async function fetchPhoneStatus(
+  mobile: string,
+): Promise<{ registered: boolean; hasMpin: boolean } | null> {
+  try {
+    const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
+      '/auth/check-availability',
+      {
+        method: 'POST',
+        body: { mobile: mobile.replace(/\D/g, '').slice(-10) },
+      },
+    );
+    const unwrapped = unwrapEnvelope(response);
+    if (!isSuccessfulResponse(response, unwrapped)) return null;
+    if (typeof unwrapped.phoneHasMpin !== 'boolean') return null;
+    return {
+      registered: Boolean(unwrapped.phoneTaken),
+      hasMpin: unwrapped.phoneHasMpin,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function requestPasswordReset(identifier: string): Promise<{
   success: boolean;
   destination?: string;

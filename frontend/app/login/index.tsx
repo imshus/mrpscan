@@ -24,7 +24,7 @@ import { Reveal } from '@/components/auth/Reveal';
 import { MPIN_LENGTH, MpinInput } from '@/components/ui/MpinInput';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
-import { loginBusiness } from '@/utils/authApi';
+import { fetchPhoneStatus, loginBusiness } from '@/utils/authApi';
 import { REMEMBERED_PHONE_KEY } from '@/utils/clearAppState';
 
 /** Ten digits, however the number was typed or pasted. */
@@ -85,6 +85,33 @@ export default function BusinessLoginScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [mpin, setMpin] = useState(handedBackMpin);
+
+  // Whether the number on screen has an MPIN at all. Most accounts in the
+  // database were made before MPINs existed and have nothing to have
+  // forgotten, so for those the link below reads "Create MPIN" and goes to
+  // the set-up flow; null (unknown, unregistered, old server) keeps the
+  // usual "Forgot MPIN?". Looked up a beat after the tenth digit lands, so
+  // typing does not fire a request per keystroke.
+  const [phoneHasMpin, setPhoneHasMpin] = useState<boolean | null>(null);
+  const lookupPhone = toPhone(phone);
+  useEffect(() => {
+    if (lookupPhone.length !== 10) {
+      setPhoneHasMpin(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void fetchPhoneStatus(lookupPhone).then((status) => {
+        if (cancelled) return;
+        setPhoneHasMpin(status && status.registered ? status.hasMpin : null);
+      });
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [lookupPhone]);
+  const needsMpin = phoneHasMpin === false;
   const [invalid, setInvalid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
@@ -220,14 +247,17 @@ export default function BusinessLoginScreen() {
                 error={invalid ? '' : null}
               />
               <Pressable
-                onPress={() => router.push({
-                  pathname: '/login/forgot-mpin',
-                  params: { phone: toPhone(phone) },
-                } as unknown as Href)}
+                onPress={() =>
+                  router.push(
+                    (needsMpin
+                      ? { pathname: '/login/set-mpin', params: { phone: lookupPhone, mode: 'first' } }
+                      : { pathname: '/login/forgot-mpin', params: { phone: lookupPhone } }) as unknown as Href,
+                  )
+                }
                 style={styles.forgotRow}
                 hitSlop={6}
               >
-                <Text style={styles.forgotLink}>Forgot MPIN?</Text>
+                <Text style={styles.forgotLink}>{needsMpin ? 'Create MPIN' : 'Forgot MPIN?'}</Text>
               </Pressable>
             </Reveal>
 
