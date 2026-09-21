@@ -17,7 +17,13 @@ import {
   prewarmImagePreparation,
 } from '@/utils/imagePicker';
 import { createScan, detectTagArea } from '@/utils/scanApi';
-import { cropToTagBox, detectionCopy, uprightCopy, withTimeout } from '@/utils/tagCrop';
+import {
+  cropToTagBox,
+  detectionCopy,
+  uprightCopy,
+  withTimeout,
+  type UprightImage,
+} from '@/utils/tagCrop';
 import { currentScopeGeneration } from '@/utils/userScopedStorage';
 import { invalidateBackgroundUploads, startBackgroundSideUpload } from '@/utils/uploadPipeline';
 
@@ -233,7 +239,7 @@ export default function BarcodeScannerScreen() {
 
     // The web fallback yields one photo; it stands in for both.
     const fallback = await captureScanImageFallback();
-    return fallback ? { framed: fallback, full: fallback } : null;
+    return fallback ? { framed: fallback, full: fallback, upright: null } : null;
   };
 
   /**
@@ -253,6 +259,7 @@ export default function BarcodeScannerScreen() {
     fullUri: string,
     confirmedUri: string,
     source: CaptureSource,
+    upright?: UprightImage | null,
   ) => {
     const token = captureTokenRef.current;
     setRefining((prev) => ({ ...prev, [side]: true }));
@@ -263,20 +270,22 @@ export default function BarcodeScannerScreen() {
     let work: Promise<void> | undefined;
     work = (async () => {
       try {
-        // The full-size upright copy is the slowest thing the phone does
-        // here, and the finder does not need it: the small copy for the
-        // finder comes straight from the original and goes on its way,
-        // while the upright copy is made during the network wait instead of
-        // before it. It is only awaited once there is a box to cut.
-        const uprightPromise = uprightCopy(fullUri);
+        // A camera capture arrives with its upright size already known —
+        // the framing just measured it — so the cut is made from that very
+        // file. Re-saving a whole photo only to learn its size was the
+        // slowest thing the phone did here, on every capture, and it ran
+        // alongside the finder's copy and slowed that down too. A gallery
+        // photo's size is unknown, so it still gets the copy, made during
+        // the network wait and only awaited once there is a box to cut.
+        const uprightPromise = upright ? Promise.resolve(upright) : uprightCopy(fullUri);
         const box = await withTimeout(
-          detectTagArea(await detectionCopy(fullUri)),
+          detectTagArea(await detectionCopy(fullUri, upright ?? undefined)),
           AUTO_FRAME_TIMEOUT_MS,
         );
         if (!box || token !== captureTokenRef.current) return;
-        const upright = await uprightPromise;
-        if (!upright) return;
-        const cropped = await cropToTagBox(upright, box);
+        const photo = await uprightPromise;
+        if (!photo) return;
+        const cropped = await cropToTagBox(photo, box);
         if (!cropped || token !== captureTokenRef.current) return;
 
         const current = side === 'front' ? confirmedFrontRef.current : confirmedBackRef.current;
@@ -354,7 +363,7 @@ export default function BarcodeScannerScreen() {
     const side = captureStep === 'second' ? 'back' : 'front';
     if (side === 'back') confirmBackCapture(capture.framed, 'camera');
     else confirmFrontCapture(capture.framed, 'camera');
-    refineSide(side, capture.full, capture.framed, 'camera');
+    refineSide(side, capture.full, capture.framed, 'camera', capture.upright);
   };
 
   /** The bin beside the frame: drop the framed photo, or the scan itself. */

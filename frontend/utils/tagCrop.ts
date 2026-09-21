@@ -39,9 +39,10 @@ export async function uprightCopy(uri: string): Promise<UprightImage | null> {
  * Longest edge of the copy the finder is shown. Locating a label needs far
  * less than reading one: the upload path sends up to 2400px because the
  * reader magnifies digits, but the finder only has to say where the white
- * card is. A quarter of the pixels goes up in a fraction of the time.
+ * card is. This is the size the server shrinks the photo to before the
+ * model sees it anyway, so sending more only lengthened the upload.
  */
-const DETECTION_MAX_EDGE_PX = 1280;
+const DETECTION_MAX_EDGE_PX = 1024;
 
 /**
  * A small, fast copy of the photo for the finder to look at, made straight
@@ -51,14 +52,23 @@ const DETECTION_MAX_EDGE_PX = 1280;
  * change with scale — land on the upright image exactly where it saw the
  * tag, and the cut is still made from the full-size one.
  *
- * Resized on width alone: a portrait photo comes out a little taller than
- * DETECTION_MAX_EDGE_PX, which costs a few kilobytes and nothing else, and
- * spares a separate read of the file's size just to pick an axis. Falls back
- * to the original if the resize fails; slower, never wrong.
+ * Resized on its longest edge when the photo's size is known, so what goes
+ * up is exactly what the server would make of it. Without a size it is
+ * resized on width alone: a portrait photo comes out a little taller, which
+ * costs a few kilobytes and nothing else, and spares a separate read of the
+ * file just to pick an axis. Falls back to the original if the resize fails;
+ * slower, never wrong.
  */
-export async function detectionCopy(uri: string): Promise<string> {
+export async function detectionCopy(
+  uri: string,
+  size?: { width: number; height: number },
+): Promise<string> {
+  const resize =
+    size && size.height > size.width
+      ? { height: DETECTION_MAX_EDGE_PX }
+      : { width: DETECTION_MAX_EDGE_PX };
   try {
-    const result = await manipulateAsync(uri, [{ resize: { width: DETECTION_MAX_EDGE_PX } }], {
+    const result = await manipulateAsync(uri, [{ resize }], {
       compress: 0.7,
       format: SaveFormat.JPEG,
     });

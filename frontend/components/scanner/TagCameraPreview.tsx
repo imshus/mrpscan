@@ -23,6 +23,7 @@ import {
   SCANNER_FRAME_VERTICAL_BIAS,
   SCANNER_FRAME_WIDTH,
 } from '@/constants/scannerFrame';
+import type { UprightImage } from '@/utils/tagCrop';
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
@@ -39,15 +40,21 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
  *
  * Returns the original uri untouched if anything is unknown, so a capture can
  * never be lost to a bad crop.
+ *
+ * Alongside the framed uri comes the upright photo the crop was measured
+ * against — uri and real pixel size — whenever that size proved trustworthy,
+ * so the tag finder can cut from the same file without re-saving the whole
+ * photo just to learn its size. Null when the size was never known or the
+ * mapping did not describe this photo, and the finder makes its own copy.
  */
 async function cropToFrame(
   uri: string,
   photoWidth: number | undefined,
   photoHeight: number | undefined,
   viewSize: { width: number; height: number },
-): Promise<string> {
+): Promise<{ uri: string; upright: UprightImage | null }> {
   if (!photoWidth || !photoHeight || !viewSize.width || !viewSize.height) {
-    return uri;
+    return { uri, upright: null };
   }
 
   // The mapping below only holds while the photo stands the same way up as the
@@ -61,9 +68,12 @@ async function cropToFrame(
 
   if (previewIsPortrait !== (source.height >= source.width)) {
     // Saving the file again bakes the rotation into the pixels, after which
-    // the reported size is the size the framing was done against.
+    // the reported size is the size the framing was done against. At 0.9
+    // rather than lossless: everything cut from this copy is re-encoded at
+    // 0.92 anyway, and a lossless save of a whole photo was seconds of the
+    // shutter's wait on the phones that need it.
     try {
-      const upright = await manipulateAsync(uri, [], { compress: 1, format: SaveFormat.JPEG });
+      const upright = await manipulateAsync(uri, [], { compress: 0.9, format: SaveFormat.JPEG });
       if (upright?.uri && upright.width && upright.height) {
         source = { uri: upright.uri, width: upright.width, height: upright.height };
       }
@@ -78,11 +88,11 @@ async function cropToFrame(
     // place. The whole photo still carries the tag, and the reader magnifies
     // parts of whatever it is given.
     console.warn('Capture is sideways to the preview; sending the whole photo.');
-    return source.uri;
+    return { uri: source.uri, upright: null };
   }
 
   const scale = Math.max(viewSize.width / source.width, viewSize.height / source.height);
-  if (!Number.isFinite(scale) || scale <= 0) return source.uri;
+  if (!Number.isFinite(scale) || scale <= 0) return { uri: source.uri, upright: null };
 
   const offsetX = (source.width * scale - viewSize.width) / 2;
   const offsetY = (source.height * scale - viewSize.height) / 2;
@@ -107,7 +117,7 @@ async function cropToFrame(
       view: `${Math.round(viewSize.width)}x${Math.round(viewSize.height)}`,
       crop: `${width}x${height}`,
     });
-    return source.uri;
+    return { uri: source.uri, upright: null };
   }
 
   try {
@@ -116,10 +126,10 @@ async function cropToFrame(
       [{ crop: { originX, originY, width, height } }],
       { compress: 0.92, format: SaveFormat.JPEG },
     );
-    return result.uri;
+    return { uri: result.uri, upright: source };
   } catch (error) {
     console.warn('Failed to crop capture to the scan frame, using full photo:', error);
-    return source.uri;
+    return { uri: source.uri, upright: source };
   }
 }
 
@@ -134,6 +144,12 @@ async function cropToFrame(
 export type TagCapture = {
   framed: string;
   full: string;
+  /**
+   * `full` with its real pixel size, when the framing established one — the
+   * finder cuts from it directly. Null means the finder must find out the
+   * size for itself.
+   */
+  upright: UprightImage | null;
 };
 
 export type TagCameraPreviewRef = {
@@ -177,8 +193,13 @@ export const TagCameraPreview = forwardRef<TagCameraPreviewRef, TagCameraPreview
       });
       if (!photo?.uri) return null;
 
-      const framed = await cropToFrame(photo.uri, photo.width, photo.height, viewSize);
-      return { framed, full: photo.uri };
+      const { uri: framed, upright } = await cropToFrame(
+        photo.uri,
+        photo.width,
+        photo.height,
+        viewSize,
+      );
+      return { framed, full: upright?.uri ?? photo.uri, upright };
     } catch {
       return null;
     }
