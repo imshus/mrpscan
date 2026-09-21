@@ -447,6 +447,10 @@ export default function DashboardScreen() {
               {(bhaw.mcxIsLive || mcxLiveRate != null) && show24kMcx ? (
                 <GradientView
                   colors={Gradients.metallic}
+                  // The shop asked for this card's gradient back — the theme's
+                  // metallic run, light to deep khaki — while the rest of the
+                  // page stays flat.
+                  forceGradient
                   borderRadius={14}
                   style={styles.mcxTopCard}
                 >
