@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Pencil, Trash2 } from 'lucide-react-native';
+import { Trash2 } from 'lucide-react-native';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
@@ -66,7 +66,6 @@ export default function ItemCodesScreen() {
   // The cleanup that saves on leaving the screen reads through this ref,
   // because the closure it was created in holds stale rows.
   // The name field of each row, so the pencil can put the cursor in it.
-  const nameInputs = useRef(new Map<string, TextInput | null>());
   const rowsRef = useRef<RowState[]>([]);
   rowsRef.current = rows;
   // Autosave: each keystroke restarts a short timer for that line, so a
@@ -262,9 +261,6 @@ export default function ItemCodesScreen() {
                         <View style={styles.field}>
                           <Text style={styles.fieldLabel}>ITEM NAME</Text>
                           <TextInput
-                            ref={(node) => {
-                              nameInputs.current.set(row.key, node);
-                            }}
                             value={row.name}
                             onChangeText={(text) => {
                               updateRow(row.key, { name: text, dirty: true });
@@ -326,18 +322,11 @@ export default function ItemCodesScreen() {
                     </View>
 
                     <View style={styles.rowActions}>
+                      {/* Every field is editable where it stands, so the row
+                          needs no edit button — the pencil that put the cursor
+                          in the name went, at the shop's asking. */}
                       <Pressable onPress={() => handleDelete(row)} hitSlop={8} style={styles.trashBtn}>
                         <Trash2 size={15} color={Colors.brandDeep} />
-                      </Pressable>
-                      {/* Every field is editable where it stands, so this puts
-                          the cursor in the row rather than opening a form. */}
-                      <Pressable
-                        onPress={() => nameInputs.current.get(row.key)?.focus()}
-                        hitSlop={8}
-                        accessibilityLabel="Edit this item code"
-                        style={styles.editBtn}
-                      >
-                        <Pencil size={14} color={Colors.textSecondary} />
                       </Pressable>
                     </View>
                   </View>
@@ -399,14 +388,6 @@ const styles = StyleSheet.create({
   rowActions: {
     gap: 8,
     paddingTop: 6,
-  },
-  editBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: Colors.backgroundAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   rowDivider: {
     borderTopWidth: 1,

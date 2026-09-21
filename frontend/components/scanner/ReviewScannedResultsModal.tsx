@@ -15,6 +15,13 @@ import { ItemCodePicker } from '@/components/scanner/ItemCodePicker';
 import { useShake } from '@/components/auth/AuthKit';
 import { useFormulaStore } from '@/store/formulaStore';
 import type { ScanItemData, StoneEntry, StructuredScanData } from '@/types/scanner';
+
+/**
+ * Two firm pulses. The single 80ms tap this used to be was felt on one
+ * phone and not on the shop's: red boxes with nothing in the hand, which
+ * read as "no vibration" for the packet code and the labour rate.
+ */
+const REFUSAL_BUZZ = [0, 110, 70, 110];
 import { resolveItemIdentity } from '@/utils/itemIdentity';
 import { DIAMOND_SHAPE_OPTIONS, type StoneSelectOption } from '@/constants/stoneRateOptions';
 import { fetchDiamondRates, fetchGoldRates } from '@/utils/ratesApi';
@@ -378,7 +385,7 @@ export function ReviewScannedResultsModal({
       // gives, which is a language the hand already knows.
       setShowMissingStones(true);
       triggerShake();
-      Vibration.vibrate(80);
+      Vibration.vibrate(REFUSAL_BUZZ);
       // To the section that went red, not to the top of the card — that
       // landed on the gold rows every time, which are not what was marked.
       // A little above it, so its heading is on screen too.

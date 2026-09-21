@@ -62,7 +62,9 @@ export function useBhawRates(input: UseBhawRatesInput): UseBhawRatesResult {
     void hydrateProvider().then(() => {
       const state = useBhawStore.getState();
       if (state.provider) return;
-      setProvider(providerFromToggle(Boolean(useJmd)));
+      // Unset means JMD Patil, the default; only a saved "off" means the
+      // other house.
+      setProvider(providerFromToggle(useJmd !== false));
     });
   }, [hydrateProvider, useJmd, setProvider]);
 

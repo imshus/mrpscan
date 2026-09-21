@@ -115,5 +115,6 @@ export const DEFAULT_MATRIX_VALUES: Record<MatrixKey, boolean> = {
   '9k_rtgs': false,
   '9k_cash': false,
   // Bhaw rate source: true = JMD Patil live feed, false = Mega Bullion.
-  'bhaw_source_jmd': false,
+  // JMD Patil unless the shop has picked otherwise, at the shop's asking.
+  'bhaw_source_jmd': true,
 };
