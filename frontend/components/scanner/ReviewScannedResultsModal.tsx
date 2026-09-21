@@ -349,17 +349,18 @@ export function ReviewScannedResultsModal({
   }, []);
   const [shakeStyle, triggerShake] = useShake();
   const hasIncompleteStones = useMemo(() => {
-    // A diamond needs its packet code as well: it is what the stone is looked
-    // up by in the shop's own rate table. The labour rate is on the same
-    // footing — an empty one prices the making at nothing — so it goes red
-    // with the same shake instead of billing a piece with no labour on it.
+    // A diamond needs its weight and its rate; its packet code is not a
+    // condition — the shop asked that it never go red or buzz. The labour
+    // rate is on the same footing as the stones — an empty one prices the
+    // making at nothing — so it goes red with the same shake instead of
+    // billing a piece with no labour on it.
     const bare = (entry: StoneEntry) => !entry.weight?.trim() || !entry.rate?.trim();
     // Colorstones were in this list and are not any more, at the shop's
     // asking: a colourstone left blank no longer stops an invoice, and its
     // boxes are not marked. Diamonds and the labour rate still are — those
     // price at nothing and would quietly undercharge the piece.
     return (
-      diamondEntries.some((entry) => bare(entry) || !entry.packetCode?.trim()) ||
+      diamondEntries.some(bare) ||
       !scanData.labourChargeAmount?.trim()
     );
   }, [diamondEntries, scanData.labourChargeAmount]);
@@ -367,9 +368,7 @@ export function ReviewScannedResultsModal({
   // The diamonds come first on the card, so they win when both are empty.
   const firstMissingSection = useMemo<'stones' | 'labour'>(() => {
     const bare = (entry: StoneEntry) => !entry.weight?.trim() || !entry.rate?.trim();
-    const diamondsIncomplete = diamondEntries.some(
-      (entry) => bare(entry) || !entry.packetCode?.trim(),
-    );
+    const diamondsIncomplete = diamondEntries.some(bare);
     return diamondsIncomplete ? 'stones' : 'labour';
   }, [diamondEntries]);
 
