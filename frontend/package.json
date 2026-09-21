@@ -25,7 +25,6 @@
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
     "expo-web-browser": "~15.0.11",
-    "jpeg-js": "^0.4.4",
     "lucide-react-native": "^1.18.0",
     "nativewind": "^4.2.5",
     "react": "19.1.0",
