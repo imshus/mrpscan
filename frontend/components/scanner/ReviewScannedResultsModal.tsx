@@ -331,6 +331,11 @@ export function ReviewScannedResultsModal({
    * very fields it is pointing at, and have to be dismissed to reach them.
    */
   const [showMissingStones, setShowMissingStones] = useState(false);
+  // Where the review content starts, so a refused Generate can carry the eye
+  // to the boxes it just turned red. A buzz alone left the shop looking at
+  // the bottom of a long card wondering what had happened.
+  const scrollRef = useRef<ScrollView>(null);
+  const finalTabY = useRef(0);
   const [shakeStyle, triggerShake] = useShake();
   const hasIncompleteStones = useMemo(() => {
     // A diamond needs its packet code as well: it is what the stone is looked
@@ -338,12 +343,15 @@ export function ReviewScannedResultsModal({
     // footing — an empty one prices the making at nothing — so it goes red
     // with the same shake instead of billing a piece with no labour on it.
     const bare = (entry: StoneEntry) => !entry.weight?.trim() || !entry.rate?.trim();
+    // Colorstones were in this list and are not any more, at the shop's
+    // asking: a colourstone left blank no longer stops an invoice, and its
+    // boxes are not marked. Diamonds and the labour rate still are — those
+    // price at nothing and would quietly undercharge the piece.
     return (
       diamondEntries.some((entry) => bare(entry) || !entry.packetCode?.trim()) ||
-      colorstoneEntries.some(bare) ||
       !scanData.labourChargeAmount?.trim()
     );
-  }, [diamondEntries, colorstoneEntries, scanData.labourChargeAmount]);
+  }, [diamondEntries, scanData.labourChargeAmount]);
 
   // Once everything is filled the red goes away on its own, so a shop that
   // fixes it is not left looking at a warning about nothing.
@@ -358,6 +366,11 @@ export function ReviewScannedResultsModal({
       setShowMissingStones(true);
       triggerShake();
       Vibration.vibrate(80);
+      // A little above the section, so its heading is on screen too.
+      scrollRef.current?.scrollTo({
+        y: Math.max(finalTabY.current - 12, 0),
+        animated: true,
+      });
       return;
     }
     onGenerateInvoice();
@@ -536,12 +549,18 @@ export function ReviewScannedResultsModal({
 
       {/* Scrollable review content */}
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Animated.View style={shakeStyle}>
+        <Animated.View
+          style={shakeStyle}
+          onLayout={(event) => {
+            finalTabY.current = event.nativeEvent.layout.y;
+          }}
+        >
         <ScannerFinalTab
           scanData={scanData}
           structuredData={structuredData}

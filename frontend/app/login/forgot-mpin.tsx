@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,6 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
 
 import { AuthBackButton, AuthErrorText, AuthField, AuthPrimaryButton } from '@/components/auth/AuthKit';
 import { OtpBox } from '@/components/auth/OtpBox';
@@ -52,6 +54,7 @@ export default function ForgotMpinScreen() {
   const [savedMpin, setSavedMpin] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const send = async () => {
     if (sending || sent) return;
@@ -209,6 +212,22 @@ export default function ForgotMpinScreen() {
               <View style={styles.mpinCard}>
                 <Text style={styles.mpinCardLabel}>YOUR MPIN</Text>
                 <Text style={styles.mpinDigits}>{savedMpin.split('').join(' ')}</Text>
+                {/* Four digits are easy to mistype and easy to forget between
+                    here and the keypad, so they can be taken rather than
+                    memorised. The label says what happened instead of a
+                    popup that would cover the number it just copied. */}
+                <Pressable
+                  onPress={() => {
+                    void Clipboard.setStringAsync(savedMpin);
+                    setCopied(true);
+                  }}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Copy MPIN"
+                  style={styles.copyBtn}
+                >
+                  <Text style={styles.copyText}>{copied ? 'Copied' : 'Copy'}</Text>
+                </Pressable>
               </View>
             </Reveal>
           ) : null}
@@ -287,5 +306,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   mpinInputWrap: { alignSelf: 'stretch' },
+  copyBtn: {
+    marginTop: 4,
+    paddingHorizontal: 18,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+  },
+  copyText: { fontSize: 12.5, fontWeight: '700', color: Colors.brandDeep },
   footer: { marginTop: 4 },
 });

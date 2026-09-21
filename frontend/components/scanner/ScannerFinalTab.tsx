@@ -310,7 +310,8 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
               key={`colorstone-${block.index}`}
               title={clubColorstones ? 'Colorstone' : `Colorstone ${idx + 1}`}
               stoneType="colorstone"
-              missing={highlightMissingStones}
+              // Colorstones are not marked red at the shop's asking: only the
+              // diamond rows and the labour rate hold Generate back.
               entryIndex={block.index}
               sequenceIndex={diamondBlocks.length + idx}
               values={block.entry}
