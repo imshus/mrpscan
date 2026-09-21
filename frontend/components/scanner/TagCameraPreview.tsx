@@ -23,9 +23,12 @@ import {
   SCANNER_FRAME_VERTICAL_BIAS,
   SCANNER_FRAME_WIDTH,
 } from '@/constants/scannerFrame';
-import type { UprightImage } from '@/utils/tagCrop';
+import { detectionCopy, type UprightImage } from '@/utils/tagCrop';
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+/** EXIF orientations that turn the stored pixels a quarter, swapping width and height. */
+const QUARTER_TURNS = new Set([5, 6, 7, 8]);
 
 /**
  * Crops a captured photo down to the region the user framed on screen.
@@ -51,20 +54,45 @@ async function cropToFrame(
   uri: string,
   photoWidth: number | undefined,
   photoHeight: number | undefined,
+  orientation: number | undefined,
   viewSize: { width: number; height: number },
 ): Promise<{ uri: string; upright: UprightImage | null }> {
-  if (!photoWidth || !photoHeight || !viewSize.width || !viewSize.height) {
-    return { uri, upright: null };
+  if (!viewSize.width || !viewSize.height) return { uri, upright: null };
+
+  // The photo is saved exactly as the camera produced it, its rotation
+  // carried in the EXIF tag rather than baked into the pixels: baking it in
+  // was a decode and re-encode of the whole photo inside the shutter's own
+  // wait. Every loader used here applies that tag on the way in, so the size
+  // the framing is measured against is the size after the turn — a quarter
+  // turn swaps the two.
+  const turned = QUARTER_TURNS.has(orientation ?? 1);
+  const storedWidth = photoWidth && photoWidth > 0 ? photoWidth : 0;
+  const storedHeight = photoHeight && photoHeight > 0 ? photoHeight : 0;
+  let source = turned
+    ? { uri, width: storedHeight, height: storedWidth }
+    : { uri, width: storedWidth, height: storedHeight };
+
+  if (!source.width || !source.height) {
+    // A file whose own tags do not say its size: re-saving it is the one way
+    // left to learn it. Rare, and slow only on the phones that need it.
+    try {
+      const upright = await manipulateAsync(uri, [], { compress: 0.9, format: SaveFormat.JPEG });
+      if (upright?.uri && upright.width && upright.height) {
+        source = { uri: upright.uri, width: upright.width, height: upright.height };
+      }
+    } catch (error) {
+      console.warn('Could not learn the capture size:', error);
+    }
+    if (!source.width || !source.height) return { uri, upright: null };
   }
 
   // The mapping below only holds while the photo stands the same way up as the
-  // preview it was framed in. Plenty of Android cameras hand back the sensor's
-  // own landscape frame with an EXIF tag saying "turn this a quarter", and
-  // measuring a portrait preview against those numbers puts the crop somewhere
-  // else entirely — a blank corner of the card, and a scan with no values on
-  // that phone while the same tag reads fine on the next one.
+  // preview it was framed in. A photo that still lies the other way after the
+  // tag is accounted for was taken with the phone held sideways, or carries
+  // a tag that lies; measuring a portrait preview against those numbers puts
+  // the crop somewhere else entirely — a blank corner of the card, and a scan
+  // with no values on that phone while the same tag reads fine on the next.
   const previewIsPortrait = viewSize.height >= viewSize.width;
-  let source = { uri, width: photoWidth, height: photoHeight };
 
   if (previewIsPortrait !== (source.height >= source.width)) {
     // Saving the file again bakes the rotation into the pixels, after which
@@ -145,6 +173,13 @@ export type TagCapture = {
   framed: string;
   full: string;
   /**
+   * The finder's small copy of `full`, already being made — it starts the
+   * moment the photo exists, alongside the frame crop, so the finder's
+   * upload can leave the instant the side is confirmed. Null when nothing
+   * was started (the web fallback).
+   */
+  detection: Promise<string> | null;
+  /**
    * `full` with its real pixel size, when the framing established one — the
    * finder cuts from it directly. Null means the finder must find out the
    * size for itself.
@@ -189,17 +224,38 @@ export const TagCameraPreview = forwardRef<TagCameraPreviewRef, TagCameraPreview
     try {
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.85,
-        skipProcessing: false,
+        // The camera's own JPEG, written as it is. Processing it meant
+        // decoding and re-encoding the whole photo before the shutter
+        // answered, only to turn it upright — which every loader here does
+        // for itself from the EXIF tag, read below.
+        skipProcessing: true,
+        exif: true,
       });
       if (!photo?.uri) return null;
+
+      const orientation = Number(photo.exif?.Orientation) || undefined;
+      const turned = QUARTER_TURNS.has(orientation ?? 1);
+      const stored = { width: Number(photo.width) || 0, height: Number(photo.height) || 0 };
+      const uprightSize =
+        stored.width > 0 && stored.height > 0
+          ? turned
+            ? { width: stored.height, height: stored.width }
+            : stored
+          : undefined;
+
+      // The finder's small copy starts now, alongside the frame crop, rather
+      // than after it: the two overlap, and the finder's upload can leave
+      // the moment the side is confirmed.
+      const detection = detectionCopy(photo.uri, uprightSize);
 
       const { uri: framed, upright } = await cropToFrame(
         photo.uri,
         photo.width,
         photo.height,
+        orientation,
         viewSize,
       );
-      return { framed, full: upright?.uri ?? photo.uri, upright };
+      return { framed, full: upright?.uri ?? photo.uri, upright, detection };
     } catch {
       return null;
     }

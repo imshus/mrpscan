@@ -239,7 +239,7 @@ export default function BarcodeScannerScreen() {
 
     // The web fallback yields one photo; it stands in for both.
     const fallback = await captureScanImageFallback();
-    return fallback ? { framed: fallback, full: fallback, upright: null } : null;
+    return fallback ? { framed: fallback, full: fallback, upright: null, detection: null } : null;
   };
 
   /**
@@ -260,6 +260,7 @@ export default function BarcodeScannerScreen() {
     confirmedUri: string,
     source: CaptureSource,
     upright?: UprightImage | null,
+    detection?: Promise<string> | null,
   ) => {
     const token = captureTokenRef.current;
     setRefining((prev) => ({ ...prev, [side]: true }));
@@ -278,10 +279,10 @@ export default function BarcodeScannerScreen() {
         // photo's size is unknown, so it still gets the copy, made during
         // the network wait and only awaited once there is a box to cut.
         const uprightPromise = upright ? Promise.resolve(upright) : uprightCopy(fullUri);
-        const box = await withTimeout(
-          detectTagArea(await detectionCopy(fullUri, upright ?? undefined)),
-          AUTO_FRAME_TIMEOUT_MS,
-        );
+        // A camera capture's small copy has been in the making since the
+        // shutter; a gallery photo's is made here.
+        const smallUri = await (detection ?? detectionCopy(fullUri, upright ?? undefined));
+        const box = await withTimeout(detectTagArea(smallUri), AUTO_FRAME_TIMEOUT_MS);
         if (!box || token !== captureTokenRef.current) return;
         const photo = await uprightPromise;
         if (!photo) return;
@@ -363,7 +364,7 @@ export default function BarcodeScannerScreen() {
     const side = captureStep === 'second' ? 'back' : 'front';
     if (side === 'back') confirmBackCapture(capture.framed, 'camera');
     else confirmFrontCapture(capture.framed, 'camera');
-    refineSide(side, capture.full, capture.framed, 'camera', capture.upright);
+    refineSide(side, capture.full, capture.framed, 'camera', capture.upright, capture.detection);
   };
 
   /** The bin beside the frame: drop the framed photo, or the scan itself. */
