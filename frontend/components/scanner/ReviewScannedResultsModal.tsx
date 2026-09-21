@@ -336,6 +336,10 @@ export function ReviewScannedResultsModal({
   // the bottom of a long card wondering what had happened.
   const scrollRef = useRef<ScrollView>(null);
   const finalTabY = useRef(0);
+  const sectionY = useRef({ stones: 0, labour: 0 });
+  const handleSectionLayout = useCallback((section: 'stones' | 'labour', y: number) => {
+    sectionY.current[section] = y;
+  }, []);
   const [shakeStyle, triggerShake] = useShake();
   const hasIncompleteStones = useMemo(() => {
     // A diamond needs its packet code as well: it is what the stone is looked
@@ -353,6 +357,15 @@ export function ReviewScannedResultsModal({
     );
   }, [diamondEntries, scanData.labourChargeAmount]);
 
+  // The diamonds come first on the card, so they win when both are empty.
+  const firstMissingSection = useMemo<'stones' | 'labour'>(() => {
+    const bare = (entry: StoneEntry) => !entry.weight?.trim() || !entry.rate?.trim();
+    const diamondsIncomplete = diamondEntries.some(
+      (entry) => bare(entry) || !entry.packetCode?.trim(),
+    );
+    return diamondsIncomplete ? 'stones' : 'labour';
+  }, [diamondEntries]);
+
   // Once everything is filled the red goes away on its own, so a shop that
   // fixes it is not left looking at a warning about nothing.
   useEffect(() => {
@@ -366,15 +379,17 @@ export function ReviewScannedResultsModal({
       setShowMissingStones(true);
       triggerShake();
       Vibration.vibrate(80);
-      // A little above the section, so its heading is on screen too.
+      // To the section that went red, not to the top of the card — that
+      // landed on the gold rows every time, which are not what was marked.
+      // A little above it, so its heading is on screen too.
       scrollRef.current?.scrollTo({
-        y: Math.max(finalTabY.current - 12, 0),
+        y: Math.max(finalTabY.current + sectionY.current[firstMissingSection] - 16, 0),
         animated: true,
       });
       return;
     }
     onGenerateInvoice();
-  }, [hasIncompleteStones, onGenerateInvoice, triggerShake]);
+  }, [hasIncompleteStones, firstMissingSection, onGenerateInvoice, triggerShake]);
 
   useEffect(() => {
     // Nothing to resolve until the tag's own karat is in: writing the 14K
@@ -579,6 +594,7 @@ export function ReviewScannedResultsModal({
           clubDiamonds={scanData.clubDiamonds}
           clubColorstones={scanData.clubColorstones}
           highlightMissingStones={showMissingStones}
+          onSectionLayout={handleSectionLayout}
           onToggleClubDiamonds={toggleDiamondClubbing}
           onToggleClubColorstones={toggleColorstoneClubbing}
           onFieldChange={handleUserFieldChange}

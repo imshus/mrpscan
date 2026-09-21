@@ -58,6 +58,12 @@ interface ScannerFinalTabProps {
   clubDiamonds?: boolean;
   /** Turns the empty, needed stone boxes red once Generate Invoice is tried. */
   highlightMissingStones?: boolean;
+  /**
+   * Where a section starts, measured from the top of this tab. A refused
+   * Generate uses it to scroll to the boxes it marked: scrolling to the tab
+   * itself landed on the gold section every time, which is not what turned red.
+   */
+  onSectionLayout?: (section: 'stones' | 'labour', y: number) => void;
   clubColorstones?: boolean;
   onToggleClubDiamonds?: (enabled: boolean) => void;
   onToggleClubColorstones?: (enabled: boolean) => void;
@@ -88,6 +94,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
   calculationRateAccess = 'both',
   clubDiamonds = false,
   highlightMissingStones = false,
+  onSectionLayout,
   clubColorstones = false,
   onToggleClubDiamonds,
   onToggleClubColorstones,
@@ -270,6 +277,9 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
           {/* The entry object itself is the values prop: updateStoneEntryAtIndex
               keeps untouched entries by reference, so sibling rows stay memoized
               while one row is being typed into. */}
+          <View
+            onLayout={(event) => onSectionLayout?.('stones', event.nativeEvent.layout.y)}
+          >
           {diamondBlocks.map((block, idx) => (
             <StoneTypeRowCard
               key={`diamond-${block.index}`}
@@ -286,6 +296,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
               onRateErrorChange={onRateErrorChange}
             />
           ))}
+          </View>
 
           {colorstones.length > 1 || clubColorstones ? (
             <View className="mb-3 rounded-[14px] border border-border bg-white px-3.5 py-3">
@@ -327,6 +338,9 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
       )}
 
       {editable ? (
+        <View
+          onLayout={(event) => onSectionLayout?.('labour', event.nativeEvent.layout.y)}
+        >
         <LaborSection
           values={laborValues}
           onChange={handleLaborChange}
@@ -336,6 +350,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
           goldAmountDisplay={pricing.goldBasePriceDisplay}
           missing={highlightMissingStones}
         />
+        </View>
       ) : (
         <LabourChargeResultSection pricing={pricing} />
       )}
