@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -54,7 +53,6 @@ export default function ForgotMpinScreen() {
   const [savedMpin, setSavedMpin] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const send = async () => {
     if (sending || sent) return;
@@ -212,39 +210,25 @@ export default function ForgotMpinScreen() {
               <View style={styles.mpinCard}>
                 <Text style={styles.mpinCardLabel}>YOUR MPIN</Text>
                 <Text style={styles.mpinDigits}>{savedMpin.split('').join(' ')}</Text>
-                {/* Four digits are easy to mistype and easy to forget between
-                    here and the keypad, so they can be taken rather than
-                    memorised. The label says what happened instead of a
-                    popup that would cover the number it just copied. */}
-                <Pressable
-                  onPress={() => {
-                    void Clipboard.setStringAsync(savedMpin);
-                    setCopied(true);
-                  }}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Copy MPIN"
-                  style={styles.copyBtn}
-                >
-                  <Text style={styles.copyText}>{copied ? 'Copied' : 'Copy'}</Text>
-                </Pressable>
               </View>
             </Reveal>
           ) : null}
 
           {savedMpin ? (
             <View style={styles.footer}>
+              {/* One button, two jobs, at the shop's asking: the four digits
+                  go to the clipboard and the screen goes back. Log In is
+                  handed them anyway, so the copy is for everywhere else —
+                  a note, a message, the next phone. */}
               <AuthPrimaryButton
-                title="Back to Log In"
-                // The shop has just chosen these four digits and is looking
-                // at them; handing them to Log In alongside the number means
-                // the only thing left to do there is press the button.
-                onPress={() =>
+                title="Copy and Back to Log In"
+                onPress={() => {
+                  void Clipboard.setStringAsync(savedMpin);
                   router.replace({
                     pathname: '/login',
                     params: { phone, mpin: savedMpin },
-                  } as unknown as Href)
-                }
+                  } as unknown as Href);
+                }}
               />
             </View>
           ) : null}
@@ -306,15 +290,5 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   mpinInputWrap: { alignSelf: 'stretch' },
-  copyBtn: {
-    marginTop: 4,
-    paddingHorizontal: 18,
-    paddingVertical: 7,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.white,
-  },
-  copyText: { fontSize: 12.5, fontWeight: '700', color: Colors.brandDeep },
   footer: { marginTop: 4 },
 });
