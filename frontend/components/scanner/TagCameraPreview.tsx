@@ -123,8 +123,21 @@ async function cropToFrame(
   }
 }
 
+/**
+ * One press of the shutter, both ways it can be used.
+ *
+ * `framed` is the photo cut to the on-screen frame — what the shop lined up,
+ * and what a capture always used to be. `full` is the whole photo, kept so
+ * the tag finder can look through it and cut to the tag itself; when the
+ * finder has nothing to say, `framed` is what gets used.
+ */
+export type TagCapture = {
+  framed: string;
+  full: string;
+};
+
 export type TagCameraPreviewRef = {
-  takePicture: () => Promise<string | null>;
+  takePicture: () => Promise<TagCapture | null>;
   isReady: () => boolean;
 };
 
@@ -152,7 +165,7 @@ export const TagCameraPreview = forwardRef<TagCameraPreviewRef, TagCameraPreview
     onPermissionChange?.(permission.granted);
   }, [onPermissionChange, permission]);
 
-  const takePicture = useCallback(async (): Promise<string | null> => {
+  const takePicture = useCallback(async (): Promise<TagCapture | null> => {
     if (!cameraRef.current || !ready) {
       return null;
     }
@@ -164,7 +177,8 @@ export const TagCameraPreview = forwardRef<TagCameraPreviewRef, TagCameraPreview
       });
       if (!photo?.uri) return null;
 
-      return await cropToFrame(photo.uri, photo.width, photo.height, viewSize);
+      const framed = await cropToFrame(photo.uri, photo.width, photo.height, viewSize);
+      return { framed, full: photo.uri };
     } catch {
       return null;
     }

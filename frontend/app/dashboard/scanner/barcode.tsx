@@ -7,7 +7,7 @@ import { AdjustableImage, type AdjustableImageRef } from '@/components/scanner/A
 import { BarcodeOverlay } from '@/components/scanner/BarcodeOverlay';
 import { type CaptureSource } from '@/components/scanner/CapturedSidesStrip';
 import { ScannerScreenLayout } from '@/components/scanner/ScannerScreenLayout';
-import type { TagCameraPreviewRef } from '@/components/scanner/TagCameraPreview';
+import type { TagCameraPreviewRef, TagCapture } from '@/components/scanner/TagCameraPreview';
 import { useScannerStore } from '@/store/scannerStore';
 import type { CreateScanResponse, JewelleryType } from '@/types/scanner';
 import { ApiError } from '@/utils/apiClient';
@@ -17,6 +17,7 @@ import {
   prewarmImagePreparation,
 } from '@/utils/imagePicker';
 import { createScan, detectTagArea } from '@/utils/scanApi';
+import { cropToTagBox, uprightCopy, withTimeout } from '@/utils/tagCrop';
 import { currentScopeGeneration } from '@/utils/userScopedStorage';
 import { invalidateBackgroundUploads, startBackgroundSideUpload } from '@/utils/uploadPipeline';
 
@@ -24,6 +25,13 @@ type ConfirmedCapture = {
   uri: string;
   source: CaptureSource;
 };
+
+/**
+ * How long a live capture waits for the tag finder before going with the
+ * frame the shop lined up. The finder usually answers in a few seconds; a
+ * slow network must not turn a tap of the shutter into a stall.
+ */
+const AUTO_FRAME_TIMEOUT_MS = 8000;
 
 export default function BarcodeScannerScreen() {
   const router = useRouter();
@@ -56,23 +64,27 @@ export default function BarcodeScannerScreen() {
   // The photo the detection was started for, so a slower answer cannot move a
   // photo the user has since replaced or dropped.
   const pickedUriRef = useRef<string | null>(null);
+  // Bumped whenever the sides are dropped, so a tag search still running for
+  // a capture the shop has since discarded cannot confirm it afterwards.
+  const captureTokenRef = useRef(0);
 
-  // Deliberately excludes isPickingImage: the controls must not flicker while
-  // the system album is coming up.
-  const busy = isStartingOperation;
+  // While the tag is being found nothing may be captured, used or calculated
+  // on top of it. isPickingImage stays out: the controls must not flicker
+  // while the system album is coming up.
+  const busy = isStartingOperation || findingTag;
 
   const onSecondSide = captureStep === 'second';
   const backCaptured = Boolean(confirmedBack);
 
-  const instruction = pickedPhoto
-    ? findingTag
-      ? 'Finding the tag in your photo…'
-      : 'Drag and pinch so only the tag fills the frame'
-    : !onSecondSide
-    ? 'Align jewellery tag inside frame'
-    : backCaptured
-      ? 'Back side captured — tap Calculate to continue'
-      : 'Align back side of tag inside frame';
+  const instruction = findingTag
+    ? 'Finding the tag…'
+    : pickedPhoto
+      ? 'Drag and pinch so only the tag fills the frame'
+      : !onSecondSide
+        ? 'Align jewellery tag inside frame'
+        : backCaptured
+          ? 'Back side captured — tap Calculate to continue'
+          : 'Align back side of tag inside frame';
 
   useEffect(() => {
     if (!isFocused) return;
@@ -85,6 +97,7 @@ export default function BarcodeScannerScreen() {
     setPickedPhoto(null);
     setFindingTag(false);
     pickedUriRef.current = null;
+    captureTokenRef.current += 1;
     setCaptureStep('first');
     setIsPickingImage(false);
     setIsStartingOperation(false);
@@ -181,13 +194,42 @@ export default function BarcodeScannerScreen() {
     });
   };
 
-  const resolveCaptureUri = async (): Promise<string | null> => {
-    const liveUri = await cameraRef.current?.takePicture();
-    if (liveUri) {
-      return liveUri;
-    }
+  const resolveCapture = async (): Promise<TagCapture | null> => {
+    const live = await cameraRef.current?.takePicture();
+    if (live) return live;
 
-    return captureScanImageFallback();
+    // The web fallback yields one photo; it stands in for both.
+    const fallback = await captureScanImageFallback();
+    return fallback ? { framed: fallback, full: fallback } : null;
+  };
+
+  /**
+   * Finds the white tag in the whole capture and cuts to it, so the shop
+   * does not have to line the tag up inside the frame — off-centre, small or
+   * tilted, it still comes out as the tag alone. Anything short of a clean
+   * answer (no tag seen, a slow or refused finder, a crop that fails) falls
+   * back to the frame the shop lined up, so a capture is never lost to the
+   * attempt. Null means the shop discarded the capture while it was being
+   * searched, and nothing should be confirmed.
+   */
+  const autoFrame = async (capture: TagCapture): Promise<string | null> => {
+    const token = captureTokenRef.current;
+    setFindingTag(true);
+    try {
+      const upright = await uprightCopy(capture.full);
+      if (!upright) return capture.framed;
+      // The finder looks at the very file that gets cut, so its fractions
+      // land exactly where it saw the tag.
+      const box = await withTimeout(detectTagArea(upright.uri), AUTO_FRAME_TIMEOUT_MS);
+      if (token !== captureTokenRef.current) return null;
+      if (!box) return capture.framed;
+      return (await cropToTagBox(upright, box)) ?? capture.framed;
+    } catch (error) {
+      console.warn('Tag finder failed; using the framed capture:', error);
+      return token === captureTokenRef.current ? capture.framed : null;
+    } finally {
+      setFindingTag(false);
+    }
   };
 
   /**
@@ -228,14 +270,17 @@ export default function BarcodeScannerScreen() {
       return;
     }
 
-    const uri = await resolveCaptureUri();
-    if (!uri) {
+    const capture = await resolveCapture();
+    if (!capture) {
       Alert.alert(
         'Image Required',
         'Please capture a clear photo of the jewellery tag, or upload one from your device.',
       );
       return;
     }
+
+    const uri = await autoFrame(capture);
+    if (!uri) return;
 
     if (captureStep === 'second') {
       confirmBackCapture(uri, 'camera');
@@ -247,6 +292,7 @@ export default function BarcodeScannerScreen() {
 
   /** The bin beside the frame: drop the framed photo, or the scan itself. */
   const handleDiscardScan = () => {
+    captureTokenRef.current += 1;
     if (pickedPhoto) {
       pickedUriRef.current = null;
       setFindingTag(false);
@@ -286,25 +332,39 @@ export default function BarcodeScannerScreen() {
 
       setIsPickingImage(false);
       setPickedPhoto({ uri, source: 'gallery' });
-      // The tag is usually a small part of a gallery photo. The reader finds
-      // it and the frame goes to it, leaving the user only a nudge to make.
+      // The tag is usually a small part of a gallery photo. The finder finds
+      // it, the photo is cut to it, and that side is taken — no tap. Only
+      // when the finder comes up empty does the frame stay for a nudge.
       pickedUriRef.current = uri;
       setFindingTag(true);
-      void detectTagArea(uri).then(
-        (box) => {
-          if (pickedUriRef.current !== uri) return;
-          setFindingTag(false);
+      void (async () => {
+        // Upright first, and the finder looks at that same copy, so where it
+        // says the tag is and where the cut is made agree even on a photo
+        // carrying a rotation tag.
+        const upright = await uprightCopy(uri);
+        const box = upright ? await detectTagArea(upright.uri) : null;
+        if (pickedUriRef.current !== uri) return;
+        const cropped = upright && box ? await cropToTagBox(upright, box) : null;
+        if (pickedUriRef.current !== uri) return;
+        setFindingTag(false);
+        if (!cropped) {
+          // Nothing found, or the cut failed: the frame goes to the finder's
+          // best guess if it made one, and the shop nudges it from there.
           if (box) adjustRef.current?.frameRegion(box);
-        },
-        (error) => {
-          if (pickedUriRef.current !== uri) return;
-          setFindingTag(false);
-          Alert.alert(
-            'Find the tag',
-            error instanceof Error ? error.message : 'Could not find the tag automatically.',
-          );
-        },
-      );
+          return;
+        }
+        pickedUriRef.current = null;
+        setPickedPhoto(null);
+        if (captureStep === 'second') confirmBackCapture(cropped, 'gallery');
+        else confirmFrontCapture(cropped, 'gallery');
+      })().catch((error) => {
+        if (pickedUriRef.current !== uri) return;
+        setFindingTag(false);
+        Alert.alert(
+          'Find the tag',
+          error instanceof Error ? error.message : 'Could not find the tag automatically.',
+        );
+      });
     } catch {
       setIsPickingImage(false);
       Alert.alert('Upload Error', 'Could not load image from your device. Please try again.');
