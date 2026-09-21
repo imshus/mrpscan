@@ -147,6 +147,13 @@ export function SubscriptionBanner({
     >
       <GradientView
         colors={Gradients.trial}
+        // The shop's reference draws this one surface as a gradient — light
+        // coral at the top-left corner to deep red at the bottom-right,
+        // measured off the image at (223,146,134) and (172,75,60), which is
+        // trial1 to trial3 — while every other card stays flat as they asked
+        // earlier. The light sheen is the mockup's own for terracotta cards.
+        forceGradient
+        sheen={0.16}
         borderRadius={16}
         style={styles.tile}
       >
