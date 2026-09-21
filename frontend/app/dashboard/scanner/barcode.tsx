@@ -390,6 +390,9 @@ export default function BarcodeScannerScreen() {
   const handleCalculateFromCapture = async () => {
     if (busy) return;
     if (!confirmedFront) return;
+    // The pill is held while a side is still being adjusted; this is the
+    // same rule for a press that slips through as the state changes.
+    if (refining.front || refining.back) return;
     // A finder still at work is given a short moment; past that the sides go
     // up as captured, which is what the reader always used to get.
     const pending = Object.values(refineRef.current);
@@ -444,6 +447,7 @@ export default function BarcodeScannerScreen() {
         onUploadPress={onSecondSide || pickedPhoto ? undefined : handleUpload}
         onDeletePress={onSecondSide || pickedPhoto ? handleDiscardScan : undefined}
         onCalculatePress={onSecondSide && !pickedPhoto ? handleCalculateFromCapture : undefined}
+        calculateDisabled={refining.front || refining.back}
         // The side already taken, ticked, above the frame: the screen asks
         // for the back of the tag while showing the front is safely in hand.
         // The capture path holds that side locally until the scan starts, so
