@@ -99,7 +99,7 @@ function BhawTile({ rate, label }: { rate: number | null; label: string }) {
   return (
     <View style={styles.bhawTile}>
       <Text style={styles.bhawTileRate}>
-        {rate === null ? '—' : `${rate.toLocaleString('en-IN')}`}
+        {rate === null ? '—' : `₹ ${rate.toLocaleString('en-IN')}`}
       </Text>
       <Text style={styles.bhawTileLabel}>{label}</Text>
     </View>
@@ -459,7 +459,7 @@ export default function DashboardScreen() {
                     {/* The board's own Gold Future MCX — the same figure the
                         Dashboard Settings cards print — not the rates API's
                         adjusted copy of it. */}
-                    <Text style={styles.mcxTopValue}>{bhaw.mcxRate.toLocaleString('en-IN')}</Text>
+                    <Text style={styles.mcxTopValue}>₹ {bhaw.mcxRate.toLocaleString('en-IN')}</Text>
                   </View>
 
                   {/* The house's Cash and RTGS off its own board, each over
@@ -483,13 +483,13 @@ export default function DashboardScreen() {
                   <View style={styles.rateCardBody}>
                     {show24kCash ? (
                       <RateBadge
-                        value={`${(twentyFourKRate.cashRate ?? cashFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
+                        value={`₹ ${(twentyFourKRate.cashRate ?? cashFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
                         label="Retail Rate"
                       />
                     ) : null}
                     {show24kRtgs ? (
                       <RateBadge
-                        value={`${(twentyFourKRate.rtgsRate ?? rtgsFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
+                        value={`₹ ${(twentyFourKRate.rtgsRate ?? rtgsFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
                         label="RTGS Rate"
                       />
                     ) : null}
@@ -538,13 +538,13 @@ export default function DashboardScreen() {
                       <View style={styles.rateCardBody}>
                         {showCash ? (
                           <RateBadge
-                            value={`${(rowRetail ?? 0).toLocaleString('en-IN')}`}
+                            value={`₹ ${(rowRetail ?? 0).toLocaleString('en-IN')}`}
                             label="Retail Rate"
                           />
                         ) : null}
                         {showRtgs ? (
                           <RateBadge
-                            value={`${(rowRtgs ?? 0).toLocaleString('en-IN')}`}
+                            value={`₹ ${(rowRtgs ?? 0).toLocaleString('en-IN')}`}
                             label="RTGS Rate"
                           />
                         ) : null}
