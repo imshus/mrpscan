@@ -80,7 +80,7 @@ export function BullionHouseCard({ name, vendor, selected, onSelect }: BullionHo
         <Text style={styles.bhawTitle}>BADLA BHAW</Text>
         <View style={styles.bhawRow}>
           <View style={styles.bhawCell}>
-            <Text style={styles.bhawLabel}>Cash</Text>
+            <Text style={styles.bhawLabel}>Retail</Text>
             <Text style={styles.bhawValue}>{formatBhaw(vendor?.cashBhaw)}</Text>
           </View>
           <View style={styles.bhawCell}>

@@ -484,7 +484,7 @@ export default function DashboardScreen() {
                     {show24kCash ? (
                       <RateBadge
                         value={`${(twentyFourKRate.cashRate ?? cashFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
-                        label="Cash Rate"
+                        label="Retail Rate"
                       />
                     ) : null}
                     {show24kRtgs ? (
@@ -524,7 +524,7 @@ export default function DashboardScreen() {
                         {showCash ? (
                           <RateBadge
                             value={`${(rate.cashRate ?? rate.finalRate)?.toLocaleString('en-IN') || 0}`}
-                            label="Cash Rate"
+                            label="Retail Rate"
                           />
                         ) : null}
                         {showRtgs ? (

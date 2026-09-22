@@ -408,7 +408,7 @@ export function GoldRateSettingsPanel({
         />
 
         <RateCard
-          title="Cash Rate"
+          title="Retail Rate"
           subtitle={bhawNote(bhawCash)}
           showCurrentRate={false}
           icon={null}

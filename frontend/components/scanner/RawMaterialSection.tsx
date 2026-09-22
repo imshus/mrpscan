@@ -43,7 +43,7 @@ interface RawMaterialSectionProps {
 
 const RATE_OPTIONS: ReadonlyArray<{ value: 'rtgs' | 'cash'; label: string }> = [
   { value: 'rtgs', label: 'RTGS' },
-  { value: 'cash', label: 'Cash' },
+  { value: 'cash', label: 'Retail' },
 ];
 
 function normalizeRateKarat(carat: string): string {
@@ -86,7 +86,7 @@ export const RawMaterialSection = memo(function RawMaterialSection({
   backendGoldAmount,
 }: RawMaterialSectionProps) {
   const [isPurityEditing, setIsPurityEditing] = useState(false);
-  const fixedRateLabel = calculationRateAccess === 'cash' ? 'Cash Rate' : 'RTGS Rate';
+  const fixedRateLabel = calculationRateAccess === 'cash' ? 'Retail Rate' : 'RTGS Rate';
   const activeFormula = useFormulaStore((s) => s.activeFormula);
   const formula2Rules = useFormulaStore((s) => s.formula2Rules);
 

@@ -348,7 +348,7 @@ export default function RateControlScreen() {
             </Pressable>
 
             <Text style={styles.pageTitle}>Rate Control Panel</Text>
-            <Text style={styles.pageSubtitle}>Configure Supreme RTGS & Cash Rate Adjustments</Text>
+            <Text style={styles.pageSubtitle}>Configure Supreme RTGS & Retail Rate Adjustments</Text>
           </View>
 
           <View style={styles.sectionWrap}>
@@ -382,8 +382,8 @@ export default function RateControlScreen() {
             />
 
             <RateAdjustmentCard
-              title="Cash Rate"
-              subtitle="Configure Supreme Cash Adjustment"
+              title="Retail Rate"
+              subtitle="Configure Supreme Retail Adjustment"
               icon={Wallet}
               sign={cashSign}
               amount={cashAmount}
