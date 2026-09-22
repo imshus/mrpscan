@@ -417,8 +417,8 @@ export function GoldRateSettingsPanel({
           currentRate={cashCurrentRate}
           finalRate={cashLiveFinal}
           formula={''}
-          currentLabel="Current Cash Rate"
-          finalLabel="Final Cash Rate"
+          currentLabel="Current Retail Rate"
+          finalLabel="Final Retail Rate"
           onSignChange={setCashSign}
           onAmountChange={setCashAmount}
         />
