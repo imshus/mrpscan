@@ -85,7 +85,9 @@ export default function PurchaseLicenseScreen() {
   const userRole = useAuthStore((s) => s.userRole);
 
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  // Which action is under way, so only its own button says so: a recharge
+  // used to turn Purchase Now into 'Processing…' as well.
+  const [busyAction, setBusyAction] = useState<'purchase' | 'recharge' | null>(null);
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null);
 
   const canManagePayments = userRole === 'business';
@@ -165,7 +167,7 @@ export default function PurchaseLicenseScreen() {
       return;
     }
 
-    setBusy(true);
+    setBusyAction('purchase');
     try {
       assertRazorpayReady();
       const order = await createApplicationPurchaseOrder();
@@ -190,7 +192,7 @@ export default function PurchaseLicenseScreen() {
         Alert.alert('License Purchase', message);
       }
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }, [canManagePayments, router, runRazorpayCheckout]);
 
@@ -211,7 +213,7 @@ export default function PurchaseLicenseScreen() {
       return;
     }
 
-    setBusy(true);
+    setBusyAction('recharge');
     try {
       assertRazorpayReady();
       const order = await createCreditRechargeOrder(rechargeValue);
@@ -227,7 +229,7 @@ export default function PurchaseLicenseScreen() {
         );
       }
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }, [canManagePayments, loadOverview, rechargeReady, rechargeValue, runRazorpayCheckout]);
 
@@ -318,18 +320,18 @@ export default function PurchaseLicenseScreen() {
                     <Feature text={`${displayPrice} + GST`} sub="(one time purchase)" tone="paid" />
                   </View>
                   <Pressable
-                    disabled={busy || isPurchased}
+                    disabled={busyAction === 'purchase' || isPurchased}
                     onPress={handlePurchase}
                     style={[
                       styles.purchaseBtn,
                       styles.panelAction,
-                      (busy || isPurchased) && styles.btnDisabled,
+                      (busyAction === 'purchase' || isPurchased) && styles.btnDisabled,
                     ]}
                   >
                     <Text style={styles.purchaseBtnText}>
                       {isPurchased
                         ? 'Already Purchased'
-                        : busy
+                        : busyAction === 'purchase'
                           ? 'Processing…'
                           : 'Purchase Now'}
                     </Text>
@@ -399,11 +401,11 @@ export default function PurchaseLicenseScreen() {
 
                   <Pressable
                     onPress={handleRecharge}
-                    disabled={busy || !rechargeReady}
-                    style={[styles.rechargeBtn, (busy || !rechargeReady) && styles.btnDisabled]}
+                    disabled={busyAction !== null || !rechargeReady}
+                    style={[styles.rechargeBtn, (busyAction !== null || !rechargeReady) && styles.btnDisabled]}
                   >
                     <Text style={styles.rechargeBtnText}>
-                      {busy ? 'Processing…' : 'Recharge Now'}
+                      {busyAction === 'recharge' ? 'Processing…' : 'Recharge Now'}
                     </Text>
                   </Pressable>
                 </View>
