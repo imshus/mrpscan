@@ -1,5 +1,4 @@
 import type { ScanItemData } from '@/types/scanner';
-import { resolveScannedKarat } from '@/utils/formulaUtils';
 
 /**
  * How a scanned piece is identified on screen and on the invoice.
@@ -7,8 +6,9 @@ import { resolveScannedKarat } from '@/utils/formulaUtils';
  * The name comes from the shop's own item codes when the tag's number
  * begins with a saved code word; the number is then the tag's whole number,
  * word and running number together. Without a match the number is still
- * the one the tag printed and the name is composed from what was scanned,
- * since the tag has no product title of its own.
+ * the one the tag printed and the name is empty — it used to be composed
+ * from the karat and category, and the shop asked for it blank instead,
+ * so an unmatched tag is plainly unmatched.
  */
 export interface ItemIdentity {
   name: string;
@@ -16,13 +16,8 @@ export interface ItemIdentity {
 }
 
 export function resolveItemIdentity(scanData: ScanItemData): ItemIdentity {
-  const catalogueName = scanData.itemName?.trim();
-  const karat = resolveScannedKarat(scanData.karat, scanData.tunch);
-  const category = scanData.category || 'Gold';
-  const composed = [karat, category].filter(Boolean).join(' ').trim();
-
   return {
-    name: catalogueName || composed || 'Jewellery',
+    name: scanData.itemName?.trim() || '',
     number: scanData.itemCode?.trim() || scanData.sku?.trim() || '',
   };
 }

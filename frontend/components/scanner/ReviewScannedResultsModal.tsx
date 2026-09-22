@@ -536,7 +536,7 @@ export function ReviewScannedResultsModal({
           <View style={styles.itemTile}>
             <Text style={styles.itemTileLabel}>Item Name</Text>
             <Text style={styles.itemTileValue} numberOfLines={1}>
-              {itemIdentity.name}
+              {itemIdentity.name || '—'}
             </Text>
           </View>
           {/* The code the tag printed; tapping lists every saved item code. */}
