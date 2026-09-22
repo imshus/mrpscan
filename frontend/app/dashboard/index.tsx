@@ -512,6 +512,21 @@ export default function DashboardScreen() {
 
                   const purityLabel = formatPurityLabel(rate.purity);
 
+                  // A row is its purity's fraction of the very 24K figures
+                  // on the MCX card above — the house's own board — not of
+                  // the server's row, which is built on the server's MCX of
+                  // the moment its cache was made, a tick and a bhaw apart,
+                  // which showed as a ~1,000 gap. MCX 24K counts as 100%,
+                  // at the shop's asking. The server's row stands in only
+                  // when the board has no such figure.
+                  const retail24 = boardSell(bhaw.vendor, /gold\s*cash/i) ?? cashFinalRate;
+                  const rtgs24 = boardSell(bhaw.vendor, /gold\s*rtgs/i) ?? rtgsFinalRate;
+                  const fraction = rate.purity / 100;
+                  const rowRetail =
+                    retail24 > 0 ? Math.round(retail24 * fraction) : (rate.cashRate ?? rate.finalRate);
+                  const rowRtgs =
+                    rtgs24 > 0 ? Math.round(rtgs24 * fraction) : (rate.rtgsRate ?? rate.finalRate);
+
                   return (
                     <View key={rate.carat} style={styles.rateCard}>
                       <View style={styles.rateCardHeader}>
@@ -523,13 +538,13 @@ export default function DashboardScreen() {
                       <View style={styles.rateCardBody}>
                         {showCash ? (
                           <RateBadge
-                            value={`${(rate.cashRate ?? rate.finalRate)?.toLocaleString('en-IN') || 0}`}
+                            value={`${(rowRetail ?? 0).toLocaleString('en-IN')}`}
                             label="Retail Rate"
                           />
                         ) : null}
                         {showRtgs ? (
                           <RateBadge
-                            value={`${(rate.rtgsRate ?? rate.finalRate)?.toLocaleString('en-IN') || 0}`}
+                            value={`${(rowRtgs ?? 0).toLocaleString('en-IN')}`}
                             label="RTGS Rate"
                           />
                         ) : null}
