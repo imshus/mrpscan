@@ -239,7 +239,7 @@ export default function DashboardScreen() {
   const twentyFourKRate = useMemo(() => {
     const matched = sortedGoldRates.find((rate) => {
       const carat = rate.carat.toLowerCase();
-      return carat.includes('24') || Math.abs(rate.purity - 99.9) < 0.2;
+      return carat.includes('24') || rate.purity >= 99.5;
     });
 
     if (matched) return matched;
@@ -251,7 +251,8 @@ export default function DashboardScreen() {
     return {
       id: '24k-synthetic',
       carat: '24Kt',
-      purity: 99.9,
+      // 24K is the whole: the MCX rate itself, at 100.
+      purity: 100,
       finalRate: rtgsRate,
       cashRate,
       rtgsRate,
@@ -500,7 +501,7 @@ export default function DashboardScreen() {
                 sortedGoldRates
                   .filter((rate) => {
                     const carat = rate.carat.toLowerCase();
-                    return !(carat.includes('24') || Math.abs(rate.purity - 99.9) < 0.2);
+                    return !(carat.includes('24') || rate.purity >= 99.5);
                   })
                   .map((rate) => {
                   const karatPrefix = rate.carat.replace('Kt', 'k').toLowerCase();

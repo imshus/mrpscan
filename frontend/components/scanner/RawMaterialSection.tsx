@@ -102,7 +102,7 @@ export const RawMaterialSection = memo(function RawMaterialSection({
   const normalizedKarat = normalizeKarat(resolvedKarat);
   const defaultPurity = useMemo(() => {
     if (!normalizedKarat) return 0;
-    if (normalizedKarat === '24K') return 99.9;
+    if (normalizedKarat === '24K') return 100;
     const match = goldRates?.find(
       (rate) => normalizeRateKarat(rate.carat) === normalizedKarat,
     );

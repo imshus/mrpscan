@@ -14,9 +14,13 @@ import {
 } from '@/utils/labourUtils';
 import { buildQuality } from '@/utils/qualityUtils';
 
-/** Default karat → purity % map (backend gold-rates table fallback). */
+/**
+ * Default karat → purity % map (backend gold-rates table fallback). 24K is
+ * 100: the MCX 24K rate counts as the whole, and every other karat is its
+ * purity's fraction of it — the shop's rule for the rate table.
+ */
 export const DEFAULT_KARAT_PURITY_PERCENT: Record<string, number> = {
-  '24K': 99.9,
+  '24K': 100,
   '22K': 91.6,
   '20K': 85,
   '18K': 75,
