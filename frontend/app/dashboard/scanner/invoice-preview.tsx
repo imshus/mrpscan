@@ -64,8 +64,9 @@ export default function InvoicePreviewScreen() {
   // is arranged with the team directly. The button says so for three
   // seconds and does nothing else, at the shop's asking.
   const handleEInvoice = () => {
+    // The shop's own wording, verbatim.
     setEInvoiceNote(
-      'This feature requires government regulation. Write to us by email for this feature — our main team representative will connect with you shortly.',
+      'This feature Required Government regulation. Write Email for this feature, Our main team representative will connect with you shortly.',
     );
   };
 
