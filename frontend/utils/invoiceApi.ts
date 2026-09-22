@@ -10,6 +10,8 @@ export interface InvoiceLineItemPayload {
    * the server cannot tell them apart to total the weight.
    */
   qty_unit: string;
+  /** HSN/SAC printed on the line and sent to the IRP; 71131913 for every jewellery line. */
+  hsn: string;
   price: number;
   amount: number;
 }

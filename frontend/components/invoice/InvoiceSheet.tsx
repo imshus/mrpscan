@@ -77,7 +77,8 @@ function stateCode(gstinOrPlace: string): string {
   return gstinOrPlace.match(/\((\d{2})\)/)?.[1] ?? '';
 }
 
-const HSN_JEWELLERY = '71131913';
+/** Articles of jewellery, gold of every karat and diamond alike: one code for every line. */
+export const HSN_JEWELLERY = '71131913';
 
 export function InvoiceSheet({ data }: { data: InvoiceSheetData }) {
   const supplierState = stateCode(data.companyGstin);
