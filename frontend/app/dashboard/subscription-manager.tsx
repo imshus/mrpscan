@@ -104,7 +104,9 @@ export default function SubscriptionManagerScreen() {
   const userRole = useAuthStore((s) => s.userRole);
 
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  // Which action is under way, so only its own button says so: a recharge
+  // used to turn the Start Free Trial button into 'Please wait...' as well.
+  const [busyAction, setBusyAction] = useState<'trial' | 'recharge' | null>(null);
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null);
   const [rechargeAmount, setRechargeAmount] = useState('');
   const [selectedAmount, setSelectedAmount] = useState<number>(MIN_RECHARGE);
@@ -177,8 +179,8 @@ export default function SubscriptionManagerScreen() {
     await verifyPayment(order.orderId, payment.razorpay_payment_id, payment.razorpay_signature);
   }, []);
 
-  const runAction = async (action: () => Promise<void>) => {
-    setBusy(true);
+  const runAction = async (kind: 'trial' | 'recharge', action: () => Promise<void>) => {
+    setBusyAction(kind);
     try {
       await action();
       await loadData();
@@ -188,12 +190,12 @@ export default function SubscriptionManagerScreen() {
         Alert.alert('Credits & Subscription', message);
       }
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   };
 
   const handleStartTrial = async () => {
-    await runAction(async () => {
+    await runAction('trial', async () => {
       const started = await startFreeTrial();
       Alert.alert(
         'Free Trial Started',
@@ -216,7 +218,7 @@ export default function SubscriptionManagerScreen() {
       return;
     }
 
-    await runAction(async () => {
+    await runAction('recharge', async () => {
       assertRazorpayReady();
       const order = await createCreditRechargeOrder(amount);
       await runRazorpayCheckout(order);
@@ -303,8 +305,8 @@ export default function SubscriptionManagerScreen() {
                 <Text style={styles.walletValue}>{currencyDisplay(overview.creditBalance)}</Text>
 
                 {showStartTrial ? (
-                  <Pressable disabled={busy} onPress={handleStartTrial} style={styles.heroBtn}>
-                    <Text style={styles.heroBtnText}>{busy ? 'Please wait...' : 'Start Free Trial'}</Text>
+                  <Pressable disabled={busyAction !== null} onPress={handleStartTrial} style={styles.heroBtn}>
+                    <Text style={styles.heroBtnText}>{busyAction === 'trial' ? 'Please wait...' : 'Start Free Trial'}</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -393,8 +395,8 @@ export default function SubscriptionManagerScreen() {
                     <Text style={styles.customHint}>Credits are added instantly after successful payment.</Text>
                   </View>
 
-                  <Pressable disabled={busy} onPress={handleRecharge} style={[styles.primaryBtn, busy && styles.primaryBtnDisabled]}>
-                    <Text style={styles.primaryBtnText}>{busy ? 'Processing...' : rechargeButtonLabel}</Text>
+                  <Pressable disabled={busyAction !== null} onPress={handleRecharge} style={[styles.primaryBtn, busyAction === 'recharge' && styles.primaryBtnDisabled]}>
+                    <Text style={styles.primaryBtnText}>{busyAction === 'recharge' ? 'Processing...' : rechargeButtonLabel}</Text>
                   </Pressable>
                 </View>
               ) : null}
