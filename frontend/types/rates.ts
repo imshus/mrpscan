@@ -32,12 +32,12 @@ export interface TaxSettings {
   rtgsChangeBy: number;
   cashChangeBy: number;
   scannerCalculationUse: 'rtgs' | 'cash';
-  /** RTGS Rate 1 carries this tax; RTGS Rate 2 carries none. */
+  /** The percent RTGS Rate 2 carries; RTGS Rate 1 always carries 3%. */
   rtgsTaxPercent?: number;
   /** Which RTGS rate the app prices on: 'taxed' (Rate 1) or 'plain' (Rate 2). */
   rtgsVariant?: 'taxed' | 'plain';
-  rtgsPlainFinalRate?: number;
-  rtgsTaxedFinalRate?: number;
+  rtgsRate1FinalRate?: number;
+  rtgsRate2FinalRate?: number;
   rtgsFinalRate?: number;
   cashFinalRate?: number;
 }

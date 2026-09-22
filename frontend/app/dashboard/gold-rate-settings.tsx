@@ -127,7 +127,7 @@ export default function GoldRateSettingsScreen() {
                 supremeRtgsChange={bhaw.rtgsBhaw}
                 supremeCashChange={bhaw.cashBhaw}
                 rtgsChange={rtgsChange}
-                rtgsTaxPercent={goldData?.taxSettings?.rtgsTaxPercent ?? 3}
+                rtgsTaxPercent={goldData?.taxSettings?.rtgsTaxPercent ?? 0}
                 rtgsVariant={goldData?.taxSettings?.rtgsVariant ?? 'plain'}
                 cashChange={cashChange}
                 bhawSourceName={bhaw.vendorName}

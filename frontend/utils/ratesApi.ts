@@ -182,8 +182,8 @@ export function normalizeGoldRatesResponse(response: unknown): GoldRatesResponse
       scannerCalculationUse: (readString(rawTax.scannerCalculationUse) || 'rtgs') as 'rtgs' | 'cash',
       rtgsTaxPercent: readNumber(rawTax.rtgsTaxPercent),
       rtgsVariant: readString(rawTax.rtgsVariant) === 'taxed' ? 'taxed' : 'plain',
-      rtgsPlainFinalRate: readNumber(rawTax.rtgsPlainFinalRate),
-      rtgsTaxedFinalRate: readNumber(rawTax.rtgsTaxedFinalRate),
+      rtgsRate1FinalRate: readNumber(rawTax.rtgsRate1FinalRate),
+      rtgsRate2FinalRate: readNumber(rawTax.rtgsRate2FinalRate),
       rtgsFinalRate: readNumber(rawTax.rtgsFinalRate ?? rawTax.rtgs_final_rate),
       cashFinalRate: readNumber(rawTax.cashFinalRate ?? rawTax.cash_final_rate),
     };
