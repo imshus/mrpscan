@@ -4,8 +4,11 @@ import { useAuthStore } from '@/store/authStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { useMatricesStore } from '@/store/matricesStore';
 import { fetchEmployees } from '@/utils/employeeApi';
+import { useMidnightLogout } from '@/hooks/useMidnightLogout';
 
 export default function DashboardLayout() {
+  // Every session ends at 12:00 AM; the guard below then shows Log In.
+  useMidnightLogout();
   const fetchValues = useMatricesStore((s) => s.fetchValues);
   const setEmployees = useEmployeeStore((s) => s.setEmployees);
   const hasHydrated = useAuthStore((s) => s._hasHydrated);
