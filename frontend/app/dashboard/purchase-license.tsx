@@ -326,7 +326,9 @@ export default function PurchaseLicenseScreen() {
                     <Feature text="+ Everything in Free trial" tone="paid" />
                     {/* GST is charged on top, so the figure says so rather
                         than reading as the whole of what is due. */}
-                    <Feature text={`${displayPrice} + GST`} sub="(one time purchase)" tone="paid" />
+                    {/* The price on its own line; "+ GST" moves down under it
+                        with the one-time note, at the shop's asking. */}
+                    <Feature text={displayPrice} sub={'+ GST\n(one time purchase)'} tone="paid" />
                   </View>
                   <Pressable
                     disabled={busyAction === 'purchase' || isPurchased}
