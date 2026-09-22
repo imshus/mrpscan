@@ -99,7 +99,7 @@ function BhawTile({ rate, label }: { rate: number | null; label: string }) {
   return (
     <View style={styles.bhawTile}>
       <Text style={styles.bhawTileRate}>
-        {rate === null ? '—' : `₹ ${rate.toLocaleString('en-IN')}`}
+        {rate === null ? '—' : `${rate.toLocaleString('en-IN')}`}
       </Text>
       <Text style={styles.bhawTileLabel}>{label}</Text>
     </View>
@@ -265,7 +265,10 @@ export default function DashboardScreen() {
   const show24kMcx = matrixValues['24k_mcx' as MatrixKey] === true;
   const show24kRtgs = matrixValues['24k_rtgs' as MatrixKey] === true;
   const show24kCash = matrixValues['24k_cash' as MatrixKey] === true;
-  const show24kRateCard = show24kRtgs || show24kCash;
+  // The 24K RTGS/Cash card is retired: the MCX card carries both rates, and
+  // its two rows are gone from Dashboard Settings at the shop's asking. A
+  // record that still has them ticked from before is not shown either.
+  const show24kRateCard = false;
 
   const loadMarketData = useCallback(async (showLoader = true) => {
     // The blocking loader is for the first paint only; after that the numbers
@@ -447,10 +450,6 @@ export default function DashboardScreen() {
               {(bhaw.mcxIsLive || mcxLiveRate != null) && show24kMcx ? (
                 <GradientView
                   colors={Gradients.metallic}
-                  // The shop asked for this card's gradient back — the theme's
-                  // metallic run, light to deep khaki — while the rest of the
-                  // page stays flat.
-                  forceGradient
                   borderRadius={14}
                   style={styles.mcxTopCard}
                 >
@@ -459,15 +458,15 @@ export default function DashboardScreen() {
                     {/* The board's own Gold Future MCX — the same figure the
                         Dashboard Settings cards print — not the rates API's
                         adjusted copy of it. */}
-                    <Text style={styles.mcxTopValue}>₹ {bhaw.mcxRate.toLocaleString('en-IN')}</Text>
+                    <Text style={styles.mcxTopValue}>{bhaw.mcxRate.toLocaleString('en-IN')}</Text>
                   </View>
 
                   {/* The house's Cash and RTGS off its own board, each over
                       the badla bhaw that produced it, and the house's name
                       underneath — restored at the shop's asking. */}
                   <View style={styles.mcxBhawRow}>
-                    <BhawTile rate={boardSell(bhaw.vendor, /gold\s*cash/i)} label="Cash" />
-                    <BhawTile rate={boardSell(bhaw.vendor, /gold\s*rtgs/i)} label="RTGS" />
+                    <BhawTile rate={boardSell(bhaw.vendor, /gold\s*cash/i)} label="Retail Rate" />
+                    <BhawTile rate={boardSell(bhaw.vendor, /gold\s*rtgs/i)} label="RTGS Rate" />
                   </View>
 
                   <Text style={styles.mcxSourceLine}>rate by {bhaw.vendorName}</Text>
@@ -483,13 +482,13 @@ export default function DashboardScreen() {
                   <View style={styles.rateCardBody}>
                     {show24kCash ? (
                       <RateBadge
-                        value={`₹ ${(twentyFourKRate.cashRate ?? cashFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
+                        value={`${(twentyFourKRate.cashRate ?? cashFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
                         label="Cash Rate"
                       />
                     ) : null}
                     {show24kRtgs ? (
                       <RateBadge
-                        value={`₹ ${(twentyFourKRate.rtgsRate ?? rtgsFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
+                        value={`${(twentyFourKRate.rtgsRate ?? rtgsFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
                         label="RTGS Rate"
                       />
                     ) : null}
@@ -523,13 +522,13 @@ export default function DashboardScreen() {
                       <View style={styles.rateCardBody}>
                         {showCash ? (
                           <RateBadge
-                            value={`₹ ${(rate.cashRate ?? rate.finalRate)?.toLocaleString('en-IN') || 0}`}
+                            value={`${(rate.cashRate ?? rate.finalRate)?.toLocaleString('en-IN') || 0}`}
                             label="Cash Rate"
                           />
                         ) : null}
                         {showRtgs ? (
                           <RateBadge
-                            value={`₹ ${(rate.rtgsRate ?? rate.finalRate)?.toLocaleString('en-IN') || 0}`}
+                            value={`${(rate.rtgsRate ?? rate.finalRate)?.toLocaleString('en-IN') || 0}`}
                             label="RTGS Rate"
                           />
                         ) : null}
@@ -677,6 +676,9 @@ const styles = StyleSheet.create({
   mcxBhawRow: {
     flexDirection: 'row',
     gap: 12,
+    // A little in from the card's edges, so the two tiles sit narrower than
+    // the heading row above them — at the shop's asking.
+    paddingHorizontal: 14,
   },
   mcxSourceLine: {
     fontSize: 12.5,

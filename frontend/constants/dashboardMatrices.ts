@@ -27,11 +27,9 @@ export interface MatrixSection {
 export const GOLD_MATRIX_SECTIONS: MatrixSection[] = [
   {
     sectionLabel: '24K GOLD',
-    rows: [
-      { key: '24k_mcx', label: ' MCX Rate ' },
-      { key: '24k_rtgs', label: ' RTGS Rate ' },
-      { key: '24k_cash', label: ' Cash Rate ' },
-    ],
+    // RTGS and Cash for 24K live on the MCX card itself; their rows were
+    // removed here at the shop's asking. The keys remain for old records.
+    rows: [{ key: '24k_mcx', label: ' MCX Rate ' }],
   },
   {
     sectionLabel: '22K GOLD',
