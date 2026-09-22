@@ -328,7 +328,7 @@ export default function PurchaseLicenseScreen() {
                         than reading as the whole of what is due. */}
                     {/* The price on its own line; "+ GST" moves down under it
                         with the one-time note, at the shop's asking. */}
-                    <Feature text={displayPrice} sub={'+ GST\n(one time purchase)'} tone="paid" />
+                    <Feature text={displayPrice} note="+ GST" sub="(one time purchase)" tone="paid" />
                   </View>
                   <Pressable
                     disabled={busyAction === 'purchase' || isPurchased}
@@ -432,10 +432,12 @@ export default function PurchaseLicenseScreen() {
 type FeatureProps = {
   text: string;
   sub?: string;
+  /** A bold line under the text, above `sub` — "+ GST" under the price. */
+  note?: string;
   tone: 'trial' | 'paid';
 };
 
-function Feature({ text, sub, tone }: FeatureProps) {
+function Feature({ text, sub, note, tone }: FeatureProps) {
   const paid = tone === 'paid';
   return (
     <View style={styles.featureRow}>
@@ -455,6 +457,9 @@ function Feature({ text, sub, tone }: FeatureProps) {
         >
           {text}
         </Text>
+        {note ? (
+          <Text style={[styles.featureText, paid && styles.featureTextPaid, styles.featureNote]}>{note}</Text>
+        ) : null}
         {sub ? <Text style={styles.featureSub}>{sub}</Text> : null}
       </View>
     </View>
@@ -545,6 +550,7 @@ const styles = StyleSheet.create({
   featureTextWrap: { flex: 1 },
   featureTextPaid: { color: Colors.white },
   featurePrice: { fontSize: 16, lineHeight: 19, fontWeight: '900' },
+  featureNote: { fontSize: 13, lineHeight: 16, fontWeight: '800', marginTop: 1 },
   featureSub: {
     fontSize: 10,
     lineHeight: 13,
