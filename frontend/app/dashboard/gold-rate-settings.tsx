@@ -79,6 +79,8 @@ export default function GoldRateSettingsScreen() {
     nextMcxChange: number,
     nextRtgsChange: number,
     nextCashChange: number,
+    nextRtgsTaxPercent: number,
+    nextRtgsVariant: 'taxed' | 'plain',
   ) => {
     try {
       await updateGoldTaxSettingsMutation({
@@ -88,6 +90,8 @@ export default function GoldRateSettingsScreen() {
         },
         rtgsChangeBy: nextRtgsChange,
         cashChangeBy: nextCashChange,
+        rtgsTaxPercent: nextRtgsTaxPercent,
+        rtgsVariant: nextRtgsVariant,
       }).unwrap();
       showToast('Gold rate settings updated', 'success');
     } catch (error) {
@@ -123,6 +127,8 @@ export default function GoldRateSettingsScreen() {
                 supremeRtgsChange={bhaw.rtgsBhaw}
                 supremeCashChange={bhaw.cashBhaw}
                 rtgsChange={rtgsChange}
+                rtgsTaxPercent={goldData?.taxSettings?.rtgsTaxPercent ?? 3}
+                rtgsVariant={goldData?.taxSettings?.rtgsVariant ?? 'plain'}
                 cashChange={cashChange}
                 bhawSourceName={bhaw.vendorName}
                 bhawRtgs={bhaw.rtgsBhaw}

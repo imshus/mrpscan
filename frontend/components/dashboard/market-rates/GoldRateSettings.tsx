@@ -148,6 +148,13 @@ interface RateCardProps {
   formula: string;
   onSignChange: (next: Sign) => void;
   onAmountChange: (value: string) => void;
+  /** A tag after the title, e.g. "(Including tax 3%)". */
+  titleTag?: string;
+  /** With `onSelect`, the header carries a radio: this card is the one in force. */
+  selected?: boolean;
+  onSelect?: () => void;
+  /** Another control beside Change By — the tax field on RTGS Rate 2. */
+  extra?: React.ReactNode;
 }
 
 function RateCard({
@@ -164,15 +171,33 @@ function RateCard({
   formula,
   onSignChange,
   onAmountChange,
+  titleTag,
+  selected,
+  onSelect,
+  extra,
 }: RateCardProps) {
   return (
     <View style={styles.rateCard}>
       <View style={styles.rateCardHeader}>
         {icon ? <View style={styles.rateCardIconWrap}>{icon}</View> : null}
         <View style={styles.rateCardHeaderTextWrap}>
-          <Text style={styles.rateCardTitle}>{title}</Text>
+          <Text style={styles.rateCardTitle}>
+            {title}
+            {titleTag ? <Text style={styles.rateCardTitleTag}> {titleTag}</Text> : null}
+          </Text>
           {subtitle ? <Text style={styles.rateCardSubtitle}>{subtitle}</Text> : null}
         </View>
+        {onSelect ? (
+          <Pressable
+            onPress={onSelect}
+            hitSlop={10}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: Boolean(selected) }}
+            style={[styles.radioOuter, selected && styles.radioOuterSelected]}
+          >
+            {selected ? <View style={styles.radioInner} /> : null}
+          </Pressable>
+        ) : null}
       </View>
 
       {showCurrentRate ? (
@@ -200,6 +225,7 @@ function RateCard({
               maxLength={8}
             />
           </View>
+          {extra}
         </View>
       </View>
 
@@ -226,10 +252,20 @@ interface GoldRateSettingsPanelProps {
   bhawSourceName?: string;
   bhawRtgs?: number;
   bhawCash?: number;
+  /** Tax carried by RTGS Rate 1, in percent. */
+  rtgsTaxPercent?: number;
+  /** Which RTGS rate is in force: 'taxed' is Rate 1, 'plain' is Rate 2. */
+  rtgsVariant?: 'taxed' | 'plain';
   showTitle?: boolean;
   showClose?: boolean;
   onClose?: () => void;
-  onApply: (mcxChangeBy: number, rtgsChangeBy: number, cashChangeBy: number) => Promise<void>;
+  onApply: (
+    mcxChangeBy: number,
+    rtgsChangeBy: number,
+    cashChangeBy: number,
+    rtgsTaxPercent: number,
+    rtgsVariant: 'taxed' | 'plain',
+  ) => Promise<void>;
 }
 
 export function GoldRateSettingsPanel({
@@ -243,6 +279,8 @@ export function GoldRateSettingsPanel({
   bhawSourceName,
   bhawRtgs,
   bhawCash,
+  rtgsTaxPercent = 3,
+  rtgsVariant = 'plain',
   showTitle = true,
   showClose = false,
   onClose,
@@ -257,6 +295,10 @@ export function GoldRateSettingsPanel({
   const [savedMcxChange, setSavedMcxChange] = useState(0);
   const [savedRtgsChange, setSavedRtgsChange] = useState(0);
   const [savedCashChange, setSavedCashChange] = useState(0);
+  const [taxPercent, setTaxPercent] = useState('3');
+  const [savedTaxPercent, setSavedTaxPercent] = useState(3);
+  const [variant, setVariant] = useState<'taxed' | 'plain'>('plain');
+  const [savedVariant, setSavedVariant] = useState<'taxed' | 'plain'>('plain');
   const [saving, setSaving] = useState(false);
   const [barAnim] = useState(() => new Animated.Value(0));
 
@@ -280,7 +322,12 @@ export function GoldRateSettingsPanel({
     setRtgsAmount(rtgsForm.amount);
     setCashSign(cashForm.sign);
     setCashAmount(cashForm.amount);
-  }, [visible, mcxChange, rtgsChange, cashChange, bhawRtgs, bhawCash]);
+    const tax = toSafeNumber(rtgsTaxPercent, 3);
+    setSavedTaxPercent(tax);
+    setTaxPercent(String(tax));
+    setSavedVariant(rtgsVariant);
+    setVariant(rtgsVariant);
+  }, [visible, mcxChange, rtgsChange, cashChange, bhawRtgs, bhawCash, rtgsTaxPercent, rtgsVariant]);
 
   /**
    * The provider bhaw is already inside the current RTGS/Cash rate, so the
@@ -304,10 +351,16 @@ export function GoldRateSettingsPanel({
     () => signedValue(cashSign, cashAmount) - toSafeNumber(bhawCash, 0),
     [cashSign, cashAmount, bhawCash],
   );
+  const taxDraft = useMemo(() => {
+    const parsed = Number.parseFloat(taxPercent);
+    return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : 0;
+  }, [taxPercent]);
   const hasChanges =
     !isSameNumber(mcxDraftChange, savedMcxChange) ||
     !isSameNumber(rtgsDraftChange, savedRtgsChange) ||
-    !isSameNumber(cashDraftChange, savedCashChange);
+    !isSameNumber(cashDraftChange, savedCashChange) ||
+    !isSameNumber(taxDraft, savedTaxPercent) ||
+    variant !== savedVariant;
 
   const mcxLiveFinal = useMemo(
     () => mcxLiveRate + mcxDraftChange,
@@ -322,9 +375,14 @@ export function GoldRateSettingsPanel({
     () => mcxLiveFinal + supremeCashChange,
     [mcxLiveFinal, supremeCashChange],
   );
+  // RTGS Rate 2 is the plain sum; RTGS Rate 1 carries the tax on top of it.
   const rtgsLiveFinal = useMemo(
     () => rtgsCurrentRate + rtgsDraftChange,
     [rtgsCurrentRate, rtgsDraftChange],
+  );
+  const rtgsTaxedLiveFinal = useMemo(
+    () => Math.round(rtgsLiveFinal * (1 + taxDraft / 100)),
+    [rtgsLiveFinal, taxDraft],
   );
   const cashLiveFinal = useMemo(
     () => cashCurrentRate + cashDraftChange,
@@ -349,6 +407,8 @@ export function GoldRateSettingsPanel({
     setRtgsAmount(rtgsForm.amount);
     setCashSign(cashForm.sign);
     setCashAmount(cashForm.amount);
+    setTaxPercent(String(savedTaxPercent));
+    setVariant(savedVariant);
   };
 
   const handleApply = async () => {
@@ -356,10 +416,12 @@ export function GoldRateSettingsPanel({
 
     setSaving(true);
     try {
-      await onApply(mcxDraftChange, rtgsDraftChange, cashDraftChange);
+      await onApply(mcxDraftChange, rtgsDraftChange, cashDraftChange, taxDraft, variant);
       setSavedMcxChange(mcxDraftChange);
       setSavedRtgsChange(rtgsDraftChange);
       setSavedCashChange(cashDraftChange);
+      setSavedTaxPercent(taxDraft);
+      setSavedVariant(variant);
     } finally {
       setSaving(false);
     }
@@ -391,8 +453,30 @@ export function GoldRateSettingsPanel({
           onAmountChange={setMcxAmount}
         />
 
+        {/* RTGS in two forms, sharing one Change By: Rate 1 carries the tax,
+            Rate 2 does not. The radio picks the one the app prices on. */}
         <RateCard
-          title="RTGS Rate"
+          title="RTGS Rate 1"
+          titleTag={`(Including tax ${taxDraft}%)`}
+          subtitle={bhawNote(bhawRtgs)}
+          showCurrentRate={false}
+          icon={null}
+          sign={rtgsSign}
+          amount={rtgsAmount}
+          currentRate={rtgsCurrentRate}
+          finalRate={rtgsTaxedLiveFinal}
+          formula={''}
+          currentLabel="Current RTGS Rate"
+          finalLabel="Final RTGS Rate"
+          onSignChange={setRtgsSign}
+          onAmountChange={setRtgsAmount}
+          selected={variant === 'taxed'}
+          onSelect={() => setVariant('taxed')}
+        />
+
+        <RateCard
+          title="RTGS Rate 2"
+          titleTag="(without tax)"
           subtitle={bhawNote(bhawRtgs)}
           showCurrentRate={false}
           icon={null}
@@ -405,6 +489,24 @@ export function GoldRateSettingsPanel({
           finalLabel="Final RTGS Rate"
           onSignChange={setRtgsSign}
           onAmountChange={setRtgsAmount}
+          selected={variant === 'plain'}
+          onSelect={() => setVariant('plain')}
+          extra={
+            <View style={styles.taxInputWrap}>
+              <Text style={styles.taxLabel}>Tax</Text>
+              <TextInput
+                value={taxPercent}
+                onChangeText={(value) =>
+                  setTaxPercent(value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'))
+                }
+                keyboardType="decimal-pad"
+                accessibilityLabel="Tax percent on RTGS Rate 2"
+                style={styles.taxInput}
+                maxLength={5}
+              />
+              <Text style={styles.taxSuffix}>%</Text>
+            </View>
+          }
         />
 
         <RateCard
@@ -717,6 +819,45 @@ const styles = StyleSheet.create({
   },
   rateCardHeaderTextWrap: { flex: 1 },
   rateCardTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
+  rateCardTitleTag: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  radioOuterSelected: {
+    borderColor: Colors.accentGold,
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.accentGold,
+  },
+  taxInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    height: 44,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    backgroundColor: Colors.white,
+  },
+  taxLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
+  taxInput: { minWidth: 34, fontSize: 14, fontWeight: '700', color: Colors.textPrimary, paddingVertical: 0 },
+  taxSuffix: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary },
   rateCardSubtitle: { marginTop: 2, fontSize: 12, color: Colors.textSecondary },
   currentRatePill: {
     borderRadius: Radius.input,

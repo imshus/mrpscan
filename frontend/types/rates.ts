@@ -32,6 +32,12 @@ export interface TaxSettings {
   rtgsChangeBy: number;
   cashChangeBy: number;
   scannerCalculationUse: 'rtgs' | 'cash';
+  /** RTGS Rate 1 carries this tax; RTGS Rate 2 carries none. */
+  rtgsTaxPercent?: number;
+  /** Which RTGS rate the app prices on: 'taxed' (Rate 1) or 'plain' (Rate 2). */
+  rtgsVariant?: 'taxed' | 'plain';
+  rtgsPlainFinalRate?: number;
+  rtgsTaxedFinalRate?: number;
   rtgsFinalRate?: number;
   cashFinalRate?: number;
 }
@@ -70,6 +76,8 @@ export interface UpdateGoldTaxSettingsPayload {
   rtgsChangeBy?: number;
   cashChangeBy?: number;
   scannerCalculationUse?: 'rtgs' | 'cash';
+  rtgsTaxPercent?: number;
+  rtgsVariant?: 'taxed' | 'plain';
 }
 
 export interface StoneRate {
