@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -46,8 +46,8 @@ const RATE_OPTIONS: RateOption[] = GOLD_MATRIX_SECTIONS.flatMap((section) =>
 
 const DEFAULT_DASHBOARD_MATRIX_VALUES: DashboardMatrixValues = {
   '24k_mcx': true,
-  '24k_rtgs': true,
-  '24k_cash': true,
+  '24k_rtgs': false,
+  '24k_cash': false,
   '22k_rtgs': false,
   '22k_cash': false,
   '20k_rtgs': false,
@@ -99,6 +99,7 @@ export default function DashboardMatricesScreen() {
   const selectedSource = bhawProvider || bullion?.selected || '';
   // What the popup is saying. It closes itself, so nothing here waits on a tap.
   const [popup, setPopup] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     setDraft(normalizeMatrixValues(storedValues));
@@ -128,7 +129,12 @@ export default function DashboardMatricesScreen() {
       // Merge over the local draft: a backend that predates a setting drops the
       // unknown key from its response, which would otherwise revert the choice.
       const normalized = normalizeMatrixValues({ ...nextDraft, ...(updated ?? {}) });
-      setDraft(normalized);
+      // The tick was drawn on the tap. Re-setting an identical draft when the
+      // server answers re-rendered the whole list a beat later, which read as
+      // the check catching up on itself; only a real difference is applied.
+      setDraft((current) =>
+        JSON.stringify(current) === JSON.stringify(normalized) ? current : normalized,
+      );
       useMatricesStore.setState((state) => ({
         values: {
           ...state.values,
@@ -216,7 +222,12 @@ Home keeps following ${following} until then.`,
         </Pressable>
         <Text style={styles.headerTitle}>Dashboard Settings</Text>
       </View>
+      {/* The keyboard shrinks the list rather than covering it, and the
+          Add Bullion row scrolls itself into view when it opens, so the name
+          being typed is on screen. */}
+      <KeyboardAvoidingView style={styles.flex} behavior="padding">
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -238,7 +249,12 @@ Home keeps following ${following} until then.`,
                 onSelect={() => selectBullion(String(vendor.source))}
               />
             ))}
-            <AddBullionRow onAdd={addBullion} />
+            <AddBullionRow
+              onAdd={addBullion}
+              onOpen={() => {
+                setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+              }}
+            />
           </>
         ) : (
           <Text style={styles.loadingText}>Loading the bullion houses…</Text>
@@ -261,6 +277,7 @@ Home keeps following ${following} until then.`,
           ))}
         </SettingsDropdown>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <BottomNav />
 
@@ -268,6 +285,7 @@ Home keeps following ${following} until then.`,
       <MessagePopup
         message={popup?.text ?? null}
         tone={popup?.tone}
+        duration={3000}
         onDismiss={() => setPopup(null)}
       />
     </SafeAreaView>
@@ -279,6 +297,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  flex: { flex: 1 },
   scrollContent: {
     paddingHorizontal: Spacing.screenHorizontal,
     paddingBottom: 120,

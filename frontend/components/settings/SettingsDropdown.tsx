@@ -67,7 +67,9 @@ export function DropdownOption({
         onPress={onPress}
         accessibilityRole={mode === 'multi' ? 'checkbox' : 'radio'}
         accessibilityState={{ checked: selected }}
-        style={styles.option}
+        // Pressed feedback on the row itself, so a tap reads at once even
+        // while the tick is being drawn.
+        style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
       >
         <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>{label}</Text>
         {mode === 'multi' ? (
@@ -123,6 +125,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     overflow: 'hidden',
   },
+  optionPressed: { backgroundColor: 'rgba(0,0,0,0.04)' },
   option: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -7,6 +7,8 @@ import { Colors, Radius } from '@/constants/theme';
 interface AddBullionRowProps {
   /** Saves the typed name. Returns an error message to show, or null. */
   onAdd: (name: string) => Promise<string | null>;
+  /** The name field has opened or taken focus: the list scrolls it into view. */
+  onOpen?: () => void;
 }
 
 /**
@@ -17,7 +19,7 @@ interface AddBullionRowProps {
  * Cash change — so the confirmation says as much rather than leaving someone
  * to wonder where its price comes from.
  */
-export function AddBullionRow({ onAdd }: AddBullionRowProps) {
+export function AddBullionRow({ onAdd, onOpen }: AddBullionRowProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +52,14 @@ export function AddBullionRow({ onAdd }: AddBullionRowProps) {
 
   if (!open) {
     return (
-      <Pressable onPress={() => setOpen(true)} style={styles.addRow} accessibilityRole="button">
+      <Pressable
+        onPress={() => {
+          setOpen(true);
+          onOpen?.();
+        }}
+        style={styles.addRow}
+        accessibilityRole="button"
+      >
         <Plus size={15} color={Colors.brandDeep} strokeWidth={2.4} />
         <Text style={styles.addText}>Add Bullion</Text>
       </Pressable>
@@ -67,6 +76,7 @@ export function AddBullionRow({ onAdd }: AddBullionRowProps) {
             if (error) setError(null);
           }}
           autoFocus
+          onFocus={onOpen}
           autoCapitalize="words"
           maxLength={40}
           accessibilityLabel="Bullion house name"
