@@ -233,9 +233,11 @@ export default function ReviewResultsScreen() {
     }
   }, [canEditPurityPercent, scanData.customPurityPercent, handleFieldChange]);
 
-  // Name and code follow the tag's number: matched against the saved item
-  // codes, the piece takes that record's name and code; a number the
-  // catalogue does not know leaves the composed name in place.
+  // Name and code follow the tag's number: when it begins with a code word
+  // saved in Masters, the piece takes that record's name, and its code is
+  // the tag's WHOLE number — word and running number, PSE 1086, not PSE —
+  // at the shop's asking. A number the catalogue does not know leaves the
+  // composed name in place.
   useEffect(() => {
     let active = true;
     void loadItemCatalogue().then((items) => {
@@ -243,7 +245,7 @@ export default function ReviewResultsScreen() {
       const saved = findItemByCode(scanData.sku, items);
       const current = useScannerStore.getState().scanData;
       const name = saved?.description ?? '';
-      const code = saved?.code ?? '';
+      const code = saved ? scanData.sku.trim() : '';
       if (name !== current.itemName) handleFieldChange('itemName', name);
       if (code !== current.itemCode) handleFieldChange('itemCode', code);
     });

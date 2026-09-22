@@ -4,10 +4,11 @@ import { resolveScannedKarat } from '@/utils/formulaUtils';
 /**
  * How a scanned piece is identified on screen and on the invoice.
  *
- * Both halves come from the shop's own item codes when the tag's number
- * matches one: the saved code and the name saved beside it. Without a match
- * the number is the one the tag printed and the name is composed from what
- * was scanned, since the tag has no product title of its own.
+ * The name comes from the shop's own item codes when the tag's number
+ * begins with a saved code word; the number is then the tag's whole number,
+ * word and running number together. Without a match the number is still
+ * the one the tag printed and the name is composed from what was scanned,
+ * since the tag has no product title of its own.
  */
 export interface ItemIdentity {
   name: string;
