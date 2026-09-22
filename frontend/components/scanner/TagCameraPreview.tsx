@@ -23,7 +23,7 @@ import {
   SCANNER_FRAME_VERTICAL_BIAS,
   SCANNER_FRAME_WIDTH,
 } from '@/constants/scannerFrame';
-import { detectionCopy, type UprightImage } from '@/utils/tagCrop';
+import type { UprightImage } from '@/utils/tagCrop';
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
@@ -234,20 +234,9 @@ export const TagCameraPreview = forwardRef<TagCameraPreviewRef, TagCameraPreview
       if (!photo?.uri) return null;
 
       const orientation = Number(photo.exif?.Orientation) || undefined;
-      const turned = QUARTER_TURNS.has(orientation ?? 1);
-      const stored = { width: Number(photo.width) || 0, height: Number(photo.height) || 0 };
-      const uprightSize =
-        stored.width > 0 && stored.height > 0
-          ? turned
-            ? { width: stored.height, height: stored.width }
-            : stored
-          : undefined;
 
-      // The finder's small copy starts now, alongside the frame crop, rather
-      // than after it: the two overlap, and the finder's upload can leave
-      // the moment the side is confirmed.
-      const detection = detectionCopy(photo.uri, uprightSize);
-
+      // No finder runs behind a camera capture (the shop's asking), so no
+      // small copy is made for one: the capture is the framed photo alone.
       const { uri: framed, upright } = await cropToFrame(
         photo.uri,
         photo.width,
@@ -255,7 +244,7 @@ export const TagCameraPreview = forwardRef<TagCameraPreviewRef, TagCameraPreview
         orientation,
         viewSize,
       );
-      return { framed, full: upright?.uri ?? photo.uri, upright, detection };
+      return { framed, full: upright?.uri ?? photo.uri, upright, detection: null };
     } catch {
       return null;
     }

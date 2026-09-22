@@ -359,12 +359,12 @@ export default function BarcodeScannerScreen() {
       return;
     }
 
-    // The framed photo is taken on the spot — the screen moves on with no
-    // wait at all — and the finder works on the whole photo behind it.
+    // The framed photo is what the shop lined up, and it is what goes up:
+    // no finder runs behind a camera capture, at the shop's asking. The
+    // finder still cuts a gallery photo to its tag, since nobody framed it.
     const side = captureStep === 'second' ? 'back' : 'front';
     if (side === 'back') confirmBackCapture(capture.framed, 'camera');
     else confirmFrontCapture(capture.framed, 'camera');
-    refineSide(side, capture.full, capture.framed, 'camera', capture.upright, capture.detection);
   };
 
   /** The bin beside the frame: drop the framed photo, or the scan itself. */
