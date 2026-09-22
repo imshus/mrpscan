@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react-native';
 
@@ -53,8 +53,11 @@ interface DropdownOptionProps {
   showDivider?: boolean;
 }
 
-/** One line in an open dropdown. */
-export function DropdownOption({
+/**
+ * One line in an open dropdown. Memoised: a tap on one row re-renders that
+ * row alone, not every row in the list, which is what made a tick lag.
+ */
+function DropdownOptionBase({
   label,
   selected,
   onPress,
@@ -67,9 +70,7 @@ export function DropdownOption({
         onPress={onPress}
         accessibilityRole={mode === 'multi' ? 'checkbox' : 'radio'}
         accessibilityState={{ checked: selected }}
-        // Pressed feedback on the row itself, so a tap reads at once even
-        // while the tick is being drawn.
-        style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
+        style={styles.option}
       >
         <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>{label}</Text>
         {mode === 'multi' ? (
@@ -86,6 +87,8 @@ export function DropdownOption({
     </>
   );
 }
+
+export const DropdownOption = memo(DropdownOptionBase);
 
 const styles = StyleSheet.create({
   field: {
@@ -125,7 +128,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     overflow: 'hidden',
   },
-  optionPressed: { backgroundColor: 'rgba(0,0,0,0.04)' },
   option: {
     flexDirection: 'row',
     alignItems: 'center',

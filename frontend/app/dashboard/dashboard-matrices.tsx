@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
@@ -101,8 +101,12 @@ export default function DashboardMatricesScreen() {
   const [popup, setPopup] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
+  // The store's values feed the draft, but only when they differ: a save
+  // writes the toggled key back to the store, and re-setting an equal draft
+  // for that re-rendered every row a beat after the tap.
   useEffect(() => {
-    setDraft(normalizeMatrixValues(storedValues));
+    const next = normalizeMatrixValues(storedValues);
+    setDraft((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
   }, [storedValues]);
 
   useEffect(() => {
@@ -117,29 +121,22 @@ export default function DashboardMatricesScreen() {
 
   if (!allowed) return null;
 
-  const persistToggle = async (
-    key: MatrixKey,
-    nextValue: boolean,
-    previousValue: boolean,
-  ) => {
-    const nextDraft = { ...draft, [key]: nextValue };
+  // The draft as of the latest tap, for the save that follows it: two quick
+  // taps used to send the second with the first not yet in it, and the
+  // server's answer to that undid the first tick.
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
 
+  const persistToggle = async (key: MatrixKey, nextValue: boolean, previousValue: boolean) => {
+    const nextDraft = { ...draftRef.current, [key]: nextValue };
     try {
-      const updated = await updateDashboardMatrices(nextDraft as Record<string, boolean>);
-      // Merge over the local draft: a backend that predates a setting drops the
-      // unknown key from its response, which would otherwise revert the choice.
-      const normalized = normalizeMatrixValues({ ...nextDraft, ...(updated ?? {}) });
-      // The tick was drawn on the tap. Re-setting an identical draft when the
-      // server answers re-rendered the whole list a beat later, which read as
-      // the check catching up on itself; only a real difference is applied.
-      setDraft((current) =>
-        JSON.stringify(current) === JSON.stringify(normalized) ? current : normalized,
-      );
+      await updateDashboardMatrices(nextDraft as Record<string, boolean>);
+      // The tick was drawn on the tap and stays as drawn: applying the
+      // server's echo re-rendered the whole list a beat later, which read
+      // as the check catching up on itself. Home follows the one key that
+      // changed.
       useMatricesStore.setState((state) => ({
-        values: {
-          ...state.values,
-          ...normalized,
-        },
+        values: { ...state.values, [key]: nextValue },
       }));
     } catch (error) {
       setDraft((current) => ({ ...current, [key]: previousValue }));
@@ -148,12 +145,25 @@ export default function DashboardMatricesScreen() {
     }
   };
 
-  const toggleRate = (key: MatrixKey) => {
-    const previousValue = draft[key];
+  const toggleRate = useCallback((key: MatrixKey) => {
+    const previousValue = Boolean(draftRef.current[key]);
     const nextValue = !previousValue;
     setDraft((current) => ({ ...current, [key]: nextValue }));
     void persistToggle(key, nextValue, previousValue);
-  };
+    // persistToggle reaches the latest draft through the ref and nothing
+    // else that changes, so the handler is made once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // One handler per row, made once: a memoised row re-renders only when its
+  // own props change, and a fresh arrow on every render was a changed prop.
+  const toggleHandlers = useMemo(
+    () =>
+      Object.fromEntries(
+        RATE_OPTIONS.map((option) => [option.key, () => toggleRate(option.key)]),
+      ) as Record<MatrixKey, () => void>,
+    [toggleRate],
+  );
 
   const selectBullion = (key: string) => {
     setOpenMenu(null);
@@ -270,7 +280,7 @@ Home keeps following ${following} until then.`,
               key={option.key}
               label={option.label}
               selected={draft[option.key]}
-              onPress={() => toggleRate(option.key)}
+              onPress={toggleHandlers[option.key]}
               mode="multi"
               showDivider={index < RATE_OPTIONS.length - 1}
             />
