@@ -143,11 +143,20 @@ export function computeStoneAmountWithDiscount(
   return baseAmount - baseAmount * (clamped / 100);
 }
 
+/**
+ * The rate a gram of PURE gold is priced at: the 24K rate — MCX 24K, which
+ * counts as 100%, with the shop's RTGS or Cash changes on it — never a lower
+ * karat's rate. Purity enters the sum once, through the pure weight; this
+ * used to return the matched karat's own rate, which is already reduced for
+ * purity, and the gold amount came out reduced twice. Matches the server's
+ * arithmetic (pure weight × selected 24K rate per gram).
+ */
 export function resolveGoldRatePerGram(
   structuredData?: Record<string, string>,
   goldRates?: GoldRate[],
-  karat?: string,
+  _karat?: string,
   scanDataGoldRate?: string,
+  calculationRate?: string,
 ): number {
   const fromScanData = parseNumericValue(scanDataGoldRate);
   if (fromScanData > 0) return fromScanData;
@@ -155,14 +164,14 @@ export function resolveGoldRatePerGram(
   const fromPayload = parseNumericValue(structuredData?.goldRate);
   if (fromPayload > 0) return fromPayload;
 
-  const normalizedKarat = normalizeKarat(karat);
-  if (goldRates?.length && normalizedKarat) {
-    const match = goldRates.find(
-      (rate) => normalizeKarat(rate.carat) === normalizedKarat,
-    );
-    if (match?.finalRate && match.finalRate > 0) {
-      return match.finalRate / 10;
-    }
+  const twentyFourK = goldRates?.find(
+    (rate) => String(rate.carat).toLowerCase().includes('24') || rate.purity >= 99.5,
+  );
+  if (twentyFourK) {
+    const byMode =
+      calculationRate === 'cash' ? twentyFourK.cashRate : twentyFourK.rtgsRate;
+    const per10g = byMode && byMode > 0 ? byMode : twentyFourK.finalRate;
+    if (per10g && per10g > 0) return per10g / 10;
   }
 
   return 0;
@@ -343,6 +352,7 @@ export function computeFinalTabPricing(input: FinalTabPricingInput): FinalTabPri
     input.goldRates,
     selectedKarat,
     input.scanData.goldRate,
+    input.scanData.calculationRate,
   );
   const goldMetrics = computeGoldAmountWithPurityOverride({
     netWtGrams,

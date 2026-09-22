@@ -155,9 +155,12 @@ export const RawMaterialSection = memo(function RawMaterialSection({
       : 0;
   const localCurrentGoldRateDisplay =
     currentGoldRate > 0 ? `${formatIndianCurrency(currentGoldRate)} /10gm` : '—';
+  // Pure weight × the 24K rate per gram: purity is already in the pure
+  // weight, so the rate is the whole 24K one, not the purity-adjusted figure
+  // shown above — that figure times the pure weight counted purity twice.
   const localGoldAmount =
-    currentGoldRate > 0 && pureWeightGrams > 0
-      ? (currentGoldRate / 10) * pureWeightGrams
+    finalBaseRate > 0 && pureWeightGrams > 0
+      ? (finalBaseRate / 10) * pureWeightGrams
       : 0;
 
   // Current Gold Rate field should show selected 24K RTGS/Cash base rate adjusted by purity %.
