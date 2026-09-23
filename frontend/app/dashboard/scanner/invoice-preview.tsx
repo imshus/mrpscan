@@ -91,7 +91,7 @@ export default function InvoicePreviewScreen() {
         scanId={scanId}
       />
 
-      <MessagePopup message={eInvoiceNote} duration={3000} onDismiss={() => setEInvoiceNote(null)} />
+      <MessagePopup message={eInvoiceNote} duration={5000} onDismiss={() => setEInvoiceNote(null)} />
     </ScanScreenWrapper>
   );
 }

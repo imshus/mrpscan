@@ -29,6 +29,7 @@ import {
 } from '@/utils/subscriptionApi';
 import { friendlyServerMessage } from '@/utils/serverMessages';
 import Constants from 'expo-constants';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 type RazorpayModule = {
   open: (options: Record<string, unknown>) => Promise<unknown>;
@@ -247,7 +248,7 @@ export default function PurchaseLicenseScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.flex}
         contentContainerStyle={styles.screen}
         showsVerticalScrollIndicator={false}
@@ -328,7 +329,7 @@ export default function PurchaseLicenseScreen() {
                         than reading as the whole of what is due. */}
                     {/* The price on its own line; "+ GST" moves down under it
                         with the one-time note, at the shop's asking. */}
-                    <Feature text={displayPrice} note="+ GST" sub="(one time purchase)" tone="paid" />
+                    <Feature text={displayPrice} note="Plus GST" sub="(one time purchase)" tone="paid" />
                   </View>
                   <Pressable
                     disabled={busyAction === 'purchase' || isPurchased}
@@ -424,7 +425,7 @@ export default function PurchaseLicenseScreen() {
             </View>
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
@@ -549,8 +550,8 @@ const styles = StyleSheet.create({
   orText: { fontSize: 10, fontWeight: '800', color: Colors.textSecondary },
   featureTextWrap: { flex: 1 },
   featureTextPaid: { color: Colors.white },
-  featurePrice: { fontSize: 16, lineHeight: 19, fontWeight: '900' },
-  featureNote: { fontSize: 13, lineHeight: 16, fontWeight: '800', marginTop: 1 },
+  featurePrice: { fontSize: 18, lineHeight: 22, fontWeight: '900' },
+  featureNote: { fontSize: 14, lineHeight: 18, fontWeight: '800', marginTop: 2 },
   featureSub: {
     fontSize: 10,
     lineHeight: 13,
