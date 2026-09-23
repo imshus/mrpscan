@@ -99,7 +99,7 @@ function BhawTile({ rate, label }: { rate: number | null; label: string }) {
   return (
     <View style={styles.bhawTile}>
       <Text style={styles.bhawTileRate}>
-        {rate === null ? '—' : `₹ ${rate.toLocaleString('en-IN')}`}
+        {rate === null ? '—' : rate.toLocaleString('en-IN')}
       </Text>
       <Text style={styles.bhawTileLabel}>{label}</Text>
     </View>
@@ -463,29 +463,29 @@ export default function DashboardScreen() {
               </View>
 
               {(bhaw.mcxIsLive || mcxLiveRate != null) && show24kMcx ? (
-                <GradientView
-                  colors={Gradients.metallic}
-                  borderRadius={14}
-                  style={styles.mcxTopCard}
-                >
+                <View style={styles.mcxTopCard}>
                   <View style={styles.mcxTopRow}>
-                    <Text style={styles.mcxTopLabel}>MCX Gold Rate (24 Kt)</Text>
+                    <View style={styles.mcxTopTitleWrap}>
+                      <Text style={styles.mcxTopLabel}>MCX Gold Rate</Text>
+                      <Text style={styles.mcxTopSub}>24 kt (99.5%)</Text>
+                    </View>
                     {/* The board's own Gold Future MCX — the same figure the
                         Dashboard Settings cards print — not the rates API's
                         adjusted copy of it. */}
-                    <Text style={styles.mcxTopValue}>₹ {bhaw.mcxRate.toLocaleString('en-IN')}</Text>
+                    <Text style={styles.mcxTopValue}>{bhaw.mcxRate.toLocaleString('en-IN')}</Text>
                   </View>
+                  <View style={styles.mcxDivider} />
 
                   {/* The house's Cash and RTGS off its own board, each over
                       the badla bhaw that produced it, and the house's name
                       underneath — restored at the shop's asking. */}
                   <View style={styles.mcxBhawRow}>
                     <BhawTile rate={boardSell(bhaw.vendor, /gold\s*cash/i)} label="Retail Rate" />
-                    <BhawTile rate={rtgsSelected24 ?? boardSell(bhaw.vendor, /gold\s*rtgs/i)} label="RTGS Rate" />
+                    <BhawTile rate={rtgsSelected24 ?? boardSell(bhaw.vendor, /gold\s*rtgs/i)} label="RTGS Retail Rate" />
                   </View>
 
                   <Text style={styles.mcxSourceLine}>rate by {bhaw.vendorName}</Text>
-                </GradientView>
+                </View>
               ) : null}
 
               {twentyFourKRate && show24kRateCard ? (
@@ -497,13 +497,13 @@ export default function DashboardScreen() {
                   <View style={styles.rateCardBody}>
                     {show24kCash ? (
                       <RateBadge
-                        value={`₹ ${(twentyFourKRate.cashRate ?? cashFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
+                        value={`${(twentyFourKRate.cashRate ?? cashFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
                         label="Retail Rate"
                       />
                     ) : null}
                     {show24kRtgs ? (
                       <RateBadge
-                        value={`₹ ${(twentyFourKRate.rtgsRate ?? rtgsFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
+                        value={`${(twentyFourKRate.rtgsRate ?? rtgsFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
                         label="RTGS Rate"
                       />
                     ) : null}
@@ -552,13 +552,13 @@ export default function DashboardScreen() {
                       <View style={styles.rateCardBody}>
                         {showCash ? (
                           <RateBadge
-                            value={`₹ ${(rowRetail ?? 0).toLocaleString('en-IN')}`}
+                            value={`${(rowRetail ?? 0).toLocaleString('en-IN')}`}
                             label="Retail Rate"
                           />
                         ) : null}
                         {showRtgs ? (
                           <RateBadge
-                            value={`₹ ${(rowRtgs ?? 0).toLocaleString('en-IN')}`}
+                            value={`${(rowRtgs ?? 0).toLocaleString('en-IN')}`}
                             label="RTGS Rate"
                           />
                         ) : null}
@@ -674,17 +674,16 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     opacity: 0.75,
   },
+  // The shop's design: a light cream card, the MCX title over its karat,
+  // a hairline, then the two rates on paler tiles.
   mcxTopCard: {
+    backgroundColor: '#F4EEE0',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
-    paddingHorizontal: 18,
+    borderColor: '#E8DDC6',
+    paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 12,
-    shadowColor: '#786441',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 4,
   },
   mcxTopRow: {
     flexDirection: 'row',
@@ -692,23 +691,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  mcxTopTitleWrap: { gap: 2 },
   mcxTopLabel: {
     fontSize: 15,
     fontWeight: '600',
     color: Colors.textPrimary,
     opacity: 0.7,
   },
+  mcxTopSub: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: Colors.textPrimary,
+    opacity: 0.6,
+  },
   mcxTopValue: {
-    fontSize: 20.5,
+    fontSize: 22,
     fontWeight: '800',
     color: Colors.textPrimary,
   },
+  mcxDivider: {
+    height: 1,
+    backgroundColor: '#E2D6BC',
+  },
   mcxBhawRow: {
     flexDirection: 'row',
-    gap: 12,
-    // A little in from the card's edges, so the two tiles sit narrower than
-    // the heading row above them — at the shop's asking.
-    paddingHorizontal: 14,
+    gap: 10,
   },
   mcxSourceLine: {
     fontSize: 12.5,
@@ -721,16 +728,14 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    gap: 1,
     paddingVertical: 10,
     paddingHorizontal: 8,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.06)',
-    backgroundColor: '#FCF8EF',
+    backgroundColor: '#FBF8F1',
   },
-  bhawTileRate: { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
-  bhawTileLabel: { fontSize: 12, color: Colors.textPrimary, opacity: 0.7 },
+  bhawTileRate: { fontSize: 19, fontWeight: '800', color: Colors.textPrimary },
+  bhawTileLabel: { fontSize: 12, fontWeight: '600', color: Colors.textPrimary, opacity: 0.65 },
   rateCard: {
     backgroundColor: Colors.white,
     borderRadius: 14,
