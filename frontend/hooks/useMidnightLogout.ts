@@ -16,13 +16,14 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * Signs the account out at 12:00 AM, every day — the shop's rule: a session
  * belongs to the day it was opened on.
  *
- * Two ways a session can cross midnight. With the app open, a timer set for
- * the coming midnight signs out on the stroke. With the app closed or in the
- * background — where JavaScript timers do not run — the session's start is
- * compared with today's midnight whenever the app comes back, so a session
- * opened yesterday ends on the first screen it would have shown. Signing
- * out flips isAuthenticated, and the dashboard's own guard takes the shop
- * to Log In.
+ * The server holds the rule for every device: tokens expire at midnight,
+ * so the first request after it is refused and the app drops to Log In. This
+ * hook is the phone's own copy of it, so the screen changes at once. With
+ * the app open, a timer set for the coming midnight — and a check every
+ * minute behind it — signs out on the stroke. With the app closed or in the
+ * background, where timers do not run, the session's start is compared with
+ * today's midnight whenever the app comes back. Signing out flips
+ * isAuthenticated, and the dashboard's own guard takes the shop to Log In.
  */
 export function useMidnightLogout(): void {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -63,8 +64,13 @@ export function useMidnightLogout(): void {
       armForMidnight();
     });
 
+    // A timer can be held back while the screen is off or the phone dozes;
+    // a check every minute catches a midnight that slipped past it.
+    const poll = setInterval(endIfStale, 60_000);
+
     return () => {
       if (timer) clearTimeout(timer);
+      clearInterval(poll);
       subscription.remove();
     };
   }, [isAuthenticated, sessionStartedAt, logout]);
