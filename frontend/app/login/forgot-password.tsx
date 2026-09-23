@@ -35,6 +35,7 @@ import {
   validatePassword,
   validateUserId,
 } from '@/utils/validation';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 const OTP_LENGTH = 6;
 
@@ -182,7 +183,7 @@ export default function ForgotPasswordScreen() {
         style={styles.flex}
         behavior="padding"
       >
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
@@ -266,7 +267,7 @@ export default function ForgotPasswordScreen() {
 
             {resetDone ? <SuccessToast message="Password reset successfully." /> : null}
           </Animated.View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

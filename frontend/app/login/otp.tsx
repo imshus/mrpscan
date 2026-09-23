@@ -23,6 +23,7 @@ import { Colors } from '@/constants/theme';
 import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { useAuthStore } from '@/store/authStore';
 import { loginBusinessWithOtp, sendLoginOtp } from '@/utils/authApi';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import { maskPhone, validateOtp, validatePhone } from '@/utils/validation';
 
 const OTP_LENGTH = 6;
@@ -184,7 +185,7 @@ export default function LoginOtpScreen() {
         style={styles.flex}
         behavior="padding"
       >
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
@@ -213,7 +214,7 @@ export default function LoginOtpScreen() {
 
           {otpError ? <AuthErrorText>{otpError}</AuthErrorText> : null}
           {verifying ? <Text style={styles.verifyingText}>Verifying OTP…</Text> : null}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

@@ -26,6 +26,7 @@ import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { fetchPhoneStatus, loginBusiness } from '@/utils/authApi';
 import { REMEMBERED_PHONE_KEY } from '@/utils/clearAppState';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 /** Ten digits, however the number was typed or pasted. */
 function toPhone(raw: string): string {
@@ -190,7 +191,7 @@ export default function BusinessLoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={styles.flex} behavior="padding">
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
@@ -280,7 +281,7 @@ export default function BusinessLoginScreen() {
               onPress={() => router.push('/register' as Href)}
             />
           </Reveal>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

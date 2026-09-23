@@ -11,6 +11,7 @@ import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { registerBusiness } from '@/utils/authApi';
 import { prepareSignInAfterSignup } from '@/utils/authSession';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 /**
  * The last step of signing up: the four digits this shop will sign in with.
@@ -88,7 +89,7 @@ export default function CreateMpinScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={styles.flex} behavior="padding">
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
@@ -131,7 +132,7 @@ export default function CreateMpinScreen() {
               <AuthPrimaryButton title="Submit" onPress={() => void submit()} loading={saving} />
             </Reveal>
           </Animated.View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

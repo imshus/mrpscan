@@ -13,6 +13,7 @@ import { useBhawRates } from '@/hooks/useBhawRates';
 import { useRequireMarketRatesAccess } from '@/hooks/useMarketRatesAccess';
 import { useGetGoldRatesQuery, useUpdateGoldTaxSettingsMutation } from '@/store/goldRatesApi';
 import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 export default function GoldRateSettingsScreen() {
   const access = useRequireMarketRatesAccess();
@@ -106,7 +107,7 @@ export default function GoldRateSettingsScreen() {
 
       {/* The header stays put; only the content scrolls beneath it. */}
       <PageHeader title="Gold Rate Settings" />
-      <ScrollView contentContainerStyle={screenStyles.scrollContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView contentContainerStyle={screenStyles.scrollContent} showsVerticalScrollIndicator={false}>
 
         <View style={screenStyles.screenSection}>
           {showLoading ? (
@@ -142,7 +143,7 @@ export default function GoldRateSettingsScreen() {
             </View>
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <ToastNotification
         visible={toast.visible}

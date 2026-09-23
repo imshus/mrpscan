@@ -24,6 +24,7 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { apiRequest } from '@/utils/apiClient';
 import { formatInr } from '@/utils/rateMappers';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 type Sign = '+' | '-';
 interface SupremeRatesData {
@@ -335,7 +336,7 @@ export default function RateControlScreen() {
         style={styles.flex}
         behavior="padding"
       >
-        <ScrollView
+        <KeyboardAwareScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -392,7 +393,7 @@ export default function RateControlScreen() {
               onAmountChange={(value) => setCashAmount(sanitizeAmount(value))}
             />
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         <Animated.View
           pointerEvents={hasAnyChanges ? 'auto' : 'none'}

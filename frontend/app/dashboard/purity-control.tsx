@@ -18,6 +18,7 @@ import { BottomNav } from '@/components/dashboard/BottomNav';
 import type { PurityItem } from '@/constants/purityData';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { usePurityStore } from '@/store/purityStore';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 
 const BUTTON_GREEN = '#A81F17';
@@ -98,7 +99,7 @@ export default function PurityControlScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <BackgroundPattern />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -113,7 +114,7 @@ export default function PurityControlScreen() {
 
         <PurityCard title="Gold" items={goldItems} onEdit={openEdit} />
         <PurityCard title="Silver" items={silverItems} onEdit={openEdit} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <BottomNav />
 

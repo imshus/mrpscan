@@ -23,6 +23,7 @@ import {
   setMpinWithResetToken,
   verifyPasswordResetOtp,
 } from '@/utils/authApi';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 const tenDigits = (value: string) => value.replace(/\D/g, '').slice(0, 10);
 
@@ -133,7 +134,7 @@ export default function ForgotMpinScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <AuthBackButton onPress={() => router.back()} />
 
           <Text style={styles.title}>Forgot MPIN?</Text>
@@ -232,7 +233,7 @@ export default function ForgotMpinScreen() {
               />
             </View>
           ) : null}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

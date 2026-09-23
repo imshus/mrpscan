@@ -28,6 +28,7 @@ import {
   validateRazorpayPaymentResult,
   verifyPayment,
 } from '@/utils/subscriptionApi';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import Constants from 'expo-constants';
 
 type RazorpayModule = {
@@ -282,7 +283,7 @@ export default function SubscriptionManagerScreen() {
             <ActivityIndicator color={Colors.primary} />
           </View>
         ) : (
-          <ScrollView
+          <KeyboardAwareScrollView
             contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomContentSpacing }]}
             showsVerticalScrollIndicator={false}
           >
@@ -444,7 +445,7 @@ export default function SubscriptionManagerScreen() {
                 </Pressable>
               </View>
             </View>
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
       </View>
 
