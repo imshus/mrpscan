@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Plus } from 'lucide-react-native';
 
-import { Colors, Radius } from '@/constants/theme';
+import { GradientView } from '@/components/ui/GradientView';
+import { Colors, Gradients, Radius } from '@/constants/theme';
 
 interface AddBullionRowProps {
   /** Saves the typed name. Returns an error message to show, or null. */
@@ -52,16 +52,18 @@ export function AddBullionRow({ onAdd, onOpen }: AddBullionRowProps) {
 
   if (!open) {
     return (
+      // The shop's design: a full-width red pill under the houses.
       <Pressable
         onPress={() => {
           setOpen(true);
           onOpen?.();
         }}
-        style={styles.addRow}
+        style={({ pressed }) => [styles.addPillWrap, pressed && styles.addPillPressed]}
         accessibilityRole="button"
       >
-        <Plus size={15} color={Colors.brandDeep} strokeWidth={2.4} />
-        <Text style={styles.addText}>Add Bullion</Text>
+        <GradientView colors={Gradients.brand} forceGradient borderRadius={999} style={styles.addPill}>
+          <Text style={styles.addPillText}>+ Add Bullion</Text>
+        </GradientView>
       </Pressable>
     );
   }
@@ -102,16 +104,18 @@ export function AddBullionRow({ onAdd, onOpen }: AddBullionRowProps) {
 }
 
 const styles = StyleSheet.create({
-  addRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+  addPillWrap: {
+    marginTop: 18,
+    borderRadius: 999,
+    shadowColor: '#A81F17',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 5,
   },
-  addText: { fontSize: 14, fontWeight: '700', color: Colors.brandDeep },
+  addPillPressed: { transform: [{ scale: 0.98 }] },
+  addPill: { height: 54, alignItems: 'center', justifyContent: 'center' },
+  addPillText: { fontSize: 16, fontWeight: '800', color: Colors.white },
   formRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',

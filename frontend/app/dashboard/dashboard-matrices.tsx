@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,7 +8,9 @@ import { BottomNav } from '@/components/dashboard/BottomNav';
 import { AddBullionRow } from '@/components/settings/AddBullionRow';
 import { BullionHouseCard } from '@/components/settings/BullionHouseCard';
 import { MessagePopup } from '@/components/settings/MessagePopup';
-import { DropdownOption, SettingsDropdown } from '@/components/settings/SettingsDropdown';
+import { DropdownOption } from '@/components/settings/SettingsDropdown';
+import { MasterNavList } from '@/components/dashboard/masters/MasterNavList';
+import type { MasterNavItem } from '@/constants/settingsMasters';
 import {
   GOLD_MATRIX_SECTIONS,
   OPENING_MATRIX_KEYS,
@@ -24,6 +26,7 @@ import {
   type BullionSources,
 } from '@/utils/bullionApi';
 import { updateDashboardMatrices } from '@/utils/matricesApi';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 type DashboardMatrixValues = Record<MatrixKey, boolean>;
 
@@ -76,9 +79,34 @@ function normalizeMatrixValues(values: Record<string, boolean> | null | undefine
   return merged;
 }
 
+/**
+ * Dashboard Settings is a hub of two pages, at the shop's asking: one to
+ * choose the bullion house, one to choose which gold rates Home shows. Both
+ * are this screen with a `section`; with none it lists the two.
+ */
+const DASHBOARD_SETTINGS_PAGES: MasterNavItem[] = [
+  {
+    id: 'bullion',
+    title: 'Choose a Bullion',
+    subtitle: '',
+    route: '/dashboard/dashboard-matrices?section=bullion',
+  },
+  {
+    id: 'rate-view',
+    title: 'Choose Gold Rate View',
+    subtitle: '',
+    route: '/dashboard/dashboard-matrices?section=rate-view',
+  },
+];
+
 export default function DashboardMatricesScreen() {
   const allowed = useRequireSettingsAccess('matrices');
   const router = useRouter();
+  const { section } = useLocalSearchParams<{ section?: string }>();
+  const view: 'hub' | 'bullion' | 'rate-view' =
+    section === 'bullion' ? 'bullion' : section === 'rate-view' ? 'rate-view' : 'hub';
+  const screenTitle =
+    view === 'bullion' ? 'Choose a Bullion' : view === 'rate-view' ? 'Choose Gold Rate View' : 'Dashboard Settings';
   const storedValues = useMatricesStore((s) => s.values);
   const [draft, setDraft] = useState<DashboardMatrixValues>(() => normalizeMatrixValues(storedValues));
   // One menu at a time, so a long karat list never hides the field above it.
@@ -230,25 +258,23 @@ Home keeps following ${following} until then.`,
         <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
           <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.2} />
         </Pressable>
-        <Text style={styles.headerTitle}>Dashboard Settings</Text>
+        <Text style={styles.headerTitle}>{screenTitle}</Text>
       </View>
       {/* The keyboard shrinks the list rather than covering it, and the
           Add Bullion row scrolls itself into view when it opens, so the name
           being typed is on screen. */}
       <KeyboardAvoidingView style={styles.flex} behavior="padding">
-      <ScrollView
+      <KeyboardAwareScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.hint}>
-          Choose which gold rates appear on your Home dashboard.
-        </Text>
+        {view === 'hub' ? <MasterNavList items={DASHBOARD_SETTINGS_PAGES} /> : null}
 
         {/* Each house as its own board, so the choice is made on the rates
             themselves rather than on a name in a list. */}
-        {vendors.length > 0 ? (
+        {view !== 'bullion' ? null : vendors.length > 0 ? (
           <>
             {vendors.map((vendor) => (
               <BullionHouseCard
@@ -270,23 +296,26 @@ Home keeps following ${following} until then.`,
           <Text style={styles.loadingText}>Loading the bullion houses…</Text>
         )}
 
-        <SettingsDropdown
-          title="Choose Karat"
-          open={openMenu === 'karat'}
-          onPress={() => setOpenMenu((current) => (current === 'karat' ? null : 'karat'))}
-        >
-          {RATE_OPTIONS.map((option, index) => (
-            <DropdownOption
-              key={option.key}
-              label={option.label}
-              selected={draft[option.key]}
-              onPress={toggleHandlers[option.key]}
-              mode="multi"
-              showDivider={index < RATE_OPTIONS.length - 1}
-            />
-          ))}
-        </SettingsDropdown>
-      </ScrollView>
+        {view === 'rate-view' ? (
+          <>
+            <Text style={styles.hint}>
+              Choose which gold rates appear on your Home dashboard.
+            </Text>
+            <View style={styles.optionsCard}>
+              {RATE_OPTIONS.map((option, index) => (
+                <DropdownOption
+                  key={option.key}
+                  label={option.label}
+                  selected={draft[option.key]}
+                  onPress={toggleHandlers[option.key]}
+                  mode="multi"
+                  showDivider={index < RATE_OPTIONS.length - 1}
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
+      </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
 
       <BottomNav />
@@ -295,7 +324,7 @@ Home keeps following ${following} until then.`,
       <MessagePopup
         message={popup?.text ?? null}
         tone={popup?.tone}
-        duration={3000}
+        duration={5000}
         onDismiss={() => setPopup(null)}
       />
     </SafeAreaView>
@@ -335,6 +364,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: Colors.textPrimary,
+  },
+  optionsCard: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 16,
+    backgroundColor: Colors.white,
+    overflow: 'hidden',
   },
   hint: {
     fontSize: 12,
