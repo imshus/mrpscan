@@ -153,8 +153,10 @@ interface RateCardProps {
   /** With `onSelect`, the header carries a radio: this card is the one in force. */
   selected?: boolean;
   onSelect?: () => void;
-  /** Another control beside Change By — the tax field on RTGS Rate 2. */
+  /** Another control beside Change By. */
   extra?: React.ReactNode;
+  /** Replaces the sign and amount with a control of the card's own — RTGS Rate 2's Tax field. */
+  changeControl?: React.ReactNode;
 }
 
 function RateCard({
@@ -175,6 +177,7 @@ function RateCard({
   selected,
   onSelect,
   extra,
+  changeControl,
 }: RateCardProps) {
   return (
     <View style={styles.rateCard}>
@@ -209,6 +212,7 @@ function RateCard({
 
       <View style={styles.changeSection}>
         <Text style={styles.fieldLabel}>Change By</Text>
+        {changeControl ?? (
         <View style={styles.controlsRow}>
           <View style={styles.signToggleWrap}>
             <SignToggle value={sign} onChange={onSignChange} />
@@ -227,15 +231,16 @@ function RateCard({
           </View>
           {extra}
         </View>
+        )}
       </View>
 
-      <View style={styles.cardDivider} />
-
+      {/* The final figure on one line with its caption, as the shop's design
+          sets it: caption at the left, the rate in red at the right. */}
       <View style={styles.finalSection}>
         <Text style={styles.finalLabel}>{finalLabel ?? `Final ${title}`}</Text>
         <Text style={styles.finalValue}>{formatInr(finalRate)}</Text>
-        {formula ? <Text style={styles.formulaText}>{formula}</Text> : null}
       </View>
+      {formula ? <Text style={styles.formulaText}>{formula}</Text> : null}
     </View>
   );
 }
@@ -456,11 +461,28 @@ export function GoldRateSettingsPanel({
           onAmountChange={setMcxAmount}
         />
 
-        {/* RTGS in two forms, sharing one Change By: Rate 1 is the base as
-            it comes from MCX; Rate 2 carries the percent typed into its Tax
-            field. The radio picks the one the app prices on. */}
+        <RateCard
+          title="Retail Rate"
+          subtitle={bhawNote(bhawCash)}
+          showCurrentRate={false}
+          icon={null}
+          sign={cashSign}
+          amount={cashAmount}
+          currentRate={cashCurrentRate}
+          finalRate={cashLiveFinal}
+          formula={''}
+          currentLabel="Current Retail Rate"
+          finalLabel="Final Retail Rate"
+          onSignChange={setCashSign}
+          onAmountChange={setCashAmount}
+        />
+
+        {/* RTGS in two forms, sharing one Change By: Rate 1 is the base as it
+            comes from MCX; Rate 2 is that base less the percent typed into
+            its Tax field. The radio picks the one the app prices on. */}
         <RateCard
           title="RTGS Rate 1"
+          titleTag="(Including tax 3%)"
           subtitle={bhawNote(bhawRtgs)}
           showCurrentRate={false}
           icon={null}
@@ -479,7 +501,7 @@ export function GoldRateSettingsPanel({
 
         <RateCard
           title="RTGS Rate 2"
-          titleTag={taxDraft > 0 ? `(− tax ${taxDraft}%)` : '(without tax)'}
+          titleTag="(without tax)"
           subtitle={bhawNote(bhawRtgs)}
           showCurrentRate={false}
           icon={null}
@@ -494,38 +516,21 @@ export function GoldRateSettingsPanel({
           onAmountChange={setRtgsAmount}
           selected={variant === 'plain'}
           onSelect={() => setVariant('plain')}
-          extra={
-            <View style={styles.taxInputWrap}>
-              <Text style={styles.taxLabel}>Tax</Text>
+          changeControl={
+            <View style={styles.taxFieldWrap}>
+              <Text style={styles.taxFieldLabel}>− Tax</Text>
               <TextInput
                 value={taxPercent}
                 onChangeText={(value) =>
                   setTaxPercent(value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'))
                 }
                 keyboardType="decimal-pad"
-                accessibilityLabel="Tax percent on RTGS Rate 2"
-                style={styles.taxInput}
+                accessibilityLabel="Tax percent taken off RTGS Rate 2"
+                style={styles.taxFieldInput}
                 maxLength={5}
               />
-              <Text style={styles.taxSuffix}>%</Text>
             </View>
           }
-        />
-
-        <RateCard
-          title="Retail Rate"
-          subtitle={bhawNote(bhawCash)}
-          showCurrentRate={false}
-          icon={null}
-          sign={cashSign}
-          amount={cashAmount}
-          currentRate={cashCurrentRate}
-          finalRate={cashLiveFinal}
-          formula={''}
-          currentLabel="Current Retail Rate"
-          finalLabel="Final Retail Rate"
-          onSignChange={setCashSign}
-          onAmountChange={setCashAmount}
         />
       </View>
 
@@ -821,10 +826,10 @@ const styles = StyleSheet.create({
     color: BUTTON_GREEN,
   },
   rateCardHeaderTextWrap: { flex: 1 },
-  rateCardTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
+  rateCardTitle: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
   rateCardTitleTag: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 12.5,
+    fontWeight: '700',
     color: Colors.textSecondary,
   },
   radioOuter: {
@@ -945,21 +950,38 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
   },
-  finalSection: { gap: 4 },
+  finalSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 6,
+  },
   finalLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    color: Colors.textMuted,
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.textPrimary,
   },
   finalValue: {
-    marginTop: 0,
-    fontSize: 16,
-    lineHeight: 20,
-    fontWeight: '700',
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: '800',
     color: BUTTON_GREEN,
   },
+  // RTGS Rate 2's own control: one field across the card, "− Tax" then the percent.
+  taxFieldWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    height: 44,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.input,
+    backgroundColor: Colors.white,
+  },
+  taxFieldLabel: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
+  taxFieldInput: { flex: 1, fontSize: 15, fontWeight: '600', color: Colors.textPrimary, paddingVertical: 0 },
   formulaText: {
     fontSize: 11,
     color: Colors.textSecondary,
