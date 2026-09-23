@@ -232,6 +232,20 @@ export default function DashboardScreen() {
     if (mcxLiveRate == null) return goldTaxSettings?.rtgsFinalRate ?? 0;
     return bhaw.rtgsRate;
   }, [bhaw.rtgsRate, goldTaxSettings?.rtgsFinalRate, mcxLiveRate]);
+  // The RTGS figure Home shows is the one selected in Gold Rate Settings:
+  // Rate 1, the base as it comes, or Rate 2, the base less the shop's
+  // percent — at the shop's asking, with the tile itself unchanged. The
+  // karat rows take their RTGS from the same figure. (The stored value
+  // 'taxed' names Rate 1 and 'plain' names Rate 2; the two were the other
+  // way round when the setting was born.)
+  const rtgsSelected24 = useMemo(() => {
+    const base = rtgsFinalRate;
+    if (!base) return null;
+    const percent = goldTaxSettings?.rtgsTaxPercent ?? 0;
+    return goldTaxSettings?.rtgsVariant === 'plain'
+      ? Math.round(base * (1 - percent / 100))
+      : Math.round(base);
+  }, [rtgsFinalRate, goldTaxSettings?.rtgsTaxPercent, goldTaxSettings?.rtgsVariant]);
   const cashFinalRate = useMemo(() => {
     if (mcxLiveRate == null) return goldTaxSettings?.cashFinalRate ?? 0;
     return bhaw.cashRate;
@@ -467,7 +481,7 @@ export default function DashboardScreen() {
                       underneath — restored at the shop's asking. */}
                   <View style={styles.mcxBhawRow}>
                     <BhawTile rate={boardSell(bhaw.vendor, /gold\s*cash/i)} label="Retail Rate" />
-                    <BhawTile rate={boardSell(bhaw.vendor, /gold\s*rtgs/i)} label="RTGS Rate" />
+                    <BhawTile rate={rtgsSelected24 ?? boardSell(bhaw.vendor, /gold\s*rtgs/i)} label="RTGS Rate" />
                   </View>
 
                   <Text style={styles.mcxSourceLine}>rate by {bhaw.vendorName}</Text>
@@ -520,7 +534,7 @@ export default function DashboardScreen() {
                   // at the shop's asking. The server's row stands in only
                   // when the board has no such figure.
                   const retail24 = boardSell(bhaw.vendor, /gold\s*cash/i) ?? cashFinalRate;
-                  const rtgs24 = boardSell(bhaw.vendor, /gold\s*rtgs/i) ?? rtgsFinalRate;
+                  const rtgs24 = rtgsSelected24 ?? boardSell(bhaw.vendor, /gold\s*rtgs/i) ?? rtgsFinalRate;
                   const fraction = rate.purity / 100;
                   const rowRetail =
                     retail24 > 0 ? Math.round(retail24 * fraction) : (rate.cashRate ?? rate.finalRate);
