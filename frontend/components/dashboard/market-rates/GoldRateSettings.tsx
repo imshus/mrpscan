@@ -20,9 +20,6 @@ const GOLD_ACTION_BAR_HEIGHT = 52;
 
 type Sign = '+' | '-';
 export type ScannerCalculationUse = 'rtgs' | 'cash';
-
-/** RTGS Rate 1 always carries this GST; the shop cannot change it. */
-const RTGS_RATE_1_TAX_PERCENT = 3;
 export type TaxChangeTarget = 'rtgs' | 'cash';
 
 const SCANNER_OPTIONS: { value: ScannerCalculationUse; label: string }[] = [
@@ -255,7 +252,7 @@ interface GoldRateSettingsPanelProps {
   bhawSourceName?: string;
   bhawRtgs?: number;
   bhawCash?: number;
-  /** The percent RTGS Rate 2 carries; RTGS Rate 1 always carries 3%. */
+  /** The percent RTGS Rate 2 carries; RTGS Rate 1 carries none. */
   rtgsTaxPercent?: number;
   /** Which RTGS rate is in force: 'taxed' is Rate 1, 'plain' is Rate 2. */
   rtgsVariant?: 'taxed' | 'plain';
@@ -378,16 +375,14 @@ export function GoldRateSettingsPanel({
     () => mcxLiveFinal + supremeCashChange,
     [mcxLiveFinal, supremeCashChange],
   );
-  // Both RTGS rates come off this base. Rate 1 carries a fixed 3% GST;
-  // Rate 2 carries whatever percent is typed into its Tax field.
+  // Both RTGS rates come off this base. Rate 1 is the base as it comes,
+  // nothing on it; Rate 2 carries whatever percent is typed into its Tax
+  // field.
   const rtgsLiveFinal = useMemo(
     () => rtgsCurrentRate + rtgsDraftChange,
     [rtgsCurrentRate, rtgsDraftChange],
   );
-  const rtgsRate1LiveFinal = useMemo(
-    () => Math.round(rtgsLiveFinal * (1 + RTGS_RATE_1_TAX_PERCENT / 100)),
-    [rtgsLiveFinal],
-  );
+  const rtgsRate1LiveFinal = rtgsLiveFinal;
   const rtgsRate2LiveFinal = useMemo(
     () => Math.round(rtgsLiveFinal * (1 + taxDraft / 100)),
     [rtgsLiveFinal, taxDraft],
@@ -461,12 +456,11 @@ export function GoldRateSettingsPanel({
           onAmountChange={setMcxAmount}
         />
 
-        {/* RTGS in two forms, sharing one Change By: Rate 1 carries a fixed
-            3% GST; Rate 2 carries the percent typed into its Tax field. The
-            radio picks the one the app prices on. */}
+        {/* RTGS in two forms, sharing one Change By: Rate 1 is the base as
+            it comes from MCX; Rate 2 carries the percent typed into its Tax
+            field. The radio picks the one the app prices on. */}
         <RateCard
           title="RTGS Rate 1"
-          titleTag={`(Including tax ${RTGS_RATE_1_TAX_PERCENT}%)`}
           subtitle={bhawNote(bhawRtgs)}
           showCurrentRate={false}
           icon={null}
@@ -485,7 +479,7 @@ export function GoldRateSettingsPanel({
 
         <RateCard
           title="RTGS Rate 2"
-          titleTag="(without tax)"
+          titleTag={taxDraft > 0 ? `(+ tax ${taxDraft}%)` : '(without tax)'}
           subtitle={bhawNote(bhawRtgs)}
           showCurrentRate={false}
           icon={null}
