@@ -470,7 +470,7 @@ export function GoldRateSettingsPanel({
           finalRate={rtgsRate1LiveFinal}
           formula={''}
           currentLabel="Current RTGS Rate"
-          finalLabel="Final RTGS Rate"
+          finalLabel="Final RTGS Rate 1"
           onSignChange={setRtgsSign}
           onAmountChange={setRtgsAmount}
           selected={variant === 'taxed'}
@@ -489,7 +489,7 @@ export function GoldRateSettingsPanel({
           finalRate={rtgsRate2LiveFinal}
           formula={''}
           currentLabel="Current RTGS Rate"
-          finalLabel="Final RTGS Rate"
+          finalLabel="Final RTGS Rate 2"
           onSignChange={setRtgsSign}
           onAmountChange={setRtgsAmount}
           selected={variant === 'plain'}
