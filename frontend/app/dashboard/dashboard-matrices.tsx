@@ -287,9 +287,9 @@ Home keeps following ${following} until then.`,
             ))}
             <AddBullionRow
               onAdd={addBullion}
-              onOpen={() => {
-                setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
-              }}
+              // No scroll of its own here: the keyboard-aware list lifts the
+              // name field above the keyboard. Scrolling to the end as well
+              // landed on the keyboard's empty bottom room and blanked the page.
             />
           </>
         ) : (
