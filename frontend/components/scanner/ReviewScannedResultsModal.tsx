@@ -41,6 +41,7 @@ import {
   sumStoneWeights,
   updateStoneEntryAtIndex,
 } from '@/utils/stoneSequenceUtils';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 interface ReviewScannedResultsModalProps {
   scanData: ScanItemData;
@@ -569,7 +570,7 @@ export function ReviewScannedResultsModal({
       </CardHeader>
 
       {/* Scrollable review content */}
-      <ScrollView
+      <KeyboardAwareScrollView
         ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -643,7 +644,7 @@ export function ReviewScannedResultsModal({
             style={styles.primaryAction}
           />
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </FloatingCard>
   );
 }

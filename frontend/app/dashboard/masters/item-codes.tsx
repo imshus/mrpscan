@@ -22,6 +22,7 @@ import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { invalidateItemCatalogue } from '@/utils/itemCatalogue';
 import { deleteItemCode, fetchItemCodes, saveItemCode } from '@/utils/itemCodeApi';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 /** One editable line of the sheet; unsaved rows have no id yet. */
 interface RowState {
@@ -245,7 +246,7 @@ export default function ItemCodesScreen() {
       <BackgroundPattern />
       <PageHeader title="Item Code" subtitle="Settings → Masters → Item Code" />
       <KeyboardAvoidingView style={styles.flex} behavior="padding">
-        <ScrollView
+        <KeyboardAwareScrollView
           style={styles.flex}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -372,7 +373,7 @@ export default function ItemCodesScreen() {
               </TouchableOpacity>
             </>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
       <BottomNav />
     </SafeAreaView>
