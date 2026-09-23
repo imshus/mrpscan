@@ -8,6 +8,7 @@ import {
   MetalInput,
   MetalSelectTrigger,
   MetalTile,
+  MetalValueBox,
 } from '@/components/scanner/ReviewCardKit';
 import {
   DEFAULT_LABOUR_CHARGE_UNIT,
@@ -167,6 +168,14 @@ export const LaborSection = memo(function LaborSection({
               disabled={false}
             />
           </MetalFieldSlot>
+          {/* The labour amount inside its own card, as the design has it —
+              it used to sit under Wastage and read as one card with it. */}
+          <MetalValueBox
+            label="Labour Amount"
+            value={formatInr(computeFinalLabourAmount(values, grossWeightGrams, netWeightGrams))}
+            amount
+            fullWidth
+          />
         </MetalGrid>
       </MetalTile>
     </>

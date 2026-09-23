@@ -3,7 +3,6 @@ import { Pressable, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 
 import {
-  FinalLabourAmountTile,
   getLaborValuesFromScanData,
   LaborSection,
   type LaborSectionValues,
@@ -364,17 +363,12 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
         editable={editable}
         percentOverride={scanData.wastagePercent}
         onPercentChange={(text) => onFieldChange?.('wastagePercent', text)}
+        selectedCode={scanData.wastageCode}
+        onCodeChange={(code, percent) => {
+          onFieldChange?.('wastageCode', code);
+          onFieldChange?.('wastagePercent', percent === null ? '' : String(percent));
+        }}
       />
-
-      {/* Moved below Wastage at the shop's asking: the two tiles read as one
-          block of charges, and the total strip closes them off. */}
-      {editable ? (
-        <FinalLabourAmountTile
-          values={laborValues}
-          grossWeightGrams={scanData.grossWt}
-          netWeightGrams={scanData.netWt}
-        />
-      ) : null}
 
       {editable ? (
         <OtherChargesSection

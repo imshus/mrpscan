@@ -186,6 +186,8 @@ export interface ScanItemData {
    * the override.
    */
   wastagePercent?: string;
+  /** The Masters → Wastage code picked for this scan; its percent fills wastagePercent. */
+  wastageCode?: string;
   calculationRate: 'rtgs' | 'cash';
   otherChargesAmount: string;
   otherChargesItems: OtherChargeItem[];
