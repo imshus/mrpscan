@@ -376,15 +376,15 @@ export function GoldRateSettingsPanel({
     [mcxLiveFinal, supremeCashChange],
   );
   // Both RTGS rates come off this base. Rate 1 is the base as it comes,
-  // nothing on it; Rate 2 carries whatever percent is typed into its Tax
-  // field.
+  // nothing on it; Rate 2 is the base LESS whatever percent is typed into
+  // its Tax field — 1% typed is 1% lower.
   const rtgsLiveFinal = useMemo(
     () => rtgsCurrentRate + rtgsDraftChange,
     [rtgsCurrentRate, rtgsDraftChange],
   );
   const rtgsRate1LiveFinal = rtgsLiveFinal;
   const rtgsRate2LiveFinal = useMemo(
-    () => Math.round(rtgsLiveFinal * (1 + taxDraft / 100)),
+    () => Math.round(rtgsLiveFinal * (1 - taxDraft / 100)),
     [rtgsLiveFinal, taxDraft],
   );
   const cashLiveFinal = useMemo(
@@ -479,7 +479,7 @@ export function GoldRateSettingsPanel({
 
         <RateCard
           title="RTGS Rate 2"
-          titleTag={taxDraft > 0 ? `(+ tax ${taxDraft}%)` : '(without tax)'}
+          titleTag={taxDraft > 0 ? `(− tax ${taxDraft}%)` : '(without tax)'}
           subtitle={bhawNote(bhawRtgs)}
           showCurrentRate={false}
           icon={null}
