@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
   Modal,
   Pressable,
   StyleSheet,
@@ -16,9 +14,17 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 import { formatInr } from '@/utils/rateMappers';
 
 const BUTTON_GREEN = '#A81F17';
-const GOLD_ACTION_BAR_HEIGHT = 52;
+/** A typed change is saved once the typing has paused this long. */
+const SAVE_AFTER_TYPING_MS = 900;
 
 type Sign = '+' | '-';
+type SavedRates = {
+  mcx: number;
+  rtgs: number;
+  cash: number;
+  tax: number;
+  variant: 'taxed' | 'plain';
+};
 export type ScannerCalculationUse = 'rtgs' | 'cash';
 export type TaxChangeTarget = 'rtgs' | 'cash';
 
@@ -297,18 +303,25 @@ export function GoldRateSettingsPanel({
   const [mcxAmount, setMcxAmount] = useState('');
   const [rtgsAmount, setRtgsAmount] = useState('');
   const [cashAmount, setCashAmount] = useState('');
-  const [savedMcxChange, setSavedMcxChange] = useState(0);
-  const [savedRtgsChange, setSavedRtgsChange] = useState(0);
-  const [savedCashChange, setSavedCashChange] = useState(0);
   const [taxPercent, setTaxPercent] = useState('0');
-  const [savedTaxPercent, setSavedTaxPercent] = useState(0);
   const [variant, setVariant] = useState<'taxed' | 'plain'>('plain');
-  const [savedVariant, setSavedVariant] = useState<'taxed' | 'plain'>('plain');
-  const [saving, setSaving] = useState(false);
-  const [barAnim] = useState(() => new Animated.Value(0));
+  // No Restore or Apply, as the design has it: a tick on RTGS Rate 1 or 2
+  // saves and applies at once, and typing saves once it pauses. These hold
+  // what the server last took and whether the form has typing it has not.
+  const savedRef = useRef<SavedRates>({ mcx: 0, rtgs: 0, cash: 0, tax: 0, variant: 'plain' });
+  const hydratedRef = useRef(false);
+  const dirtyRef = useRef(false);
+  const editSeqRef = useRef(0);
+  const savingRef = useRef(false);
+  const saveAgainRef = useRef(false);
+  const [editTick, setEditTick] = useState(0);
 
   useEffect(() => {
     if (!visible) return;
+    // The server's figures fill the form on opening, and again whenever they
+    // change — but never over typing that is not saved yet.
+    if (hydratedRef.current && (dirtyRef.current || savingRef.current)) return;
+    hydratedRef.current = true;
 
     const mcx = toSafeNumber(mcxChange, 0);
     const rtgs = toSafeNumber(rtgsChange, 0);
@@ -318,9 +331,6 @@ export function GoldRateSettingsPanel({
     const rtgsForm = getSignAndAmount(rtgs + toSafeNumber(bhawRtgs, 0));
     const cashForm = getSignAndAmount(cash + toSafeNumber(bhawCash, 0));
 
-    setSavedMcxChange(mcx);
-    setSavedRtgsChange(rtgs);
-    setSavedCashChange(cash);
     setMcxSign(mcxForm.sign);
     setMcxAmount(mcxForm.amount);
     setRtgsSign(rtgsForm.sign);
@@ -328,10 +338,9 @@ export function GoldRateSettingsPanel({
     setCashSign(cashForm.sign);
     setCashAmount(cashForm.amount);
     const tax = toSafeNumber(rtgsTaxPercent, 0);
-    setSavedTaxPercent(tax);
     setTaxPercent(String(tax));
-    setSavedVariant(rtgsVariant);
     setVariant(rtgsVariant);
+    savedRef.current = { mcx, rtgs, cash, tax, variant: rtgsVariant };
   }, [visible, mcxChange, rtgsChange, cashChange, bhawRtgs, bhawCash, rtgsTaxPercent, rtgsVariant]);
 
   /**
@@ -360,12 +369,14 @@ export function GoldRateSettingsPanel({
     const parsed = Number.parseFloat(taxPercent);
     return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : 0;
   }, [taxPercent]);
-  const hasChanges =
-    !isSameNumber(mcxDraftChange, savedMcxChange) ||
-    !isSameNumber(rtgsDraftChange, savedRtgsChange) ||
-    !isSameNumber(cashDraftChange, savedCashChange) ||
-    !isSameNumber(taxDraft, savedTaxPercent) ||
-    variant !== savedVariant;
+  const draftRef = useRef<SavedRates>(savedRef.current);
+  draftRef.current = {
+    mcx: mcxDraftChange,
+    rtgs: rtgsDraftChange,
+    cash: cashDraftChange,
+    tax: taxDraft,
+    variant,
+  };
 
   const mcxLiveFinal = useMemo(
     () => mcxLiveRate + mcxDraftChange,
@@ -397,42 +408,72 @@ export function GoldRateSettingsPanel({
     [cashCurrentRate, cashDraftChange],
   );
 
-  useEffect(() => {
-    Animated.timing(barAnim, {
-      toValue: hasChanges ? 1 : 0,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-  }, [hasChanges, barAnim]);
+  /**
+   * Saves the form as it stands, when it differs from what the server has.
+   * One save at a time; a change made while one is on its way goes up
+   * straight after it.
+   */
+  const save = useCallback(async () => {
+    if (savingRef.current) {
+      saveAgainRef.current = true;
+      return;
+    }
+    const draft = draftRef.current;
+    const saved = savedRef.current;
+    const changed =
+      !isSameNumber(draft.mcx, saved.mcx) ||
+      !isSameNumber(draft.rtgs, saved.rtgs) ||
+      !isSameNumber(draft.cash, saved.cash) ||
+      !isSameNumber(draft.tax, saved.tax) ||
+      draft.variant !== saved.variant;
+    if (!changed) {
+      dirtyRef.current = false;
+      return;
+    }
+    const seq = editSeqRef.current;
+    savingRef.current = true;
+    try {
+      await onApply(draft.mcx, draft.rtgs, draft.cash, draft.tax, draft.variant);
+      savedRef.current = draft;
+      if (editSeqRef.current === seq) dirtyRef.current = false;
+    } finally {
+      savingRef.current = false;
+      if (saveAgainRef.current) {
+        saveAgainRef.current = false;
+        void save();
+      }
+    }
+  }, [onApply]);
+  const saveRef = useRef(save);
+  saveRef.current = save;
 
-  const handleRestore = () => {
-    const mcxForm = getSignAndAmount(savedMcxChange);
-    const rtgsForm = getSignAndAmount(savedRtgsChange + toSafeNumber(bhawRtgs, 0));
-    const cashForm = getSignAndAmount(savedCashChange + toSafeNumber(bhawCash, 0));
-    setMcxSign(mcxForm.sign);
-    setMcxAmount(mcxForm.amount);
-    setRtgsSign(rtgsForm.sign);
-    setRtgsAmount(rtgsForm.amount);
-    setCashSign(cashForm.sign);
-    setCashAmount(cashForm.amount);
-    setTaxPercent(String(savedTaxPercent));
-    setVariant(savedVariant);
+  /** A field the shop typed in: saved once the typing pauses. */
+  const edited = <T,>(setter: (value: T) => void) => (value: T) => {
+    setter(value);
+    dirtyRef.current = true;
+    editSeqRef.current += 1;
+    setEditTick((tick) => tick + 1);
   };
 
-  const handleApply = async () => {
-    if (saving || !hasChanges) return;
+  useEffect(() => {
+    if (!dirtyRef.current) return;
+    const timer = setTimeout(() => void saveRef.current(), SAVE_AFTER_TYPING_MS);
+    return () => clearTimeout(timer);
+  }, [editTick]);
 
-    setSaving(true);
-    try {
-      await onApply(mcxDraftChange, rtgsDraftChange, cashDraftChange, taxDraft, variant);
-      setSavedMcxChange(mcxDraftChange);
-      setSavedRtgsChange(rtgsDraftChange);
-      setSavedCashChange(cashDraftChange);
-      setSavedTaxPercent(taxDraft);
-      setSavedVariant(variant);
-    } finally {
-      setSaving(false);
-    }
+  // Typing not yet saved goes up when the page is left or closed.
+  useEffect(
+    () => () => {
+      if (dirtyRef.current) void saveRef.current();
+    },
+    [visible],
+  );
+
+  /** The tick on RTGS Rate 1 or 2 saves and applies at once. */
+  const selectVariant = (next: 'taxed' | 'plain') => {
+    setVariant(next);
+    draftRef.current = { ...draftRef.current, variant: next };
+    void save();
   };
 
   return (
@@ -457,8 +498,8 @@ export function GoldRateSettingsPanel({
           formula=""
           currentLabel="Current MCX Rate"
           finalLabel="Final MCX Rate"
-          onSignChange={setMcxSign}
-          onAmountChange={setMcxAmount}
+          onSignChange={edited(setMcxSign)}
+          onAmountChange={edited(setMcxAmount)}
         />
 
         <RateCard
@@ -473,8 +514,8 @@ export function GoldRateSettingsPanel({
           formula={''}
           currentLabel="Current Retail Rate"
           finalLabel="Final Retail Rate"
-          onSignChange={setCashSign}
-          onAmountChange={setCashAmount}
+          onSignChange={edited(setCashSign)}
+          onAmountChange={edited(setCashAmount)}
         />
 
         {/* RTGS in two forms, sharing one Change By: Rate 1 is the base as it
@@ -493,10 +534,10 @@ export function GoldRateSettingsPanel({
           formula={''}
           currentLabel="Current RTGS Rate"
           finalLabel="Final RTGS Rate 1"
-          onSignChange={setRtgsSign}
-          onAmountChange={setRtgsAmount}
+          onSignChange={edited(setRtgsSign)}
+          onAmountChange={edited(setRtgsAmount)}
           selected={variant === 'taxed'}
-          onSelect={() => setVariant('taxed')}
+          onSelect={() => selectVariant('taxed')}
         />
 
         <RateCard
@@ -512,18 +553,18 @@ export function GoldRateSettingsPanel({
           formula={''}
           currentLabel="Current RTGS Rate"
           finalLabel="Final RTGS Rate 2"
-          onSignChange={setRtgsSign}
-          onAmountChange={setRtgsAmount}
+          onSignChange={edited(setRtgsSign)}
+          onAmountChange={edited(setRtgsAmount)}
           selected={variant === 'plain'}
-          onSelect={() => setVariant('plain')}
+          onSelect={() => selectVariant('plain')}
           changeControl={
             <View style={styles.taxFieldWrap}>
               <Text style={styles.taxFieldLabel}>− Tax</Text>
               <TextInput
                 value={taxPercent}
-                onChangeText={(value) =>
-                  setTaxPercent(value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'))
-                }
+                onChangeText={edited((value: string) =>
+                  setTaxPercent(value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')),
+                )}
                 keyboardType="decimal-pad"
                 accessibilityLabel="Tax percent taken off RTGS Rate 2"
                 style={styles.taxFieldInput}
@@ -533,41 +574,6 @@ export function GoldRateSettingsPanel({
           }
         />
       </View>
-
-      <Animated.View
-        pointerEvents={hasChanges ? 'auto' : 'none'}
-        style={[
-          styles.bottomActionBar,
-          {
-            opacity: barAnim,
-            transform: [
-              {
-                translateY: barAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }),
-              },
-            ],
-          },
-        ]}
-      >
-        <Pressable
-          onPress={handleRestore}
-          disabled={saving}
-          style={[styles.restoreBtn, saving && styles.actionBtnDisabled]}
-        >
-          <Text style={styles.restoreBtnText}>Restore</Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => void handleApply()}
-          disabled={saving}
-          style={[styles.applyBtn, saving && styles.actionBtnDisabled]}
-        >
-          {saving ? (
-            <ActivityIndicator color={Colors.white} />
-          ) : (
-            <Text style={styles.applyBtnText}>Apply</Text>
-          )}
-        </Pressable>
-      </Animated.View>
     </>
   );
 }
@@ -792,7 +798,6 @@ const styles = StyleSheet.create({
   modalBody: {
     flexGrow: 1,
     gap: 6,
-    paddingBottom: GOLD_ACTION_BAR_HEIGHT,
   },
   rateCard: {
     borderWidth: 1,
@@ -986,56 +991,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textSecondary,
   },
-  bottomActionBar: {
-    position: 'absolute',
-    left: Spacing.lg,
-    right: Spacing.lg,
-    bottom: Spacing.lg,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: Spacing.md,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: '#E9DDC4',
-    borderRadius: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  restoreBtn: {
-    flex: 1,
-    height: 40,
-    borderWidth: 1,
-    borderColor: '#E9DDC4',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.white,
-  },
-  restoreBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#857A63',
-  },
-  applyBtn: {
-    flex: 1,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: BUTTON_GREEN,
-  },
   applyBtnText: {
     fontSize: 13,
     fontWeight: '600',
     color: Colors.white,
-  },
-  actionBtnDisabled: {
-    opacity: 0.7,
   },
   operatorDropdown: {
     flexDirection: 'row',
