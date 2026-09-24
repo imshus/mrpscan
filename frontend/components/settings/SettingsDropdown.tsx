@@ -75,7 +75,15 @@ function DropdownOptionBase({
         <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>{label}</Text>
         {mode === 'multi' ? (
           <View style={[styles.checkbox, selected && styles.checkboxChecked]}>
-            {selected ? <Check size={13} color={Colors.white} strokeWidth={3} /> : null}
+            {/* Always drawn, shown or hidden: creating the tick's vector on
+                each tap put it on screen a frame after the box turned gold,
+                which read as a blink. */}
+            <Check
+              size={13}
+              color={Colors.white}
+              strokeWidth={3}
+              style={{ opacity: selected ? 1 : 0 }}
+            />
           </View>
         ) : (
           <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
