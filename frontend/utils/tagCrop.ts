@@ -38,11 +38,11 @@ export async function uprightCopy(uri: string): Promise<UprightImage | null> {
 /**
  * Longest edge of the copy the finder is shown. Locating a label needs far
  * less than reading one: the upload path sends up to 2400px because the
- * reader magnifies digits, but the finder only has to say where the white
- * card is. The server shows the model a 512px thumbnail of it, so anything
- * past this only lengthened the upload.
+ * reader magnifies digits. The server shows the model this copy at up to
+ * 1024px in detail — a 512px thumbnail of a gallery photo left a small tag
+ * a few dozen pixels across, and the box came back on the fingers holding it.
  */
-const DETECTION_MAX_EDGE_PX = 768;
+const DETECTION_MAX_EDGE_PX = 1024;
 
 /**
  * A small, fast copy of the photo for the finder to look at, made straight
