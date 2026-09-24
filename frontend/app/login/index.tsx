@@ -40,7 +40,6 @@ function maskPhone(phone: string): string {
 export default function BusinessLoginScreen() {
   const router = useRouter();
   const {
-    rememberMe,
     savedPhone,
     setAuthenticated,
     setAuthToken,
@@ -177,10 +176,11 @@ export default function BusinessLoginScreen() {
       });
 
       // Remembered so the next sign-in is the MPIN alone, the way the mockup
-      // shows it. It is a phone number, not a credential.
-      if (rememberMe) {
-        setSavedCredentials(loginPhone);
-      }
+      // shows it — after the midnight sign-out above all. It is a phone
+      // number, not a credential. It used to wait on a "remember me" that no
+      // screen ever turns on, so a shop that signed in by typing its number
+      // was asked for all of it again the next morning.
+      setSavedCredentials(loginPhone);
 
       router.replace('/dashboard');
     } finally {

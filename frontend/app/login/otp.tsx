@@ -40,7 +40,6 @@ export default function LoginOtpScreen() {
     setIsSuper,
     setLoggedInEmployee,
     setSavedCredentials,
-    rememberMe,
     updateRegistration,
   } = useAuthStore();
 
@@ -93,9 +92,9 @@ export default function LoginOtpScreen() {
       ...(payload.fullName ? { fullName: payload.fullName } : {}),
     });
 
-    if (rememberMe) {
-      setSavedCredentials(mobile);
-    }
+    // Remembered so the next sign-in, after the midnight sign-out too, is
+    // the MPIN alone.
+    setSavedCredentials(mobile);
   };
 
   const verifyOtpAndLogin = async (otpValue: string) => {
