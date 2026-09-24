@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -277,10 +277,11 @@ Home keeps following ${following} until then.`,
         </Pressable>
         <Text style={styles.headerTitle}>{screenTitle}</Text>
       </View>
-      {/* The keyboard shrinks the list rather than covering it, and the
-          Add Bullion row scrolls itself into view when it opens, so the name
-          being typed is on screen. */}
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      {/* The keyboard-aware list alone lifts the name being typed above the
+          keyboard. It used to sit inside a KeyboardAvoidingView as well,
+          which shrank the list for the keyboard a second time: scrolled to
+          its end, the list then showed the Add Bullion field up under the
+          header with an empty page below it. */}
       <KeyboardAwareScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
@@ -333,7 +334,6 @@ Home keeps following ${following} until then.`,
           </>
         ) : null}
       </KeyboardAwareScrollView>
-      </KeyboardAvoidingView>
 
       <BottomNav />
 
