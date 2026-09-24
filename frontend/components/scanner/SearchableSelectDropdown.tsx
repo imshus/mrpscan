@@ -2,8 +2,10 @@ import { useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   Text,
   TextInput,
   View,
@@ -60,13 +62,6 @@ export function SearchableSelectDropdown({
   const { height, width: screenWidth } = useWindowDimensions();
   const triggerRef = useRef<View>(null);
   const [anchor, setAnchor] = useState<AnchorRect | null>(null);
-  // Where the popup's own layer starts, in the same window measurements as
-  // the field. On Android those start below the status bar while the popup
-  // is drawn from the top of the screen, so placing the list at the field's
-  // measured height put it a status bar too high — over the field itself.
-  // Measured once; the list is placed against it from then on.
-  const layerRef = useRef<View>(null);
-  const [layerTop, setLayerTop] = useState<number | null>(null);
 
   const hasValue = value.trim().length > 0;
 
@@ -95,18 +90,24 @@ export function SearchableSelectDropdown({
   const maxMenuHeight = Math.min(height * 0.62, 380);
 
   // The anchored list is drawn in a Modal, so it needs the trigger's position
-  // in window coordinates rather than its position inside the scroll view.
+  // on screen rather than its position inside the scroll view. The popup is
+  // drawn from the very top of the screen (statusBarTranslucent below), but
+  // Android's window measurements start under the status bar: taken as they
+  // come, the list sat a status bar too high, over the field it belongs to.
+  // A layer measured inside the popup to correct for it read the same way,
+  // so the status bar is added back directly.
   const openAnchored = () => {
     triggerRef.current?.measureInWindow((x, y, triggerWidth, triggerHeight) => {
-      setAnchor({ x, y, width: triggerWidth, height: triggerHeight });
+      const statusBar = Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0;
+      setAnchor({ x, y: y + statusBar, width: triggerWidth, height: triggerHeight });
       setOpen(true);
     });
   };
 
   const anchoredGeometry = () => {
-    if (!anchor || layerTop === null) return null;
+    if (!anchor) return null;
     const listHeight = Math.min(options.length, 6) * ANCHORED_ROW_HEIGHT + 8;
-    const fieldTop = anchor.y - layerTop;
+    const fieldTop = anchor.y;
     const below = fieldTop + anchor.height + 4;
     // Flip above the field when there is not enough room underneath.
     const fitsBelow = below + listHeight <= height - 12;
@@ -162,16 +163,14 @@ export function SearchableSelectDropdown({
       </Pressable>
 
       {anchored ? (
-        <Modal visible={open} transparent animationType="none" onRequestClose={closeMenu}>
-          <Pressable
-            ref={layerRef}
-            className="flex-1"
-            onPress={closeMenu}
-            onLayout={() => {
-              if (layerTop !== null) return;
-              layerRef.current?.measureInWindow((_x, y) => setLayerTop(y));
-            }}
-          >
+        <Modal
+          visible={open}
+          transparent
+          statusBarTranslucent
+          animationType="none"
+          onRequestClose={closeMenu}
+        >
+          <Pressable className="flex-1" onPress={closeMenu}>
             {geometry ? (
               <View
                 style={{
