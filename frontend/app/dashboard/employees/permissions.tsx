@@ -430,19 +430,19 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: Colors.textPrimary,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.white,
   },
   radioOuterSelected: {
-    borderColor: ACCENT_GOLD,
+    borderColor: Colors.textPrimary,
   },
   radioInner: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: ACCENT_GOLD,
+    backgroundColor: Colors.brandDeep,
   },
   radioDivider: {
     position: 'absolute',

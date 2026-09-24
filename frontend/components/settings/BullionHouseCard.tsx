@@ -127,11 +127,11 @@ const styles = StyleSheet.create({
     height: 19,
     borderRadius: 5,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: Colors.textPrimary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tickOn: { backgroundColor: Colors.accentGold, borderColor: Colors.accentGold },
+  tickOn: { backgroundColor: Colors.brandDeep, borderColor: Colors.textPrimary },
   tableHead: {
     flexDirection: 'row',
     justifyContent: 'space-between',

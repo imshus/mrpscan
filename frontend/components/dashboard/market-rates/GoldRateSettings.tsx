@@ -842,20 +842,20 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: Colors.textPrimary,
     backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
   },
   radioOuterSelected: {
-    borderColor: Colors.accentGold,
+    borderColor: Colors.textPrimary,
   },
   radioInner: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: Colors.accentGold,
+    backgroundColor: Colors.brandDeep,
   },
   taxInputWrap: {
     flexDirection: 'row',
