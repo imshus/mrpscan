@@ -60,6 +60,13 @@ export function SearchableSelectDropdown({
   const { height, width: screenWidth } = useWindowDimensions();
   const triggerRef = useRef<View>(null);
   const [anchor, setAnchor] = useState<AnchorRect | null>(null);
+  // Where the popup's own layer starts, in the same window measurements as
+  // the field. On Android those start below the status bar while the popup
+  // is drawn from the top of the screen, so placing the list at the field's
+  // measured height put it a status bar too high — over the field itself.
+  // Measured once; the list is placed against it from then on.
+  const layerRef = useRef<View>(null);
+  const [layerTop, setLayerTop] = useState<number | null>(null);
 
   const hasValue = value.trim().length > 0;
 
@@ -97,12 +104,13 @@ export function SearchableSelectDropdown({
   };
 
   const anchoredGeometry = () => {
-    if (!anchor) return null;
+    if (!anchor || layerTop === null) return null;
     const listHeight = Math.min(options.length, 6) * ANCHORED_ROW_HEIGHT + 8;
-    const below = anchor.y + anchor.height + 4;
+    const fieldTop = anchor.y - layerTop;
+    const below = fieldTop + anchor.height + 4;
     // Flip above the field when there is not enough room underneath.
     const fitsBelow = below + listHeight <= height - 12;
-    const top = fitsBelow ? below : Math.max(12, anchor.y - listHeight - 4);
+    const top = fitsBelow ? below : Math.max(12, fieldTop - listHeight - 4);
     const menuWidth = Math.max(anchor.width, 120);
     const left = Math.min(Math.max(8, anchor.x), Math.max(8, screenWidth - menuWidth - 8));
     return { top, left, width: menuWidth, listHeight };
@@ -155,7 +163,15 @@ export function SearchableSelectDropdown({
 
       {anchored ? (
         <Modal visible={open} transparent animationType="none" onRequestClose={closeMenu}>
-          <Pressable className="flex-1" onPress={closeMenu}>
+          <Pressable
+            ref={layerRef}
+            className="flex-1"
+            onPress={closeMenu}
+            onLayout={() => {
+              if (layerTop !== null) return;
+              layerRef.current?.measureInWindow((_x, y) => setLayerTop(y));
+            }}
+          >
             {geometry ? (
               <View
                 style={{
