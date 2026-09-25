@@ -329,7 +329,7 @@ export default function PurchaseLicenseScreen() {
                         than reading as the whole of what is due. */}
                     {/* The price on its own line; "+ GST" moves down under it
                         with the one-time note, at the shop's asking. */}
-                    <Feature text={displayPrice} note="Plus GST" sub="(one time purchase)" tone="paid" />
+                    <Feature text={displayPrice} note="Plus GST (18%)" sub="(one time purchase)" tone="paid" />
                   </View>
                   <Pressable
                     disabled={busyAction === 'purchase' || isPurchased}
