@@ -58,7 +58,8 @@ export function hasLiveBhaw(vendor: BhawVendor | null): boolean {
 function toNumber(value: unknown): number | null {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value);
+    // "1,53,052" reads as the server reads it; the sign stays.
+    const parsed = Number(value.replace(/,/g, ''));
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
@@ -150,10 +151,12 @@ export function houseMcxSell(vendor: BhawVendor | null): number | null {
 const SAME_CONTRACT_SPREAD = 0.004;
 
 /**
- * The MCX figure most houses agree on. Quotes are grouped by contract (within
- * SAME_CONTRACT_SPREAD of each other); the largest group wins, a tie going to
- * the lower group, the near month. Its lower median is returned — a real
- * quote, never an average across two contracts. Same rule as the server's
+ * The MCX figure most houses agree on. Each quote opens a window of the
+ * quotes within SAME_CONTRACT_SPREAD above it (one contract); the window
+ * holding the most houses wins, a tie going to the lower one, the near
+ * month. A window, not fixed groups, so one stale low board cannot split a
+ * real cluster and win the tie. Its lower median is returned — a real quote,
+ * never an average across two contracts. Same rule as the server's
  * bhaw.service majorityMcx.
  */
 export function majorityMcx(values: (number | null)[]): number | null {
@@ -161,14 +164,13 @@ export function majorityMcx(values: (number | null)[]): number | null {
     .filter((value): value is number => value !== null && Number.isFinite(value) && value > 0)
     .sort((a, b) => a - b);
   if (quotes.length === 0) return null;
-  const groups: number[][] = [];
-  for (const quote of quotes) {
-    const group = groups[groups.length - 1];
-    if (group && quote - group[0] <= group[0] * SAME_CONTRACT_SPREAD) group.push(quote);
-    else groups.push([quote]);
-  }
-  let best = groups[0];
-  for (const group of groups) if (group.length > best.length) best = group;
+  let best: number[] = [];
+  quotes.forEach((start, i) => {
+    const window = quotes.filter(
+      (quote, j) => j >= i && quote - start <= start * SAME_CONTRACT_SPREAD,
+    );
+    if (window.length > best.length) best = window;
+  });
   return Math.round(best[Math.floor((best.length - 1) / 2)]);
 }
 

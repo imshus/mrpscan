@@ -186,6 +186,7 @@ export function normalizeGoldRatesResponse(response: unknown): GoldRatesResponse
       rtgsRate2FinalRate: readNumber(rawTax.rtgsRate2FinalRate),
       rtgsFinalRate: readNumber(rawTax.rtgsFinalRate ?? rawTax.rtgs_final_rate),
       cashFinalRate: readNumber(rawTax.cashFinalRate ?? rawTax.cash_final_rate),
+      pricingMcxLiveRate: readNumber(rawTax.pricingMcxLiveRate),
     };
   }
 

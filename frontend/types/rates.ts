@@ -40,6 +40,12 @@ export interface TaxSettings {
   rtgsRate2FinalRate?: number;
   rtgsFinalRate?: number;
   cashFinalRate?: number;
+  /**
+   * The MCX the server built this shop's RTGS and Cash on, before the shop's
+   * own MCX change: the followed house's own line while its bhaw is live,
+   * else the market MCX. Absent from servers older than the majority MCX.
+   */
+  pricingMcxLiveRate?: number;
 }
 
 export interface SupremeChanges {

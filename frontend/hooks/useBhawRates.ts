@@ -3,7 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { useBhawStore, providerFromToggle } from '@/store/bhawStore';
 import { useMatricesStore } from '@/store/matricesStore';
 import type { BhawRates } from '@/utils/bhawCalculation';
-import { feedMcxSell, houseMcxSell, type BhawVendor } from '@/utils/bhawApi';
+import { feedMcxSell, hasLiveBhaw, houseMcxSell, type BhawVendor } from '@/utils/bhawApi';
 
 export interface UseBhawRatesInput {
   /**
@@ -17,6 +17,13 @@ export interface UseBhawRatesInput {
   /** Server-computed bhaw, used while the feed is unreachable. */
   fallbackCashBhaw?: number;
   fallbackRtgsBhaw?: number;
+  /**
+   * The MCX the server built this shop's RTGS and Cash on (the shop's MCX
+   * change included). The fallback bhaw belongs to it, so while the house's
+   * own line is not in hand RTGS and Cash are built here, not on the market
+   * MCX — a house's bhaw on another contract is a rate nobody charges.
+   */
+  serverPricingMcxRate?: number;
 }
 
 export interface UseBhawRatesResult extends BhawRates {
@@ -49,6 +56,7 @@ export function useBhawRates(input: UseBhawRatesInput): UseBhawRatesResult {
     businessRtgsChange = 0,
     fallbackCashBhaw = 0,
     fallbackRtgsBhaw = 0,
+    serverPricingMcxRate,
   } = input;
 
   const useJmd = useMatricesStore((state) => state.values.bhaw_source_jmd);
@@ -82,9 +90,12 @@ export function useBhawRates(input: UseBhawRatesInput): UseBhawRatesResult {
     // its bhaw is quoted over: houses do not all quote the same contract.
     const liveMcx = feedMcxSell(vendors);
     const mcxRate = liveMcx ?? mcxBaseRate;
-    const houseMcx = houseMcxSell(vendor);
+    // The house's own line only while its bhaw is live — the server's rule
+    // too; otherwise the base the server priced on, which the fallback bhaw
+    // belongs to (cold start, feed out, bhaw not yet published).
+    const houseMcx = hasLiveBhaw(vendor) ? houseMcxSell(vendor) : null;
     const rates = useBhawStore.getState().ratesFor({
-      mcxBaseRate: houseMcx ?? mcxRate,
+      mcxBaseRate: houseMcx ?? serverPricingMcxRate ?? mcxRate,
       businessCashChange,
       businessRtgsChange,
       fallbackCashBhaw,
@@ -105,6 +116,7 @@ export function useBhawRates(input: UseBhawRatesInput): UseBhawRatesResult {
     vendors,
     provider,
     mcxBaseRate,
+    serverPricingMcxRate,
     businessCashChange,
     businessRtgsChange,
     fallbackCashBhaw,

@@ -226,6 +226,11 @@ export default function DashboardScreen() {
     businessRtgsChange: goldTaxSettings?.rtgsChangeBy ?? 0,
     fallbackCashBhaw: supremeChanges?.cashChange ?? 0,
     fallbackRtgsBhaw: supremeChanges?.rtgsChange ?? 0,
+    serverPricingMcxRate:
+      goldTaxSettings?.pricingMcxLiveRate != null
+        ? goldTaxSettings.pricingMcxLiveRate +
+          (goldTaxSettings.mcxChangeBy ?? resolveMcxChangeValue(goldTaxSettings.mcxChange))
+        : undefined,
   });
 
   const rtgsFinalRate = useMemo(() => {

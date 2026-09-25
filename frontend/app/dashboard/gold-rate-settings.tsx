@@ -65,6 +65,10 @@ export default function GoldRateSettingsScreen() {
     businessRtgsChange: rtgsChange,
     fallbackCashBhaw: supremeCashChange,
     fallbackRtgsBhaw: supremeRtgsChange,
+    serverPricingMcxRate:
+      goldData?.taxSettings?.pricingMcxLiveRate != null
+        ? goldData.taxSettings.pricingMcxLiveRate + mcxChangeBy
+        : undefined,
   });
 
 
@@ -124,7 +128,9 @@ export default function GoldRateSettingsScreen() {
               <GoldRateSettingsPanel
                 visible
                 mcxLiveRate={mcxLiveRate}
-                pricingMcxRate={bhaw.houseMcx ?? mcxLiveRate}
+                pricingMcxRate={
+                  bhaw.houseMcx ?? goldData?.taxSettings?.pricingMcxLiveRate ?? mcxLiveRate
+                }
                 mcxChange={mcxChangeBy}
                 supremeRtgsChange={bhaw.rtgsBhaw}
                 supremeCashChange={bhaw.cashBhaw}
