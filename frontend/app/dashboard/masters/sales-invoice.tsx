@@ -31,15 +31,15 @@ import { friendlyServerMessage } from '@/utils/serverMessages';
 const OPTIONS: { value: SalesInvoiceLayout; parts: { text: string; tone?: 'muted' }[] }[] = [
   {
     value: 'SEPARATE',
-    parts: [{ text: 'Gold, Diamond, Labour' }, { text: ' + Tax', tone: 'muted' }],
+    parts: [{ text: 'Gold + Diamond + Labour' }, { text: ' + Tax', tone: 'muted' }],
   },
   {
     value: 'GOLD_WITH_LABOUR',
-    parts: [{ text: '(Gold + Labour), Diamond' }, { text: ' + Tax', tone: 'muted' }],
+    parts: [{ text: '(Gold + Labour) + Diamond' }, { text: ' + Tax', tone: 'muted' }],
   },
   {
     value: 'GOLD_WITH_WASTAGE',
-    parts: [{ text: '(Gold + Wastage), Diamond' }, { text: ' + Tax', tone: 'muted' }],
+    parts: [{ text: '(Gold + Wastage) + Diamond' }, { text: ' + Tax', tone: 'muted' }],
   },
 ];
 

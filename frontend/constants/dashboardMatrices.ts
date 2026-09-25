@@ -29,7 +29,8 @@ export const GOLD_MATRIX_SECTIONS: MatrixSection[] = [
     sectionLabel: '24K GOLD',
     // RTGS and Cash for 24K live on the MCX card itself; their rows were
     // removed here at the shop's asking. The keys remain for old records.
-    rows: [{ key: '24k_mcx', label: ' MCX Rate ' }],
+    // The MCX card carries 24K RTGS and Retail too, so its row names all three.
+    rows: [{ key: '24k_mcx', label: ' MCX/RTGS/Retail Rate ' }],
   },
   {
     sectionLabel: '22K GOLD',
