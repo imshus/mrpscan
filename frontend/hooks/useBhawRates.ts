@@ -3,7 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { useBhawStore, providerFromToggle } from '@/store/bhawStore';
 import { useMatricesStore } from '@/store/matricesStore';
 import type { BhawRates } from '@/utils/bhawCalculation';
-import { feedMcxSell, type BhawVendor } from '@/utils/bhawApi';
+import { feedMcxSell, houseMcxSell, type BhawVendor } from '@/utils/bhawApi';
 
 export interface UseBhawRatesInput {
   /**
@@ -25,6 +25,11 @@ export interface UseBhawRatesResult extends BhawRates {
   /** The MCX actually used: the board's own figure, or the API fallback. */
   mcxRate: number;
   mcxIsLive: boolean;
+  /**
+   * The followed house's own MCX line — what its bhaw is quoted over, and so
+   * what its RTGS and Cash are built on. Null when the house has none.
+   */
+  houseMcx: number | null;
   isLoaded: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -72,11 +77,14 @@ export function useBhawRates(input: UseBhawRatesInput): UseBhawRatesResult {
 
   return useMemo(() => {
     const vendor = vendors.find((entry) => entry.source === provider) ?? null;
-    // The board's MCX is the base for everything once the feed is live.
+    // The MCX shown is the market's — the figure most houses agree on. The
+    // house's RTGS and Cash are built on the house's own MCX line, the one
+    // its bhaw is quoted over: houses do not all quote the same contract.
     const liveMcx = feedMcxSell(vendors);
     const mcxRate = liveMcx ?? mcxBaseRate;
+    const houseMcx = houseMcxSell(vendor);
     const rates = useBhawStore.getState().ratesFor({
-      mcxBaseRate: mcxRate,
+      mcxBaseRate: houseMcx ?? mcxRate,
       businessCashChange,
       businessRtgsChange,
       fallbackCashBhaw,
@@ -88,6 +96,7 @@ export function useBhawRates(input: UseBhawRatesInput): UseBhawRatesResult {
       vendorName: vendor?.name ?? (provider === 'jmd_patil' ? 'JMD Patil' : 'Mega Bullion'),
       mcxRate,
       mcxIsLive: liveMcx !== null,
+      houseMcx,
       isLoaded,
       error,
       refresh,

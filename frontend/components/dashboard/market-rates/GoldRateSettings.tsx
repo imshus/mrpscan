@@ -254,6 +254,12 @@ function RateCard({
 interface GoldRateSettingsPanelProps {
   visible: boolean;
   mcxLiveRate: number;
+  /**
+   * The followed house's own MCX line, which its bhaw is quoted over; the
+   * RTGS and Retail cards are built on it. The MCX card shows mcxLiveRate,
+   * the market's figure. Defaults to mcxLiveRate.
+   */
+  pricingMcxRate?: number;
   mcxChange: number;
   supremeRtgsChange: number;
   supremeCashChange: number;
@@ -282,6 +288,7 @@ interface GoldRateSettingsPanelProps {
 export function GoldRateSettingsPanel({
   visible,
   mcxLiveRate,
+  pricingMcxRate,
   mcxChange,
   supremeRtgsChange,
   supremeCashChange,
@@ -383,13 +390,19 @@ export function GoldRateSettingsPanel({
     [mcxLiveRate, mcxDraftChange],
   );
 
+  // RTGS and Retail stand on the house's own MCX line: its bhaw is quoted
+  // over that line, and houses do not all quote the market's contract.
+  const pricingLiveFinal = useMemo(
+    () => (pricingMcxRate ?? mcxLiveRate) + mcxDraftChange,
+    [pricingMcxRate, mcxLiveRate, mcxDraftChange],
+  );
   const rtgsCurrentRate = useMemo(
-    () => mcxLiveFinal + supremeRtgsChange,
-    [mcxLiveFinal, supremeRtgsChange],
+    () => pricingLiveFinal + supremeRtgsChange,
+    [pricingLiveFinal, supremeRtgsChange],
   );
   const cashCurrentRate = useMemo(
-    () => mcxLiveFinal + supremeCashChange,
-    [mcxLiveFinal, supremeCashChange],
+    () => pricingLiveFinal + supremeCashChange,
+    [pricingLiveFinal, supremeCashChange],
   );
   // Both RTGS rates come off this base. Rate 1 is the base as it comes,
   // nothing on it; Rate 2 is the base LESS whatever percent is typed into

@@ -124,6 +124,7 @@ export default function GoldRateSettingsScreen() {
               <GoldRateSettingsPanel
                 visible
                 mcxLiveRate={mcxLiveRate}
+                pricingMcxRate={bhaw.houseMcx ?? mcxLiveRate}
                 mcxChange={mcxChangeBy}
                 supremeRtgsChange={bhaw.rtgsBhaw}
                 supremeCashChange={bhaw.cashBhaw}

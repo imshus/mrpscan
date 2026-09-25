@@ -136,18 +136,53 @@ export function selectVendor(
 }
 
 /**
- * The MCX figure the boards themselves print — the "Gold Future MCX" sell.
+ * One house's own "Gold Future MCX" sell, or null when it has not published
+ * one. The house's bhaw is quoted over this line, so its RTGS and Cash are
+ * built on it — whichever contract the house happens to quote.
+ */
+export function houseMcxSell(vendor: BhawVendor | null): number | null {
+  if (!vendor) return null;
+  const row = vendor.rows.find((entry) => /gold\s*future\s*mcx/i.test(entry.label));
+  return row && row.sell !== null && Number.isFinite(row.sell) && row.sell > 0 ? row.sell : null;
+}
+
+/** Quotes within this share of each other are taken as the same contract. */
+const SAME_CONTRACT_SPREAD = 0.004;
+
+/**
+ * The MCX figure most houses agree on. Quotes are grouped by contract (within
+ * SAME_CONTRACT_SPREAD of each other); the largest group wins, a tie going to
+ * the lower group, the near month. Its lower median is returned — a real
+ * quote, never an average across two contracts. Same rule as the server's
+ * bhaw.service majorityMcx.
+ */
+export function majorityMcx(values: (number | null)[]): number | null {
+  const quotes = values
+    .filter((value): value is number => value !== null && Number.isFinite(value) && value > 0)
+    .sort((a, b) => a - b);
+  if (quotes.length === 0) return null;
+  const groups: number[][] = [];
+  for (const quote of quotes) {
+    const group = groups[groups.length - 1];
+    if (group && quote - group[0] <= group[0] * SAME_CONTRACT_SPREAD) group.push(quote);
+    else groups.push([quote]);
+  }
+  let best = groups[0];
+  for (const group of groups) if (group.length > best.length) best = group;
+  return Math.round(best[Math.floor((best.length - 1) / 2)]);
+}
+
+/**
+ * The market's MCX off the boards — the figure the Home card prints.
  *
- * Every house on the feed carries the same MCX line, so the first one that
- * has it speaks for the market. This is the number the Home card shows: the
- * shop asked for the board's own figure, not the rates API's copy of it.
+ * The houses do not all quote the same contract: on 25 Sep 2026 JMD Patil's
+ * "Gold Future MCX" was the December contract (1,54,2xx) while the other
+ * three quoted the October near month (1,51,9xx), the figure market apps
+ * show. This used to take the first house on the feed — JMD, for every shop
+ * — so the card ran ~2,300 high. It is now the figure most houses agree on.
  */
 export function feedMcxSell(vendors: BhawVendor[]): number | null {
-  for (const vendor of vendors) {
-    const row = vendor.rows.find((entry) => /gold\s*future\s*mcx/i.test(entry.label));
-    if (row && row.sell !== null && Number.isFinite(row.sell)) return row.sell;
-  }
-  return null;
+  return majorityMcx(vendors.map(houseMcxSell));
 }
 
 /**
