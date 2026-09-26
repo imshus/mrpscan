@@ -22,7 +22,6 @@ import Animated, {
 
 import { MrpScanTagLogo } from '@/components/splash/MrpScanTagLogo';
 import { GradientView } from '@/components/ui/GradientView';
-import { PopupCloseButton } from '@/components/ui/PopupCloseButton';
 import { Colors, Fonts, Gradients, Spacing } from '@/constants/theme';
 
 /**
@@ -203,19 +202,14 @@ export function AuthSwitch({ prompt, linkText, onPress }: AuthSwitchProps) {
   );
 }
 
-/**
- * Dark toast with a green check (mockup `.success-toast`). With onClose it
- * carries a cross, and the screen moves on when it is tapped rather than on a
- * timer, at the shop's asking.
- */
-export function SuccessToast({ message, onClose }: { message: string; onClose?: () => void }) {
+/** Dark toast with a green check (mockup `.success-toast`). */
+export function SuccessToast({ message }: { message: string }) {
   return (
     <View style={styles.toast}>
       <View style={styles.toastCheck}>
         <Text style={styles.toastCheckMark}>✓</Text>
       </View>
       <Text style={styles.toastText}>{message}</Text>
-      {onClose ? <PopupCloseButton onPress={onClose} color="#FFFDF9" /> : null}
     </View>
   );
 }

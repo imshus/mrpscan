@@ -9,7 +9,6 @@ import {
   AuthErrorText,
   AuthField,
   AuthPrimaryButton,
-  SuccessToast,
   useShake,
 } from '@/components/auth/AuthKit';
 import { Reveal } from '@/components/auth/Reveal';
@@ -135,8 +134,8 @@ export default function SetMpinScreen() {
         triggerShake();
         return;
       }
-      // The message stays until its cross is tapped, which goes to Log In.
       setDone(true);
+      setTimeout(() => router.replace('/login'), 1400);
     } finally {
       setSaving(false);
     }
@@ -204,10 +203,9 @@ export default function SetMpinScreen() {
               </>
             ) : done ? (
               <Reveal d={1}>
-                <SuccessToast
-                  message="MPIN set. Close this to sign in with it."
-                  onClose={() => router.replace('/login')}
-                />
+                <Text style={styles.doneText}>
+                  MPIN set. Signing you back in…
+                </Text>
               </Reveal>
             ) : (
               <>

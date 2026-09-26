@@ -2,49 +2,47 @@ import { useEffect, useRef } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 
-import { PopupCloseButton } from '@/components/ui/PopupCloseButton';
-
 interface ProfileUpdatedPopupProps {
-  /** Called when it is closed, which is when the shop lands back on Profile. */
+  /** Called when it closes itself, which is when the shop lands back on Profile. */
   onDone: () => void;
+  duration?: number;
 }
 
 /**
  * The mockup's profile-updated toast (`#profileUpdatedToast`).
  *
- * It stays until it is closed, at the shop's asking — the cross, a tap, or
- * Back — and closing it puts the shop back on the Profile screen with the new
- * details on it, once however it is closed.
+ * No button, like the other popups here: it says what happened, closes itself
+ * and puts the shop back on the Profile screen with the new details on it.
  */
-export function ProfileUpdatedPopup({ onDone }: ProfileUpdatedPopupProps) {
+export function ProfileUpdatedPopup({ onDone, duration = 1800 }: ProfileUpdatedPopupProps) {
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.94)).current;
   const done = useRef(onDone);
   done.current = onDone;
-  const closed = useRef(false);
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
       Animated.spring(scale, { toValue: 1, friction: 7, tension: 90, useNativeDriver: true }),
     ]).start();
-  }, [opacity, scale]);
 
-  const close = () => {
-    if (closed.current) return;
-    closed.current = true;
-    done.current();
-  };
+    const timer = setTimeout(() => {
+      Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
+        done.current();
+      });
+    }, duration);
+
+    return () => clearTimeout(timer);
+  }, [duration, opacity, scale]);
 
   return (
-    <Modal transparent visible animationType="none" onRequestClose={close}>
-      <Pressable style={styles.backdrop} onPress={close} accessibilityRole="button">
+    <Modal transparent visible animationType="none" onRequestClose={() => done.current()}>
+      <Pressable style={styles.backdrop} onPress={() => done.current()} accessibilityRole="button">
         <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
           <View style={styles.iconWrap}>
             <Check size={15} color="#FFFFFF" strokeWidth={3} />
           </View>
           <Text style={styles.title}>Your profile has been updated successfully</Text>
-          <PopupCloseButton onPress={close} color="#FFFDF9" />
         </Animated.View>
       </Pressable>
     </Modal>

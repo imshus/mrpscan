@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -47,8 +47,6 @@ export default function OtpPhoneScreen() {
   const [otpError, setOtpError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [accountCreated, setAccountCreated] = useState(false);
-  // What closing the account-created message does: sign in, once.
-  const signInNext = useRef<(() => void) | null>(null);
   const [resendLoading, setResendLoading] = useState(false);
   const [devOtpRefresh, setDevOtpRefresh] = useState(0);
   const devOtp = useDevOtp(businessId, 'phone', devOtpRefresh);
@@ -125,16 +123,15 @@ export default function OtpPhoneScreen() {
         userIdError: undefined,
         passwordError: undefined,
       });
+      setAccountCreated(true);
       const loginId = registration.userId ?? '';
       if (loginId) setSavedCredentials(loginId);
 
       const session = await prepareSignInAfterSignup(loginId, password);
-      // The message stays until its cross is tapped, which signs in.
-      signInNext.current = () => {
+      setTimeout(() => {
         if (session) session.activate();
         else router.replace('/login');
-      };
-      setAccountCreated(true);
+      }, 1600);
     } finally {
       setVerifying(false);
     }
@@ -206,14 +203,7 @@ export default function OtpPhoneScreen() {
           ) : null}
 
           {accountCreated ? (
-            <SuccessToast
-              message="Your account has been created successfully"
-              onClose={() => {
-                const next = signInNext.current;
-                signInNext.current = null;
-                next?.();
-              }}
-            />
+            <SuccessToast message="Your account has been created successfully" />
           ) : null}
         </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
