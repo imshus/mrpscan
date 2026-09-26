@@ -15,6 +15,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { applyUploadSigning } from './apply-upload-signing.mjs';
+import { clearStaleAutolinking } from './clear-stale-autolinking.mjs';
 import { patchAudioApi } from './patch-audio-api.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -162,6 +163,7 @@ process.env.ANDROID_SDK_ROOT = androidSdk;
 
 const expoCli = join(projectRoot, 'node_modules', 'expo', 'bin', 'cli');
 run(process.execPath, [expoCli, 'prebuild', '--platform', 'android', '--no-install']);
+clearStaleAutolinking(androidRoot);
 
 writeFileSync(join(androidRoot, 'local.properties'), `sdk.dir=${toGradlePath(androidSdk)}\n`);
 // Same signature as the Play bundle when the upload key exists, so a phone can

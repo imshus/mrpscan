@@ -13,6 +13,7 @@ import { useBhawRates } from '@/hooks/useBhawRates';
 import { useRequireMarketRatesAccess } from '@/hooks/useMarketRatesAccess';
 import { useGetGoldRatesQuery, useUpdateGoldTaxSettingsMutation } from '@/store/goldRatesApi';
 import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 export default function GoldRateSettingsScreen() {
   const access = useRequireMarketRatesAccess();
@@ -64,6 +65,10 @@ export default function GoldRateSettingsScreen() {
     businessRtgsChange: rtgsChange,
     fallbackCashBhaw: supremeCashChange,
     fallbackRtgsBhaw: supremeRtgsChange,
+    serverPricingMcxRate:
+      goldData?.taxSettings?.pricingMcxLiveRate != null
+        ? goldData.taxSettings.pricingMcxLiveRate + mcxChangeBy
+        : undefined,
   });
 
 
@@ -79,6 +84,8 @@ export default function GoldRateSettingsScreen() {
     nextMcxChange: number,
     nextRtgsChange: number,
     nextCashChange: number,
+    nextRtgsTaxPercent: number,
+    nextRtgsVariant: 'taxed' | 'plain',
   ) => {
     try {
       await updateGoldTaxSettingsMutation({
@@ -88,6 +95,8 @@ export default function GoldRateSettingsScreen() {
         },
         rtgsChangeBy: nextRtgsChange,
         cashChangeBy: nextCashChange,
+        rtgsTaxPercent: nextRtgsTaxPercent,
+        rtgsVariant: nextRtgsVariant,
       }).unwrap();
       showToast('Gold rate settings updated', 'success');
     } catch (error) {
@@ -102,7 +111,7 @@ export default function GoldRateSettingsScreen() {
 
       {/* The header stays put; only the content scrolls beneath it. */}
       <PageHeader title="Gold Rate Settings" />
-      <ScrollView contentContainerStyle={screenStyles.scrollContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView contentContainerStyle={screenStyles.scrollContent} showsVerticalScrollIndicator={false}>
 
         <View style={screenStyles.screenSection}>
           {showLoading ? (
@@ -119,10 +128,15 @@ export default function GoldRateSettingsScreen() {
               <GoldRateSettingsPanel
                 visible
                 mcxLiveRate={mcxLiveRate}
+                pricingMcxRate={
+                  bhaw.houseMcx ?? goldData?.taxSettings?.pricingMcxLiveRate ?? mcxLiveRate
+                }
                 mcxChange={mcxChangeBy}
                 supremeRtgsChange={bhaw.rtgsBhaw}
                 supremeCashChange={bhaw.cashBhaw}
                 rtgsChange={rtgsChange}
+                rtgsTaxPercent={goldData?.taxSettings?.rtgsTaxPercent ?? 0}
+                rtgsVariant={goldData?.taxSettings?.rtgsVariant ?? 'plain'}
                 cashChange={cashChange}
                 bhawSourceName={bhaw.vendorName}
                 bhawRtgs={bhaw.rtgsBhaw}
@@ -136,7 +150,7 @@ export default function GoldRateSettingsScreen() {
             </View>
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <ToastNotification
         visible={toast.visible}

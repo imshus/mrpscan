@@ -21,6 +21,7 @@ import { useScannerStore } from '@/store/scannerStore';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { resolveScannedKarat } from '@/utils/formulaUtils';
 import { buildWishlistItem, buildTagCode } from '@/utils/wishlistUtils';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import { parseStoneArraysFromStructuredData } from '@/utils/stoneSequenceUtils';
 
 export default function ScanResultsScreen() {
@@ -145,7 +146,7 @@ export default function ScanResultsScreen() {
               />
             </CardHeader>
 
-            <ScrollView
+            <KeyboardAwareScrollView
               style={styles.scroll}
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
@@ -160,7 +161,7 @@ export default function ScanResultsScreen() {
                 editable={false}
                 gstNote={demoResult?.gstNote ?? 'MRP = Gold + Stones + Labour + Other Charges'}
               />
-            </ScrollView>
+            </KeyboardAwareScrollView>
 
             <CardFooter>
               <View style={styles.footerRow}>

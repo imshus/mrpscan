@@ -27,6 +27,7 @@ import { useScannerStore } from '@/store/scannerStore';
 import { useInvoiceComputation } from '@/hooks/useInvoiceComputation';
 import { getBusinessProfile } from '@/utils/businessProfile';
 import { formatItemIdentity, resolveItemIdentity } from '@/utils/itemIdentity';
+import { HSN_JEWELLERY } from '@/components/invoice/InvoiceSheet';
 import { fetchBusinessProfile, type BusinessProfileResponse } from '@/utils/businessProfileApi';
 import { invoicePdfFileName } from '@/utils/invoicePdfCache';
 import { currentScopeGeneration } from '@/utils/userScopedStorage';
@@ -151,6 +152,7 @@ export default function InvoiceSheetScreen() {
         note: index === 0 && itemLabel && !row.note ? itemLabel : row.note,
         qty: row.qty,
         qty_unit: row.qtyUnit === 'g' ? 'Gms.' : row.qtyUnit === 'Ct' ? 'CT' : row.qtyUnit,
+        hsn: HSN_JEWELLERY,
         price: row.price,
         amount: row.amount,
       })) as InvoiceLineItemPayload[],

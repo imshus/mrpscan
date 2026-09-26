@@ -15,6 +15,13 @@ import { ItemCodePicker } from '@/components/scanner/ItemCodePicker';
 import { useShake } from '@/components/auth/AuthKit';
 import { useFormulaStore } from '@/store/formulaStore';
 import type { ScanItemData, StoneEntry, StructuredScanData } from '@/types/scanner';
+
+/**
+ * Two firm pulses. The single 80ms tap this used to be was felt on one
+ * phone and not on the shop's: red boxes with nothing in the hand, which
+ * read as "no vibration" for the packet code and the labour rate.
+ */
+const REFUSAL_BUZZ = [0, 110, 70, 110];
 import { resolveItemIdentity } from '@/utils/itemIdentity';
 import { DIAMOND_SHAPE_OPTIONS, type StoneSelectOption } from '@/constants/stoneRateOptions';
 import { fetchDiamondRates, fetchGoldRates } from '@/utils/ratesApi';
@@ -34,6 +41,7 @@ import {
   sumStoneWeights,
   updateStoneEntryAtIndex,
 } from '@/utils/stoneSequenceUtils';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 interface ReviewScannedResultsModalProps {
   scanData: ScanItemData;
@@ -331,19 +339,39 @@ export function ReviewScannedResultsModal({
    * very fields it is pointing at, and have to be dismissed to reach them.
    */
   const [showMissingStones, setShowMissingStones] = useState(false);
+  // Where the review content starts, so a refused Generate can carry the eye
+  // to the boxes it just turned red. A buzz alone left the shop looking at
+  // the bottom of a long card wondering what had happened.
+  const scrollRef = useRef<ScrollView>(null);
+  const finalTabY = useRef(0);
+  const sectionY = useRef({ stones: 0, labour: 0 });
+  const handleSectionLayout = useCallback((section: 'stones' | 'labour', y: number) => {
+    sectionY.current[section] = y;
+  }, []);
   const [shakeStyle, triggerShake] = useShake();
   const hasIncompleteStones = useMemo(() => {
-    // A diamond needs its packet code as well: it is what the stone is looked
-    // up by in the shop's own rate table. The labour rate is on the same
-    // footing — an empty one prices the making at nothing — so it goes red
-    // with the same shake instead of billing a piece with no labour on it.
+    // A diamond needs its weight and its rate; its packet code is not a
+    // condition — the shop asked that it never go red or buzz. The labour
+    // rate is on the same footing as the stones — an empty one prices the
+    // making at nothing — so it goes red with the same shake instead of
+    // billing a piece with no labour on it.
     const bare = (entry: StoneEntry) => !entry.weight?.trim() || !entry.rate?.trim();
+    // Colorstones were in this list and are not any more, at the shop's
+    // asking: a colourstone left blank no longer stops an invoice, and its
+    // boxes are not marked. Diamonds and the labour rate still are — those
+    // price at nothing and would quietly undercharge the piece.
     return (
-      diamondEntries.some((entry) => bare(entry) || !entry.packetCode?.trim()) ||
-      colorstoneEntries.some(bare) ||
+      diamondEntries.some(bare) ||
       !scanData.labourChargeAmount?.trim()
     );
-  }, [diamondEntries, colorstoneEntries, scanData.labourChargeAmount]);
+  }, [diamondEntries, scanData.labourChargeAmount]);
+
+  // The diamonds come first on the card, so they win when both are empty.
+  const firstMissingSection = useMemo<'stones' | 'labour'>(() => {
+    const bare = (entry: StoneEntry) => !entry.weight?.trim() || !entry.rate?.trim();
+    const diamondsIncomplete = diamondEntries.some(bare);
+    return diamondsIncomplete ? 'stones' : 'labour';
+  }, [diamondEntries]);
 
   // Once everything is filled the red goes away on its own, so a shop that
   // fixes it is not left looking at a warning about nothing.
@@ -357,11 +385,18 @@ export function ReviewScannedResultsModal({
       // gives, which is a language the hand already knows.
       setShowMissingStones(true);
       triggerShake();
-      Vibration.vibrate(80);
+      Vibration.vibrate(REFUSAL_BUZZ);
+      // To the section that went red, not to the top of the card — that
+      // landed on the gold rows every time, which are not what was marked.
+      // A little above it, so its heading is on screen too.
+      scrollRef.current?.scrollTo({
+        y: Math.max(finalTabY.current + sectionY.current[firstMissingSection] - 16, 0),
+        animated: true,
+      });
       return;
     }
     onGenerateInvoice();
-  }, [hasIncompleteStones, onGenerateInvoice, triggerShake]);
+  }, [hasIncompleteStones, firstMissingSection, onGenerateInvoice, triggerShake]);
 
   useEffect(() => {
     // Nothing to resolve until the tag's own karat is in: writing the 14K
@@ -502,7 +537,7 @@ export function ReviewScannedResultsModal({
           <View style={styles.itemTile}>
             <Text style={styles.itemTileLabel}>Item Name</Text>
             <Text style={styles.itemTileValue} numberOfLines={1}>
-              {itemIdentity.name}
+              {itemIdentity.name || '—'}
             </Text>
           </View>
           {/* The code the tag printed; tapping lists every saved item code. */}
@@ -535,13 +570,19 @@ export function ReviewScannedResultsModal({
       </CardHeader>
 
       {/* Scrollable review content */}
-      <ScrollView
+      <KeyboardAwareScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Animated.View style={shakeStyle}>
+        <Animated.View
+          style={shakeStyle}
+          onLayout={(event) => {
+            finalTabY.current = event.nativeEvent.layout.y;
+          }}
+        >
         <ScannerFinalTab
           scanData={scanData}
           structuredData={structuredData}
@@ -560,6 +601,7 @@ export function ReviewScannedResultsModal({
           clubDiamonds={scanData.clubDiamonds}
           clubColorstones={scanData.clubColorstones}
           highlightMissingStones={showMissingStones}
+          onSectionLayout={handleSectionLayout}
           onToggleClubDiamonds={toggleDiamondClubbing}
           onToggleClubColorstones={toggleColorstoneClubbing}
           onFieldChange={handleUserFieldChange}
@@ -602,7 +644,7 @@ export function ReviewScannedResultsModal({
             style={styles.primaryAction}
           />
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </FloatingCard>
   );
 }

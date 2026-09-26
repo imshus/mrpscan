@@ -21,6 +21,7 @@ import {
   setMpinWithResetToken,
   verifyPasswordResetOtp,
 } from '@/utils/authApi';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 /**
  * Sets the four digits an owner signs in with, proved by an OTP to their
@@ -143,7 +144,7 @@ export default function SetMpinScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={styles.flex} behavior="padding">
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
@@ -239,7 +240,7 @@ export default function SetMpinScreen() {
               </>
             )}
           </Animated.View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

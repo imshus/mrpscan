@@ -20,6 +20,7 @@ import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useAuthStore } from '@/store/authStore';
 import type { SubscriptionOverview } from '@/types/subscription';
 import {
+  createApplicationPurchaseOrder,
   createCreditRechargeOrder,
   fetchSubscriptionOverview,
   isPaymentCancellation,
@@ -28,6 +29,7 @@ import {
   validateRazorpayPaymentResult,
   verifyPayment,
 } from '@/utils/subscriptionApi';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import Constants from 'expo-constants';
 
 type RazorpayModule = {
@@ -104,7 +106,9 @@ export default function SubscriptionManagerScreen() {
   const userRole = useAuthStore((s) => s.userRole);
 
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  // Which action is under way, so only its own button says so: a recharge
+  // used to turn the Start Free Trial button into 'Please wait...' as well.
+  const [busyAction, setBusyAction] = useState<'trial' | 'recharge' | 'purchase' | null>(null);
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null);
   const [rechargeAmount, setRechargeAmount] = useState('');
   const [selectedAmount, setSelectedAmount] = useState<number>(MIN_RECHARGE);
@@ -135,7 +139,7 @@ export default function SubscriptionManagerScreen() {
     orderId: string;
     amountInPaise: number;
     razorpayKeyId?: string | null;
-  }) => {
+  }, description = 'Credit Recharge') => {
     const RazorpayCheckout = getRazorpayCheckout();
     if (!RazorpayCheckout) {
       throw new Error('Razorpay SDK missing. Install react-native-razorpay to continue.');
@@ -157,7 +161,7 @@ export default function SubscriptionManagerScreen() {
         // The business phone on file: fewer taps in the sheet, and Razorpay's
         // risk checks see a consistent customer.
         prefill: { contact: String(useAuthStore.getState().registration?.phone ?? '') },
-        description: 'Credit Recharge',
+        description,
         theme: { color: Colors.primary },
       });
       payment = validateRazorpayPaymentResult(checkoutResult, order.orderId);
@@ -177,8 +181,8 @@ export default function SubscriptionManagerScreen() {
     await verifyPayment(order.orderId, payment.razorpay_payment_id, payment.razorpay_signature);
   }, []);
 
-  const runAction = async (action: () => Promise<void>) => {
-    setBusy(true);
+  const runAction = async (kind: 'trial' | 'recharge' | 'purchase', action: () => Promise<void>) => {
+    setBusyAction(kind);
     try {
       await action();
       await loadData();
@@ -188,12 +192,12 @@ export default function SubscriptionManagerScreen() {
         Alert.alert('Credits & Subscription', message);
       }
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   };
 
   const handleStartTrial = async () => {
-    await runAction(async () => {
+    await runAction('trial', async () => {
       const started = await startFreeTrial();
       Alert.alert(
         'Free Trial Started',
@@ -216,10 +220,29 @@ export default function SubscriptionManagerScreen() {
       return;
     }
 
-    await runAction(async () => {
+    await runAction('recharge', async () => {
       assertRazorpayReady();
       const order = await createCreditRechargeOrder(amount);
       await runRazorpayCheckout(order);
+    });
+  };
+
+  // Purchase Now: straight into Razorpay for the licence, at the shop's
+  // asking — the same order, checkout and verification as the license page,
+  // without the stop on it. The server sets the charge (price + 18% GST).
+  const handlePurchaseNow = async () => {
+    await runAction('purchase', async () => {
+      assertRazorpayReady();
+      const order = await createApplicationPurchaseOrder();
+      await runRazorpayCheckout(order, 'Application License Purchase');
+      const refreshed = await fetchSubscriptionOverview();
+      if (refreshed.status !== 'PERMANENT_LICENSE' && !refreshed.applicationPurchased) {
+        throw new Error('Payment verified. License activation is pending. Please refresh shortly.');
+      }
+      Alert.alert(
+        'License Activated',
+        'Your application license is active and bonus wallet credits have been added.',
+      );
     });
   };
 
@@ -280,7 +303,7 @@ export default function SubscriptionManagerScreen() {
             <ActivityIndicator color={Colors.primary} />
           </View>
         ) : (
-          <ScrollView
+          <KeyboardAwareScrollView
             contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomContentSpacing }]}
             showsVerticalScrollIndicator={false}
           >
@@ -303,8 +326,8 @@ export default function SubscriptionManagerScreen() {
                 <Text style={styles.walletValue}>{currencyDisplay(overview.creditBalance)}</Text>
 
                 {showStartTrial ? (
-                  <Pressable disabled={busy} onPress={handleStartTrial} style={styles.heroBtn}>
-                    <Text style={styles.heroBtnText}>{busy ? 'Please wait...' : 'Start Free Trial'}</Text>
+                  <Pressable disabled={busyAction !== null} onPress={handleStartTrial} style={styles.heroBtn}>
+                    <Text style={styles.heroBtnText}>{busyAction === 'trial' ? 'Please wait...' : 'Start Free Trial'}</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -393,8 +416,8 @@ export default function SubscriptionManagerScreen() {
                     <Text style={styles.customHint}>Credits are added instantly after successful payment.</Text>
                   </View>
 
-                  <Pressable disabled={busy} onPress={handleRecharge} style={[styles.primaryBtn, busy && styles.primaryBtnDisabled]}>
-                    <Text style={styles.primaryBtnText}>{busy ? 'Processing...' : rechargeButtonLabel}</Text>
+                  <Pressable disabled={busyAction !== null} onPress={handleRecharge} style={[styles.primaryBtn, busyAction === 'recharge' && styles.primaryBtnDisabled]}>
+                    <Text style={styles.primaryBtnText}>{busyAction === 'recharge' ? 'Processing...' : rechargeButtonLabel}</Text>
                   </Pressable>
                 </View>
               ) : null}
@@ -406,7 +429,9 @@ export default function SubscriptionManagerScreen() {
                       <ShieldCheck size={18} color={Colors.primary} />
                       <View>
                         <Text style={styles.linkTitle}>Purchase Application License</Text>
-                        <Text style={styles.linkSubtitle}>₹12,000 one-time purchase</Text>
+                        <Text style={styles.linkSubtitle}>
+                          {currencyNoDecimal(overview?.applicationPrice || 12000)} + GST (18%) · one-time purchase
+                        </Text>
                       </View>
                     </View>
                     <ArrowRight size={18} color={Colors.textSecondary} />
@@ -441,8 +466,21 @@ export default function SubscriptionManagerScreen() {
                   </View>
                 </Pressable>
               </View>
+
+              {canManagePayments && !isPermanent ? (
+                <Pressable
+                  disabled={busyAction !== null}
+                  onPress={() => void handlePurchaseNow()}
+                  accessibilityRole="button"
+                  style={[styles.purchaseNowBtn, busyAction === 'purchase' && styles.primaryBtnDisabled]}
+                >
+                  <Text style={styles.purchaseNowText}>
+                    {busyAction === 'purchase' ? 'Processing...' : 'Purchase Now'}
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
       </View>
 
@@ -780,6 +818,24 @@ const styles = StyleSheet.create({
   },
   linkStack: {
     gap: 6,
+  },
+  purchaseNowBtn: {
+    marginTop: 14,
+    height: 52,
+    borderRadius: 999,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#A81F17',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 5,
+  },
+  purchaseNowText: {
+    color: Colors.white,
+    fontWeight: '800',
+    fontSize: 16,
   },
   linkCard: {
     borderWidth: 1,

@@ -27,6 +27,7 @@ import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { Colors, Fonts } from '@/constants/theme';
 import { lookupAccount, recoverUserId, sendLoginOtp } from '@/utils/authApi';
 import { validatePhone } from '@/utils/validation';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 const OTP_LENGTH = 6;
 
@@ -141,7 +142,7 @@ export default function ForgotUserIdScreen() {
         style={styles.flex}
         behavior="padding"
       >
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
@@ -207,7 +208,7 @@ export default function ForgotUserIdScreen() {
               </>
             ) : null}
           </Animated.View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

@@ -2,8 +2,10 @@ import { useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   Text,
   TextInput,
   View,
@@ -88,10 +90,16 @@ export function SearchableSelectDropdown({
   const maxMenuHeight = Math.min(height * 0.62, 380);
 
   // The anchored list is drawn in a Modal, so it needs the trigger's position
-  // in window coordinates rather than its position inside the scroll view.
+  // on screen rather than its position inside the scroll view. The popup is
+  // drawn from the very top of the screen (statusBarTranslucent below), but
+  // Android's window measurements start under the status bar: taken as they
+  // come, the list sat a status bar too high, over the field it belongs to.
+  // A layer measured inside the popup to correct for it read the same way,
+  // so the status bar is added back directly.
   const openAnchored = () => {
     triggerRef.current?.measureInWindow((x, y, triggerWidth, triggerHeight) => {
-      setAnchor({ x, y, width: triggerWidth, height: triggerHeight });
+      const statusBar = Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0;
+      setAnchor({ x, y: y + statusBar, width: triggerWidth, height: triggerHeight });
       setOpen(true);
     });
   };
@@ -99,10 +107,11 @@ export function SearchableSelectDropdown({
   const anchoredGeometry = () => {
     if (!anchor) return null;
     const listHeight = Math.min(options.length, 6) * ANCHORED_ROW_HEIGHT + 8;
-    const below = anchor.y + anchor.height + 4;
+    const fieldTop = anchor.y;
+    const below = fieldTop + anchor.height + 4;
     // Flip above the field when there is not enough room underneath.
     const fitsBelow = below + listHeight <= height - 12;
-    const top = fitsBelow ? below : Math.max(12, anchor.y - listHeight - 4);
+    const top = fitsBelow ? below : Math.max(12, fieldTop - listHeight - 4);
     const menuWidth = Math.max(anchor.width, 120);
     const left = Math.min(Math.max(8, anchor.x), Math.max(8, screenWidth - menuWidth - 8));
     return { top, left, width: menuWidth, listHeight };
@@ -154,7 +163,13 @@ export function SearchableSelectDropdown({
       </Pressable>
 
       {anchored ? (
-        <Modal visible={open} transparent animationType="none" onRequestClose={closeMenu}>
+        <Modal
+          visible={open}
+          transparent
+          statusBarTranslucent
+          animationType="none"
+          onRequestClose={closeMenu}
+        >
           <Pressable className="flex-1" onPress={closeMenu}>
             {geometry ? (
               <View

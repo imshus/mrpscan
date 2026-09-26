@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 
@@ -7,7 +7,7 @@ import { PrimaryGreenButton } from '@/components/scanner/PrimaryGreenButton';
 import { ScanScreenWrapper } from '@/components/scanner/ScanScreenWrapper';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { useInvoiceComputation } from '@/hooks/useInvoiceComputation';
-import { fetchEInvoiceSettings } from '@/utils/businessProfileApi';
+import { MessagePopup } from '@/components/settings/MessagePopup';
 import { useInvoiceStore } from '@/store/invoiceStore';
 import { useScannerStore } from '@/store/scannerStore';
 import { parseStoneArraysFromStructuredData } from '@/utils/stoneSequenceUtils';
@@ -20,6 +20,7 @@ export default function InvoicePreviewScreen() {
   const scanId = useScannerStore((state) => state.scanId);
 
   const customer = useInvoiceStore((state) => state.customer);
+  const [eInvoiceNote, setEInvoiceNote] = useState<string | null>(null);
 
   // One source of truth for the figures: the same hook the preview sheet and
   // the generated PDF read, so this screen can never guard on a total the
@@ -59,38 +60,14 @@ export default function InvoicePreviewScreen() {
     router.push('/dashboard/scanner/invoice-sheet' as Href);
   };
 
-  // Same sheet, but the government registration needs a buyer GSTIN —
-  // e-invoicing exists only for B2B bills — and the shop's own IRP
-  // credentials, without which nothing can be signed. Both are checked at
-  // the door, so a QR-less document never comes as a surprise.
-  const handleEInvoice = async () => {
-    if (!validateBasics()) return;
-    const settings = await fetchEInvoiceSettings();
-    // Test mode needs neither credentials nor a buyer GSTIN: the specimen
-    // band stands in the account's own registered GST number and details.
-    if (settings?.mode === 'test') {
-      router.push('/dashboard/scanner/invoice-sheet' as Href);
-      return;
-    }
-    if (customer.customerGstin.trim().length !== 15) {
-      Alert.alert(
-        'E-Invoice',
-        'A live e-invoice is registered with the government against the customer\'s GSTIN: enter their 15-character GST number first.',
-      );
-      return;
-    }
-    if (!settings?.enabled) {
-      Alert.alert(
-        'E-Invoicing not set up',
-        'The signed QR comes from the government IRP, which needs your IRP API credentials. Save them under Business Profile → E-Invoicing and switch on Register B2B invoices.',
-        [
-          { text: 'Later', style: 'cancel' },
-          { text: 'Open Business Profile', onPress: () => router.push('/dashboard/business-profile' as Href) },
-        ],
-      );
-      return;
-    }
-    router.push('/dashboard/scanner/invoice-sheet' as Href);
+  // E-invoicing is not offered from the app yet: the government registration
+  // is arranged with the team directly. The button says so in a popup that
+  // stays until its cross is tapped, and does nothing else, at the shop's asking.
+  const handleEInvoice = () => {
+    // The shop's own wording, verbatim.
+    setEInvoiceNote(
+      'This feature Required Government regulation. Write Email for this feature, Our main team representative will connect with you shortly.',
+    );
   };
 
   return (
@@ -113,6 +90,8 @@ export default function InvoicePreviewScreen() {
         colorstones={colorstones}
         scanId={scanId}
       />
+
+      <MessagePopup message={eInvoiceNote} onDismiss={() => setEInvoiceNote(null)} />
     </ScanScreenWrapper>
   );
 }

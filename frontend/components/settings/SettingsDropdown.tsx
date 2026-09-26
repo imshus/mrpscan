@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react-native';
 
@@ -53,8 +53,11 @@ interface DropdownOptionProps {
   showDivider?: boolean;
 }
 
-/** One line in an open dropdown. */
-export function DropdownOption({
+/**
+ * One line in an open dropdown. Memoised: a tap on one row re-renders that
+ * row alone, not every row in the list, which is what made a tick lag.
+ */
+function DropdownOptionBase({
   label,
   selected,
   onPress,
@@ -72,7 +75,15 @@ export function DropdownOption({
         <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>{label}</Text>
         {mode === 'multi' ? (
           <View style={[styles.checkbox, selected && styles.checkboxChecked]}>
-            {selected ? <Check size={13} color={Colors.white} strokeWidth={3} /> : null}
+            {/* Always drawn, shown or hidden: creating the tick's vector on
+                each tap put it on screen a frame after the box turned gold,
+                which read as a blink. */}
+            <Check
+              size={13}
+              color={Colors.white}
+              strokeWidth={3}
+              style={{ opacity: selected ? 1 : 0 }}
+            />
           </View>
         ) : (
           <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
@@ -84,6 +95,8 @@ export function DropdownOption({
     </>
   );
 }
+
+export const DropdownOption = memo(DropdownOptionBase);
 
 const styles = StyleSheet.create({
   field: {
@@ -150,32 +163,32 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 7,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: Colors.textPrimary,
     backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxChecked: {
-    backgroundColor: Colors.metalGold,
-    borderColor: Colors.metalGold,
+    backgroundColor: Colors.brandDeep,
+    borderColor: Colors.textPrimary,
   },
   radioOuter: {
     width: 22,
     height: 22,
     borderRadius: 11,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: Colors.textPrimary,
     backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
   radioOuterSelected: {
-    borderColor: Colors.metalGold,
+    borderColor: Colors.textPrimary,
   },
   radioInner: {
     width: 11,
     height: 11,
     borderRadius: 5.5,
-    backgroundColor: Colors.metalGold,
+    backgroundColor: Colors.brandDeep,
   },
 });

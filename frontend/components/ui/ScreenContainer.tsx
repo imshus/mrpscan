@@ -1,5 +1,6 @@
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 import { BackgroundPattern } from './BackgroundPattern';
 
@@ -11,14 +12,14 @@ interface ScreenContainerProps {
 
 export function ScreenContainer({ children, scrollable = false, className = '' }: ScreenContainerProps) {
   const content = scrollable ? (
-    <ScrollView
+    <KeyboardAwareScrollView
       className="flex-1"
       contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
       {children}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   ) : (
     <View className="flex-1">{children}</View>
   );

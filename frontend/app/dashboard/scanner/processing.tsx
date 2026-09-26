@@ -333,16 +333,17 @@ export default function ProcessingScreen() {
       // still awaited; it was started before the analysis and is normally done.
       await formulaSyncPromise;
 
-      // The tag's number is looked up in the shop's saved item codes, and a
-      // match names and numbers the piece from that record rather than from
-      // a name composed out of its karat and stone.
+      // The tag's number is looked up in the shop's saved item codes. A
+      // match names the piece from that record, and its code is the tag's
+      // whole number — the saved word and the running number after it —
+      // rather than the word alone.
       if (adjustedScanData.sku.trim()) {
         const saved = findItemByCode(adjustedScanData.sku, await cataloguePromise);
         if (saved) {
           adjustedScanData = {
             ...adjustedScanData,
             itemName: saved.description,
-            itemCode: saved.code,
+            itemCode: adjustedScanData.sku.trim(),
           };
         }
       }

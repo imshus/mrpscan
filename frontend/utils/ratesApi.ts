@@ -180,8 +180,13 @@ export function normalizeGoldRatesResponse(response: unknown): GoldRatesResponse
       rtgsChangeBy: readNumber(rawTax.rtgsChangeBy ?? rawTax.rtgs_change_by) ?? 0,
       cashChangeBy: readNumber(rawTax.cashChangeBy ?? rawTax.cash_change_by) ?? 0,
       scannerCalculationUse: (readString(rawTax.scannerCalculationUse) || 'rtgs') as 'rtgs' | 'cash',
+      rtgsTaxPercent: readNumber(rawTax.rtgsTaxPercent),
+      rtgsVariant: readString(rawTax.rtgsVariant) === 'taxed' ? 'taxed' : 'plain',
+      rtgsRate1FinalRate: readNumber(rawTax.rtgsRate1FinalRate),
+      rtgsRate2FinalRate: readNumber(rawTax.rtgsRate2FinalRate),
       rtgsFinalRate: readNumber(rawTax.rtgsFinalRate ?? rawTax.rtgs_final_rate),
       cashFinalRate: readNumber(rawTax.cashFinalRate ?? rawTax.cash_final_rate),
+      pricingMcxLiveRate: readNumber(rawTax.pricingMcxLiveRate),
     };
   }
 
@@ -284,6 +289,8 @@ export async function updateGoldTaxSettings(payload: UpdateGoldTaxSettingsPayloa
       rtgsChangeBy: readNumber((rawTax as Record<string, unknown>).rtgsChangeBy) ?? 0,
       cashChangeBy: readNumber((rawTax as Record<string, unknown>).cashChangeBy) ?? 0,
       scannerCalculationUse: (readString((rawTax as Record<string, unknown>).scannerCalculationUse) || 'rtgs') as 'rtgs' | 'cash',
+      rtgsTaxPercent: readNumber((rawTax as Record<string, unknown>).rtgsTaxPercent),
+      rtgsVariant: readString((rawTax as Record<string, unknown>).rtgsVariant) === 'taxed' ? 'taxed' : 'plain',
     };
   }
   throw new Error('Invalid tax settings response from server');

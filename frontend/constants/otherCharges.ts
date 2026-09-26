@@ -3,8 +3,10 @@
  * Order is important and should be maintained
  */
 export const DEFAULT_CHARGE_OPTIONS = [
+  'Kundan',
+  'Polki',
   'Hall Marking',
-  'HUIV',
+  'HUID',
   'Certificate',
   'Packing',
   'Insurance',

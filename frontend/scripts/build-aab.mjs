@@ -15,6 +15,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { applyUploadSigning } from './apply-upload-signing.mjs';
+import { clearStaleAutolinking } from './clear-stale-autolinking.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, '..');
@@ -33,6 +34,8 @@ if (architectures.length === 0 || architectures.some((value) => !supportedArchit
 }
 
 process.env.NODE_ENV ??= 'production';
+// The Play Store package; app.config.js applies it at prebuild.
+process.env.ANDROID_PACKAGE ??= 'com.mrpscan';
 
 // Metro and Gradle write to fixed release-bundle paths. Two simultaneous APK
 // builds can corrupt the bundle or source map, so fail early with a clear error.
@@ -161,6 +164,7 @@ process.env.ANDROID_SDK_ROOT = androidSdk;
 
 const expoCli = join(projectRoot, 'node_modules', 'expo', 'bin', 'cli');
 run(process.execPath, [expoCli, 'prebuild', '--platform', 'android', '--no-install']);
+clearStaleAutolinking(androidRoot);
 
 writeFileSync(join(androidRoot, 'local.properties'), `sdk.dir=${toGradlePath(androidSdk)}\n`);
 

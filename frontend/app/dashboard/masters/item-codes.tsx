@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Pencil, Trash2 } from 'lucide-react-native';
+import { Check, Pencil, Trash2 } from 'lucide-react-native';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
@@ -22,6 +22,7 @@ import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { invalidateItemCatalogue } from '@/utils/itemCatalogue';
 import { deleteItemCode, fetchItemCodes, saveItemCode } from '@/utils/itemCodeApi';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 /** One editable line of the sheet; unsaved rows have no id yet. */
 interface RowState {
@@ -32,8 +33,10 @@ interface RowState {
   /** Held as typed, so a cleared field stays cleared rather than becoming 0. */
   wastage: string;
   labour: string;
-  /** Edited since its last save; blur, + Add and leaving the screen flush it. */
+  /** Edited since its last save; the tick, + Add and leaving the screen flush it. */
   dirty?: boolean;
+  /** Unlocked by the pencil; the tick saves and locks again. New rows start open. */
+  editing?: boolean;
 }
 
 let rowKeySeed = 0;
@@ -46,6 +49,7 @@ const emptyRow = (): RowState => ({
   code: '',
   wastage: '',
   labour: '',
+  editing: true,
 });
 
 /** A stored figure as it belongs in a text field: absent reads as empty. */
@@ -66,7 +70,6 @@ export default function ItemCodesScreen() {
   // The cleanup that saves on leaving the screen reads through this ref,
   // because the closure it was created in holds stale rows.
   // The name field of each row, so the pencil can put the cursor in it.
-  const nameInputs = useRef(new Map<string, TextInput | null>());
   const rowsRef = useRef<RowState[]>([]);
   rowsRef.current = rows;
   // Autosave: each keystroke restarts a short timer for that line, so a
@@ -228,12 +231,22 @@ export default function ItemCodesScreen() {
     setRows((current) => [...current, emptyRow()]);
   };
 
+  // The shop's rule for this screen: the pencil unlocks a row, and the tick
+  // saves it and locks it again. Nothing saves on its own in between.
+  const startEditing = (row: RowState) => updateRow(row.key, { editing: true });
+  const submitRow = async (row: RowState) => {
+    if (!row.code.trim()) return;
+    await persistRow(row);
+    const latest = rowsRef.current.find((r) => r.key === row.key);
+    if (latest && !latest.dirty) updateRow(row.key, { editing: false });
+  };
+
   return (
     <SafeAreaView style={screenStyles.safeArea} edges={['top']}>
       <BackgroundPattern />
       <PageHeader title="Item Code" subtitle="Settings → Masters → Item Code" />
       <KeyboardAvoidingView style={styles.flex} behavior="padding">
-        <ScrollView
+        <KeyboardAwareScrollView
           style={styles.flex}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -252,9 +265,9 @@ export default function ItemCodesScreen() {
                   {saveState === 'saving' ? 'Saving…' : 'Last save failed — check your connection'}
                 </Text>
               ) : null}
-              <View style={styles.sheetCard}>
+              <View style={styles.list}>
                 {rows.map((row, index) => (
-                  <View key={row.key} style={[styles.row, index > 0 && styles.rowDivider]}>
+                  <View key={row.key} style={styles.rowCard}>
                     <Text style={styles.rowIndex}>{index + 1}.</Text>
 
                     <View style={styles.fieldGrid}>
@@ -262,16 +275,12 @@ export default function ItemCodesScreen() {
                         <View style={styles.field}>
                           <Text style={styles.fieldLabel}>ITEM NAME</Text>
                           <TextInput
-                            ref={(node) => {
-                              nameInputs.current.set(row.key, node);
-                            }}
                             value={row.name}
                             onChangeText={(text) => {
                               updateRow(row.key, { name: text, dirty: true });
-                              scheduleAutosave(row.key);
                             }}
-                            onBlur={() => handleBlur(row.key)}
-                            style={styles.fieldInput}
+                            editable={row.editing === true}
+                            style={[styles.fieldInput, !row.editing && styles.fieldInputLocked]}
                           />
                         </View>
                         <View style={styles.field}>
@@ -280,12 +289,11 @@ export default function ItemCodesScreen() {
                             value={row.code}
                             onChangeText={(text) => {
                               updateRow(row.key, { code: text.toUpperCase(), dirty: true });
-                              scheduleAutosave(row.key);
                             }}
-                            onBlur={() => handleBlur(row.key)}
                             autoCapitalize="characters"
                             maxLength={40}
-                            style={styles.fieldInput}
+                            editable={row.editing === true}
+                            style={[styles.fieldInput, !row.editing && styles.fieldInputLocked]}
                           />
                         </View>
                       </View>
@@ -299,12 +307,11 @@ export default function ItemCodesScreen() {
                               // A percentage: digits and one point, nothing else.
                               const cleaned = text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                               updateRow(row.key, { wastage: cleaned, dirty: true });
-                              scheduleAutosave(row.key);
                             }}
-                            onBlur={() => handleBlur(row.key)}
                             keyboardType="decimal-pad"
                             maxLength={6}
-                            style={styles.fieldInput}
+                            editable={row.editing === true}
+                            style={[styles.fieldInput, !row.editing && styles.fieldInputLocked]}
                           />
                         </View>
                         <View style={styles.field}>
@@ -314,30 +321,47 @@ export default function ItemCodesScreen() {
                             onChangeText={(text) => {
                               const cleaned = text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                               updateRow(row.key, { labour: cleaned, dirty: true });
-                              scheduleAutosave(row.key);
                             }}
-                            onBlur={() => handleBlur(row.key)}
                             keyboardType="decimal-pad"
                             maxLength={9}
-                            style={styles.fieldInput}
+                            editable={row.editing === true}
+                            style={[styles.fieldInput, !row.editing && styles.fieldInputLocked]}
                           />
                         </View>
                       </View>
                     </View>
 
                     <View style={styles.rowActions}>
-                      <Pressable onPress={() => handleDelete(row)} hitSlop={8} style={styles.trashBtn}>
-                        <Trash2 size={15} color={Colors.brandDeep} />
-                      </Pressable>
-                      {/* Every field is editable where it stands, so this puts
-                          the cursor in the row rather than opening a form. */}
+                      {(() => {
+                        const canSubmit = row.editing === true && row.code.trim().length > 0;
+                        return (
+                          <Pressable
+                            onPress={() => void submitRow(row)}
+                            disabled={!canSubmit}
+                            hitSlop={6}
+                            accessibilityLabel="Save this item code"
+                            style={[styles.iconBtn, canSubmit ? styles.iconBtnSave : styles.iconBtnDisabled]}
+                          >
+                            <Check size={15} color={canSubmit ? '#1A8A4A' : Colors.textMuted} strokeWidth={2.5} />
+                          </Pressable>
+                        );
+                      })()}
                       <Pressable
-                        onPress={() => nameInputs.current.get(row.key)?.focus()}
-                        hitSlop={8}
+                        onPress={() => startEditing(row)}
+                        disabled={row.editing === true}
+                        hitSlop={6}
                         accessibilityLabel="Edit this item code"
-                        style={styles.editBtn}
+                        style={[styles.iconBtn, row.editing && styles.iconBtnDisabled]}
                       >
-                        <Pencil size={14} color={Colors.textSecondary} />
+                        <Pencil size={15} color={Colors.textMuted} />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleDelete(row)}
+                        hitSlop={6}
+                        accessibilityLabel="Delete this item code"
+                        style={[styles.iconBtn, styles.iconBtnDanger]}
+                      >
+                        <Trash2 size={15} color={Colors.brandDeep} />
                       </Pressable>
                     </View>
                   </View>
@@ -349,7 +373,7 @@ export default function ItemCodesScreen() {
               </TouchableOpacity>
             </>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
       <BottomNav />
     </SafeAreaView>
@@ -375,91 +399,96 @@ const styles = StyleSheet.create({
   saveStatusFailed: {
     color: Colors.dangerText,
   },
-  sheetCard: {
+  // The design's .itc-list / .itc-row: each line its own card, 12 apart.
+  list: {
+    gap: 12,
+  },
+  rowCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
     backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.tile,
-    paddingHorizontal: Spacing.lg,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.md,
-    paddingVertical: Spacing.md,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   fieldGrid: {
     flex: 1,
-    gap: Spacing.md,
+    gap: 10,
   },
   fieldPair: {
     flexDirection: 'row',
-    gap: Spacing.md,
+    gap: 10,
   },
   rowActions: {
     gap: 8,
-    paddingTop: 6,
-  },
-  editBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: Colors.backgroundAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowDivider: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    marginTop: 2,
   },
   rowIndex: {
     fontSize: 13,
     fontWeight: '800',
-    color: Colors.textPrimary,
-    paddingTop: 14,
-    width: 20,
+    color: Colors.textMuted,
+    marginTop: 4,
+    minWidth: 16,
   },
   field: {
     flex: 1,
   },
   fieldLabel: {
     fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.6,
+    fontWeight: '700',
+    letterSpacing: 0.3,
     color: Colors.textMuted,
+    textTransform: 'uppercase',
+    marginBottom: 5,
   },
   fieldInput: {
     fontSize: 13,
-    fontWeight: '700',
     color: Colors.textPrimary,
-    paddingVertical: 6,
+    paddingVertical: 4,
     paddingHorizontal: 0,
-    borderBottomWidth: 1,
+    borderBottomWidth: 1.5,
     borderBottomColor: Colors.border,
     borderStyle: 'dashed',
   },
-  trashBtn: {
+  // A locked row reads in the muted ink, as the design's read-only field does.
+  fieldInputLocked: {
+    color: Colors.textMuted,
+  },
+  // The design's .itc-icon-btn: a 30px circle on the page's alt ground.
+  iconBtn: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: Colors.dangerBg,
+    backgroundColor: Colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
+  },
+  iconBtnDisabled: {
+    opacity: 0.4,
+  },
+  iconBtnSave: {
+    backgroundColor: 'rgba(26,138,74,0.16)',
+  },
+  iconBtnDanger: {
+    backgroundColor: 'rgba(217,41,31,0.1)',
   },
   addBtn: {
-    borderWidth: 1,
+    height: 46,
+    borderWidth: 1.5,
     borderColor: Colors.border,
     borderStyle: 'dashed',
     borderRadius: 999,
     backgroundColor: Colors.backgroundAlt,
     alignItems: 'center',
-    paddingVertical: 12,
+    justifyContent: 'center',
   },
   addBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: Colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.brandDeep,
   },
   centerState: {
     paddingVertical: 32,

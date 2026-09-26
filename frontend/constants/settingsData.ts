@@ -55,7 +55,7 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
   },
   {
     id: 'subscription',
-    title: 'Credits & Subscription',
+    title: 'Purchase/Accts/Credits',
     icon: Crown,
     route: '/dashboard/subscription-manager',
   },

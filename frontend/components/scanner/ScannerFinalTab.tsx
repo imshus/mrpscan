@@ -3,7 +3,6 @@ import { Pressable, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 
 import {
-  FinalLabourAmountTile,
   getLaborValuesFromScanData,
   LaborSection,
   type LaborSectionValues,
@@ -58,6 +57,12 @@ interface ScannerFinalTabProps {
   clubDiamonds?: boolean;
   /** Turns the empty, needed stone boxes red once Generate Invoice is tried. */
   highlightMissingStones?: boolean;
+  /**
+   * Where a section starts, measured from the top of this tab. A refused
+   * Generate uses it to scroll to the boxes it marked: scrolling to the tab
+   * itself landed on the gold section every time, which is not what turned red.
+   */
+  onSectionLayout?: (section: 'stones' | 'labour', y: number) => void;
   clubColorstones?: boolean;
   onToggleClubDiamonds?: (enabled: boolean) => void;
   onToggleClubColorstones?: (enabled: boolean) => void;
@@ -88,6 +93,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
   calculationRateAccess = 'both',
   clubDiamonds = false,
   highlightMissingStones = false,
+  onSectionLayout,
   clubColorstones = false,
   onToggleClubDiamonds,
   onToggleClubColorstones,
@@ -270,6 +276,9 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
           {/* The entry object itself is the values prop: updateStoneEntryAtIndex
               keeps untouched entries by reference, so sibling rows stay memoized
               while one row is being typed into. */}
+          <View
+            onLayout={(event) => onSectionLayout?.('stones', event.nativeEvent.layout.y)}
+          >
           {diamondBlocks.map((block, idx) => (
             <StoneTypeRowCard
               key={`diamond-${block.index}`}
@@ -286,6 +295,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
               onRateErrorChange={onRateErrorChange}
             />
           ))}
+          </View>
 
           {colorstones.length > 1 || clubColorstones ? (
             <View className="mb-3 rounded-[14px] border border-border bg-white px-3.5 py-3">
@@ -310,7 +320,8 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
               key={`colorstone-${block.index}`}
               title={clubColorstones ? 'Colorstone' : `Colorstone ${idx + 1}`}
               stoneType="colorstone"
-              missing={highlightMissingStones}
+              // Colorstones are not marked red at the shop's asking: only the
+              // diamond rows and the labour rate hold Generate back.
               entryIndex={block.index}
               sequenceIndex={diamondBlocks.length + idx}
               values={block.entry}
@@ -326,6 +337,9 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
       )}
 
       {editable ? (
+        <View
+          onLayout={(event) => onSectionLayout?.('labour', event.nativeEvent.layout.y)}
+        >
         <LaborSection
           values={laborValues}
           onChange={handleLaborChange}
@@ -335,6 +349,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
           goldAmountDisplay={pricing.goldBasePriceDisplay}
           missing={highlightMissingStones}
         />
+        </View>
       ) : (
         <LabourChargeResultSection pricing={pricing} />
       )}
@@ -348,17 +363,12 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
         editable={editable}
         percentOverride={scanData.wastagePercent}
         onPercentChange={(text) => onFieldChange?.('wastagePercent', text)}
+        selectedCode={scanData.wastageCode}
+        onCodeChange={(code, percent) => {
+          onFieldChange?.('wastageCode', code);
+          onFieldChange?.('wastagePercent', percent === null ? '' : String(percent));
+        }}
       />
-
-      {/* Moved below Wastage at the shop's asking: the two tiles read as one
-          block of charges, and the total strip closes them off. */}
-      {editable ? (
-        <FinalLabourAmountTile
-          values={laborValues}
-          grossWeightGrams={scanData.grossWt}
-          netWeightGrams={scanData.netWt}
-        />
-      ) : null}
 
       {editable ? (
         <OtherChargesSection

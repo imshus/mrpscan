@@ -29,6 +29,7 @@ import {
 } from '@/utils/subscriptionApi';
 import { friendlyServerMessage } from '@/utils/serverMessages';
 import Constants from 'expo-constants';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 type RazorpayModule = {
   open: (options: Record<string, unknown>) => Promise<unknown>;
@@ -75,9 +76,14 @@ function toPurchaseState(overview: SubscriptionOverview | null): 'LOADING' | 'PE
   return 'CAN_PURCHASE';
 }
 
-/** Flat panel fills — the right-side stop of each mockup gradient (see Surfaces). */
-const TRIAL_PANEL_GRADIENT = [Surfaces.metallic];
-const PREMIUM_PANEL_GRADIENT = [Surfaces.premium];
+/**
+ * The two panels' gradients, measured off the shop's design: khaki, light at
+ * the top to deep at the foot, for the trial; coral to deep red for the
+ * subscription. Drawn as real gradients on this one card, at the shop's
+ * asking, while the rest of the app stays flat.
+ */
+const TRIAL_PANEL_GRADIENT = ['#F8F5EB', '#E6DBC3', '#C7B792'];
+const PREMIUM_PANEL_GRADIENT = ['#E9AA9A', '#BE5B4A', Surfaces.premium];
 
 export default function PurchaseLicenseScreen() {
   const router = useRouter();
@@ -85,7 +91,9 @@ export default function PurchaseLicenseScreen() {
   const userRole = useAuthStore((s) => s.userRole);
 
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  // Which action is under way, so only its own button says so: a recharge
+  // used to turn Purchase Now into 'Processing…' as well.
+  const [busyAction, setBusyAction] = useState<'purchase' | 'recharge' | null>(null);
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null);
 
   const canManagePayments = userRole === 'business';
@@ -165,7 +173,7 @@ export default function PurchaseLicenseScreen() {
       return;
     }
 
-    setBusy(true);
+    setBusyAction('purchase');
     try {
       assertRazorpayReady();
       const order = await createApplicationPurchaseOrder();
@@ -190,7 +198,7 @@ export default function PurchaseLicenseScreen() {
         Alert.alert('License Purchase', message);
       }
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }, [canManagePayments, router, runRazorpayCheckout]);
 
@@ -211,7 +219,7 @@ export default function PurchaseLicenseScreen() {
       return;
     }
 
-    setBusy(true);
+    setBusyAction('recharge');
     try {
       assertRazorpayReady();
       const order = await createCreditRechargeOrder(rechargeValue);
@@ -227,7 +235,7 @@ export default function PurchaseLicenseScreen() {
         );
       }
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }, [canManagePayments, loadOverview, rechargeReady, rechargeValue, runRazorpayCheckout]);
 
@@ -240,7 +248,7 @@ export default function PurchaseLicenseScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.flex}
         contentContainerStyle={styles.screen}
         showsVerticalScrollIndicator={false}
@@ -280,6 +288,8 @@ export default function PurchaseLicenseScreen() {
                 {/* Free trial — what they have now */}
                 <GradientView
                   colors={TRIAL_PANEL_GRADIENT}
+                  forceGradient
+                  sheen={0}
                   style={styles.panel}
                 >
                   <Text style={styles.trialHeading}>Free Trial</Text>
@@ -299,6 +309,8 @@ export default function PurchaseLicenseScreen() {
                 {/* Paid licence */}
                 <GradientView
                   colors={PREMIUM_PANEL_GRADIENT}
+                  forceGradient
+                  sheen={0}
                   style={styles.panel}
                 >
                   <Text
@@ -315,21 +327,23 @@ export default function PurchaseLicenseScreen() {
                     <Feature text="+ Everything in Free trial" tone="paid" />
                     {/* GST is charged on top, so the figure says so rather
                         than reading as the whole of what is due. */}
-                    <Feature text={`${displayPrice} + GST`} sub="(one time purchase)" tone="paid" />
+                    {/* The price on its own line; "+ GST" moves down under it
+                        with the one-time note, at the shop's asking. */}
+                    <Feature text={displayPrice} note="Plus GST (18%)" sub="(one time purchase)" tone="paid" />
                   </View>
                   <Pressable
-                    disabled={busy || isPurchased}
+                    disabled={busyAction === 'purchase' || isPurchased}
                     onPress={handlePurchase}
                     style={[
                       styles.purchaseBtn,
                       styles.panelAction,
-                      (busy || isPurchased) && styles.btnDisabled,
+                      (busyAction === 'purchase' || isPurchased) && styles.btnDisabled,
                     ]}
                   >
                     <Text style={styles.purchaseBtnText}>
                       {isPurchased
                         ? 'Already Purchased'
-                        : busy
+                        : busyAction === 'purchase'
                           ? 'Processing…'
                           : 'Purchase Now'}
                     </Text>
@@ -399,11 +413,11 @@ export default function PurchaseLicenseScreen() {
 
                   <Pressable
                     onPress={handleRecharge}
-                    disabled={busy || !rechargeReady}
-                    style={[styles.rechargeBtn, (busy || !rechargeReady) && styles.btnDisabled]}
+                    disabled={busyAction !== null || !rechargeReady}
+                    style={[styles.rechargeBtn, (busyAction !== null || !rechargeReady) && styles.btnDisabled]}
                   >
                     <Text style={styles.rechargeBtnText}>
-                      {busy ? 'Processing…' : 'Recharge Now'}
+                      {busyAction === 'recharge' ? 'Processing…' : 'Recharge Now'}
                     </Text>
                   </Pressable>
                 </View>
@@ -411,7 +425,7 @@ export default function PurchaseLicenseScreen() {
             </View>
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
@@ -419,10 +433,12 @@ export default function PurchaseLicenseScreen() {
 type FeatureProps = {
   text: string;
   sub?: string;
+  /** A bold line under the text, above `sub` — "+ GST" under the price. */
+  note?: string;
   tone: 'trial' | 'paid';
 };
 
-function Feature({ text, sub, tone }: FeatureProps) {
+function Feature({ text, sub, note, tone }: FeatureProps) {
   const paid = tone === 'paid';
   return (
     <View style={styles.featureRow}>
@@ -442,6 +458,9 @@ function Feature({ text, sub, tone }: FeatureProps) {
         >
           {text}
         </Text>
+        {note ? (
+          <Text style={[styles.featureText, paid && styles.featureTextPaid, styles.featureNote]}>{note}</Text>
+        ) : null}
         {sub ? <Text style={styles.featureSub}>{sub}</Text> : null}
       </View>
     </View>
@@ -531,7 +550,8 @@ const styles = StyleSheet.create({
   orText: { fontSize: 10, fontWeight: '800', color: Colors.textSecondary },
   featureTextWrap: { flex: 1 },
   featureTextPaid: { color: Colors.white },
-  featurePrice: { fontSize: 16, lineHeight: 19, fontWeight: '900' },
+  featurePrice: { fontSize: 18, lineHeight: 22, fontWeight: '900' },
+  featureNote: { fontSize: 14, lineHeight: 18, fontWeight: '800', marginTop: 2 },
   featureSub: {
     fontSize: 10,
     lineHeight: 13,

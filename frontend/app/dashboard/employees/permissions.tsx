@@ -230,8 +230,8 @@ export default function EmployeePermissionsScreen() {
           <View style={styles.radioGroup}>
             {[
               { value: 'rtgs', label: 'RTGS Rate Only' },
-              { value: 'cash', label: 'Cash Rate Only' },
-              { value: 'both', label: 'Both RTGS & Cash Rate' },
+              { value: 'cash', label: 'Retail Rate Only' },
+              { value: 'both', label: 'Both RTGS & Retail Rate' },
             ].map((option, index) => {
               const selected = rateOption === option.value;
               return (
@@ -430,19 +430,19 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: Colors.textPrimary,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.white,
   },
   radioOuterSelected: {
-    borderColor: ACCENT_GOLD,
+    borderColor: Colors.textPrimary,
   },
   radioInner: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: ACCENT_GOLD,
+    backgroundColor: Colors.brandDeep,
   },
   radioDivider: {
     position: 'absolute',

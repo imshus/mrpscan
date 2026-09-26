@@ -36,6 +36,7 @@ import {
 } from '@/utils/authApi';
 import { prepareSignInAfterSignup } from '@/utils/authSession';
 import { normalizeGstNumber, validateGst, validatePhone } from '@/utils/validation';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 const OTP_LENGTH = 6;
 const AVAILABILITY_ERROR = 'Could not check availability. Check your connection and try again.';
@@ -346,7 +347,7 @@ export default function SignupScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={styles.flex} behavior="padding">
-        <ScrollView
+        <KeyboardAwareScrollView
           ref={scrollRef}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -533,7 +534,7 @@ export default function SignupScreen() {
               void signIn?.();
             }}
           />
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
