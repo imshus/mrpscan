@@ -170,8 +170,8 @@ export default function ForgotPasswordScreen() {
         triggerShake();
         return;
       }
+      // The message stays until its cross is tapped, which moves on.
       setResetDone(true);
-      setTimeout(() => router.replace('/login'), 1600);
     } finally {
       setResetting(false);
     }
@@ -265,7 +265,12 @@ export default function ForgotPasswordScreen() {
               </>
             ) : null}
 
-            {resetDone ? <SuccessToast message="Password reset successfully." /> : null}
+            {resetDone ? (
+              <SuccessToast
+                message="Password reset successfully."
+                onClose={() => router.replace('/login')}
+              />
+            ) : null}
           </Animated.View>
         </KeyboardAwareScrollView>
       </KeyboardAvoidingView>

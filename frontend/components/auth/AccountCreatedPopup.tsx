@@ -2,32 +2,34 @@ import { useEffect, useRef } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CheckCircle2 } from 'lucide-react-native';
 
+import { PopupCloseButton } from '@/components/ui/PopupCloseButton';
 import { Colors, Radius } from '@/constants/theme';
 
 interface AccountCreatedPopupProps {
   /** Null keeps the popup closed. */
   mpin: string | null;
-  /** Called when it closes itself, which is when the shop is taken to Home. */
+  /** Called when it is closed, which is when the shop is taken to Home. */
   onDone: () => void;
-  /** How long it stays up. Longer than a plain toast: there is a PIN to read. */
-  duration?: number;
 }
 
 /**
  * The account-created moment, showing the MPIN it was created with.
  *
- * No button to press — the same as the other popups in the app — it closes
- * itself and the shop lands on Home. It stays up longer than a toast because
- * there are four digits to read and remember.
+ * It stays until it is closed, at the shop's asking — there are four digits
+ * to read and remember, and it used to close itself after four seconds.
+ * Closing it (the cross, a tap, or Back) is what takes the shop to Home, so
+ * that happens once however it is closed.
  */
-export function AccountCreatedPopup({ mpin, onDone, duration = 4200 }: AccountCreatedPopupProps) {
+export function AccountCreatedPopup({ mpin, onDone }: AccountCreatedPopupProps) {
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.94)).current;
   const done = useRef(onDone);
   done.current = onDone;
+  const closed = useRef(false);
 
   useEffect(() => {
     if (!mpin) return;
+    closed.current = false;
 
     opacity.setValue(0);
     scale.setValue(0.94);
@@ -35,22 +37,21 @@ export function AccountCreatedPopup({ mpin, onDone, duration = 4200 }: AccountCr
       Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
       Animated.spring(scale, { toValue: 1, friction: 7, tension: 90, useNativeDriver: true }),
     ]).start();
+  }, [mpin, opacity, scale]);
 
-    const timer = setTimeout(() => {
-      Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
-        done.current();
-      });
-    }, duration);
-
-    return () => clearTimeout(timer);
-  }, [mpin, duration, opacity, scale]);
+  const close = () => {
+    if (closed.current) return;
+    closed.current = true;
+    done.current();
+  };
 
   if (!mpin) return null;
 
   return (
-    <Modal transparent visible animationType="none" onRequestClose={() => done.current()}>
-      <Pressable style={styles.backdrop} onPress={() => done.current()} accessibilityRole="button">
+    <Modal transparent visible animationType="none" onRequestClose={close}>
+      <Pressable style={styles.backdrop} onPress={close} accessibilityRole="button">
         <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
+          <PopupCloseButton onPress={close} style={styles.close} />
           <View style={styles.iconWrap}>
             <CheckCircle2 size={26} color={Colors.successText} strokeWidth={2.2} />
           </View>
@@ -76,6 +77,11 @@ export function AccountCreatedPopup({ mpin, onDone, duration = 4200 }: AccountCr
 }
 
 const styles = StyleSheet.create({
+  close: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(21, 18, 13, 0.4)',

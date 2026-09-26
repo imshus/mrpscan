@@ -61,8 +61,8 @@ export default function InvoicePreviewScreen() {
   };
 
   // E-invoicing is not offered from the app yet: the government registration
-  // is arranged with the team directly. The button says so for three
-  // seconds and does nothing else, at the shop's asking.
+  // is arranged with the team directly. The button says so in a popup that
+  // stays until its cross is tapped, and does nothing else, at the shop's asking.
   const handleEInvoice = () => {
     // The shop's own wording, verbatim.
     setEInvoiceNote(
@@ -91,7 +91,7 @@ export default function InvoicePreviewScreen() {
         scanId={scanId}
       />
 
-      <MessagePopup message={eInvoiceNote} duration={5000} onDismiss={() => setEInvoiceNote(null)} />
+      <MessagePopup message={eInvoiceNote} onDismiss={() => setEInvoiceNote(null)} />
     </ScanScreenWrapper>
   );
 }

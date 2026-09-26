@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Pressable, Text, View } from 'react-native';
+import { Animated, Pressable, Text } from 'react-native';
+
+import { PopupCloseButton } from '@/components/ui/PopupCloseButton';
+import { Colors } from '@/constants/theme';
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -7,44 +10,39 @@ interface ToastNotificationProps {
   visible: boolean;
   message: string;
   type?: ToastType;
-  duration?: number;
   onDismiss: () => void;
 }
 
-const TYPE_STYLES: Record<ToastType, { bg: string; text: string }> = {
-  success: { bg: 'bg-success-bg', text: 'text-success' },
-  error: { bg: 'bg-danger-bg', text: 'text-danger-text' },
-  info: { bg: 'bg-primary', text: 'text-white' },
+const TYPE_STYLES: Record<ToastType, { bg: string; text: string; cross: string }> = {
+  success: { bg: 'bg-success-bg', text: 'text-success', cross: Colors.successText },
+  error: { bg: 'bg-danger-bg', text: 'text-danger-text', cross: Colors.dangerText },
+  info: { bg: 'bg-primary', text: 'text-white', cross: Colors.white },
 };
 
+/**
+ * A toast along the bottom of the screen. It stays until it is closed, at
+ * the shop's asking — the cross, or a tap on the toast — rather than
+ * vanishing after three seconds.
+ */
 export function ToastNotification({
   visible,
   message,
   type = 'info',
-  duration = 3000,
   onDismiss,
 }: ToastNotificationProps) {
   const opacity = useRef(new Animated.Value(0)).current;
 
+  // Fades in when it opens. Only `visible` drives it: callers pass a new
+  // onDismiss on every render, which used to replay the fade each time.
   useEffect(() => {
     if (!visible) return;
-
+    opacity.setValue(0);
     Animated.timing(opacity, {
       toValue: 1,
       duration: 200,
       useNativeDriver: true,
     }).start();
-
-    const timer = setTimeout(() => {
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start(() => onDismiss());
-    }, duration);
-
-    return () => clearTimeout(timer);
-  }, [visible, duration, onDismiss, opacity]);
+  }, [visible, opacity]);
 
   if (!visible) return null;
 
@@ -57,9 +55,10 @@ export function ToastNotification({
     >
       <Pressable
         onPress={onDismiss}
-        className={`rounded-button px-4 py-3 shadow-lg ${styles.bg}`}
+        className={`flex-row items-center rounded-button py-2 pl-4 pr-2 shadow-lg ${styles.bg}`}
       >
-        <Text className={`text-center text-sm font-medium ${styles.text}`}>{message}</Text>
+        <Text className={`flex-1 text-center text-sm font-medium ${styles.text}`}>{message}</Text>
+        <PopupCloseButton onPress={onDismiss} color={styles.cross} />
       </Pressable>
     </Animated.View>
   );

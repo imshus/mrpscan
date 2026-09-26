@@ -125,7 +125,7 @@ export default function DashboardMatricesScreen() {
   // What the tick sits on: the locally followed house first (it answers
   // instantly and survives cold starts), the server's record behind it.
   const selectedSource = bhawProvider || bullion?.selected || '';
-  // What the popup is saying. It closes itself, so nothing here waits on a tap.
+  // What the popup is saying. It stays until its cross (or a tap) closes it.
   const [popup, setPopup] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -341,7 +341,6 @@ Home keeps following ${following} until then.`,
       <MessagePopup
         message={popup?.text ?? null}
         tone={popup?.tone}
-        duration={5000}
         onDismiss={() => setPopup(null)}
       />
     </SafeAreaView>

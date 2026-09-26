@@ -2,35 +2,27 @@ import { useEffect, useRef } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CheckCircle2 } from 'lucide-react-native';
 
+import { PopupCloseButton } from '@/components/ui/PopupCloseButton';
 import { Colors, Radius } from '@/constants/theme';
 
 interface MessagePopupProps {
   /** The message to show. Null keeps the popup closed. */
   message: string | null;
   onDismiss: () => void;
-  /** How long it stays up before closing itself. */
-  duration?: number;
   tone?: 'success' | 'error';
 }
 
 /**
- * A popup that says what happened and then leaves.
+ * A popup that says what happened.
  *
- * There is nothing to press: it fades in, waits, and fades out on its own, so
- * saving a bullion house does not cost an extra tap to acknowledge. Tapping
- * anywhere dismisses it early for anyone who has already read it.
+ * It stays until it is closed, at the shop's asking — with the cross in its
+ * corner, or by tapping anywhere for anyone who has already read it. It used
+ * to close itself after a few seconds, which could take a message away
+ * before it had been read.
  */
-export function MessagePopup({
-  message,
-  onDismiss,
-  duration = 2600,
-  tone = 'success',
-}: MessagePopupProps) {
+export function MessagePopup({ message, onDismiss, tone = 'success' }: MessagePopupProps) {
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.94)).current;
-  // Held in a ref so the fade-out timer never closes over a stale callback.
-  const dismiss = useRef(onDismiss);
-  dismiss.current = onDismiss;
 
   useEffect(() => {
     if (!message) return;
@@ -41,15 +33,7 @@ export function MessagePopup({
       Animated.timing(opacity, { toValue: 1, duration: 160, useNativeDriver: true }),
       Animated.spring(scale, { toValue: 1, friction: 7, tension: 90, useNativeDriver: true }),
     ]).start();
-
-    const timer = setTimeout(() => {
-      Animated.timing(opacity, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => {
-        dismiss.current();
-      });
-    }, duration);
-
-    return () => clearTimeout(timer);
-  }, [message, duration, opacity, scale]);
+  }, [message, opacity, scale]);
 
   if (!message) return null;
 
@@ -57,6 +41,7 @@ export function MessagePopup({
     <Modal transparent visible animationType="none" onRequestClose={onDismiss}>
       <Pressable style={styles.backdrop} onPress={onDismiss} accessibilityRole="button">
         <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
+          <PopupCloseButton onPress={onDismiss} style={styles.close} />
           <View style={[styles.iconWrap, tone === 'error' && styles.iconWrapError]}>
             <CheckCircle2
               size={22}
@@ -95,6 +80,11 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 10 },
     elevation: 8,
+  },
+  close: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
   },
   iconWrap: {
     width: 44,
