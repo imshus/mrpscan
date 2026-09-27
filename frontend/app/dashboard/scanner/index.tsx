@@ -32,12 +32,15 @@ export default function ScannerScreen() {
   const setScanSessionBootstrapping = useScannerStore((s) => s.setScanSessionBootstrapping);
   const isOwner = userRole === 'business';
 
-  // Trial over: the server's scanner flag is off and the trial carries its
-  // end stamp. Out of credits: the licence is fine but the wallet is empty —
-  // the server would refuse the scan (NO_CREDITS_AVAILABLE) a few screens
-  // in, so the shop is told here, at the tap, and sent to recharge instead.
+  // Trial over: the server's scanner flag is off and a trial has been used —
+  // its end stamp, or failing that its start date (a licence put back to no
+  // licence by hand can lose the stamp but keeps the start). Out of credits:
+  // the licence is fine but the wallet is empty — the server would refuse
+  // the scan (NO_CREDITS_AVAILABLE) a few screens in, so the shop is told
+  // here, at the tap, and sent to recharge instead.
+  const trialUsed = Boolean(overview?.trialExpiredAt || overview?.trialStartDate);
   const trialExpired =
-    isOwner && Boolean(overview && !overview.scannerEnabled && overview.trialExpiredAt);
+    isOwner && Boolean(overview && !overview.scannerEnabled && trialUsed);
   const outOfCredits =
     isOwner
     && Boolean(overview && overview.scannerEnabled && Number(overview.creditBalance || 0) <= 0);
