@@ -10,7 +10,7 @@ import {
   type BhawProvider,
   type BhawVendor,
 } from '@/utils/bhawApi';
-import { scopedKey } from '@/utils/userScopedStorage';
+import { registerScopeResetCallback, scopedKey } from '@/utils/userScopedStorage';
 import { calculateBhawRates, type BhawRates } from '@/utils/bhawCalculation';
 
 /**
@@ -150,6 +150,12 @@ export const useBhawStore = create<BhawState>()((set, get) => ({
       fallbackRtgsBhaw,
     }),
 }));
+
+// Another account on this phone follows its own house: the last one's
+// choice must not stand in for it until its own has been read.
+registerScopeResetCallback(() => {
+  useBhawStore.setState({ provider: '' });
+});
 
 /** Maps the Dashboard Settings toggle onto a provider key. */
 export function providerFromToggle(useJmd: boolean): BhawProvider {

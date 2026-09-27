@@ -9,10 +9,9 @@ import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { useBhawRates } from '@/hooks/useBhawRates';
+import { useGoldRateFigures } from '@/hooks/useGoldRateFigures';
 import { useRequireMarketRatesAccess } from '@/hooks/useMarketRatesAccess';
 import { useGetGoldRatesQuery, useUpdateGoldTaxSettingsMutation } from '@/store/goldRatesApi';
-import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 export default function GoldRateSettingsScreen() {
@@ -39,37 +38,11 @@ export default function GoldRateSettingsScreen() {
     type: 'info',
   });
 
+  // The same base Home reads: the market MCX, the house line, the bhaw.
+  // Before the access check, so the hooks run on every render.
+  const { base, changes, houseName } = useGoldRateFigures(goldData);
+
   if (!access.hasAnyAccess) return null;
-
-  const mcxLiveRate = goldData?.mcxLiveRate ?? 0;
-  const mcxChangeBy =
-    goldData?.taxSettings?.mcxChangeBy ??
-    resolveMcxChangeValue(goldData?.taxSettings?.mcxChange);
-  const supremeRtgsBase =
-    goldData?.supremeChanges?.supremeRtgs ??
-    mcxLiveRate + (goldData?.supremeChanges?.rtgsChange ?? 0);
-  const supremeCashBase =
-    goldData?.supremeChanges?.supremeCash ??
-    mcxLiveRate + (goldData?.supremeChanges?.cashChange ?? 0);
-  const supremeRtgsChange = supremeRtgsBase - mcxLiveRate;
-  const supremeCashChange = supremeCashBase - mcxLiveRate;
-  const rtgsChange = goldData?.taxSettings?.rtgsChangeBy ?? 0;
-  const cashChange = goldData?.taxSettings?.cashChangeBy ?? 0;
-
-  const mcxFinalRate = goldData?.taxSettings?.mcxFinalRate ?? mcxLiveRate + mcxChangeBy;
-
-  // Live bhaw for the selected provider, applied to the MCX rate.
-  const bhaw = useBhawRates({
-    mcxBaseRate: mcxFinalRate,
-    businessCashChange: cashChange,
-    businessRtgsChange: rtgsChange,
-    fallbackCashBhaw: supremeCashChange,
-    fallbackRtgsBhaw: supremeRtgsChange,
-    serverPricingMcxRate:
-      goldData?.taxSettings?.pricingMcxLiveRate != null
-        ? goldData.taxSettings.pricingMcxLiveRate + mcxChangeBy
-        : undefined,
-  });
 
 
   const isSaving = isUpdatingTaxSettings;
@@ -127,20 +100,18 @@ export default function GoldRateSettingsScreen() {
             <View style={styles.settingsCard}>
               <GoldRateSettingsPanel
                 visible
-                mcxLiveRate={mcxLiveRate}
-                pricingMcxRate={
-                  bhaw.houseMcx ?? goldData?.taxSettings?.pricingMcxLiveRate ?? mcxLiveRate
-                }
-                mcxChange={mcxChangeBy}
-                supremeRtgsChange={bhaw.rtgsBhaw}
-                supremeCashChange={bhaw.cashBhaw}
-                rtgsChange={rtgsChange}
-                rtgsTaxPercent={goldData?.taxSettings?.rtgsTaxPercent ?? 0}
-                rtgsVariant={goldData?.taxSettings?.rtgsVariant ?? 'plain'}
-                cashChange={cashChange}
-                bhawSourceName={bhaw.vendorName}
-                bhawRtgs={bhaw.rtgsBhaw}
-                bhawCash={bhaw.cashBhaw}
+                mcxLiveRate={base?.mcx ?? 0}
+                pricingMcxRate={base?.pricingMcx}
+                mcxChange={changes?.mcxChange ?? 0}
+                supremeRtgsChange={base?.rtgsBhaw ?? 0}
+                supremeCashChange={base?.cashBhaw ?? 0}
+                rtgsChange={changes?.rtgsChange ?? 0}
+                rtgsTaxPercent={changes?.rtgsTaxPercent ?? 0}
+                rtgsVariant={changes?.rtgsVariant ?? 'plain'}
+                cashChange={changes?.cashChange ?? 0}
+                bhawSourceName={houseName}
+                bhawRtgs={base?.rtgsBhaw}
+                bhawCash={base?.cashBhaw}
                 onApply={handleApplyTaxSettings}
                 showTitle={false}
                 showClose={false}

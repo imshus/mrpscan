@@ -19,7 +19,9 @@ import {
 import { Colors, Spacing } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useBhawStore } from '@/store/bhawStore';
+import { goldRatesApi } from '@/store/goldRatesApi';
 import { useMatricesStore } from '@/store/matricesStore';
+import { store } from '@/store/store';
 import {
   fetchBullionSources,
   updateBullionSources,
@@ -223,15 +225,19 @@ export default function DashboardMatricesScreen() {
       values: { ...state.values, bhaw_source_jmd: key === 'jmd_patil' },
     }));
 
-    if (!bullion) return;
+    // Saved even before the server's list has loaded: the choice is the
+    // shop's, and the server prices scans on it.
     const previous = bullion;
-    setBullion({ ...bullion, selected: key });
-    void updateBullionSources({ selected: key, requestedNames: bullion.requestedNames })
+    if (bullion) setBullion({ ...bullion, selected: key });
+    void updateBullionSources({ selected: key, requestedNames: bullion?.requestedNames ?? [] })
       .then((saved) => {
         setBullion(saved);
+        // Home and Gold Rate Settings read the server's rates for the house
+        // it now prices on.
+        store.dispatch(goldRatesApi.util.invalidateTags(['GoldRates']));
       })
       .catch(() => {
-        setBullion(previous);
+        if (previous) setBullion(previous);
       });
   };
 

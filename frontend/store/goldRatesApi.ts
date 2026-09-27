@@ -104,6 +104,32 @@ export const goldRatesApi = createApi({
           };
         }
       },
+      // Gold Rate Settings to Home, at the moment of the save: the changes go
+      // into the one cached response both screens read as the save starts,
+      // so Home carries them before the server has even answered. Undone if
+      // the server refuses; refetched from the server once it has taken them.
+      async onQueryStarted(payload, { dispatch, queryFulfilled }) {
+        const patch = dispatch(
+          goldRatesApi.util.updateQueryData('getGoldRates', undefined, (draft) => {
+            const t = draft.taxSettings;
+            if (!t) return;
+            if (payload.mcxChange) {
+              t.mcxChange = payload.mcxChange;
+              t.mcxChangeBy =
+                payload.mcxChange.operation === '-' ? -payload.mcxChange.amount : payload.mcxChange.amount;
+            }
+            if (payload.rtgsChangeBy !== undefined) t.rtgsChangeBy = payload.rtgsChangeBy;
+            if (payload.cashChangeBy !== undefined) t.cashChangeBy = payload.cashChangeBy;
+            if (payload.rtgsTaxPercent !== undefined) t.rtgsTaxPercent = payload.rtgsTaxPercent;
+            if (payload.rtgsVariant !== undefined) t.rtgsVariant = payload.rtgsVariant;
+          }),
+        );
+        try {
+          await queryFulfilled;
+        } catch {
+          patch.undo();
+        }
+      },
       invalidatesTags: ['GoldRates'],
     }),
   }),

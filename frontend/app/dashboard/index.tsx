@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useBhawRates } from '@/hooks/useBhawRates';
-import { boardSell } from '@/utils/bhawApi';
 import {
   ActivityIndicator,
   Alert,
@@ -23,12 +21,13 @@ import { fetchBusinessProfile } from '@/utils/businessProfileApi';
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner';
 import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Gradients, Spacing } from '@/constants/theme';
-import type { GoldRate, GoldRatesResponse, SupremeChanges, TaxSettings } from '@/types/rates';
+import type { GoldRate, GoldRatesResponse } from '@/types/rates';
 import type { SubscriptionOverview } from '@/types/subscription';
 import { useAuthStore } from '@/store/authStore';
-import { ApiError } from '@/utils/apiClient';
-import { formatKaratLabel, resolveMcxChangeValue } from '@/utils/goldRateUtils';
-import { fetchGoldRates } from '@/utils/ratesApi';
+import { useGetGoldRatesQuery } from '@/store/goldRatesApi';
+import { useGoldRateFigures } from '@/hooks/useGoldRateFigures';
+import { karatFigure } from '@/utils/goldRateFigures';
+import { formatKaratLabel } from '@/utils/goldRateUtils';
 import {
   fetchSubscriptionOverview,
   startFreeTrial,
@@ -169,20 +168,22 @@ export default function DashboardScreen() {
   // loader shows only before that.
   const hasDataRef = useRef(false);
   const subscriptionRef = useRef<SubscriptionOverview | null>(null);
-  const [mcxLiveRate, setMcxLiveRate] = useState<number | null>(null);
-  const [goldRates, setGoldRates] = useState<GoldRate[]>([]);
-  const [goldTaxSettings, setGoldTaxSettings] = useState<TaxSettings | undefined>();
-  const [supremeChanges, setSupremeChanges] = useState<SupremeChanges | undefined>();
+  // The rates are the one cached response Gold Rate Settings reads and
+  // saves into, so Home shows the figures Gold Rate Settings arrives at,
+  // at the shop's asking. The last snapshot paints until it has answered.
+  const [snapshotGold, setSnapshotGold] = useState<GoldRatesResponse | null>(null);
+  const { data: liveGold, refetch: refetchGold } = useGetGoldRatesQuery();
+  const gold = liveGold ?? snapshotGold ?? undefined;
+  const mcxLiveRate = gold ? gold.mcxLiveRate : null;
+  const goldRates = useMemo(() => gold?.rates ?? [], [gold]);
+  const goldTaxSettings = gold?.taxSettings;
   const [subscriptionOverview, setSubscriptionOverview] = useState<SubscriptionOverview | null>(null);
   const [trialActionLoading, setTrialActionLoading] = useState(false);
   useEffect(() => {
     let cancelled = false;
     void readHomeSnapshot().then((snapshot) => {
       if (cancelled || !snapshot || hasDataRef.current) return;
-      setMcxLiveRate(snapshot.gold.mcxLiveRate);
-      setGoldRates(snapshot.gold.rates);
-      setGoldTaxSettings(snapshot.gold.taxSettings);
-      setSupremeChanges(snapshot.gold.supremeChanges);
+      setSnapshotGold(snapshot.gold);
       if (snapshot.subscription) {
         subscriptionRef.current = snapshot.subscription;
         setSubscriptionOverview(snapshot.subscription);
@@ -194,6 +195,13 @@ export default function DashboardScreen() {
       cancelled = true;
     };
   }, []);
+  // A fresh answer is on screen and kept for the next open.
+  useEffect(() => {
+    if (!liveGold) return;
+    hasDataRef.current = true;
+    setLoading(false);
+    writeHomeSnapshot({ gold: liveGold, subscription: subscriptionRef.current }, scopedKey(HOME_SNAPSHOT_KEY));
+  }, [liveGold]);
   const { employee, userRole: settingsUserRole } = useSettingsAccess();
   const globalMatrixValues = useMatricesStore((s) => s.values);
 
@@ -210,101 +218,23 @@ export default function DashboardScreen() {
     () => sortGoldRates(goldRates),
     [goldRates],
   );
-  const mcxFinalRate = useMemo(() => {
-    const live = mcxLiveRate ?? 0;
-    const mcxChangeBy =
-      goldTaxSettings?.mcxChangeBy ??
-      resolveMcxChangeValue(goldTaxSettings?.mcxChange);
-    return goldTaxSettings?.mcxFinalRate ?? live + mcxChangeBy;
-  }, [goldTaxSettings?.mcxChange, goldTaxSettings?.mcxChangeBy, goldTaxSettings?.mcxFinalRate, mcxLiveRate]);
-  // Cash/RTGS come from the bhaw provider selected in Dashboard Settings,
-  // applied to the MCX rate. The server's supremeChanges are the fallback for
-  // when the live feed cannot be reached.
-  const bhaw = useBhawRates({
-    mcxBaseRate: mcxFinalRate ?? 0,
-    businessCashChange: goldTaxSettings?.cashChangeBy ?? 0,
-    businessRtgsChange: goldTaxSettings?.rtgsChangeBy ?? 0,
-    fallbackCashBhaw: supremeChanges?.cashChange ?? 0,
-    fallbackRtgsBhaw: supremeChanges?.rtgsChange ?? 0,
-    serverPricingMcxRate:
-      goldTaxSettings?.pricingMcxLiveRate != null
-        ? goldTaxSettings.pricingMcxLiveRate +
-          (goldTaxSettings.mcxChangeBy ?? resolveMcxChangeValue(goldTaxSettings.mcxChange))
-        : undefined,
-  });
-
-  const rtgsFinalRate = useMemo(() => {
-    if (mcxLiveRate == null) return goldTaxSettings?.rtgsFinalRate ?? 0;
-    return bhaw.rtgsRate;
-  }, [bhaw.rtgsRate, goldTaxSettings?.rtgsFinalRate, mcxLiveRate]);
-  // The RTGS figure Home shows is the one selected in Gold Rate Settings:
-  // Rate 1, the base as it comes, or Rate 2, the base less the shop's
-  // percent — at the shop's asking, with the tile itself unchanged. The
-  // karat rows take their RTGS from the same figure. (The stored value
-  // 'taxed' names Rate 1 and 'plain' names Rate 2; the two were the other
-  // way round when the setting was born.)
-  const rtgsSelected24 = useMemo(() => {
-    const base = rtgsFinalRate;
-    if (!base) return null;
-    const percent = goldTaxSettings?.rtgsTaxPercent ?? 0;
-    return goldTaxSettings?.rtgsVariant === 'plain'
-      ? Math.round(base * (1 - percent / 100))
-      : Math.round(base);
-  }, [rtgsFinalRate, goldTaxSettings?.rtgsTaxPercent, goldTaxSettings?.rtgsVariant]);
-  const cashFinalRate = useMemo(() => {
-    if (mcxLiveRate == null) return goldTaxSettings?.cashFinalRate ?? 0;
-    return bhaw.cashRate;
-  }, [bhaw.cashRate, goldTaxSettings?.cashFinalRate, mcxLiveRate]);
-  const twentyFourKRate = useMemo(() => {
-    const matched = sortedGoldRates.find((rate) => {
-      const carat = rate.carat.toLowerCase();
-      return carat.includes('24') || rate.purity >= 99.5;
-    });
-
-    if (matched) return matched;
-    if (mcxLiveRate == null && !goldTaxSettings) return null;
-
-    const cashRate = cashFinalRate || mcxFinalRate || 0;
-    const rtgsRate = rtgsFinalRate || mcxFinalRate || 0;
-
-    return {
-      id: '24k-synthetic',
-      carat: '24Kt',
-      // 24K is the whole: the MCX rate itself, at 100.
-      purity: 100,
-      finalRate: rtgsRate,
-      cashRate,
-      rtgsRate,
-      baseRate: mcxFinalRate ?? rtgsRate,
-      mcxRate: mcxLiveRate ?? undefined,
-    } satisfies GoldRate;
-  }, [cashFinalRate, goldTaxSettings, mcxFinalRate, mcxLiveRate, rtgsFinalRate, sortedGoldRates]);
-  // Shown only when the value says so. These read `!== false` before, which
+  // The figures Gold Rate Settings arrives at — MCX final, Retail final and
+  // the RTGS rate ticked there — through the same calculation it uses, so
+  // the two screens can never disagree. The karat rows are those figures'
+  // share by purity.
+  const { figures, houseName } = useGoldRateFigures(gold);
+  // Shown only when the value says so. This read `!== false` before, which
   // made a key that was simply absent count as on — the opposite of a rule
   // whose whole point is that nothing but MCX appears unless it is chosen.
   const show24kMcx = matrixValues['24k_mcx' as MatrixKey] === true;
-  const show24kRtgs = matrixValues['24k_rtgs' as MatrixKey] === true;
-  const show24kCash = matrixValues['24k_cash' as MatrixKey] === true;
-  // The 24K RTGS/Cash card is retired: the MCX card carries both rates, and
-  // its two rows are gone from Dashboard Settings at the shop's asking. A
-  // record that still has them ticked from before is not shown either.
-  const show24kRateCard = false;
 
   const loadMarketData = useCallback(async (showLoader = true) => {
     // The blocking loader is for the first paint only; after that the numbers
     // stay on screen and update in place. Rates and the subscription are
     // fetched side by side and each lands as soon as it arrives.
-    const snapshotKey = scopedKey(HOME_SNAPSHOT_KEY);
     if (showLoader && !hasDataRef.current) setLoading(true);
-    const goldPromise = fetchGoldRates().then((gold) => {
-      setMcxLiveRate(gold.mcxLiveRate);
-      setGoldRates(gold.rates);
-      setGoldTaxSettings(gold.taxSettings);
-      setSupremeChanges(gold.supremeChanges);
-      hasDataRef.current = true;
-      setLoading(false);
-      return gold;
-    });
+    // The shared rates query, the one Gold Rate Settings saves into.
+    const goldPromise = Promise.resolve().then(() => refetchGold().unwrap());
     const subscriptionPromise =
       authUserRole === 'business'
         ? fetchSubscriptionOverview().then((subscription) => {
@@ -318,18 +248,16 @@ export default function DashboardScreen() {
       subscriptionRef.current = null;
       setSubscriptionOverview(null);
     }
-    if (goldResult.status === 'fulfilled') {
-      writeHomeSnapshot({ gold: goldResult.value, subscription: subscriptionRef.current }, snapshotKey);
-    } else if (showLoader && !hasDataRef.current) {
-      const error = goldResult.reason;
+    if (goldResult.status === 'rejected' && showLoader && !hasDataRef.current) {
+      const reason = goldResult.reason as { data?: unknown } | undefined;
       const message =
-        error instanceof ApiError
-          ? error.message
+        typeof reason?.data === 'string'
+          ? reason.data
           : 'Failed to load market rates. Showing last known values.';
       Alert.alert('Market Data', message);
     }
     if (showLoader) setLoading(false);
-  }, [authUserRole]);
+  }, [authUserRole, refetchGold]);
 
   useEffect(() => {
     if (authUserRole !== 'business') return;
@@ -467,52 +395,28 @@ export default function DashboardScreen() {
                 <TimeTile />
               </View>
 
-              {(bhaw.mcxIsLive || mcxLiveRate != null) && show24kMcx ? (
+              {figures && show24kMcx ? (
                 <View style={styles.mcxTopCard}>
                   <View style={styles.mcxTopRow}>
                     <View style={styles.mcxTopTitleWrap}>
                       <Text style={styles.mcxTopLabel}>MCX Gold Rate</Text>
                       <Text style={styles.mcxTopSub}>24 kt (99.5%)</Text>
                     </View>
-                    {/* The board's own Gold Future MCX — the same figure the
-                        Dashboard Settings cards print — not the rates API's
-                        adjusted copy of it. */}
-                    <Text style={styles.mcxTopValue}>{bhaw.mcxRate.toLocaleString('en-IN')}</Text>
+                    {/* Gold Rate Settings' Final MCX Rate: the market MCX
+                        with the shop's own change on it. */}
+                    <Text style={styles.mcxTopValue}>{figures.mcxFinal.toLocaleString('en-IN')}</Text>
                   </View>
                   <View style={styles.mcxDivider} />
 
-                  {/* The house's Cash and RTGS off its own board, each over
-                      the badla bhaw that produced it, and the house's name
-                      underneath — restored at the shop's asking. */}
+                  {/* Gold Rate Settings' Final Retail Rate and the RTGS rate
+                      ticked there (Rate 1 or Rate 2), and the house they
+                      stand on underneath. */}
                   <View style={styles.mcxBhawRow}>
-                    <BhawTile rate={boardSell(bhaw.vendor, /gold\s*cash/i)} label="Retail Rate" />
-                    <BhawTile rate={rtgsSelected24 ?? boardSell(bhaw.vendor, /gold\s*rtgs/i)} label="RTGS Retail Rate" />
+                    <BhawTile rate={figures.retailFinal} label="Retail Rate" />
+                    <BhawTile rate={figures.rtgsSelected} label="RTGS Retail Rate" />
                   </View>
 
-                  <Text style={styles.mcxSourceLine}>rate by {bhaw.vendorName}</Text>
-                </View>
-              ) : null}
-
-              {twentyFourKRate && show24kRateCard ? (
-                <View style={styles.rateCard}>
-                  <View style={styles.rateCardHeader}>
-                    <Text style={styles.cardKaratLabel}>Gold (24K) 99.5%</Text>
-                  </View>
-
-                  <View style={styles.rateCardBody}>
-                    {show24kCash ? (
-                      <RateBadge
-                        value={`${(twentyFourKRate.cashRate ?? cashFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
-                        label="Retail Rate"
-                      />
-                    ) : null}
-                    {show24kRtgs ? (
-                      <RateBadge
-                        value={`${(twentyFourKRate.rtgsRate ?? rtgsFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
-                        label="RTGS Rate"
-                      />
-                    ) : null}
-                  </View>
+                  <Text style={styles.mcxSourceLine}>rate by {houseName}</Text>
                 </View>
               ) : null}
 
@@ -531,20 +435,13 @@ export default function DashboardScreen() {
 
                   const purityLabel = formatPurityLabel(rate.purity);
 
-                  // A row is its purity's fraction of the very 24K figures
-                  // on the MCX card above — the house's own board — not of
-                  // the server's row, which is built on the server's MCX of
-                  // the moment its cache was made, a tick and a bhaw apart,
-                  // which showed as a ~1,000 gap. MCX 24K counts as 100%,
-                  // at the shop's asking. The server's row stands in only
-                  // when the board has no such figure.
-                  const retail24 = boardSell(bhaw.vendor, /gold\s*cash/i) ?? cashFinalRate;
-                  const rtgs24 = rtgsSelected24 ?? boardSell(bhaw.vendor, /gold\s*rtgs/i) ?? rtgsFinalRate;
-                  const fraction = rate.purity / 100;
-                  const rowRetail =
-                    retail24 > 0 ? Math.round(retail24 * fraction) : (rate.cashRate ?? rate.finalRate);
-                  const rowRtgs =
-                    rtgs24 > 0 ? Math.round(rtgs24 * fraction) : (rate.rtgsRate ?? rate.finalRate);
+                  // A row is its purity's share of the very figures on the
+                  // MCX card above — Gold Rate Settings' finals — rounded as
+                  // the server rounds its rows. MCX 24K counts as 100%, at
+                  // the shop's asking. The server's row stands in only until
+                  // the figures are in.
+                  const rowRetail = figures ? karatFigure(figures.retailFinal, rate.purity) : (rate.cashRate ?? rate.finalRate);
+                  const rowRtgs = figures ? karatFigure(figures.rtgsSelected, rate.purity) : (rate.rtgsRate ?? rate.finalRate);
 
                   return (
                     <View key={rate.carat} style={styles.rateCard}>
@@ -577,7 +474,7 @@ export default function DashboardScreen() {
                   {/* Release builds strip console output, so the state behind an
                       empty dashboard is otherwise invisible. Shown only here. */}
                   <Text style={styles.emptyDiag}>
-                    {`mcx ${mcxLiveRate == null ? 'null' : mcxLiveRate} · rows ${goldRates.length} · tax ${goldTaxSettings ? 'y' : 'n'} · 24k ${show24kMcx ? 'M' : '-'}${show24kRtgs ? 'R' : '-'}${show24kCash ? 'C' : '-'} · ${authUserRole}${settingsUserRole === 'employee' && employee ? '/emp' : ''}`}
+                    {`mcx ${mcxLiveRate == null ? 'null' : mcxLiveRate} · rows ${goldRates.length} · tax ${goldTaxSettings ? 'y' : 'n'} · 24k ${show24kMcx ? 'M' : '-'} · ${authUserRole}${settingsUserRole === 'employee' && employee ? '/emp' : ''}`}
                   </Text>
                 </View>
               )}

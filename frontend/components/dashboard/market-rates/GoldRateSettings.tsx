@@ -10,6 +10,7 @@ import {
 import { ChevronDown, ChevronRight, X } from 'lucide-react-native';
 
 import { screenStyles } from '@/constants/screenLayout';
+import { computeGoldRateFigures } from '@/utils/goldRateFigures';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { formatInr } from '@/utils/rateMappers';
 
@@ -385,41 +386,49 @@ export function GoldRateSettingsPanel({
     variant,
   };
 
-  const mcxLiveFinal = useMemo(
-    () => mcxLiveRate + mcxDraftChange,
-    [mcxLiveRate, mcxDraftChange],
+  // The finals through the one calculation Home shows, with the draft as
+  // it is being typed in place of the saved changes: what this screen
+  // prints is exactly what Home prints once the draft is saved.
+  const figures = useMemo(
+    () =>
+      computeGoldRateFigures(
+        {
+          mcx: mcxLiveRate,
+          pricingMcx: pricingMcxRate ?? mcxLiveRate,
+          rtgsBhaw: supremeRtgsChange,
+          cashBhaw: supremeCashChange,
+          houseName: bhawSourceName ?? '',
+          houseLive: true,
+        },
+        {
+          mcxChange: mcxDraftChange,
+          rtgsChange: rtgsDraftChange,
+          cashChange: cashDraftChange,
+          rtgsTaxPercent: taxDraft,
+          rtgsVariant: variant,
+        },
+      ),
+    [
+      mcxLiveRate,
+      pricingMcxRate,
+      supremeRtgsChange,
+      supremeCashChange,
+      bhawSourceName,
+      mcxDraftChange,
+      rtgsDraftChange,
+      cashDraftChange,
+      taxDraft,
+      variant,
+    ],
   );
-
-  // RTGS and Retail stand on the house's own MCX line: its bhaw is quoted
-  // over that line, and houses do not all quote the market's contract.
-  const pricingLiveFinal = useMemo(
-    () => (pricingMcxRate ?? mcxLiveRate) + mcxDraftChange,
-    [pricingMcxRate, mcxLiveRate, mcxDraftChange],
-  );
-  const rtgsCurrentRate = useMemo(
-    () => pricingLiveFinal + supremeRtgsChange,
-    [pricingLiveFinal, supremeRtgsChange],
-  );
-  const cashCurrentRate = useMemo(
-    () => pricingLiveFinal + supremeCashChange,
-    [pricingLiveFinal, supremeCashChange],
-  );
-  // Both RTGS rates come off this base. Rate 1 is the base as it comes,
-  // nothing on it; Rate 2 is the base LESS whatever percent is typed into
-  // its Tax field — 1% typed is 1% lower.
-  const rtgsLiveFinal = useMemo(
-    () => rtgsCurrentRate + rtgsDraftChange,
-    [rtgsCurrentRate, rtgsDraftChange],
-  );
-  const rtgsRate1LiveFinal = rtgsLiveFinal;
-  const rtgsRate2LiveFinal = useMemo(
-    () => Math.round(rtgsLiveFinal * (1 - taxDraft / 100)),
-    [rtgsLiveFinal, taxDraft],
-  );
-  const cashLiveFinal = useMemo(
-    () => cashCurrentRate + cashDraftChange,
-    [cashCurrentRate, cashDraftChange],
-  );
+  const mcxLiveFinal = figures.mcxFinal;
+  const cashLiveFinal = figures.retailFinal;
+  const rtgsRate1LiveFinal = figures.rtgsRate1;
+  const rtgsRate2LiveFinal = figures.rtgsRate2;
+  // The cards hide their current-rate pill (showCurrentRate={false}); these
+  // keep the props whole.
+  const cashCurrentRate = cashLiveFinal - cashDraftChange;
+  const rtgsCurrentRate = rtgsRate1LiveFinal - rtgsDraftChange;
 
   /**
    * Saves the form as it stands, when it differs from what the server has.
