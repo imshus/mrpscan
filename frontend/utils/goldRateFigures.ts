@@ -16,7 +16,9 @@ import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
 /** What the figures stand on: the market MCX, the house line, the bhaw. */
 export interface GoldRateBase {
   /**
-   * The market MCX: the figure most houses agree on, off the live boards.
+   * The followed house's own "Gold Future MCX", straight off its Dashboard
+   * Settings card — the shop follows one house, and its MCX is that
+   * house's. The market majority stands in only for a house with no line.
    * Null until the boards have answered — a dash, never the server's own
    * snapshot, which is a number no bullion card shows.
    */
@@ -100,7 +102,7 @@ export function goldRateBase(
   // Rounded as the server rounds the line it prices on.
   const houseLine = houseMcxSell(vendor);
   return {
-    mcx: feedMcxSell(vendors),
+    mcx: houseLine !== null ? Math.round(houseLine) : feedMcxSell(vendors),
     pricingMcx:
       houseLine !== null ? Math.round(houseLine) : gold.taxSettings?.pricingMcxLiveRate ?? gold.mcxLiveRate,
     rtgsBhaw: rtgsLive && vendor ? (vendor.rtgsBhaw as number) : gold.supremeChanges?.rtgsChange ?? 0,
