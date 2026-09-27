@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 
 import { Colors, Radius } from '@/constants/theme';
-import { formatBhaw, type BhawVendor } from '@/utils/bhawApi';
+import { formatBhaw, hasLiveBhaw, type BhawVendor } from '@/utils/bhawApi';
 
 interface BullionHouseCardProps {
   name: string;
@@ -40,20 +40,29 @@ const rupees = (value: number | null): string =>
  */
 export function BullionHouseCard({ name, vendor, selected, onSelect }: BullionHouseCardProps) {
   const updated = updatedAtLabel(vendor?.updatedAt ?? '');
+  // A house prices gold only once it has published both bhaw sides. Until
+  // then its card is read-only: the numbers it does show are not what any
+  // rate would stand on, and the tick would be a promise nothing keeps. A
+  // house already followed keeps its tick if it goes quiet.
+  const canFollow = hasLiveBhaw(vendor);
 
   return (
     <Pressable
-      onPress={onSelect}
+      onPress={canFollow || selected ? onSelect : undefined}
+      disabled={!canFollow && !selected}
       accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      style={[styles.card, selected && styles.cardSelected]}
+      accessibilityState={{ selected, disabled: !canFollow && !selected }}
+      style={[styles.card, selected && styles.cardSelected, !canFollow && !selected && styles.cardQuiet]}
     >
       <View style={styles.head}>
         <View style={styles.headText}>
           <Text style={styles.name}>{name}</Text>
           {updated ? <Text style={styles.updated}>Updated {updated}</Text> : null}
+          {!canFollow ? (
+            <Text style={styles.quietNote}>Not pricing yet — bhaw not published</Text>
+          ) : null}
         </View>
-        <View style={[styles.tick, selected && styles.tickOn]}>
+        <View style={[styles.tick, selected && styles.tickOn, !canFollow && !selected && styles.tickQuiet]}>
           {selected ? <Check size={13} color={Colors.white} strokeWidth={3} /> : null}
         </View>
       </View>
@@ -122,6 +131,9 @@ const styles = StyleSheet.create({
   headText: { flex: 1 },
   name: { fontSize: 14.5, fontWeight: '800', color: Colors.textPrimary },
   updated: { fontSize: 10.5, color: Colors.textMuted, marginTop: 1 },
+  quietNote: { fontSize: 10.5, color: Colors.brandDeep, fontWeight: '600', marginTop: 2 },
+  cardQuiet: { opacity: 0.72 },
+  tickQuiet: { borderColor: Colors.border, borderStyle: 'dashed' },
   tick: {
     width: 19,
     height: 19,

@@ -40,5 +40,7 @@ export function useGoldRateFigures(gold: GoldRatesResponse | undefined): GoldRat
     [base, changes],
   );
 
-  return { base, changes, figures, houseName: base?.houseName ?? bhaw.vendorName };
+  // '' is missing too: an older server sends no house, and the phone's own
+  // choice names it until the server does.
+  return { base, changes, figures, houseName: base?.houseName || bhaw.vendorName };
 }

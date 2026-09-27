@@ -59,7 +59,7 @@ export default function GoldRateSettingsScreen() {
     nextCashChange: number,
     nextRtgsTaxPercent: number,
     nextRtgsVariant: 'taxed' | 'plain',
-  ) => {
+  ): Promise<boolean> => {
     try {
       await updateGoldTaxSettingsMutation({
         mcxChange: {
@@ -72,9 +72,11 @@ export default function GoldRateSettingsScreen() {
         rtgsVariant: nextRtgsVariant,
       }).unwrap();
       showToast('Gold rate settings updated', 'success');
+      return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save gold rate settings';
       showToast(message, 'error');
+      return false;
     }
   };
 
@@ -100,8 +102,9 @@ export default function GoldRateSettingsScreen() {
             <View style={styles.settingsCard}>
               <GoldRateSettingsPanel
                 visible
-                mcxLiveRate={base?.mcx ?? 0}
+                mcxLiveRate={base?.mcx ?? null}
                 pricingMcxRate={base?.pricingMcx}
+                bhawLive={base?.houseLive ?? false}
                 mcxChange={changes?.mcxChange ?? 0}
                 supremeRtgsChange={base?.rtgsBhaw ?? 0}
                 supremeCashChange={base?.cashBhaw ?? 0}

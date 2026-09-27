@@ -150,8 +150,9 @@ interface RateCardProps {
   icon: React.ReactNode;
   sign: Sign;
   amount: string;
-  currentRate: number;
-  finalRate: number;
+  /** Null until the boards have answered; printed as a dash. */
+  currentRate: number | null;
+  finalRate: number | null;
   formula: string;
   onSignChange: (next: Sign) => void;
   onAmountChange: (value: string) => void;
@@ -213,7 +214,9 @@ function RateCard({
       {showCurrentRate ? (
         <View style={styles.currentRatePill}>
           <Text style={styles.currentRateLabel}>{currentLabel ?? title}</Text>
-          <Text style={styles.currentRateValue}>{formatInr(currentRate)}</Text>
+          <Text style={styles.currentRateValue}>
+            {currentRate === null ? '—' : formatInr(currentRate)}
+          </Text>
         </View>
       ) : null}
 
@@ -245,7 +248,7 @@ function RateCard({
           sets it: caption at the left, the rate in red at the right. */}
       <View style={styles.finalSection}>
         <Text style={styles.finalLabel}>{finalLabel ?? `Final ${title}`}</Text>
-        <Text style={styles.finalValue}>{formatInr(finalRate)}</Text>
+        <Text style={styles.finalValue}>{finalRate === null ? '—' : formatInr(finalRate)}</Text>
       </View>
       {formula ? <Text style={styles.formulaText}>{formula}</Text> : null}
     </View>
@@ -254,7 +257,8 @@ function RateCard({
 
 interface GoldRateSettingsPanelProps {
   visible: boolean;
-  mcxLiveRate: number;
+  /** Null while the boards have not answered: the MCX card shows a dash. */
+  mcxLiveRate: number | null;
   /**
    * The followed house's own MCX line, which its bhaw is quoted over; the
    * RTGS and Retail cards are built on it. The MCX card shows mcxLiveRate,
@@ -268,6 +272,8 @@ interface GoldRateSettingsPanelProps {
   cashChange: number;
   /** Provider whose bhaw sets the RTGS/Cash base, e.g. "JMD Patil". */
   bhawSourceName?: string;
+  /** False when the figures stand on the server's fallback, not the house's bhaw. */
+  bhawLive?: boolean;
   bhawRtgs?: number;
   bhawCash?: number;
   /** The percent RTGS Rate 2 carries; RTGS Rate 1 carries none. */
@@ -277,13 +283,14 @@ interface GoldRateSettingsPanelProps {
   showTitle?: boolean;
   showClose?: boolean;
   onClose?: () => void;
+  /** Resolves true when the server took the change, false when it did not. */
   onApply: (
     mcxChangeBy: number,
     rtgsChangeBy: number,
     cashChangeBy: number,
     rtgsTaxPercent: number,
     rtgsVariant: 'taxed' | 'plain',
-  ) => Promise<void>;
+  ) => Promise<boolean>;
 }
 
 export function GoldRateSettingsPanel({
@@ -296,6 +303,7 @@ export function GoldRateSettingsPanel({
   rtgsChange,
   cashChange,
   bhawSourceName,
+  bhawLive = true,
   bhawRtgs,
   bhawCash,
   rtgsTaxPercent = 0,
@@ -359,7 +367,9 @@ export function GoldRateSettingsPanel({
   const bhawIn = (value?: number) => toSafeNumber(value, 0);
   const bhawNote = (value?: number) => {
     const amount = bhawIn(value);
-    if (!bhawSourceName || !amount) return undefined;
+    // Only the house's own bhaw is named as the house's; a fallback figure
+    // is not credited to a house that did not publish it.
+    if (!bhawSourceName || !bhawLive || !amount) return undefined;
     const sign = amount < 0 ? '−' : '+';
     return `Includes ${bhawSourceName} bhaw ${sign}${Math.abs(Math.round(amount)).toLocaleString('en-IN')}`;
   };
@@ -394,11 +404,11 @@ export function GoldRateSettingsPanel({
       computeGoldRateFigures(
         {
           mcx: mcxLiveRate,
-          pricingMcx: pricingMcxRate ?? mcxLiveRate,
+          pricingMcx: pricingMcxRate ?? mcxLiveRate ?? 0,
           rtgsBhaw: supremeRtgsChange,
           cashBhaw: supremeCashChange,
           houseName: bhawSourceName ?? '',
-          houseLive: true,
+          houseLive: bhawLive,
         },
         {
           mcxChange: mcxDraftChange,
@@ -414,6 +424,7 @@ export function GoldRateSettingsPanel({
       supremeRtgsChange,
       supremeCashChange,
       bhawSourceName,
+      bhawLive,
       mcxDraftChange,
       rtgsDraftChange,
       cashDraftChange,
@@ -455,9 +466,14 @@ export function GoldRateSettingsPanel({
     const seq = editSeqRef.current;
     savingRef.current = true;
     try {
-      await onApply(draft.mcx, draft.rtgs, draft.cash, draft.tax, draft.variant);
-      savedRef.current = draft;
-      if (editSeqRef.current === seq) dirtyRef.current = false;
+      // A refused save is not a save: the draft stays dirty, so the next
+      // edit or leaving the page tries again, and Home (rolled back) and
+      // this screen are not left saying different things.
+      const ok = await onApply(draft.mcx, draft.rtgs, draft.cash, draft.tax, draft.variant);
+      if (ok) {
+        savedRef.current = draft;
+        if (editSeqRef.current === seq) dirtyRef.current = false;
+      }
     } finally {
       savingRef.current = false;
       if (saveAgainRef.current) {
@@ -613,6 +629,7 @@ interface GoldRateSettingsModalProps {
   bhawRtgs?: number;
   bhawCash?: number;
   onClose: () => void;
+  /** The legacy three-argument form; a save that resolves counts as taken. */
   onApply: (mcxChangeBy: number, rtgsChangeBy: number, cashChangeBy: number) => Promise<void>;
 }
 
@@ -648,7 +665,10 @@ export function GoldRateSettingsModal({
             bhawRtgs={bhawRtgs}
             bhawCash={bhawCash}
             onClose={onClose}
-            onApply={onApply}
+            onApply={async (mcx, rtgs, cash) => {
+              await onApply(mcx, rtgs, cash);
+              return true;
+            }}
             showClose
             showTitle
           />

@@ -19,6 +19,7 @@ import {
 import { Colors, Spacing } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useBhawStore } from '@/store/bhawStore';
+import { hasLiveBhaw, type BhawVendor } from '@/utils/bhawApi';
 import { goldRatesApi } from '@/store/goldRatesApi';
 import { useMatricesStore } from '@/store/matricesStore';
 import { store } from '@/store/store';
@@ -130,6 +131,9 @@ export default function DashboardMatricesScreen() {
   // What the popup is saying. It stays until its cross (or a tap) closes it.
   const [popup, setPopup] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  // The tap whose server answer still counts; an earlier tap's late answer
+  // must not undo a later one.
+  const bullionSaveSeq = useRef(0);
 
   // Saves of this screen still on their way to the server. While any is,
   // the store does not feed the draft: an earlier tap's answer landing
@@ -149,7 +153,12 @@ export default function DashboardMatricesScreen() {
   useEffect(() => {
     let cancelled = false;
     void fetchBullionSources().then((loaded) => {
-      if (!cancelled && loaded) setBullion(loaded);
+      if (cancelled || !loaded) return;
+      setBullion(loaded);
+      // The server's record is the house scans are priced on, so the tick
+      // (and every rate on the phone) follows it, not a stamp this phone
+      // made before the server had answered.
+      if (loaded.selected) useBhawStore.getState().setProvider(loaded.selected);
     });
     return () => {
       cancelled = true;
@@ -212,32 +221,44 @@ export default function DashboardMatricesScreen() {
 
   if (!allowed) return null;
 
-  const selectBullion = (key: string) => {
+  const selectBullion = (key: string, vendor?: BhawVendor | null) => {
     setOpenMenu(null);
     if (selectedSource === key) return;
+    // A house that has not published both bhaw sides cannot price gold, so
+    // it cannot be followed: the card says so, and the tick stays put.
+    if (vendor && !hasLiveBhaw(vendor)) return;
 
-    // The phone follows the house at once — Home's rates and the tick are
-    // driven from here — and the server records it behind. A server that does
-    // not know a newer house yet clamps its own record without pulling the
-    // phone off the house the shop chose.
+    // The phone follows the house at once — the tick and every rate on the
+    // phone are driven from here — and the server records it behind. If the
+    // server refuses, or cannot be reached, the phone goes back to the house
+    // the server still prices on, and says so.
+    const previousProvider = useBhawStore.getState().provider;
+    const previousJmd = useMatricesStore.getState().values.bhaw_source_jmd;
+    const previous = bullion;
+    const attempt = (bullionSaveSeq.current += 1);
     useBhawStore.getState().setProvider(key);
     useMatricesStore.setState((state) => ({
       values: { ...state.values, bhaw_source_jmd: key === 'jmd_patil' },
     }));
-
-    // Saved even before the server's list has loaded: the choice is the
-    // shop's, and the server prices scans on it.
-    const previous = bullion;
     if (bullion) setBullion({ ...bullion, selected: key });
+
     void updateBullionSources({ selected: key, requestedNames: bullion?.requestedNames ?? [] })
       .then((saved) => {
+        if (attempt !== bullionSaveSeq.current) return;
         setBullion(saved);
         // Home and Gold Rate Settings read the server's rates for the house
         // it now prices on.
         store.dispatch(goldRatesApi.util.invalidateTags(['GoldRates']));
       })
       .catch(() => {
+        // A later tap has already moved on; its own answer settles things.
+        if (attempt !== bullionSaveSeq.current) return;
+        useBhawStore.getState().setProvider(previousProvider);
+        useMatricesStore.setState((state) => ({
+          values: { ...state.values, bhaw_source_jmd: previousJmd },
+        }));
         if (previous) setBullion(previous);
+        setPopup({ text: 'That change could not be saved. Please try again.', tone: 'error' });
       });
   };
 
@@ -306,7 +327,7 @@ Home keeps following ${following} until then.`,
                 name={vendor.name}
                 vendor={vendor}
                 selected={selectedSource === vendor.source}
-                onSelect={() => selectBullion(String(vendor.source))}
+                onSelect={() => selectBullion(String(vendor.source), vendor)}
               />
             ))}
             <AddBullionRow

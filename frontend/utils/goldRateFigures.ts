@@ -15,8 +15,12 @@ import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
 
 /** What the figures stand on: the market MCX, the house line, the bhaw. */
 export interface GoldRateBase {
-  /** The market MCX: the figure most houses agree on, off the live boards. */
-  mcx: number;
+  /**
+   * The market MCX: the figure most houses agree on, off the live boards.
+   * Null until the boards have answered — a dash, never the server's own
+   * snapshot, which is a number no bullion card shows.
+   */
+  mcx: number | null;
   /** The line the followed house's bhaw is quoted over, its own MCX. */
   pricingMcx: number;
   rtgsBhaw: number;
@@ -37,7 +41,8 @@ export interface GoldRateChanges {
 }
 
 export interface GoldRateFigures {
-  mcxFinal: number;
+  /** Null while the boards have not answered; the card shows a dash. */
+  mcxFinal: number | null;
   retailFinal: number;
   rtgsRate1: number;
   rtgsRate2: number;
@@ -69,20 +74,21 @@ export function goldRateBase(
 ): GoldRateBase {
   const serverKey = gold.bhawSource?.key;
   const vendor = (serverKey ? vendors.find((v) => v.source === serverKey) : null) ?? phoneVendor;
-  // The server's rule: a house's bhaw counts only when both sides are
-  // published; a house that has published one side, or none, is priced on
-  // the stored change over the market MCX.
+  // A house prices gold once it has published both bhaw sides (the server's
+  // rule too). One that has not is not followable, so this is the fallback
+  // for a followed house that has gone quiet, or a phone that has not heard
+  // from the boards yet: the base the server priced on, which its fallback
+  // bhaw belongs to.
   const live = hasLiveBhaw(vendor);
+  // Rounded as the server rounds the line it prices on.
   const houseLine = live ? houseMcxSell(vendor) : null;
-  const mcx = feedMcxSell(vendors) ?? gold.mcxLiveRate;
   return {
-    mcx,
-    // Rounded as the server rounds the line it prices on.
+    mcx: feedMcxSell(vendors),
     pricingMcx:
       houseLine !== null ? Math.round(houseLine) : gold.taxSettings?.pricingMcxLiveRate ?? gold.mcxLiveRate,
     rtgsBhaw: live && vendor?.rtgsBhaw != null ? vendor.rtgsBhaw : gold.supremeChanges?.rtgsChange ?? 0,
     cashBhaw: live && vendor?.cashBhaw != null ? vendor.cashBhaw : gold.supremeChanges?.cashChange ?? 0,
-    houseName: vendor?.name ?? houseNameFor(serverKey ?? '', gold.bhawSource?.name),
+    houseName: vendor?.name || houseNameFor(serverKey ?? '', gold.bhawSource?.name),
     houseLive: live,
   };
 }
@@ -104,7 +110,7 @@ export function goldRateChanges(gold: GoldRatesResponse): GoldRateChanges {
  * rtgsRate1FinalRate, rtgsRate2FinalRate, rtgsFinalRate).
  */
 export function computeGoldRateFigures(base: GoldRateBase, changes: GoldRateChanges): GoldRateFigures {
-  const mcxFinal = base.mcx + changes.mcxChange;
+  const mcxFinal = base.mcx === null ? null : base.mcx + changes.mcxChange;
   const pricing = base.pricingMcx + changes.mcxChange;
   const retailFinal = pricing + base.cashBhaw + changes.cashChange;
   const rtgsRate1 = pricing + base.rtgsBhaw + changes.rtgsChange;

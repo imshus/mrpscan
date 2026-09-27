@@ -403,8 +403,12 @@ export default function DashboardScreen() {
                       <Text style={styles.mcxTopSub}>24 kt (99.5%)</Text>
                     </View>
                     {/* Gold Rate Settings' Final MCX Rate: the market MCX
-                        with the shop's own change on it. */}
-                    <Text style={styles.mcxTopValue}>{figures.mcxFinal.toLocaleString('en-IN')}</Text>
+                        with the shop's own change on it. A dash until the
+                        boards have answered — never a number no bullion
+                        card shows. */}
+                    <Text style={styles.mcxTopValue}>
+                      {figures.mcxFinal === null ? '—' : figures.mcxFinal.toLocaleString('en-IN')}
+                    </Text>
                   </View>
                   <View style={styles.mcxDivider} />
 
