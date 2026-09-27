@@ -19,7 +19,6 @@ import {
 import { Colors, Spacing } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useBhawStore } from '@/store/bhawStore';
-import { hasLiveBhaw, type BhawVendor } from '@/utils/bhawApi';
 import { goldRatesApi } from '@/store/goldRatesApi';
 import { useMatricesStore } from '@/store/matricesStore';
 import { store } from '@/store/store';
@@ -221,12 +220,9 @@ export default function DashboardMatricesScreen() {
 
   if (!allowed) return null;
 
-  const selectBullion = (key: string, vendor?: BhawVendor | null) => {
+  const selectBullion = (key: string) => {
     setOpenMenu(null);
     if (selectedSource === key) return;
-    // A house that has not published both bhaw sides cannot price gold, so
-    // it cannot be followed: the card says so, and the tick stays put.
-    if (vendor && !hasLiveBhaw(vendor)) return;
 
     // The phone follows the house at once — the tick and every rate on the
     // phone are driven from here — and the server records it behind. If the
@@ -327,7 +323,7 @@ Home keeps following ${following} until then.`,
                 name={vendor.name}
                 vendor={vendor}
                 selected={selectedSource === vendor.source}
-                onSelect={() => selectBullion(String(vendor.source), vendor)}
+                onSelect={() => selectBullion(String(vendor.source))}
               />
             ))}
             <AddBullionRow

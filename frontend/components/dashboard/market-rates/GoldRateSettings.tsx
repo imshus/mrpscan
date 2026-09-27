@@ -366,10 +366,13 @@ export function GoldRateSettingsPanel({
    */
   const bhawIn = (value?: number) => toSafeNumber(value, 0);
   const bhawNote = (value?: number) => {
+    if (!bhawSourceName) return undefined;
+    // The followed house is always named. Its own bhaw is credited to it
+    // when it has published one; when it has not, the note says so rather
+    // than crediting it with a fallback figure it never published.
+    if (!bhawLive) return `Following ${bhawSourceName} — bhaw not published yet`;
     const amount = bhawIn(value);
-    // Only the house's own bhaw is named as the house's; a fallback figure
-    // is not credited to a house that did not publish it.
-    if (!bhawSourceName || !bhawLive || !amount) return undefined;
+    if (!amount) return undefined;
     const sign = amount < 0 ? '−' : '+';
     return `Includes ${bhawSourceName} bhaw ${sign}${Math.abs(Math.round(amount)).toLocaleString('en-IN')}`;
   };

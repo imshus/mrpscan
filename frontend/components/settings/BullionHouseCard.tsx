@@ -40,29 +40,28 @@ const rupees = (value: number | null): string =>
  */
 export function BullionHouseCard({ name, vendor, selected, onSelect }: BullionHouseCardProps) {
   const updated = updatedAtLabel(vendor?.updatedAt ?? '');
-  // A house prices gold only once it has published both bhaw sides. Until
-  // then its card is read-only: the numbers it does show are not what any
-  // rate would stand on, and the tick would be a promise nothing keeps. A
-  // house already followed keeps its tick if it goes quiet.
-  const canFollow = hasLiveBhaw(vendor);
+  // A house prices gold once it has published both bhaw sides. One that
+  // has not can still be followed, at the shop's asking — it is named on
+  // Gold Rate Settings and Home as the house followed — and its card says
+  // that no rate stands on it yet.
+  const pricing = hasLiveBhaw(vendor);
 
   return (
     <Pressable
-      onPress={canFollow || selected ? onSelect : undefined}
-      disabled={!canFollow && !selected}
+      onPress={onSelect}
       accessibilityRole="radio"
-      accessibilityState={{ selected, disabled: !canFollow && !selected }}
-      style={[styles.card, selected && styles.cardSelected, !canFollow && !selected && styles.cardQuiet]}
+      accessibilityState={{ selected }}
+      style={[styles.card, selected && styles.cardSelected]}
     >
       <View style={styles.head}>
         <View style={styles.headText}>
           <Text style={styles.name}>{name}</Text>
           {updated ? <Text style={styles.updated}>Updated {updated}</Text> : null}
-          {!canFollow ? (
+          {!pricing ? (
             <Text style={styles.quietNote}>Not pricing yet — bhaw not published</Text>
           ) : null}
         </View>
-        <View style={[styles.tick, selected && styles.tickOn, !canFollow && !selected && styles.tickQuiet]}>
+        <View style={[styles.tick, selected && styles.tickOn]}>
           {selected ? <Check size={13} color={Colors.white} strokeWidth={3} /> : null}
         </View>
       </View>
@@ -132,8 +131,6 @@ const styles = StyleSheet.create({
   name: { fontSize: 14.5, fontWeight: '800', color: Colors.textPrimary },
   updated: { fontSize: 10.5, color: Colors.textMuted, marginTop: 1 },
   quietNote: { fontSize: 10.5, color: Colors.brandDeep, fontWeight: '600', marginTop: 2 },
-  cardQuiet: { opacity: 0.72 },
-  tickQuiet: { borderColor: Colors.border, borderStyle: 'dashed' },
   tick: {
     width: 19,
     height: 19,
