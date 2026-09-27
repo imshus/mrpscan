@@ -61,7 +61,12 @@ export function MessagePopup({
   return (
     <Modal transparent visible animationType="none" onRequestClose={onDismiss}>
       <Pressable style={styles.backdrop} onPress={onDismiss} accessibilityRole="button">
-        <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
+        <Animated.View
+          style={[styles.card, { opacity, transform: [{ scale }] }]}
+          // The card keeps its own touches: a tap on the words, while
+          // reading, must not count as tapping the backdrop behind it.
+          onStartShouldSetResponder={() => true}
+        >
           <PopupCloseButton onPress={onDismiss} style={styles.close} />
           <View style={[styles.iconWrap, tone === 'error' && styles.iconWrapError]}>
             {icon === 'alert' ? (
