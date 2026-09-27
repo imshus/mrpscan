@@ -453,6 +453,18 @@ export default function ProcessingScreen() {
           : error instanceof Error
             ? error.message
             : 'Scan processing failed. Please try again.';
+      // Refused for credits (the wallet fell under a scan's worth between
+      // capture and upload): back to the scanner's start, whose popup says
+      // why and offers the recharge. Recapturing would only be refused again.
+      if (error instanceof ApiError && error.status === 402) {
+        Alert.alert('Low credits', message, [
+          {
+            text: 'OK',
+            onPress: () => router.replace('/dashboard/scanner' as Href),
+          },
+        ]);
+        return;
+      }
       Alert.alert('Scan Error', message, [
         {
           text: 'Back to Capture',

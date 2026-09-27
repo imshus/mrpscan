@@ -9,7 +9,7 @@ import { MessagePopup } from '@/components/settings/MessagePopup';
 import { useAuthStore } from '@/store/authStore';
 import { useScannerStore } from '@/store/scannerStore';
 import { ApiError } from '@/utils/apiClient';
-import { fetchSubscriptionOverview, startFreeTrial } from '@/utils/subscriptionApi';
+import { fetchSubscriptionOverview, MIN_SCAN_BALANCE, startFreeTrial } from '@/utils/subscriptionApi';
 import type { SubscriptionOverview } from '@/types/subscription';
 
 const PURCHASE_ROUTE = '/dashboard/purchase-license' as Href;
@@ -41,9 +41,15 @@ export default function ScannerScreen() {
   const trialUsed = Boolean(overview?.trialExpiredAt || overview?.trialStartDate);
   const trialExpired =
     isOwner && Boolean(overview && !overview.scannerEnabled && trialUsed);
-  const outOfCredits =
-    isOwner
-    && Boolean(overview && overview.scannerEnabled && Number(overview.creditBalance || 0) <= 0);
+  // "No credits left" as soon as the wallet cannot pay for one more scan
+  // (0.74 unless the server says otherwise), not only at 0: a scan is billed
+  // once it is done and only if the wallet covers the whole charge, so a
+  // wallet of 0.51 used to run scans it could never pay for.
+  const creditsLow = Boolean(
+    overview
+      && Number(overview.creditBalance || 0) <= Number(overview.minScanBalance ?? MIN_SCAN_BALANCE),
+  );
+  const outOfCredits = isOwner && Boolean(overview && overview.scannerEnabled && creditsLow);
 
   const canUseScanner = isOwner
     ? Boolean(overview && overview.scannerEnabled && !outOfCredits)
@@ -134,14 +140,21 @@ export default function ScannerScreen() {
   const popup = trialExpired
     ? {
         title: 'Free trial expired',
-        message: 'Your free trial has expired. Please purchase a plan to continue scanning.',
-        action: 'Purchase Plan',
+        // Trial over and credits low (the usual case: the wallet is emptied
+        // when the trial ends) says both; either way the one fix is the
+        // licence, never a recharge, which a shop off its trial cannot buy.
+        message: creditsLow
+          ? 'Your free trial has expired and your credits are low. Please purchase a license to continue scanning.'
+          : 'Your free trial has expired. Please purchase a license to continue scanning.',
+        action: 'Purchase License',
         route: PURCHASE_ROUTE,
       }
     : outOfCredits
       ? {
-          title: 'No credits left',
-          message: 'Your credits are over. Please recharge to continue scanning.',
+          // "Low", not "over": at 0.51 Home still says a credit is left, and
+          // both are true — there is some, but not enough for one scan.
+          title: 'Low credits',
+          message: 'Your credits are too low for a scan. Please recharge to continue scanning.',
           action: 'Recharge Credits',
           route: RECHARGE_ROUTE,
         }

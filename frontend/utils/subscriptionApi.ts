@@ -10,6 +10,13 @@ import type {
 import { apiRequest, ApiError } from '@/utils/apiClient';
 import { unwrapApiData } from '@/utils/apiResponse';
 
+/**
+ * The balance a new scan must be above, at the shop's asking: one scan costs
+ * about 0.68 and is billed only if the wallet covers all of it. The server
+ * sends its own figure (billing config minScanBalance); this is the fallback.
+ */
+export const MIN_SCAN_BALANCE = 0.74;
+
 type ApiEnvelope<T extends Record<string, unknown>> = T & {
   success?: boolean;
   message?: string;
@@ -138,6 +145,11 @@ function toOverview(raw: Record<string, unknown>): SubscriptionOverview {
     creditBalance: Number(raw.creditBalance || 0),
     lowCreditThreshold: Number(raw.lowCreditThreshold || 20),
     criticalCreditThreshold: Number(raw.criticalCreditThreshold || 10),
+    // A server that does not send it yet gets the shop's own figure. A 0
+    // it does send is kept (not read as "missing").
+    minScanBalance: Number.isFinite(Number(raw.minScanBalance)) && raw.minScanBalance !== null && raw.minScanBalance !== ''
+      ? Number(raw.minScanBalance)
+      : MIN_SCAN_BALANCE,
     creditWarningLevel: (raw.creditWarningLevel as SubscriptionOverview['creditWarningLevel']) || 'NONE',
     todayScans: Number(raw.todayScans || 0),
     monthScans: Number(raw.monthScans || 0),

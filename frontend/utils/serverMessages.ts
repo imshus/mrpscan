@@ -11,8 +11,8 @@ import { ApiError } from '@/utils/apiClient';
 const MESSAGES: Record<string, string> = {
   PERMANENT_LICENSE_REQUIRED: 'This needs lifetime access. Buy the licence to continue.',
   LICENSE_REQUIRED: 'Your licence is not active. Start the free trial or buy lifetime access to continue.',
-  SCANNER_LICENSE_REQUIRED: 'Your free trial has expired. Please purchase a plan to continue scanning.',
-  NO_CREDITS_AVAILABLE: 'Your credits are over. Please recharge to continue scanning.',
+  SCANNER_LICENSE_REQUIRED: 'Your free trial has expired. Please purchase a license to continue scanning.',
+  NO_CREDITS_AVAILABLE: 'Your credits are too low for a scan. Please recharge to continue scanning.',
   LICENSE_CONTEXT_MISSING: 'Your licence could not be read just now. Please try again.',
   TRIAL_ALREADY_EXPIRED: 'This shop has already used its free trial.',
   TRIAL_ALREADY_ACTIVE: 'The free trial is already running.',
