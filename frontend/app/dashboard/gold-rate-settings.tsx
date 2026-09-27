@@ -111,7 +111,7 @@ export default function GoldRateSettingsScreen() {
                 supremeCashChange={base?.cashBhaw ?? 0}
                 rtgsChange={changes?.rtgsChange ?? 0}
                 rtgsTaxPercent={changes?.rtgsTaxPercent ?? 0}
-                rtgsVariant={changes?.rtgsVariant ?? 'taxed'}
+                rtgsVariant={changes?.rtgsVariant ?? 'plain'}
                 cashChange={changes?.cashChange ?? 0}
                 bhawSourceName={houseName}
                 bhawRtgs={base?.rtgsBhaw}
