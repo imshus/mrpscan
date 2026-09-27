@@ -64,8 +64,8 @@ export interface GoldRateFigures {
 
 /** The tax RTGS Rate 1 carries, the "(Including tax 3%)" on its card. */
 export const RTGS_TAX_PERCENT = 3;
-/** The discount RTGS Rate 2 carries off Rate 1: a fixed 3%, at the shop's asking. */
-export const RTGS_RATE2_DISCOUNT_PERCENT = 3;
+/** What RTGS Rate 2's Tax box holds until the shop types otherwise: 3%. */
+export const RTGS_RATE2_DEFAULT_TAX_PERCENT = 3;
 
 const HOUSE_NAMES: Record<string, string> = {
   jmd_patil: 'JMD Patil',
@@ -118,7 +118,14 @@ export function goldRateChanges(gold: GoldRatesResponse): GoldRateChanges {
     mcxChange: t?.mcxChangeBy ?? resolveMcxChangeValue(t?.mcxChange),
     rtgsChange: t?.rtgsChangeBy ?? 0,
     cashChange: t?.cashChangeBy ?? 0,
-    rtgsTaxPercent: t?.rtgsTaxPercent ?? 0,
+    // The Tax box's percent; 3 for a shop that has never typed one, so Rate
+    // 2 is never Rate 1 by default. A saved 0 is one nobody typed (every
+    // shop from before the box carries it), so it reads as 3 too — the
+    // server's rule.
+    rtgsTaxPercent:
+      t?.rtgsTaxPercent != null && t.rtgsTaxPercent > 0
+        ? t.rtgsTaxPercent
+        : RTGS_RATE2_DEFAULT_TAX_PERCENT,
     rtgsVariant: t?.rtgsVariant === 'taxed' ? 'taxed' : 'plain',
   };
 }
@@ -137,12 +144,14 @@ export function computeGoldRateFigures(base: GoldRateBase, changes: GoldRateChan
   // RTGS Rate 1 is the house's board RTGS (its line + its bhaw) plus the
   // shop's change, with RTGS_TAX_PERCENT on top; Rate 2 is Rate 1 less the
   // percent the shop typed. A house with no board RTGS gives no value.
-  const rtgsRate1 = base.rtgsLive
-    ? Math.round((pricing + base.rtgsBhaw + changes.rtgsChange) * (1 + RTGS_TAX_PERCENT / 100))
-    : null;
-  // Rate 2 is Rate 1 less a fixed 3% — not a percent the shop types.
+  // Rate 1 (Including tax 3%) is the board RTGS + the shop's change, with
+  // 3% on top. Rate 2 (without tax) is that same board figure with nothing
+  // on it — straight off the Dashboard Settings card — less the percent in
+  // its Tax box. Both null when the house has no board RTGS.
+  const rtgsBoard = base.rtgsLive ? pricing + base.rtgsBhaw + changes.rtgsChange : null;
+  const rtgsRate1 = rtgsBoard === null ? null : Math.round(rtgsBoard * (1 + RTGS_TAX_PERCENT / 100));
   const rtgsRate2 =
-    rtgsRate1 === null ? null : Math.round(rtgsRate1 * (1 - RTGS_RATE2_DISCOUNT_PERCENT / 100));
+    rtgsBoard === null ? null : Math.round(rtgsBoard * (1 - changes.rtgsTaxPercent / 100));
   return {
     mcxFinal,
     retailFinal,

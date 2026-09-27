@@ -10,7 +10,7 @@ import {
 import { ChevronDown, ChevronRight, X } from 'lucide-react-native';
 
 import { screenStyles } from '@/constants/screenLayout';
-import { computeGoldRateFigures } from '@/utils/goldRateFigures';
+import { computeGoldRateFigures, RTGS_RATE2_DEFAULT_TAX_PERCENT } from '@/utils/goldRateFigures';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { formatInr } from '@/utils/rateMappers';
 
@@ -308,7 +308,7 @@ export function GoldRateSettingsPanel({
   rtgsLive = true,
   bhawRtgs,
   bhawCash,
-  rtgsTaxPercent = 0,
+  rtgsTaxPercent = RTGS_RATE2_DEFAULT_TAX_PERCENT,
   rtgsVariant = 'plain',
   showTitle = true,
   showClose = false,
@@ -321,7 +321,7 @@ export function GoldRateSettingsPanel({
   const [mcxAmount, setMcxAmount] = useState('');
   const [rtgsAmount, setRtgsAmount] = useState('');
   const [cashAmount, setCashAmount] = useState('');
-  const [taxPercent, setTaxPercent] = useState('0');
+  const [taxPercent, setTaxPercent] = useState(String(RTGS_RATE2_DEFAULT_TAX_PERCENT));
   const [variant, setVariant] = useState<'taxed' | 'plain'>('plain');
   // No Restore or Apply, as the design has it: a tick on RTGS Rate 1 or 2
   // saves and applies at once, and typing saves once it pauses. These hold
@@ -588,10 +588,8 @@ export function GoldRateSettingsPanel({
 
         <RateCard
           title="RTGS Rate 2"
-          titleTag="(3% discount)"
-          // Rate 2 stands on Rate 1, not on the board: a fixed 3% off it, and
-          // its card says so. The bhaw note belongs to Rate 1 alone.
-          subtitle={rtgsRate1LiveFinal === null ? undefined : 'Rate 1 less 3%'}
+          titleTag="(without tax)"
+          subtitle={bhawNote(bhawRtgs, rtgsLive)}
           showCurrentRate={false}
           icon={null}
           sign={rtgsSign}
@@ -605,6 +603,21 @@ export function GoldRateSettingsPanel({
           onAmountChange={edited(setRtgsAmount)}
           selected={variant === 'plain'}
           onSelect={() => selectVariant('plain')}
+          changeControl={
+            <View style={styles.taxFieldWrap}>
+              <Text style={styles.taxFieldLabel}>− Tax</Text>
+              <TextInput
+                value={taxPercent}
+                onChangeText={edited((value: string) =>
+                  setTaxPercent(value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')),
+                )}
+                keyboardType="decimal-pad"
+                accessibilityLabel="Tax percent taken off RTGS Rate 2"
+                style={styles.taxFieldInput}
+                maxLength={5}
+              />
+            </View>
+          }
         />
       </View>
     </>
