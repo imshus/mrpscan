@@ -118,14 +118,10 @@ export function goldRateChanges(gold: GoldRatesResponse): GoldRateChanges {
     mcxChange: t?.mcxChangeBy ?? resolveMcxChangeValue(t?.mcxChange),
     rtgsChange: t?.rtgsChangeBy ?? 0,
     cashChange: t?.cashChangeBy ?? 0,
-    // The Tax box's percent; 3 for a shop that has never typed one, so Rate
-    // 2 is never Rate 1 by default. A saved 0 is one nobody typed (every
-    // shop from before the box carries it), so it reads as 3 too — the
-    // server's rule.
-    rtgsTaxPercent:
-      t?.rtgsTaxPercent != null && t.rtgsTaxPercent > 0
-        ? t.rtgsTaxPercent
-        : RTGS_RATE2_DEFAULT_TAX_PERCENT,
+    // The Tax box's percent. A saved number is what the shop chose, 0
+    // included — 0 is the board figure itself, at the shop's asking. Only
+    // a field never saved reads as the default 3. The server's rule.
+    rtgsTaxPercent: t?.rtgsTaxPercent ?? RTGS_RATE2_DEFAULT_TAX_PERCENT,
     rtgsVariant: t?.rtgsVariant === 'taxed' ? 'taxed' : 'plain',
   };
 }
