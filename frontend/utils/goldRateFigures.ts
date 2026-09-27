@@ -66,8 +66,12 @@ export interface GoldRateFigures {
 
 /** The tax RTGS Rate 1 carries, the "(Including tax 3%)" on its card. */
 export const RTGS_TAX_PERCENT = 3;
-/** What RTGS Rate 2's Tax box holds until the shop types otherwise: 3%. */
-export const RTGS_RATE2_DEFAULT_TAX_PERCENT = 3;
+/**
+ * What RTGS Rate 2's Tax box holds until the shop types otherwise: 0, at
+ * the shop's asking — Rate 2 (without tax) is the board figure itself
+ * unless the shop takes something off it.
+ */
+export const RTGS_RATE2_DEFAULT_TAX_PERCENT = 0;
 
 const HOUSE_NAMES: Record<string, string> = {
   jmd_patil: 'JMD Patil',
@@ -120,9 +124,9 @@ export function goldRateChanges(gold: GoldRatesResponse): GoldRateChanges {
     mcxChange: t?.mcxChangeBy ?? resolveMcxChangeValue(t?.mcxChange),
     rtgsChange: t?.rtgsChangeBy ?? 0,
     cashChange: t?.cashChangeBy ?? 0,
-    // The Tax box's percent. A saved number is what the shop chose, 0
-    // included — 0 is the board figure itself, at the shop's asking. Only
-    // a field never saved reads as the default 3. The server's rule.
+    // The Tax box's percent. A saved number is what the shop chose; a
+    // field never saved reads as the default 0, the board figure itself.
+    // The server's rule.
     rtgsTaxPercent: t?.rtgsTaxPercent ?? RTGS_RATE2_DEFAULT_TAX_PERCENT,
     rtgsVariant: t?.rtgsVariant === 'taxed' ? 'taxed' : 'plain',
   };
