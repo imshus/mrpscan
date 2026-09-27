@@ -104,7 +104,8 @@ export default function GoldRateSettingsScreen() {
                 visible
                 mcxLiveRate={base?.mcx ?? null}
                 pricingMcxRate={base?.pricingMcx}
-                bhawLive={base?.houseLive ?? false}
+                cashLive={base?.cashLive ?? false}
+                rtgsLive={base?.rtgsLive ?? false}
                 mcxChange={changes?.mcxChange ?? 0}
                 supremeRtgsChange={base?.rtgsBhaw ?? 0}
                 supremeCashChange={base?.cashBhaw ?? 0}

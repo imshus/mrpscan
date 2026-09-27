@@ -272,8 +272,9 @@ interface GoldRateSettingsPanelProps {
   cashChange: number;
   /** Provider whose bhaw sets the RTGS/Cash base, e.g. "JMD Patil". */
   bhawSourceName?: string;
-  /** False when the figures stand on the server's fallback, not the house's bhaw. */
-  bhawLive?: boolean;
+  /** Which sides are the house's own; a side that is not shows no value. */
+  cashLive?: boolean;
+  rtgsLive?: boolean;
   bhawRtgs?: number;
   bhawCash?: number;
   /** The percent RTGS Rate 2 carries; RTGS Rate 1 carries none. */
@@ -303,7 +304,8 @@ export function GoldRateSettingsPanel({
   rtgsChange,
   cashChange,
   bhawSourceName,
-  bhawLive = true,
+  cashLive = true,
+  rtgsLive = true,
   bhawRtgs,
   bhawCash,
   rtgsTaxPercent = 0,
@@ -365,12 +367,12 @@ export function GoldRateSettingsPanel({
    * different figure moves the rate by the difference alone.
    */
   const bhawIn = (value?: number) => toSafeNumber(value, 0);
-  const bhawNote = (value?: number) => {
+  const bhawNote = (value?: number, live = true) => {
     if (!bhawSourceName) return undefined;
     // The followed house is always named. Its own bhaw is credited to it
-    // when it has published one; when it has not, the note says so rather
-    // than crediting it with a fallback figure it never published.
-    if (!bhawLive) return `Following ${bhawSourceName} — bhaw not published yet`;
+    // when it has published this side; when it has not, the note says so
+    // rather than crediting it with a fallback figure it never published.
+    if (!live) return `Following ${bhawSourceName} — bhaw not published yet`;
     const amount = bhawIn(value);
     if (!amount) return undefined;
     const sign = amount < 0 ? '−' : '+';
@@ -411,7 +413,9 @@ export function GoldRateSettingsPanel({
           rtgsBhaw: supremeRtgsChange,
           cashBhaw: supremeCashChange,
           houseName: bhawSourceName ?? '',
-          houseLive: bhawLive,
+          cashLive,
+          rtgsLive,
+          houseLive: cashLive || rtgsLive,
         },
         {
           mcxChange: mcxDraftChange,
@@ -427,7 +431,8 @@ export function GoldRateSettingsPanel({
       supremeRtgsChange,
       supremeCashChange,
       bhawSourceName,
-      bhawLive,
+      cashLive,
+      rtgsLive,
       mcxDraftChange,
       rtgsDraftChange,
       cashDraftChange,
@@ -441,7 +446,7 @@ export function GoldRateSettingsPanel({
   const rtgsRate2LiveFinal = figures.rtgsRate2;
   // The cards hide their current-rate pill (showCurrentRate={false}); these
   // keep the props whole.
-  const cashCurrentRate = cashLiveFinal - cashDraftChange;
+  const cashCurrentRate = cashLiveFinal === null ? null : cashLiveFinal - cashDraftChange;
   const rtgsCurrentRate = rtgsRate1LiveFinal === null ? null : rtgsRate1LiveFinal - rtgsDraftChange;
 
   /**
@@ -545,7 +550,7 @@ export function GoldRateSettingsPanel({
 
         <RateCard
           title="Retail Rate"
-          subtitle={bhawNote(bhawCash)}
+          subtitle={bhawNote(bhawCash, cashLive)}
           showCurrentRate={false}
           icon={null}
           sign={cashSign}
@@ -565,7 +570,7 @@ export function GoldRateSettingsPanel({
         <RateCard
           title="RTGS Rate 1"
           titleTag="(Including tax 3%)"
-          subtitle={bhawNote(bhawRtgs)}
+          subtitle={bhawNote(bhawRtgs, rtgsLive)}
           showCurrentRate={false}
           icon={null}
           sign={rtgsSign}
@@ -583,8 +588,10 @@ export function GoldRateSettingsPanel({
 
         <RateCard
           title="RTGS Rate 2"
-          titleTag="(without tax)"
-          subtitle={bhawNote(bhawRtgs)}
+          titleTag="(3% discount)"
+          // Rate 2 stands on Rate 1, not on the board: a fixed 3% off it, and
+          // its card says so. The bhaw note belongs to Rate 1 alone.
+          subtitle={rtgsRate1LiveFinal === null ? undefined : 'Rate 1 less 3%'}
           showCurrentRate={false}
           icon={null}
           sign={rtgsSign}
@@ -598,21 +605,6 @@ export function GoldRateSettingsPanel({
           onAmountChange={edited(setRtgsAmount)}
           selected={variant === 'plain'}
           onSelect={() => selectVariant('plain')}
-          changeControl={
-            <View style={styles.taxFieldWrap}>
-              <Text style={styles.taxFieldLabel}>− Tax</Text>
-              <TextInput
-                value={taxPercent}
-                onChangeText={edited((value: string) =>
-                  setTaxPercent(value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')),
-                )}
-                keyboardType="decimal-pad"
-                accessibilityLabel="Tax percent taken off RTGS Rate 2"
-                style={styles.taxFieldInput}
-                maxLength={5}
-              />
-            </View>
-          }
         />
       </View>
     </>

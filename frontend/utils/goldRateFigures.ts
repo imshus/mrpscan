@@ -1,5 +1,5 @@
 import type { GoldRatesResponse } from '@/types/rates';
-import { feedMcxSell, hasLiveBhaw, houseMcxSell, type BhawVendor } from '@/utils/bhawApi';
+import { feedMcxSell, houseMcxSell, type BhawVendor } from '@/utils/bhawApi';
 import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
 
 /**
@@ -27,7 +27,14 @@ export interface GoldRateBase {
   cashBhaw: number;
   /** The house these stand on, as the server priced it. */
   houseName: string;
-  /** True when the house's own bhaw is in these, false on the fallback. */
+  /**
+   * Which bhaw sides the house has published. Retail needs its cash side
+   * and RTGS its RTGS side; a house may have one and not the other (Shri
+   * Sai quotes RTGS and no cash), and each figure follows its own side.
+   */
+  cashLive: boolean;
+  rtgsLive: boolean;
+  /** True when at least one side is the house's own. */
   houseLive: boolean;
 }
 
@@ -43,7 +50,8 @@ export interface GoldRateChanges {
 export interface GoldRateFigures {
   /** Null while the boards have not answered; the card shows a dash. */
   mcxFinal: number | null;
-  retailFinal: number;
+  /** Null when the followed house has no board Cash: no value, as for RTGS. */
+  retailFinal: number | null;
   /**
    * Null when the followed house has no board RTGS: no value, at the shop's
    * asking, rather than a figure the house never published.
@@ -56,6 +64,8 @@ export interface GoldRateFigures {
 
 /** The tax RTGS Rate 1 carries, the "(Including tax 3%)" on its card. */
 export const RTGS_TAX_PERCENT = 3;
+/** The discount RTGS Rate 2 carries off Rate 1: a fixed 3%, at the shop's asking. */
+export const RTGS_RATE2_DISCOUNT_PERCENT = 3;
 
 const HOUSE_NAMES: Record<string, string> = {
   jmd_patil: 'JMD Patil',
@@ -81,22 +91,24 @@ export function goldRateBase(
 ): GoldRateBase {
   const serverKey = gold.bhawSource?.key;
   const vendor = (serverKey ? vendors.find((v) => v.source === serverKey) : null) ?? phoneVendor;
-  // A house prices gold once it has published both bhaw sides (the server's
-  // rule too). One that has not is not followable, so this is the fallback
-  // for a followed house that has gone quiet, or a phone that has not heard
-  // from the boards yet: the base the server priced on, which its fallback
-  // bhaw belongs to.
-  const live = hasLiveBhaw(vendor);
+  // Each bhaw side stands on its own: a house that quotes RTGS but not cash
+  // (Shri Sai today) prices RTGS off its own board and shows no Retail. The
+  // house's own MCX line is used whenever it has one; the server's base
+  // stands in only while the phone has not heard from the boards.
+  const cashLive = vendor?.cashBhaw != null;
+  const rtgsLive = vendor?.rtgsBhaw != null;
   // Rounded as the server rounds the line it prices on.
-  const houseLine = live ? houseMcxSell(vendor) : null;
+  const houseLine = houseMcxSell(vendor);
   return {
     mcx: feedMcxSell(vendors),
     pricingMcx:
       houseLine !== null ? Math.round(houseLine) : gold.taxSettings?.pricingMcxLiveRate ?? gold.mcxLiveRate,
-    rtgsBhaw: live && vendor?.rtgsBhaw != null ? vendor.rtgsBhaw : gold.supremeChanges?.rtgsChange ?? 0,
-    cashBhaw: live && vendor?.cashBhaw != null ? vendor.cashBhaw : gold.supremeChanges?.cashChange ?? 0,
+    rtgsBhaw: rtgsLive && vendor ? (vendor.rtgsBhaw as number) : gold.supremeChanges?.rtgsChange ?? 0,
+    cashBhaw: cashLive && vendor ? (vendor.cashBhaw as number) : gold.supremeChanges?.cashChange ?? 0,
     houseName: vendor?.name || houseNameFor(serverKey ?? '', gold.bhawSource?.name),
-    houseLive: live,
+    cashLive,
+    rtgsLive,
+    houseLive: cashLive || rtgsLive,
   };
 }
 
@@ -119,15 +131,18 @@ export function goldRateChanges(gold: GoldRatesResponse): GoldRateChanges {
 export function computeGoldRateFigures(base: GoldRateBase, changes: GoldRateChanges): GoldRateFigures {
   const mcxFinal = base.mcx === null ? null : base.mcx + changes.mcxChange;
   const pricing = base.pricingMcx + changes.mcxChange;
-  const retailFinal = pricing + base.cashBhaw + changes.cashChange;
+  // Retail and RTGS each need the house's own board side; a house that has
+  // not published it gives no value, at the shop's asking.
+  const retailFinal = base.cashLive ? pricing + base.cashBhaw + changes.cashChange : null;
   // RTGS Rate 1 is the house's board RTGS (its line + its bhaw) plus the
   // shop's change, with RTGS_TAX_PERCENT on top; Rate 2 is Rate 1 less the
   // percent the shop typed. A house with no board RTGS gives no value.
-  const rtgsRate1 = base.houseLive
+  const rtgsRate1 = base.rtgsLive
     ? Math.round((pricing + base.rtgsBhaw + changes.rtgsChange) * (1 + RTGS_TAX_PERCENT / 100))
     : null;
+  // Rate 2 is Rate 1 less a fixed 3% — not a percent the shop types.
   const rtgsRate2 =
-    rtgsRate1 === null ? null : Math.round(rtgsRate1 * (1 - changes.rtgsTaxPercent / 100));
+    rtgsRate1 === null ? null : Math.round(rtgsRate1 * (1 - RTGS_RATE2_DISCOUNT_PERCENT / 100));
   return {
     mcxFinal,
     retailFinal,

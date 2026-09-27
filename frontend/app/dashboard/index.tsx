@@ -446,7 +446,12 @@ export default function DashboardScreen() {
                   // the server rounds its rows. MCX 24K counts as 100%, at
                   // the shop's asking. The server's row stands in only until
                   // the figures are in.
-                  const rowRetail = figures ? karatFigure(figures.retailFinal, rate.purity) : (rate.cashRate ?? rate.finalRate);
+                  const rowRetail =
+                    figures && figures.retailFinal !== null
+                      ? karatFigure(figures.retailFinal, rate.purity)
+                      : figures
+                        ? null
+                        : (rate.cashRate ?? rate.finalRate);
                   const rowRtgs =
                     figures && figures.rtgsSelected !== null
                       ? karatFigure(figures.rtgsSelected, rate.purity)
@@ -465,7 +470,7 @@ export default function DashboardScreen() {
                       <View style={styles.rateCardBody}>
                         {showCash ? (
                           <RateBadge
-                            value={`${(rowRetail ?? 0).toLocaleString('en-IN')}`}
+                            value={rowRetail == null ? '—' : rowRetail.toLocaleString('en-IN')}
                             label="Retail Rate"
                           />
                         ) : null}
