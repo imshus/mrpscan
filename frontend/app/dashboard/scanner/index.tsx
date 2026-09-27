@@ -1,15 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { ScreenBackHeader } from '@/components/scanner/ScreenBackHeader';
+import { MessagePopup } from '@/components/settings/MessagePopup';
 import { useAuthStore } from '@/store/authStore';
 import { useScannerStore } from '@/store/scannerStore';
 import { ApiError } from '@/utils/apiClient';
 import { fetchSubscriptionOverview, startFreeTrial } from '@/utils/subscriptionApi';
 import type { SubscriptionOverview } from '@/types/subscription';
+
+const PURCHASE_ROUTE = '/dashboard/purchase-license' as Href;
+/** The same screen, opened on its Recharge Credits card. */
+const RECHARGE_ROUTE = {
+  pathname: '/dashboard/purchase-license',
+  params: { recharge: '1' },
+} as unknown as Href;
 
 export default function ScannerScreen() {
   const router = useRouter();
@@ -17,18 +25,28 @@ export default function ScannerScreen() {
   const [initializing, setInitializing] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null);
+  // Set once the shop has answered a popup, so it does not sit over the
+  // screen the popup sent them to. Cleared when this screen is back in front.
+  const [popupHidden, setPopupHidden] = useState(false);
   const resetScanSession = useScannerStore((s) => s.resetScanSession);
   const setScanSessionBootstrapping = useScannerStore((s) => s.setScanSessionBootstrapping);
   const isOwner = userRole === 'business';
 
+  // Trial over: the server's scanner flag is off and the trial carries its
+  // end stamp. Out of credits: the licence is fine but the wallet is empty —
+  // the server would refuse the scan (NO_CREDITS_AVAILABLE) a few screens
+  // in, so the shop is told here, at the tap, and sent to recharge instead.
+  const trialExpired =
+    isOwner && Boolean(overview && !overview.scannerEnabled && overview.trialExpiredAt);
+  const outOfCredits =
+    isOwner
+    && Boolean(overview && overview.scannerEnabled && Number(overview.creditBalance || 0) <= 0);
+
   const canUseScanner = isOwner
-    ? Boolean(
-        overview
-          && overview.scannerEnabled,
-      )
+    ? Boolean(overview && overview.scannerEnabled && !outOfCredits)
     : true;
 
-  const loadOverview = async () => {
+  const loadOverview = useCallback(async () => {
     setInitializing(true);
     try {
       const data = await fetchSubscriptionOverview();
@@ -40,15 +58,22 @@ export default function ScannerScreen() {
     } finally {
       setInitializing(false);
     }
-  };
+  }, []);
 
-  useEffect(() => {
-    if (!isOwner) {
-      setInitializing(false);
-      return;
-    }
-    void loadOverview();
-  }, [isOwner]);
+  // Read again every time this screen comes to the front, not only when it
+  // mounts: the popups send the shop to the purchase screen, and when it
+  // comes back with a plan or with credits the scanner must open, not ask
+  // the same thing again.
+  useFocusEffect(
+    useCallback(() => {
+      setPopupHidden(false);
+      if (!isOwner) {
+        setInitializing(false);
+        return;
+      }
+      void loadOverview();
+    }, [isOwner, loadOverview]),
+  );
 
   useEffect(() => {
     let active = true;
@@ -84,7 +109,7 @@ export default function ScannerScreen() {
       if (overview.status === 'NO_LICENSE' && !overview.trialExpiredAt) {
         await startFreeTrial();
       } else {
-        router.push('/dashboard/purchase-license' as Href);
+        router.push(PURCHASE_ROUTE);
         return;
       }
       await loadOverview();
@@ -100,6 +125,38 @@ export default function ScannerScreen() {
   const showBlockedState = !initializing && !canUseScanner;
 
   const isTrialExpired = Boolean(overview?.trialExpiredAt);
+
+  // What the tap on Scan gets when it cannot go through: the reason and the
+  // one place that fixes it. A trial never started keeps the card below.
+  const popup = trialExpired
+    ? {
+        title: 'Free trial expired',
+        message: 'Your free trial has expired. Please purchase a plan to continue scanning.',
+        action: 'Purchase Plan',
+        route: PURCHASE_ROUTE,
+      }
+    : outOfCredits
+      ? {
+          title: 'No credits left',
+          message: 'Your credits are over. Please recharge to continue scanning.',
+          action: 'Recharge Credits',
+          route: RECHARGE_ROUTE,
+        }
+      : null;
+
+  const leave = () => {
+    setPopupHidden(true);
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/dashboard' as Href);
+    }
+  };
+
+  const goTo = (route: Href) => {
+    setPopupHidden(true);
+    router.push(route);
+  };
 
   const bannerTitle = isTrialExpired
     ? 'Purchase Application'
@@ -120,7 +177,7 @@ export default function ScannerScreen() {
       <View className="flex-1 items-center justify-center bg-white px-6">
         {initializing ? <ActivityIndicator size="large" color="#D9291F" /> : null}
 
-        {showBlockedState ? (
+        {showBlockedState && !popup ? (
           <View className="w-full rounded-2xl border border-[#E8DBC2] bg-[#FFF7E8] p-5">
             <Text className="text-[24px] font-extrabold text-[#3F2F1C]">{bannerTitle}</Text>
             <Text className="mt-2 text-[14px] leading-5 text-[#675437]">{bannerSubtitle}</Text>
@@ -146,6 +203,18 @@ export default function ScannerScreen() {
           </View>
         ) : null}
       </View>
+
+      <MessagePopup
+        message={popup && !popupHidden ? popup.message : null}
+        title={popup?.title}
+        tone="error"
+        icon="alert"
+        actionLabel={popup?.action}
+        onAction={() => {
+          if (popup) goTo(popup.route);
+        }}
+        onDismiss={leave}
+      />
 
       <BottomNav />
     </View>
