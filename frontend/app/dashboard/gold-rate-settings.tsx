@@ -3,7 +3,10 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
-import { GoldRateSettingsPanel } from '@/components/dashboard/market-rates/GoldRateSettings';
+import {
+  GoldRateSettingsPanel,
+  type ChangedFields,
+} from '@/components/dashboard/market-rates/GoldRateSettings';
 import { ToastNotification, type ToastType } from '@/components/scanner/ToastNotification';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -59,17 +62,25 @@ export default function GoldRateSettingsScreen() {
     nextCashChange: number,
     nextRtgsTaxPercent: number,
     nextRtgsVariant: 'taxed' | 'plain',
+    changed: ChangedFields,
   ): Promise<boolean> => {
     try {
+      // Only what the shop changed goes to the server. Sending all five let
+      // a stale figure on screen (an older fetch landing after a save) be
+      // written back: a Rate 1 tap stored the 3 the Tax box briefly showed.
       await updateGoldTaxSettingsMutation({
-        mcxChange: {
-          operation: nextMcxChange < 0 ? '-' : '+',
-          amount: Math.abs(nextMcxChange),
-        },
-        rtgsChangeBy: nextRtgsChange,
-        cashChangeBy: nextCashChange,
-        rtgsTaxPercent: nextRtgsTaxPercent,
-        rtgsVariant: nextRtgsVariant,
+        ...(changed.mcx
+          ? {
+              mcxChange: {
+                operation: nextMcxChange < 0 ? '-' : '+',
+                amount: Math.abs(nextMcxChange),
+              },
+            }
+          : {}),
+        ...(changed.rtgs ? { rtgsChangeBy: nextRtgsChange } : {}),
+        ...(changed.cash ? { cashChangeBy: nextCashChange } : {}),
+        ...(changed.tax ? { rtgsTaxPercent: nextRtgsTaxPercent } : {}),
+        ...(changed.variant ? { rtgsVariant: nextRtgsVariant } : {}),
       }).unwrap();
       showToast('Gold rate settings updated', 'success');
       return true;

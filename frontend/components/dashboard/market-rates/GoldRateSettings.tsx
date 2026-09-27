@@ -284,14 +284,29 @@ interface GoldRateSettingsPanelProps {
   showTitle?: boolean;
   showClose?: boolean;
   onClose?: () => void;
-  /** Resolves true when the server took the change, false when it did not. */
+  /**
+   * Resolves true when the server took the change, false when it did not.
+   * `changed` says which of the five the shop actually changed: only those
+   * are sent, so a figure on screen that is stale (a fetch that landed late)
+   * is never written back over what the server holds.
+   */
   onApply: (
     mcxChangeBy: number,
     rtgsChangeBy: number,
     cashChangeBy: number,
     rtgsTaxPercent: number,
     rtgsVariant: 'taxed' | 'plain',
+    changed: ChangedFields,
   ) => Promise<boolean>;
+}
+
+/** Which of the form's five settings differ from what the server last took. */
+export interface ChangedFields {
+  mcx: boolean;
+  rtgs: boolean;
+  cash: boolean;
+  tax: boolean;
+  variant: boolean;
 }
 
 export function GoldRateSettingsPanel({
@@ -461,12 +476,14 @@ export function GoldRateSettingsPanel({
     }
     const draft = draftRef.current;
     const saved = savedRef.current;
-    const changed =
-      !isSameNumber(draft.mcx, saved.mcx) ||
-      !isSameNumber(draft.rtgs, saved.rtgs) ||
-      !isSameNumber(draft.cash, saved.cash) ||
-      !isSameNumber(draft.tax, saved.tax) ||
-      draft.variant !== saved.variant;
+    const fields: ChangedFields = {
+      mcx: !isSameNumber(draft.mcx, saved.mcx),
+      rtgs: !isSameNumber(draft.rtgs, saved.rtgs),
+      cash: !isSameNumber(draft.cash, saved.cash),
+      tax: !isSameNumber(draft.tax, saved.tax),
+      variant: draft.variant !== saved.variant,
+    };
+    const changed = fields.mcx || fields.rtgs || fields.cash || fields.tax || fields.variant;
     if (!changed) {
       dirtyRef.current = false;
       return;
@@ -477,7 +494,7 @@ export function GoldRateSettingsPanel({
       // A refused save is not a save: the draft stays dirty, so the next
       // edit or leaving the page tries again, and Home (rolled back) and
       // this screen are not left saying different things.
-      const ok = await onApply(draft.mcx, draft.rtgs, draft.cash, draft.tax, draft.variant);
+      const ok = await onApply(draft.mcx, draft.rtgs, draft.cash, draft.tax, draft.variant, fields);
       if (ok) {
         savedRef.current = draft;
         if (editSeqRef.current === seq) dirtyRef.current = false;
@@ -612,6 +629,12 @@ export function GoldRateSettingsPanel({
                   setTaxPercent(value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')),
                 )}
                 keyboardType="decimal-pad"
+                // A tap selects what is there, so typing replaces it: a 0
+                // typed in front of a 3 made "03", which reads as 3 and
+                // looked like the 0 had not taken.
+                selectTextOnFocus
+                // Cleared and left: the box says 0, which is what was saved.
+                onBlur={() => setTaxPercent((current) => (current.trim() === '' ? '0' : current))}
                 accessibilityLabel="Tax percent taken off RTGS Rate 2"
                 style={styles.taxFieldInput}
                 maxLength={5}
