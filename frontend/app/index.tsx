@@ -32,14 +32,21 @@ export default function Index() {
 
   // The spared key outlives the wipe that empties the stores on a new build,
   // so it is what says "this phone knows a shop" on the first start after an
-  // update — the store itself is empty at that moment.
+  // update — the store itself is empty at that moment. The number is put
+  // back into the store here, before Log In mounts, so that screen's first
+  // render already greets the shop and the MPIN field takes focus; read
+  // there instead, it opened on the number field and switched a beat later.
   useEffect(() => {
     let cancelled = false;
     AsyncStorage.getItem(REMEMBERED_PHONE_KEY)
       .then((stored) => {
-        if (!cancelled) {
-          setRememberedKnown(Boolean(stored && stored.replace(/\D/g, '').length === 10));
+        if (cancelled) return;
+        const digits = (stored || '').replace(/\D/g, '').slice(-10);
+        const known = digits.length === 10;
+        if (known && useAuthStore.getState().savedPhone.replace(/\D/g, '').length !== 10) {
+          useAuthStore.getState().setSavedCredentials(digits);
         }
+        setRememberedKnown(known);
       })
       .catch(() => {
         // Unreadable storage must not send a returning shop to signup, so the

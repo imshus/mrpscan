@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
-import { clearPersistedAppState } from './clearAppState';
+import { clearPersistedAppState, REMEMBERED_PHONE_KEY } from './clearAppState';
 
 /** Where the build that last wrote this device's data is recorded. */
 const BUILD_KEY = 'pratham-build';
@@ -16,7 +16,34 @@ const BUILD_KEY = 'pratham-build';
 export const APP_BUILD = String(Constants.expoConfig?.version ?? 'dev');
 
 /**
- * Clears every persisted store when the installed build has changed.
+ * Pulls the remembered sign-in number out of the auth store before the wipe
+ * removes it. Builds older than the spared key kept the number only inside
+ * the store, so without this one rescue the first update from one of those
+ * still forgot it, and the shop was asked for the whole form once more.
+ */
+async function preserveRememberedPhone(): Promise<void> {
+  try {
+    const existing = await AsyncStorage.getItem(REMEMBERED_PHONE_KEY);
+    if (existing) return;
+    const rawAuth = await AsyncStorage.getItem('pratham-auth');
+    if (!rawAuth) return;
+    const saved = JSON.parse(rawAuth)?.state ?? {};
+    // Builds up to 1.0.311 saved the number only behind a "remember me" that
+    // no screen ever turned on, so for a shop still signed in from one of
+    // those the number sits under the account's profile instead.
+    const phone = String(saved.savedPhone || saved.registration?.phone || '')
+      .replace(/\D/g, '')
+      .slice(-10);
+    if (phone.length === 10) await AsyncStorage.setItem(REMEMBERED_PHONE_KEY, phone);
+  } catch {
+    // The number is a convenience; a failed rescue must not block the start.
+  }
+}
+
+/**
+ * Clears every persisted store when the installed build has changed. The
+ * remembered sign-in number is rescued first: it is the one thing a new
+ * build keeps, so the shop is asked for its MPIN and nothing else.
  *
  * Returns true when a wipe happened, so the caller knows the in-memory stores
  * are now stale and must be rehydrated.
@@ -33,6 +60,7 @@ export async function resetIfNewBuild(): Promise<boolean> {
       return false;
     }
 
+    await preserveRememberedPhone();
     await clearPersistedAppState();
     await AsyncStorage.setItem(BUILD_KEY, APP_BUILD);
     return true;

@@ -104,8 +104,11 @@ export const useAuthStore = create<AuthState>()(
       setSavedCredentials: (phone) => {
         set({ savedPhone: phone });
         // Mirrored into the key the build wipe spares, so the next install
-        // still knows whose shop this is and asks for the MPIN alone.
-        if (phone) AsyncStorage.setItem(REMEMBERED_PHONE_KEY, phone).catch(() => {});
+        // still knows whose shop this is and asks for the MPIN alone. Only a
+        // ten-digit number goes there: the key outlives every update, and a
+        // login ID from the old sign-up screens would name nobody.
+        const digits = phone.replace(/\D/g, '').slice(-10);
+        if (digits.length === 10) AsyncStorage.setItem(REMEMBERED_PHONE_KEY, digits).catch(() => {});
       },
       setSavedEmployeePhone: (phone) => set({ savedEmployeePhone: phone }),
       updateRegistration: (data) =>
