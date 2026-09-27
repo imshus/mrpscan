@@ -204,8 +204,11 @@ export default function ScannerScreen() {
         ) : null}
       </View>
 
+      {/* Held back while the overview is being read again: coming back
+          from the purchase screen, the old answer must not show for the
+          length of the round trip. */}
       <MessagePopup
-        message={popup && !popupHidden ? popup.message : null}
+        message={popup && !popupHidden && !initializing ? popup.message : null}
         title={popup?.title}
         tone="error"
         icon="alert"
