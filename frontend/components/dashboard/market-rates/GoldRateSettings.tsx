@@ -279,7 +279,7 @@ interface GoldRateSettingsPanelProps {
   bhawCash?: number;
   /** The percent RTGS Rate 2 carries; RTGS Rate 1 carries none. */
   rtgsTaxPercent?: number;
-  /** Which RTGS rate is in force: 'taxed' is Rate 1, 'plain' is Rate 2. */
+  /** Which RTGS rate is in force: 'taxed' is Rate 1 (the default), 'plain' is Rate 2. */
   rtgsVariant?: 'taxed' | 'plain';
   showTitle?: boolean;
   showClose?: boolean;
@@ -309,7 +309,7 @@ export function GoldRateSettingsPanel({
   bhawRtgs,
   bhawCash,
   rtgsTaxPercent = RTGS_RATE2_DEFAULT_TAX_PERCENT,
-  rtgsVariant = 'plain',
+  rtgsVariant = 'taxed',
   showTitle = true,
   showClose = false,
   onClose,
@@ -322,11 +322,11 @@ export function GoldRateSettingsPanel({
   const [rtgsAmount, setRtgsAmount] = useState('');
   const [cashAmount, setCashAmount] = useState('');
   const [taxPercent, setTaxPercent] = useState(String(RTGS_RATE2_DEFAULT_TAX_PERCENT));
-  const [variant, setVariant] = useState<'taxed' | 'plain'>('plain');
+  const [variant, setVariant] = useState<'taxed' | 'plain'>('taxed');
   // No Restore or Apply, as the design has it: a tick on RTGS Rate 1 or 2
   // saves and applies at once, and typing saves once it pauses. These hold
   // what the server last took and whether the form has typing it has not.
-  const savedRef = useRef<SavedRates>({ mcx: 0, rtgs: 0, cash: 0, tax: 0, variant: 'plain' });
+  const savedRef = useRef<SavedRates>({ mcx: 0, rtgs: 0, cash: 0, tax: 0, variant: 'taxed' });
   const hydratedRef = useRef(false);
   const dirtyRef = useRef(false);
   const editSeqRef = useRef(0);

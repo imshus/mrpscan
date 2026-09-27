@@ -128,7 +128,8 @@ export function goldRateChanges(gold: GoldRatesResponse): GoldRateChanges {
     // field never saved reads as the default 0, the board figure itself.
     // The server's rule.
     rtgsTaxPercent: t?.rtgsTaxPercent ?? RTGS_RATE2_DEFAULT_TAX_PERCENT,
-    rtgsVariant: t?.rtgsVariant === 'taxed' ? 'taxed' : 'plain',
+    // RTGS Rate 1 is ticked unless the shop ticked Rate 2. The server's rule.
+    rtgsVariant: t?.rtgsVariant === 'plain' ? 'plain' : 'taxed',
   };
 }
 
