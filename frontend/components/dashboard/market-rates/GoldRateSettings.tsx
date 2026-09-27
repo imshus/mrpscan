@@ -442,7 +442,7 @@ export function GoldRateSettingsPanel({
   // The cards hide their current-rate pill (showCurrentRate={false}); these
   // keep the props whole.
   const cashCurrentRate = cashLiveFinal - cashDraftChange;
-  const rtgsCurrentRate = rtgsRate1LiveFinal - rtgsDraftChange;
+  const rtgsCurrentRate = rtgsRate1LiveFinal === null ? null : rtgsRate1LiveFinal - rtgsDraftChange;
 
   /**
    * Saves the form as it stands, when it differs from what the server has.

@@ -417,6 +417,8 @@ export default function DashboardScreen() {
                       stand on underneath. */}
                   <View style={styles.mcxBhawRow}>
                     <BhawTile rate={figures.retailFinal} label="Retail Rate" />
+                    {/* Rate 1 as ticked in Gold Rate Settings (tax included); a
+                        dash when the house has no board RTGS. */}
                     <BhawTile rate={figures.rtgsSelected} label="RTGS Retail Rate" />
                   </View>
 
@@ -445,7 +447,12 @@ export default function DashboardScreen() {
                   // the shop's asking. The server's row stands in only until
                   // the figures are in.
                   const rowRetail = figures ? karatFigure(figures.retailFinal, rate.purity) : (rate.cashRate ?? rate.finalRate);
-                  const rowRtgs = figures ? karatFigure(figures.rtgsSelected, rate.purity) : (rate.rtgsRate ?? rate.finalRate);
+                  const rowRtgs =
+                    figures && figures.rtgsSelected !== null
+                      ? karatFigure(figures.rtgsSelected, rate.purity)
+                      : figures
+                        ? null
+                        : (rate.rtgsRate ?? rate.finalRate);
 
                   return (
                     <View key={rate.carat} style={styles.rateCard}>
@@ -464,7 +471,7 @@ export default function DashboardScreen() {
                         ) : null}
                         {showRtgs ? (
                           <RateBadge
-                            value={`${(rowRtgs ?? 0).toLocaleString('en-IN')}`}
+                            value={rowRtgs == null ? '—' : rowRtgs.toLocaleString('en-IN')}
                             label="RTGS Rate"
                           />
                         ) : null}

@@ -44,11 +44,18 @@ export interface GoldRateFigures {
   /** Null while the boards have not answered; the card shows a dash. */
   mcxFinal: number | null;
   retailFinal: number;
-  rtgsRate1: number;
-  rtgsRate2: number;
+  /**
+   * Null when the followed house has no board RTGS: no value, at the shop's
+   * asking, rather than a figure the house never published.
+   */
+  rtgsRate1: number | null;
+  rtgsRate2: number | null;
   /** The RTGS rate ticked in Gold Rate Settings: Rate 1 or Rate 2. */
-  rtgsSelected: number;
+  rtgsSelected: number | null;
 }
+
+/** The tax RTGS Rate 1 carries, the "(Including tax 3%)" on its card. */
+export const RTGS_TAX_PERCENT = 3;
 
 const HOUSE_NAMES: Record<string, string> = {
   jmd_patil: 'JMD Patil',
@@ -113,8 +120,14 @@ export function computeGoldRateFigures(base: GoldRateBase, changes: GoldRateChan
   const mcxFinal = base.mcx === null ? null : base.mcx + changes.mcxChange;
   const pricing = base.pricingMcx + changes.mcxChange;
   const retailFinal = pricing + base.cashBhaw + changes.cashChange;
-  const rtgsRate1 = pricing + base.rtgsBhaw + changes.rtgsChange;
-  const rtgsRate2 = Math.round(rtgsRate1 * (1 - changes.rtgsTaxPercent / 100));
+  // RTGS Rate 1 is the house's board RTGS (its line + its bhaw) plus the
+  // shop's change, with RTGS_TAX_PERCENT on top; Rate 2 is Rate 1 less the
+  // percent the shop typed. A house with no board RTGS gives no value.
+  const rtgsRate1 = base.houseLive
+    ? Math.round((pricing + base.rtgsBhaw + changes.rtgsChange) * (1 + RTGS_TAX_PERCENT / 100))
+    : null;
+  const rtgsRate2 =
+    rtgsRate1 === null ? null : Math.round(rtgsRate1 * (1 - changes.rtgsTaxPercent / 100));
   return {
     mcxFinal,
     retailFinal,
