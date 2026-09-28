@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -180,10 +179,7 @@ export default function LoginOtpScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior="padding"
-      >
+      {/* The keyboard-aware list alone keeps the field being typed just above the keyboard; a KeyboardAvoidingView around it shrank the page a second time and threw the field far above it. */}
         <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -214,7 +210,6 @@ export default function LoginOtpScreen() {
           {otpError ? <AuthErrorText>{otpError}</AuthErrorText> : null}
           {verifying ? <Text style={styles.verifyingText}>Verifying OTP…</Text> : null}
         </KeyboardAwareScrollView>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
