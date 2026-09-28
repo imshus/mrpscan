@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
   Text,
@@ -346,8 +345,11 @@ export default function SignupScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
-        <KeyboardAwareScrollView
+      {/* The keyboard-aware list alone keeps the field being typed just above
+          the keyboard. It used to sit inside a KeyboardAvoidingView as well,
+          which shrank the page for the keyboard a second time and threw the
+          field far above it. */}
+      <KeyboardAwareScrollView
           ref={scrollRef}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -535,7 +537,6 @@ export default function SignupScreen() {
             }}
           />
         </KeyboardAwareScrollView>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
@@ -88,8 +88,11 @@ export default function CreateMpinScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
-        <KeyboardAwareScrollView
+      {/* The keyboard-aware list alone keeps the field being typed just above
+          the keyboard. It used to sit inside a KeyboardAvoidingView as well,
+          which shrank the page for the keyboard a second time and threw the
+          field far above it. */}
+      <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
@@ -133,7 +136,6 @@ export default function CreateMpinScreen() {
             </Reveal>
           </Animated.View>
         </KeyboardAwareScrollView>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
