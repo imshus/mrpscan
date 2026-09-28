@@ -15,9 +15,14 @@ import { ChevronDown } from 'lucide-react-native';
 
 import { Colors } from '@/constants/theme';
 
-/** Highlight for the current choice, matching the platform select popup. */
-const ANCHORED_SELECTED_BG = '#1967D2';
-const ANCHORED_ROW_HEIGHT = 44;
+/**
+ * The anchored popup is drawn the way Labour's Weight Used list is (ReviewCardKit
+ * InlineOptionList): white, radius 9, the chosen row cream with the brand's red
+ * text, 12.8px type. It used the platform's blue highlight and square corners,
+ * so Gold Rate and Wastage looked unlike Labour on the same card.
+ */
+const ANCHORED_ROW_HEIGHT = 38;
+const ANCHORED_RADIUS = 9;
 
 export type SearchableSelectOption = {
   value: string;
@@ -106,7 +111,8 @@ export function SearchableSelectDropdown({
 
   const anchoredGeometry = () => {
     if (!anchor) return null;
-    const listHeight = Math.min(options.length, 6) * ANCHORED_ROW_HEIGHT + 8;
+    // Rows plus the 1px border top and bottom.
+    const listHeight = Math.min(options.length, 6) * ANCHORED_ROW_HEIGHT + 2;
     const fieldTop = anchor.y;
     const below = fieldTop + anchor.height + 4;
     // Flip above the field when there is not enough room underneath.
@@ -180,10 +186,10 @@ export function SearchableSelectDropdown({
                   width: geometry.width,
                   maxHeight: geometry.listHeight,
                   backgroundColor: Colors.white,
-                  borderRadius: 4,
+                  borderRadius: ANCHORED_RADIUS,
                   borderWidth: 1,
                   borderColor: Colors.border,
-                  paddingVertical: 4,
+                  overflow: 'hidden',
                   elevation: 8,
                   shadowColor: '#000',
                   shadowOpacity: 0.18,
@@ -204,15 +210,15 @@ export function SearchableSelectDropdown({
                         style={{
                           height: ANCHORED_ROW_HEIGHT,
                           justifyContent: 'center',
-                          paddingHorizontal: 12,
-                          backgroundColor: isSelected ? ANCHORED_SELECTED_BG : Colors.white,
+                          paddingHorizontal: 9,
+                          backgroundColor: isSelected ? Colors.backgroundAlt : Colors.white,
                         }}
                       >
                         <Text
                           style={{
-                            fontSize: 14,
-                            fontWeight: isSelected ? '700' : '500',
-                            color: isSelected ? Colors.white : Colors.textPrimary,
+                            fontSize: 12.8,
+                            fontWeight: isSelected ? '600' : '400',
+                            color: isSelected ? Colors.brandDeep : Colors.textPrimary,
                           }}
                           numberOfLines={1}
                         >
