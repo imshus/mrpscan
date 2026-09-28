@@ -1,15 +1,14 @@
-import { memo, useState } from 'react';
+import { memo } from 'react';
 
 import {
   AmountTile,
-  InlineOptionList,
   MetalFieldSlot,
   MetalGrid,
   MetalInput,
-  MetalSelectTrigger,
   MetalTile,
   MetalValueBox,
 } from '@/components/scanner/ReviewCardKit';
+import { SearchableSelectDropdown } from '@/components/scanner/SearchableSelectDropdown';
 import {
   DEFAULT_LABOUR_CHARGE_UNIT,
   DEFAULT_LABOUR_WEIGHT_BASIS,
@@ -51,40 +50,27 @@ function sanitizeChargeAmount(text: string): string {
   return text.replace(/[₹,\s]/g, '');
 }
 
+/**
+ * Weight Used opens as the same popup as Gold Rate and Wastage: it floats
+ * over the card under the field. It used to open inside the card and push
+ * Labour Amount down, leaving an empty gap beside Labour Rate while open.
+ */
 function WeightDropdown({
   value,
   onChange,
-  disabled,
 }: {
   value: LabourWeightBasis;
   onChange: (unit: LabourWeightBasis) => void;
-  disabled: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const selectedLabel = LABOUR_WEIGHT_OPTIONS.find((opt) => opt.value === value)?.label ??
-    LABOUR_WEIGHT_OPTIONS[0].label;
-
   return (
-    <>
-      <MetalSelectTrigger
-        value={selectedLabel}
-        disabled={disabled}
-        onPress={() => setOpen((v) => !v)}
-      />
-      {open && !disabled ? (
-        <InlineOptionList
-          options={LABOUR_WEIGHT_OPTIONS.map((option) => ({
-            value: option.value,
-            label: option.label,
-          }))}
-          selected={value}
-          onSelect={(unit) => {
-            onChange(unit);
-            setOpen(false);
-          }}
-        />
-      ) : null}
-    </>
+    <SearchableSelectDropdown
+      compact
+      anchored
+      value={value}
+      options={LABOUR_WEIGHT_OPTIONS}
+      onChange={(next) => onChange(next === 'gross' ? 'gross' : 'net')}
+      containerClassName="w-full"
+    />
   );
 }
 
@@ -165,7 +151,6 @@ export const LaborSection = memo(function LaborSection({
             <WeightDropdown
               value={values.labourWeightBasis}
               onChange={(labourWeightBasis) => onChange({ labourWeightBasis })}
-              disabled={false}
             />
           </MetalFieldSlot>
           {/* The labour amount inside its own card, as the design has it —
