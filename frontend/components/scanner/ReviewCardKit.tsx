@@ -240,7 +240,8 @@ export function MetalInput({
       accessibilityLabel={label}
       editable={editable}
       showSoftInputOnFocus={editable}
-      selectTextOnFocus={editable}
+      // A tap puts the cursor where it lands, to edit a digit or two; it
+      // used to select the whole value, and the next key replaced it all.
       caretHidden={!editable}
       contextMenuHidden={!editable}
       keyboardType={keyboardType}

@@ -77,10 +77,10 @@ function toPurchaseState(overview: SubscriptionOverview | null): 'LOADING' | 'PE
 }
 
 /**
- * The two panels' gradients, measured off the shop's design: khaki, light at
- * the top to deep at the foot, for the trial; coral to deep red for the
- * subscription. Drawn as real gradients on this one card, at the shop's
- * asking, while the rest of the app stays flat.
+ * The two panels' colours, measured off the shop's design: khaki for the
+ * trial, deep red for the subscription. Drawn solid, at the shop's asking:
+ * GradientView without forceGradient fills each with its last (deepest)
+ * stop, the way every other flattened surface in the app is filled.
  */
 const TRIAL_PANEL_GRADIENT = ['#F8F5EB', '#E6DBC3', '#C7B792'];
 const PREMIUM_PANEL_GRADIENT = ['#E9AA9A', '#BE5B4A', Surfaces.premium];
@@ -288,7 +288,6 @@ export default function PurchaseLicenseScreen() {
                 {/* Free trial — what they have now */}
                 <GradientView
                   colors={TRIAL_PANEL_GRADIENT}
-                  forceGradient
                   sheen={0}
                   style={styles.panel}
                 >
@@ -309,7 +308,6 @@ export default function PurchaseLicenseScreen() {
                 {/* Paid licence */}
                 <GradientView
                   colors={PREMIUM_PANEL_GRADIENT}
-                  forceGradient
                   sheen={0}
                   style={styles.panel}
                 >
