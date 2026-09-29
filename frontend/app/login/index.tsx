@@ -42,10 +42,12 @@ function formatCountdown(seconds: number): string {
  * Forgot MPIN? and Log In, revealed below on the same page. Nothing above
  * folds away, so the number and code stay in view.
  *
- * The number this phone last signed in with is filled in, so the shop taps
- * Send code rather than typing it. Coming back from Forgot MPIN (or from
- * setting a first MPIN) resumes at the MPIN, since the number was proved on
- * the way there.
+ * A phone that has signed in before skips the code, at the shop's asking:
+ * after signing out (or the midnight sign-out) it shows the number it knows,
+ * locked, with Change beside it, and asks for the MPIN alone. Change drops
+ * that number, and a new one is proved with a code first. Coming back from
+ * Forgot MPIN (or from setting a first MPIN) is the same: that number was
+ * proved there, so it is the known one.
  */
 export default function BusinessLoginScreen() {
   const router = useRouter();
@@ -67,24 +69,30 @@ export default function BusinessLoginScreen() {
   const params = useLocalSearchParams<{ phone?: string; mpin?: string; verified?: string }>();
   const handedBackPhone = toPhone(String(params.phone || ''));
   const handedBackMpin = String(params.mpin || '').replace(/\D/g, '').slice(0, MPIN_LENGTH);
-  const resumed =
-    handedBackPhone.length === 10 && (handedBackMpin.length > 0 || params.verified === '1');
 
-  const [phone, setPhone] = useState(
+  // The number this phone signs in with: the one handed back, else the one
+  // it last signed in with (signing out keeps it). While it stands, Log In
+  // is the MPIN alone. `changingNumber` is Change: a number typed instead,
+  // proved with a code before the MPIN.
+  const [knownPhone, setKnownPhone] = useState(
     handedBackPhone.length === 10 ? handedBackPhone : toPhone(savedPhone || ''),
   );
+  const [changingNumber, setChangingNumber] = useState(false);
+  const useKnown = knownPhone.length === 10 && !changingNumber;
+  const [phone, setPhone] = useState('');
 
   // After a new build's wipe the store starts empty, but the number survives
-  // under its own spared key: fill it in, so the shop only taps Send code.
+  // under its own spared key: read it back, so the shop is asked for the
+  // MPIN alone after an update too.
   useEffect(() => {
-    if (toPhone(phone).length === 10) return;
+    if (knownPhone.length === 10) return;
     let cancelled = false;
     void AsyncStorage.getItem(REMEMBERED_PHONE_KEY)
       .then((stored: string | null) => {
         const digits = toPhone(stored || '');
         if (cancelled || digits.length !== 10) return;
         setSavedCredentials(digits);
-        setPhone((current) => (toPhone(current).length === 0 ? digits : current));
+        setKnownPhone((current) => (current.length === 10 ? current : digits));
       })
       .catch(() => {});
     return () => {
@@ -93,7 +101,7 @@ export default function BusinessLoginScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const lookupPhone = toPhone(phone);
+  const lookupPhone = useKnown ? knownPhone : toPhone(phone);
 
   // Whether the number has an MPIN at all: accounts made before MPINs have
   // none, so their link reads "Create MPIN" and Send code takes them to set
@@ -121,17 +129,17 @@ export default function BusinessLoginScreen() {
 
   // The code step. `sentTo` is the number the code went to; once sent the
   // number is locked, as in the mockup, and the button reads Sent.
-  const [sentTo, setSentTo] = useState<string | null>(resumed ? handedBackPhone : null);
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
-  const [otpVerified, setOtpVerified] = useState(resumed);
+  const [otpVerified, setOtpVerified] = useState(false);
   const [resendIn, setResendIn] = useState(0);
   const codeSent = sentTo !== null;
 
-  const [mpin, setMpin] = useState(resumed ? handedBackMpin : '');
+  const [mpin, setMpin] = useState(handedBackMpin);
   const [invalid, setInvalid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
@@ -183,6 +191,18 @@ export default function BusinessLoginScreen() {
     }
   };
 
+  const changeNumber = () => {
+    setChangingNumber(true);
+    setPhone('');
+    setPhoneError(null);
+    setSentTo(null);
+    setOtp('');
+    setOtpError(null);
+    setOtpVerified(false);
+    setMpin('');
+    setInvalid(false);
+  };
+
   const verifyCode = async (code: string) => {
     if (code.length !== 6 || verifying || !sentTo || otpVerified) return;
     setVerifying(true);
@@ -211,9 +231,10 @@ export default function BusinessLoginScreen() {
   });
 
   const handleLogin = async (submittedMpin = mpin) => {
-    // The MPIN only counts once the number's code has been checked.
-    if (!otpVerified || !sentTo) return;
-    const loginPhone = sentTo;
+    // The known number goes straight to the MPIN; a typed one only once its
+    // code has been checked.
+    const loginPhone = useKnown ? knownPhone : otpVerified && sentTo ? sentTo : null;
+    if (!loginPhone) return;
     if (submittedMpin.length !== MPIN_LENGTH) {
       setInvalid(true);
       triggerShake();
@@ -302,7 +323,7 @@ export default function BusinessLoginScreen() {
             <AuthField
               label="Phone No."
               prefix="+91"
-              value={phone}
+              value={useKnown ? knownPhone : phone}
               onChangeText={(text) => {
                 setPhone(text.replace(/\D/g, '').slice(0, 10));
                 setPhoneError(null);
@@ -310,17 +331,17 @@ export default function BusinessLoginScreen() {
               keyboardType="phone-pad"
               maxLength={10}
               autoComplete="tel"
-              editable={!codeSent}
+              editable={!useKnown && !codeSent}
               error={phoneError}
-              verifyLabel={codeSent ? 'Sent' : 'Send code'}
-              onVerifyPress={() => void sendCode()}
-              verifyDisabled={sending || codeSent}
+              verifyLabel={useKnown ? 'Change' : codeSent ? 'Sent' : 'Send code'}
+              onVerifyPress={() => (useKnown ? changeNumber() : void sendCode())}
+              verifyDisabled={useKnown ? false : sending || codeSent}
             />
           </Reveal>
 
-          {/* The code, texted to the number above. Not shown when coming back
-              from Forgot MPIN: the number was proved there. */}
-          {codeSent && !resumed ? (
+          {/* The code, texted to a number typed above. The known number
+              needs none. */}
+          {!useKnown && codeSent ? (
             <Reveal d={2}>
               <View style={styles.otpBox}>
                 <Text style={styles.otpLabel}>Enter the 6-digit code sent to your phone</Text>
@@ -352,9 +373,10 @@ export default function BusinessLoginScreen() {
             </Reveal>
           ) : null}
 
-          {/* The MPIN opens below once the code is right; it takes focus as
-              it appears, and the page moves to it above the keyboard. */}
-          {otpVerified ? (
+          {/* The MPIN: at once for the known number, and for a typed one
+              below once its code is right. It takes focus as it appears,
+              and the page moves to it above the keyboard. */}
+          {useKnown || otpVerified ? (
             <>
               <Reveal d={0}>
                 <MpinInput
