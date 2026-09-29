@@ -64,8 +64,6 @@ export interface GoldRateFigures {
   rtgsSelected: number | null;
 }
 
-/** The tax RTGS Rate 1 carries, the "(Including tax 3%)" on its card. */
-export const RTGS_TAX_PERCENT = 3;
 /**
  * What RTGS Rate 2's Tax box holds until the shop types otherwise: 0, at
  * the shop's asking — Rate 2 (without tax) is the board figure itself
@@ -128,7 +126,8 @@ export function goldRateChanges(gold: GoldRatesResponse): GoldRateChanges {
     // field never saved reads as the default 0, the board figure itself.
     // The server's rule.
     rtgsTaxPercent: t?.rtgsTaxPercent ?? RTGS_RATE2_DEFAULT_TAX_PERCENT,
-    rtgsVariant: t?.rtgsVariant === 'taxed' ? 'taxed' : 'plain',
+    // RTGS Rate 1 is ticked unless the shop ticked Rate 2. The server's rule.
+    rtgsVariant: t?.rtgsVariant === 'plain' ? 'plain' : 'taxed',
   };
 }
 
@@ -143,15 +142,12 @@ export function computeGoldRateFigures(base: GoldRateBase, changes: GoldRateChan
   // Retail and RTGS each need the house's own board side; a house that has
   // not published it gives no value, at the shop's asking.
   const retailFinal = base.cashLive ? pricing + base.cashBhaw + changes.cashChange : null;
-  // RTGS Rate 1 is the house's board RTGS (its line + its bhaw) plus the
-  // shop's change, with RTGS_TAX_PERCENT on top; Rate 2 is Rate 1 less the
-  // percent the shop typed. A house with no board RTGS gives no value.
-  // Rate 1 (Including tax 3%) is the board RTGS + the shop's change, with
-  // 3% on top. Rate 2 (without tax) is that same board figure with nothing
-  // on it — straight off the Dashboard Settings card — less the percent in
+  // RTGS Rate 1 is the house's board RTGS (its line + its bhaw) straight
+  // off the Dashboard Settings card, plus the shop's change, with no tax on
+  // it. Rate 2 (without tax) is that same board figure less the percent in
   // its Tax box. Both null when the house has no board RTGS.
   const rtgsBoard = base.rtgsLive ? pricing + base.rtgsBhaw + changes.rtgsChange : null;
-  const rtgsRate1 = rtgsBoard === null ? null : Math.round(rtgsBoard * (1 + RTGS_TAX_PERCENT / 100));
+  const rtgsRate1 = rtgsBoard === null ? null : Math.round(rtgsBoard);
   const rtgsRate2 =
     rtgsBoard === null ? null : Math.round(rtgsBoard * (1 - changes.rtgsTaxPercent / 100));
   return {
