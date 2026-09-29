@@ -1,12 +1,6 @@
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
@@ -21,21 +15,38 @@ import {
 } from '@/components/auth/AuthKit';
 import { Reveal } from '@/components/auth/Reveal';
 import { MPIN_LENGTH, MpinInput } from '@/components/ui/MpinInput';
+import { OtpInput } from '@/components/ui/OtpInput';
 import { Colors } from '@/constants/theme';
+import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { useAuthStore } from '@/store/authStore';
-import { fetchPhoneStatus, loginBusiness } from '@/utils/authApi';
+import { fetchPhoneStatus, loginBusiness, sendLoginOtp, verifyLoginOtp } from '@/utils/authApi';
 import { REMEMBERED_PHONE_KEY } from '@/utils/clearAppState';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
+
+/** Seconds before a code can be sent again, as the mockup counts them. */
+const RESEND_AFTER_SECONDS = 30;
 
 /** Ten digits, however the number was typed or pasted. */
 function toPhone(raw: string): string {
   return raw.replace(/\D/g, '').slice(-10);
 }
 
-function maskPhone(phone: string): string {
-  return phone.length === 10 ? `${phone.slice(0, 2)} ••••• ${phone.slice(-3)}` : phone;
+function formatCountdown(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
+/**
+ * Log In, as the design mockup has it (mrpscan-design-mockup, login screen):
+ * Welcome back; the phone number with Send code; the 6-digit code texted to
+ * it, with its resend countdown; and only once the code is right, the MPIN,
+ * Forgot MPIN? and Log In, revealed below on the same page. Nothing above
+ * folds away, so the number and code stay in view.
+ *
+ * The number this phone last signed in with is filled in, so the shop taps
+ * Send code rather than typing it. Coming back from Forgot MPIN (or from
+ * setting a first MPIN) resumes at the MPIN, since the number was proved on
+ * the way there.
+ */
 export default function BusinessLoginScreen() {
   const router = useRouter();
   const {
@@ -50,49 +61,45 @@ export default function BusinessLoginScreen() {
     updateRegistration,
   } = useAuthStore();
 
-  // What Forgot MPIN hands back after a reset: the number it verified and the
-  // four digits just chosen. Both are filled in here so the shop lands on a
-  // finished form and only has to press Log In.
-  const params = useLocalSearchParams<{ phone?: string; mpin?: string }>();
+  // What Forgot MPIN (or Set MPIN) hands back: the number it proved with a
+  // code, and from Forgot MPIN the four digits it showed. Either way the
+  // number is already verified, so the screen opens at the MPIN.
+  const params = useLocalSearchParams<{ phone?: string; mpin?: string; verified?: string }>();
   const handedBackPhone = toPhone(String(params.phone || ''));
   const handedBackMpin = String(params.mpin || '').replace(/\D/g, '').slice(0, MPIN_LENGTH);
+  const resumed =
+    handedBackPhone.length === 10 && (handedBackMpin.length > 0 || params.verified === '1');
 
-  // The mockup's sign-in is the MPIN alone, over "Welcome back" — it assumes
-  // the device knows whose shop it is. It does, once this one has signed in
-  // here before. A phone that never has (or was wiped by a new build) is asked
-  // for the number first, since four digits alone name nobody.
-  const remembered = handedBackPhone.length === 10 ? handedBackPhone : toPhone(savedPhone || '');
-  const [phone, setPhone] = useState(remembered);
-  const [askForNumber, setAskForNumber] = useState(remembered.length !== 10);
+  const [phone, setPhone] = useState(
+    handedBackPhone.length === 10 ? handedBackPhone : toPhone(savedPhone || ''),
+  );
 
-  // After a new build's wipe the store starts empty, but the number itself
-  // survives under its own spared key — read it back so the screen greets the
-  // shop instead of asking who they are after every update.
+  // After a new build's wipe the store starts empty, but the number survives
+  // under its own spared key: fill it in, so the shop only taps Send code.
   useEffect(() => {
-    if (remembered.length === 10) return;
+    if (toPhone(phone).length === 10) return;
     let cancelled = false;
-    void AsyncStorage.getItem(REMEMBERED_PHONE_KEY).then((stored: string | null) => {
-      const digits = toPhone(stored || '');
-      if (cancelled || digits.length !== 10) return;
-      setSavedCredentials(digits);
-      setPhone(digits);
-      setAskForNumber(false);
-    }).catch(() => {});
+    void AsyncStorage.getItem(REMEMBERED_PHONE_KEY)
+      .then((stored: string | null) => {
+        const digits = toPhone(stored || '');
+        if (cancelled || digits.length !== 10) return;
+        setSavedCredentials(digits);
+        setPhone((current) => (toPhone(current).length === 0 ? digits : current));
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const [mpin, setMpin] = useState(handedBackMpin);
 
-  // Whether the number on screen has an MPIN at all. Most accounts in the
-  // database were made before MPINs existed and have nothing to have
-  // forgotten, so for those the link below reads "Create MPIN" and goes to
-  // the set-up flow; null (unknown, unregistered, old server) keeps the
-  // usual "Forgot MPIN?". Looked up a beat after the tenth digit lands, so
-  // typing does not fire a request per keystroke.
-  const [phoneHasMpin, setPhoneHasMpin] = useState<boolean | null>(null);
   const lookupPhone = toPhone(phone);
+
+  // Whether the number has an MPIN at all: accounts made before MPINs have
+  // none, so their link reads "Create MPIN" and Send code takes them to set
+  // one (which proves the number with its own code). Looked up a beat after
+  // the tenth digit lands, so typing does not fire a request per keystroke.
+  const [phoneHasMpin, setPhoneHasMpin] = useState<boolean | null>(null);
   useEffect(() => {
     if (lookupPhone.length !== 10) {
       setPhoneHasMpin(null);
@@ -111,13 +118,103 @@ export default function BusinessLoginScreen() {
     };
   }, [lookupPhone]);
   const needsMpin = phoneHasMpin === false;
+
+  // The code step. `sentTo` is the number the code went to; once sent the
+  // number is locked, as in the mockup, and the button reads Sent.
+  const [sentTo, setSentTo] = useState<string | null>(resumed ? handedBackPhone : null);
+  const [sending, setSending] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [otp, setOtp] = useState('');
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(resumed);
+  const [resendIn, setResendIn] = useState(0);
+  const codeSent = sentTo !== null;
+
+  const [mpin, setMpin] = useState(resumed ? handedBackMpin : '');
   const [invalid, setInvalid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
 
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = setTimeout(() => setResendIn((left) => Math.max(0, left - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [resendIn]);
+
+  const sendCode = async () => {
+    if (lookupPhone.length !== 10) {
+      setPhoneError('Please enter your phone number');
+      triggerShake();
+      return;
+    }
+    setSending(true);
+    setPhoneError(null);
+    try {
+      // No text to a number no account uses; an account from before MPINs
+      // goes to set one, which proves the number with its own code.
+      const status = await fetchPhoneStatus(lookupPhone);
+      if (status && !status.registered) {
+        setPhoneError('No account uses this number. Create an account below.');
+        triggerShake();
+        return;
+      }
+      if (status && status.registered && status.hasMpin === false) {
+        router.push({
+          pathname: '/login/set-mpin',
+          params: { phone: lookupPhone, mode: 'first' },
+        } as unknown as Href);
+        return;
+      }
+      const result = await sendLoginOtp(lookupPhone);
+      if (!result.success) {
+        setPhoneError(result.error || 'The code could not be sent. Please try again.');
+        return;
+      }
+      setSentTo(lookupPhone);
+      setOtp('');
+      setOtpError(null);
+      setOtpVerified(false);
+      setMpin('');
+      setInvalid(false);
+      setResendIn(RESEND_AFTER_SECONDS);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const verifyCode = async (code: string) => {
+    if (code.length !== 6 || verifying || !sentTo || otpVerified) return;
+    setVerifying(true);
+    try {
+      const result = await verifyLoginOtp(sentTo, code);
+      if (!result.success) {
+        setOtpError(result.error || 'That code is not right. Please check it and try again.');
+        setOtp('');
+        triggerShake();
+        return;
+      }
+      setOtpError(null);
+      setOtpVerified(true);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  useAndroidOtpAutofill({
+    enabled: codeSent && !otpVerified,
+    onCodeDetected: (detected) => {
+      setOtp(detected);
+      setOtpError(null);
+      void verifyCode(detected);
+    },
+  });
+
   const handleLogin = async (submittedMpin = mpin) => {
-    const loginPhone = toPhone(phone);
-    if (loginPhone.length !== 10 || submittedMpin.length !== MPIN_LENGTH) {
+    // The MPIN only counts once the number's code has been checked.
+    if (!otpVerified || !sentTo) return;
+    const loginPhone = sentTo;
+    if (submittedMpin.length !== MPIN_LENGTH) {
       setInvalid(true);
       triggerShake();
       return;
@@ -174,11 +271,8 @@ export default function BusinessLoginScreen() {
         ...(payload.fullName ? { fullName: payload.fullName } : {}),
       });
 
-      // Remembered so the next sign-in is the MPIN alone, the way the mockup
-      // shows it — after the midnight sign-out above all. It is a phone
-      // number, not a credential. It used to wait on a "remember me" that no
-      // screen ever turns on, so a shop that signed in by typing its number
-      // was asked for all of it again the next morning.
+      // Remembered so the next Log In has the number filled in. It is a
+      // phone number, not a credential; the code and the MPIN still stand.
       setSavedCredentials(loginPhone);
 
       router.replace('/dashboard');
@@ -189,110 +283,138 @@ export default function BusinessLoginScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      {/* The keyboard-aware list alone keeps the field being typed just above the keyboard; a KeyboardAvoidingView around it shrank the page a second time and threw the field far above it. */}
-        <KeyboardAwareScrollView
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.scrollContent}
-        >
-          <AuthBrand />
+      {/* The keyboard-aware list alone keeps the field being typed just above
+          the keyboard; a KeyboardAvoidingView around it shrank the page a
+          second time and threw the field far above it. */}
+      <KeyboardAwareScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.scrollContent}
+      >
+        <AuthBrand />
 
-          <Animated.View style={[styles.form, shakeStyle]}>
-            {!askForNumber ? (
-              <Reveal d={1}>
-                <Text style={styles.welcome}>Welcome back</Text>
-                <View style={styles.knownRow}>
-                  <Text style={styles.knownPhone}>+91 {maskPhone(remembered)}</Text>
-                  <Pressable
-                    onPress={() => {
-                      setAskForNumber(true);
-                      setPhone('');
-                      setMpin('');
-                      setInvalid(false);
-                    }}
-                    hitSlop={6}
-                  >
-                    <Text style={styles.forgotLink}>Use another number</Text>
-                  </Pressable>
-                </View>
-              </Reveal>
-            ) : (
-              <Reveal d={1}>
-                <AuthField
-                  label="Phone No."
-                  prefix="+91"
-                  value={phone}
-                  onChangeText={(text) => {
-                    setPhone(text.replace(/\D/g, '').slice(0, 10));
-                    setInvalid(false);
-                  }}
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                  autoComplete="tel"
-                  error={invalid ? '' : null}
-                />
-              </Reveal>
-            )}
+        <Animated.View style={[styles.form, shakeStyle]}>
+          <Reveal d={0}>
+            <Text style={styles.welcome}>Welcome back</Text>
+          </Reveal>
 
-            <Reveal d={2}>
-              <MpinInput
-                label="Enter MPIN"
-                value={mpin}
-                onChange={(next) => {
-                  setMpin(next);
-                  setInvalid(false);
-                }}
-                autoFocus={!askForNumber}
-                onComplete={(complete) => void handleLogin(complete)}
-                error={invalid ? '' : null}
-              />
-              <Pressable
-                onPress={() =>
-                  router.push(
-                    (needsMpin
-                      ? { pathname: '/login/set-mpin', params: { phone: lookupPhone, mode: 'first' } }
-                      : { pathname: '/login/forgot-mpin', params: { phone: lookupPhone } }) as unknown as Href,
-                  )
-                }
-                style={styles.forgotRow}
-                hitSlop={6}
-              >
-                <Text style={styles.forgotLink}>{needsMpin ? 'Create MPIN' : 'Forgot MPIN?'}</Text>
-              </Pressable>
-            </Reveal>
-
-            {invalid ? <AuthErrorText center>Incorrect MPIN.</AuthErrorText> : null}
-
-            <Reveal d={4}>
-              <AuthPrimaryButton
-                title="Log In"
-                onPress={() => void handleLogin()}
-                loading={loading}
-                style={styles.cta}
-              />
-            </Reveal>
-          </Animated.View>
-
-          <Reveal d={5}>
-            <AuthSwitch
-              prompt="New to MRPscan?"
-              linkText="Create an account"
-              onPress={() => router.push('/register' as Href)}
+          <Reveal d={1}>
+            <AuthField
+              label="Phone No."
+              prefix="+91"
+              value={phone}
+              onChangeText={(text) => {
+                setPhone(text.replace(/\D/g, '').slice(0, 10));
+                setPhoneError(null);
+              }}
+              keyboardType="phone-pad"
+              maxLength={10}
+              autoComplete="tel"
+              editable={!codeSent}
+              error={phoneError}
+              verifyLabel={codeSent ? 'Sent' : 'Send code'}
+              onVerifyPress={() => void sendCode()}
+              verifyDisabled={sending || codeSent}
             />
           </Reveal>
-        </KeyboardAwareScrollView>
+
+          {/* The code, texted to the number above. Not shown when coming back
+              from Forgot MPIN: the number was proved there. */}
+          {codeSent && !resumed ? (
+            <Reveal d={2}>
+              <View style={styles.otpBox}>
+                <Text style={styles.otpLabel}>Enter the 6-digit code sent to your phone</Text>
+                <OtpInput
+                  value={otp}
+                  onChange={(next) => {
+                    if (otpVerified) return;
+                    setOtp(next);
+                    setOtpError(null);
+                    if (next.length === 6) void verifyCode(next);
+                  }}
+                  error={otpError}
+                />
+                {otpVerified ? null : resendIn > 0 ? (
+                  <Text style={styles.resendText}>
+                    Resend code in <Text style={styles.resendTime}>{formatCountdown(resendIn)}</Text>
+                  </Text>
+                ) : (
+                  <Pressable
+                    onPress={() => void sendCode()}
+                    disabled={sending}
+                    hitSlop={6}
+                    style={styles.resendRow}
+                  >
+                    <Text style={styles.forgotLink}>Resend code</Text>
+                  </Pressable>
+                )}
+              </View>
+            </Reveal>
+          ) : null}
+
+          {/* The MPIN opens below once the code is right; it takes focus as
+              it appears, and the page moves to it above the keyboard. */}
+          {otpVerified ? (
+            <>
+              <Reveal d={0}>
+                <MpinInput
+                  label="Enter MPIN"
+                  value={mpin}
+                  onChange={(next) => {
+                    setMpin(next);
+                    setInvalid(false);
+                  }}
+                  autoFocus
+                  onComplete={(complete) => void handleLogin(complete)}
+                  error={invalid ? '' : null}
+                />
+                <Pressable
+                  onPress={() =>
+                    router.push(
+                      (needsMpin
+                        ? { pathname: '/login/set-mpin', params: { phone: lookupPhone, mode: 'first' } }
+                        : { pathname: '/login/forgot-mpin', params: { phone: lookupPhone } }) as unknown as Href,
+                    )
+                  }
+                  style={styles.forgotRow}
+                  hitSlop={6}
+                >
+                  <Text style={styles.forgotLink}>{needsMpin ? 'Create MPIN' : 'Forgot MPIN?'}</Text>
+                </Pressable>
+              </Reveal>
+
+              {invalid ? <AuthErrorText center>Incorrect MPIN.</AuthErrorText> : null}
+
+              <Reveal d={1}>
+                <AuthPrimaryButton
+                  title="Log In"
+                  onPress={() => void handleLogin()}
+                  loading={loading}
+                  style={styles.cta}
+                />
+              </Reveal>
+            </>
+          ) : null}
+        </Animated.View>
+
+        <Reveal d={5}>
+          <AuthSwitch
+            prompt="New to MRPscan?"
+            linkText="Create an account"
+            onPress={() => router.push('/register' as Href)}
+          />
+        </Reveal>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
-  flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
-    // Anchored to the top rather than centred: the MPIN field takes focus on
-    // arrival, so the keyboard is already up, and centring in what is left of
-    // the screen dropped the title and fields to the bottom of it.
+    // Anchored to the top rather than centred, so the page does not jump as
+    // the code and the MPIN open below.
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 40,
@@ -302,16 +424,21 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: '800',
     color: Colors.textPrimary,
-    marginBottom: 6,
   },
-  knownRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  knownPhone: { fontSize: 15, fontWeight: '600', color: Colors.textSecondary },
   forgotRow: { alignSelf: 'flex-end', marginTop: 8 },
   forgotLink: { fontSize: 13, fontWeight: '600', color: Colors.brandDeep },
   cta: { marginTop: 4 },
+  otpBox: {
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundAlt,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  otpLabel: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+  resendText: { fontSize: 12.5, color: Colors.textSecondary },
+  resendTime: { fontWeight: '800', color: Colors.textPrimary },
+  resendRow: { alignSelf: 'flex-start' },
 });

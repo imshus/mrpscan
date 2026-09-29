@@ -522,8 +522,8 @@ export default function SignupScreen() {
           </Animated.View>
 
           <AuthSwitch
-            prompt="Already have an account?"
-            linkText="Log in"
+            prompt="Already a user?"
+            linkText="Login"
             onPress={() => router.replace('/login')}
           />
 
