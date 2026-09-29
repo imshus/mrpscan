@@ -31,6 +31,10 @@ function toPhone(raw: string): string {
   return raw.replace(/\D/g, '').slice(-10);
 }
 
+function maskPhone(phone: string): string {
+  return phone.length === 10 ? `${phone.slice(0, 2)} ••••• ${phone.slice(-3)}` : phone;
+}
+
 function formatCountdown(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
@@ -43,11 +47,12 @@ function formatCountdown(seconds: number): string {
  * folds away, so the number and code stay in view.
  *
  * A phone that has signed in before skips the code, at the shop's asking:
- * after signing out (or the midnight sign-out) it shows the number it knows,
- * locked, with Change beside it, and asks for the MPIN alone. Change drops
- * that number, and a new one is proved with a code first. Coming back from
- * Forgot MPIN (or from setting a first MPIN) is the same: that number was
- * proved there, so it is the known one.
+ * after signing out (or the midnight sign-out) it greets the shop with the
+ * number it knows, masked, and "Use another number", and asks for the MPIN
+ * alone, as Log In always has. "Use another number" drops that number, and
+ * a new one goes through the mockup's steps above. Coming back from Forgot
+ * MPIN (or from setting a first MPIN) is the same: that number was proved
+ * there, so it is the known one.
  */
 export default function BusinessLoginScreen() {
   const router = useRouter();
@@ -319,25 +324,37 @@ export default function BusinessLoginScreen() {
             <Text style={styles.welcome}>Welcome back</Text>
           </Reveal>
 
-          <Reveal d={1}>
-            <AuthField
-              label="Phone No."
-              prefix="+91"
-              value={useKnown ? knownPhone : phone}
-              onChangeText={(text) => {
-                setPhone(text.replace(/\D/g, '').slice(0, 10));
-                setPhoneError(null);
-              }}
-              keyboardType="phone-pad"
-              maxLength={10}
-              autoComplete="tel"
-              editable={!useKnown && !codeSent}
-              error={phoneError}
-              verifyLabel={useKnown ? 'Change' : codeSent ? 'Sent' : 'Send code'}
-              onVerifyPress={() => (useKnown ? changeNumber() : void sendCode())}
-              verifyDisabled={useKnown ? false : sending || codeSent}
-            />
-          </Reveal>
+          {useKnown ? (
+            // The number this phone knows, masked, and the way to another.
+            <Reveal d={1}>
+              <View style={styles.knownRow}>
+                <Text style={styles.knownPhone}>+91 {maskPhone(knownPhone)}</Text>
+                <Pressable onPress={changeNumber} hitSlop={6}>
+                  <Text style={styles.forgotLink}>Use another number</Text>
+                </Pressable>
+              </View>
+            </Reveal>
+          ) : (
+            <Reveal d={1}>
+              <AuthField
+                label="Phone No."
+                prefix="+91"
+                value={phone}
+                onChangeText={(text) => {
+                  setPhone(text.replace(/\D/g, '').slice(0, 10));
+                  setPhoneError(null);
+                }}
+                keyboardType="phone-pad"
+                maxLength={10}
+                autoComplete="tel"
+                editable={!codeSent}
+                error={phoneError}
+                verifyLabel={codeSent ? 'Sent' : 'Send code'}
+                onVerifyPress={() => void sendCode()}
+                verifyDisabled={sending || codeSent}
+              />
+            </Reveal>
+          )}
 
           {/* The code, texted to a number typed above. The known number
               needs none. */}
@@ -447,6 +464,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.textPrimary,
   },
+  knownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  knownPhone: { fontSize: 15, fontWeight: '600', color: Colors.textSecondary },
   forgotRow: { alignSelf: 'flex-end', marginTop: 8 },
   forgotLink: { fontSize: 13, fontWeight: '600', color: Colors.brandDeep },
   cta: { marginTop: 4 },
