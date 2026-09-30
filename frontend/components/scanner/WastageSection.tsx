@@ -117,7 +117,10 @@ export function WastageSection({
             <SearchableSelectDropdown
               compact
               anchored
-              value={selectedCode ?? ''}
+              // A code picked here, else the Masters -> Wastage code the tag
+              // matched; neither, blank. It showed only a picked code, so a
+              // matched one looked empty.
+              value={selectedCode || code || ''}
               options={options}
               onChange={(value) => {
                 const picked = codes.find((row) => row.code === value);

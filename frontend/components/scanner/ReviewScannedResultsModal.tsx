@@ -550,13 +550,8 @@ export function ReviewScannedResultsModal({
             <Text style={styles.itemTileLabel}>Item Code</Text>
             <View style={styles.itemTileValueRow}>
               <Text style={[styles.itemTileValue, styles.itemTileValueGrow]} numberOfLines={1}>
-                {/* A number that turned out to be a wastage code shows on
-                    Wastage only, unless it is a saved item code as well. */}
-                {(!scanData.itemCode &&
-                pricing.wastageCode &&
-                itemIdentity.number.toUpperCase() === pricing.wastageCode.toUpperCase()
-                  ? ''
-                  : itemIdentity.number) || '—'}
+                {/* Only a code matched in Masters -> Item Code; none, a dash. */}
+                {itemIdentity.number || '—'}
               </Text>
               <ChevronDown size={14} color={Colors.textMuted} />
             </View>

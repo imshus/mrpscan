@@ -3,12 +3,10 @@ import type { ScanItemData } from '@/types/scanner';
 /**
  * How a scanned piece is identified on screen and on the invoice.
  *
- * The name comes from the shop's own item codes when the tag's number
- * begins with a saved code word; the number is then the tag's whole number,
- * word and running number together. Without a match the number is still
- * the one the tag printed and the name is empty — it used to be composed
- * from the karat and category, and the shop asked for it blank instead,
- * so an unmatched tag is plainly unmatched.
+ * Only what Masters -> Item Code gives, at the shop's asking: when one of
+ * the tag's numbers matches a saved code, the name is that row's and the
+ * number is the code as the tag printed it. Without a match both are empty
+ * — the raw number off the tag is not shown in its place.
  */
 export interface ItemIdentity {
   name: string;
@@ -18,7 +16,7 @@ export interface ItemIdentity {
 export function resolveItemIdentity(scanData: ScanItemData): ItemIdentity {
   return {
     name: scanData.itemName?.trim() || '',
-    number: scanData.itemCode?.trim() || scanData.sku?.trim() || '',
+    number: scanData.itemCode?.trim() || '',
   };
 }
 
