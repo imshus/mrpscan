@@ -582,10 +582,10 @@ export function GoldRateSettingsPanel({
         />
 
         {/* RTGS in two forms: Rate 1 is the board RTGS from Dashboard
-            Settings plus its Change By, no tax on it; Rate 2 is the house's
-            Gold Future MCX divided by 1 + the percent typed into its Tax
-            field (3 gives 1.03). The radio picks the one the app prices on,
-            Rate 1 unless Rate 2 is ticked. */}
+            Settings plus its Change By, no tax on it; Rate 2 is Rate 1
+            divided by 1 + the percent typed into its Tax field (3 gives
+            1.03). The radio picks the one the app prices on, Rate 1 unless
+            Rate 2 is ticked. */}
         <RateCard
           title="RTGS Rate 1"
           subtitle={bhawNote(bhawRtgs, rtgsLive)}

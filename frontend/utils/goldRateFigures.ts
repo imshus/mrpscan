@@ -144,13 +144,14 @@ export function computeGoldRateFigures(base: GoldRateBase, changes: GoldRateChan
   const retailFinal = base.cashLive ? pricing + base.cashBhaw + changes.cashChange : null;
   // RTGS Rate 1 is the house's board RTGS (its line + its bhaw) straight
   // off the Dashboard Settings card, plus the shop's change, with no tax on
-  // it; null when the house has no board RTGS. Rate 2 (without tax) is the
-  // house's Gold Future MCX as fetched (before the shop's MCX change)
-  // divided by 1 + the Tax box's percent/100: 3 divides by 1.03, 4 by 1.04,
-  // 0 leaves it as it is. The server's expression and rounding.
+  // it; null when the house has no board RTGS. Rate 2 (without tax) is that
+  // same figure divided by 1 + the Tax box's percent/100: 3 divides by
+  // 1.03, 4 by 1.04, 0 leaves it as Rate 1. The server's expression and
+  // rounding.
   const rtgsBoard = base.rtgsLive ? pricing + base.rtgsBhaw + changes.rtgsChange : null;
   const rtgsRate1 = rtgsBoard === null ? null : Math.round(rtgsBoard);
-  const rtgsRate2 = Math.round(base.pricingMcx / (1 + changes.rtgsTaxPercent / 100));
+  const rtgsRate2 =
+    rtgsBoard === null ? null : Math.round(rtgsBoard / (1 + changes.rtgsTaxPercent / 100));
   return {
     mcxFinal,
     retailFinal,
