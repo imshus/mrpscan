@@ -8,7 +8,6 @@ import {
 } from '@/components/scanner/ReviewCardKit';
 import { useStoneRateFetch } from '@/hooks/useStoneRateFetch';
 import type { StoneKind } from '@/types/scanner';
-import { buildQuality } from '@/utils/qualityUtils';
 import { computeStoneAmountWithDiscount, computeStoneAmount } from '@/utils/scanPriceCalculation';
 import { parseNumericLabourValue } from '@/utils/labourUtils';
 
@@ -162,42 +161,15 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
     onRateErrorChange?.(sequenceIndex, isError);
   }, [rateNotFound, values.rate, onRateErrorChange, sequenceIndex]);
 
-  const handleColorChange = (color: string) => {
-    emitChange({ color, quality: buildQuality(color, values.clarity) });
-  };
-
-  const handleClarityChange = (clarity: string) => {
-    emitChange({ clarity, quality: buildQuality(values.color, clarity) });
-  };
-
 
   return (
     <MetalTile title={title} tone={stoneType === 'diamond' ? 'diamond' : 'plain'}>
       <MetalGrid>
         {/* A diamond shows the four the design gives it — weight, rate, packet
-            code, amount — and nothing else. Shape, colour, clarity and the
+            code, amount — and a colorstone three — weight, rate, amount — and
+            nothing else, at the shop's asking. Shape, colour, clarity and the
             discount are still read from the tag and still price the stone;
-            they are simply not four more boxes to read past on a counter. A
-            colorstone keeps its colour and clarity, which are what identifies
-            one. */}
-        {stoneType === 'colorstone' ? (
-          <>
-            <MetalInput
-              label="Color"
-              value={values.color}
-              onChangeText={handleColorChange}
-              editable={editable}
-              attention={attention?.color}
-            />
-            <MetalInput
-              label="Clarity"
-              value={values.clarity}
-              onChangeText={handleClarityChange}
-              editable={editable}
-              attention={attention?.clarity}
-            />
-          </>
-        ) : null}
+            they are simply not more boxes to read past on a counter. */}
         <MetalInput
           label={labels.weight}
           value={values.weight}
@@ -229,7 +201,13 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
             attention={attention?.packetCode}
           />
         ) : null}
-        <MetalValueBox label={labels.amount} value={formatInr(amount)} amount />
+        {/* A colorstone's third box takes the full row, under weight and rate. */}
+        <MetalValueBox
+          label={labels.amount}
+          value={formatInr(amount)}
+          amount
+          fullWidth={stoneType === 'colorstone'}
+        />
       </MetalGrid>
     </MetalTile>
   );

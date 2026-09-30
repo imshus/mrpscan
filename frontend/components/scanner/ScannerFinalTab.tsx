@@ -357,7 +357,9 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
       {/* Under labour, as the design orders them: the two charges on top of
           the metal, then anything the shop adds by hand. */}
       <WastageSection
-        code={pricing.wastageCode || scanData.itemCode || scanData.sku || undefined}
+        // Only a Masters -> Wastage code the tag matched: the item code
+        // belongs on Item Code and is never shown here.
+        code={pricing.wastageCode || undefined}
         percent={pricing.wastagePercent}
         amountDisplay={pricing.wastageDisplay}
         editable={editable}

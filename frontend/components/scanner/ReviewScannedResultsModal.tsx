@@ -23,6 +23,7 @@ import type { ScanItemData, StoneEntry, StructuredScanData } from '@/types/scann
  */
 const REFUSAL_BUZZ = [0, 110, 70, 110];
 import { resolveItemIdentity } from '@/utils/itemIdentity';
+import { findItemByCode, useItemCatalogue } from '@/utils/itemCatalogue';
 import { DIAMOND_SHAPE_OPTIONS, type StoneSelectOption } from '@/constants/stoneRateOptions';
 import { fetchDiamondRates, fetchGoldRates } from '@/utils/ratesApi';
 import type { GoldRate, TaxSettings } from '@/types/rates';
@@ -510,6 +511,23 @@ export function ReviewScannedResultsModal({
   const itemIdentity = resolveItemIdentity(scanData);
   const [codePickerOpen, setCodePickerOpen] = useState(false);
 
+  // The tag's number named from Masters -> Item Code once the saved list is
+  // here. The scan looked it up once, as the reading landed; a list still
+  // loading then (or a load that failed, or was reset mid-scan) left the
+  // name blank for good. A name already set, by the scan or by the picker,
+  // is left as it is.
+  const { items: catalogueItems } = useItemCatalogue();
+  useEffect(() => {
+    if (scanData.itemName?.trim()) return;
+    const tagNumber = scanData.sku?.trim();
+    if (!tagNumber || catalogueItems.length === 0) return;
+    const saved = findItemByCode(tagNumber, catalogueItems);
+    if (!saved) return;
+    if (saved.description?.trim()) onFieldChange('itemName', saved.description.trim());
+    if (!scanData.itemCode?.trim()) onFieldChange('itemCode', tagNumber);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogueItems, scanData.sku, scanData.itemName, scanData.itemCode]);
+
   return (
     <FloatingCard>
       <CardHeader
@@ -550,7 +568,13 @@ export function ReviewScannedResultsModal({
             <Text style={styles.itemTileLabel}>Item Code</Text>
             <View style={styles.itemTileValueRow}>
               <Text style={[styles.itemTileValue, styles.itemTileValueGrow]} numberOfLines={1}>
-                {itemIdentity.number || '—'}
+                {/* A number that turned out to be a wastage code shows on
+                    Wastage only, unless it is a saved item code as well. */}
+                {(!scanData.itemCode &&
+                pricing.wastageCode &&
+                itemIdentity.number.toUpperCase() === pricing.wastageCode.toUpperCase()
+                  ? ''
+                  : itemIdentity.number) || '—'}
               </Text>
               <ChevronDown size={14} color={Colors.textMuted} />
             </View>
