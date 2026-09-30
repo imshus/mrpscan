@@ -10,7 +10,11 @@ import {
 import { ChevronDown, ChevronRight, X } from 'lucide-react-native';
 
 import { screenStyles } from '@/constants/screenLayout';
-import { computeGoldRateFigures, RTGS_RATE2_DEFAULT_TAX_PERCENT } from '@/utils/goldRateFigures';
+import {
+  computeGoldRateFigures,
+  RTGS_RATE2_DEFAULT_TAX_PERCENT,
+  RTGS_RATE2_MCX_DIVISOR,
+} from '@/utils/goldRateFigures';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { formatInr } from '@/utils/rateMappers';
 
@@ -581,10 +585,11 @@ export function GoldRateSettingsPanel({
           onAmountChange={edited(setCashAmount)}
         />
 
-        {/* RTGS in two forms, sharing one Change By: Rate 1 is the board
-            figure from Dashboard Settings, no tax on it; Rate 2 is that
-            figure less the percent typed into its Tax field. The radio
-            picks the one the app prices on, Rate 1 unless Rate 2 is ticked. */}
+        {/* RTGS in two forms: Rate 1 is the board RTGS from Dashboard
+            Settings plus its Change By, no tax on it; Rate 2 is the house's
+            Gold Future MCX divided by 1.03, less the percent typed into its
+            Tax field. The radio picks the one the app prices on, Rate 1
+            unless Rate 2 is ticked. */}
         <RateCard
           title="RTGS Rate 1"
           subtitle={bhawNote(bhawRtgs, rtgsLive)}
@@ -606,7 +611,9 @@ export function GoldRateSettingsPanel({
         <RateCard
           title="RTGS Rate 2"
           titleTag="(without tax)"
-          subtitle={bhawNote(bhawRtgs, rtgsLive)}
+          // What it is made from: the MCX figure it divides, not the RTGS
+          // bhaw (which Rate 2 no longer carries).
+          subtitle={`Gold Future MCX ₹${Math.round(pricingMcxRate ?? mcxLiveRate ?? 0).toLocaleString('en-IN')} ÷ ${RTGS_RATE2_MCX_DIVISOR}`}
           showCurrentRate={false}
           icon={null}
           sign={rtgsSign}
