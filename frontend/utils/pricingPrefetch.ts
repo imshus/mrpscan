@@ -11,6 +11,7 @@ import { calculateScanMrp } from '@/utils/scanApi';
 import { computeOtherChargesTotal, parseNumericValue } from '@/utils/scanPriceCalculation';
 import { parseStoneArraysFromStructuredData } from '@/utils/stoneSequenceUtils';
 import { registerScopeResetCallback } from '@/utils/userScopedStorage';
+import { useScannerStore } from '@/store/scannerStore';
 
 export interface PricingInput {
   payload: CalculateMrpPayload;
@@ -49,6 +50,9 @@ export function derivePricingInput(
     // The wastage the shop charges is kept against the item code, so the
     // server needs to know which item this is before it can price it.
     itemCode: scanData.itemCode || scanData.sku || undefined,
+    // Every identifier on the tag, so a Masters -> Wastage code printed
+    // beside the item number is found as well.
+    tagIdentifiers: useScannerStore.getState().tagIdentifiers,
     // Sent only when typed: an empty box means "the item's own figure", and
     // sending 0 instead would wipe wastage off the price.
     ...(scanData.wastagePercent?.trim()

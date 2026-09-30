@@ -27,7 +27,7 @@ import {
   seedServerPricing,
 } from '@/utils/pricingPrefetch';
 import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
-import { findItemByCode, loadItemCatalogue } from '@/utils/itemCatalogue';
+import { findItemOnTag, loadItemCatalogue } from '@/utils/itemCatalogue';
 import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
 import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 
@@ -337,13 +337,16 @@ export default function ProcessingScreen() {
       // match names the piece from that record, and its code is the tag's
       // whole number — the saved word and the running number after it —
       // rather than the word alone.
-      if (adjustedScanData.sku.trim()) {
-        const saved = findItemByCode(adjustedScanData.sku, await cataloguePromise);
-        if (saved) {
+      // Every identifier on the tag is tried, the chosen number first: an
+      // item code printed beside an SR NO still names the piece.
+      const tagIdentifiers = [adjustedScanData.sku, ...(result.tagIdentifiers ?? [])];
+      if (tagIdentifiers.some((value) => value.trim())) {
+        const found = findItemOnTag(tagIdentifiers, await cataloguePromise);
+        if (found) {
           adjustedScanData = {
             ...adjustedScanData,
-            itemName: saved.description,
-            itemCode: adjustedScanData.sku.trim(),
+            itemName: found.item.description,
+            itemCode: found.code,
           };
         }
       }
@@ -376,6 +379,7 @@ export default function ProcessingScreen() {
       }
 
       setUnknownFields(result.unknownFields ?? []);
+      useScannerStore.getState().setTagIdentifiers(result.tagIdentifiers ?? []);
       setStructuredData({ ...flatData, karat: adjustedScanData.karat });
       // A karat the tag did not print is a default, not a reading: mark it
       // so the review card asks the user to confirm it.

@@ -216,6 +216,9 @@ function normalizeAnalyzeResponse(raw: AnalyzeScanResponse): AnalyzeScanResponse
     structuredData: flattenStructuredData(unwrapped.structuredData),
     fieldConfidence: extractFieldConfidence(unwrapped.structuredData),
     unknownFields: unwrapped.unknownFields ?? [],
+    tagIdentifiers: Array.isArray(unwrapped.tagIdentifiers)
+      ? unwrapped.tagIdentifiers.map((value: unknown) => String(value ?? '').trim()).filter(Boolean)
+      : [],
     billing: unwrapped.billing,
     pricing:
       unwrapped.pricing && typeof unwrapped.pricing.finalMRP === 'number'
