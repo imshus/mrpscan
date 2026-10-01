@@ -13,6 +13,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Check, ChevronDown, ChevronLeft, ChevronUp } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PaymentEmailPopup } from '@/components/settings/PaymentEmailPopup';
 import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Fonts, Radius, Spacing, Surfaces } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
@@ -121,7 +122,7 @@ export default function PurchaseLicenseScreen() {
     orderId: string;
     amountInPaise: number;
     razorpayKeyId?: string | null;
-  }) => {
+  }, email: string) => {
     const RazorpayCheckout = getRazorpayCheckout();
     if (!RazorpayCheckout) {
       throw new Error('Razorpay SDK missing. Install react-native-razorpay to continue.');
@@ -140,9 +141,10 @@ export default function PurchaseLicenseScreen() {
         currency: 'INR',
         order_id: order.orderId,
         name: 'MRPscan',
-        // The business phone on file: fewer taps in the sheet, and Razorpay's
-        // risk checks see a consistent customer.
-        prefill: { contact: String(useAuthStore.getState().registration?.phone ?? '') },
+        // The business phone on file and the email from the popup: fewer taps
+        // in the sheet, Razorpay's risk checks see a consistent customer, and
+        // its payment receipt goes to that email.
+        prefill: { contact: String(useAuthStore.getState().registration?.phone ?? ''), email },
         description: 'Application License Purchase',
         theme: { color: Colors.primary },
       });
@@ -167,17 +169,23 @@ export default function PurchaseLicenseScreen() {
     await verifyPayment(order.orderId, payment.razorpay_payment_id, payment.razorpay_signature);
   }, []);
 
-  const handlePurchase = useCallback(async () => {
+  // Which payment the email popup is open for; Continue starts that one.
+  const [emailFor, setEmailFor] = useState<'purchase' | 'recharge' | null>(null);
+
+  const handlePurchase = useCallback(() => {
     if (!canManagePayments) {
       Alert.alert('License Purchase', 'Only business account can purchase application license.');
       return;
     }
+    setEmailFor('purchase');
+  }, [canManagePayments]);
 
+  const startPurchase = useCallback(async (email: string) => {
     setBusyAction('purchase');
     try {
       assertRazorpayReady();
-      const order = await createApplicationPurchaseOrder();
-      await runRazorpayCheckout(order);
+      const order = await createApplicationPurchaseOrder(email);
+      await runRazorpayCheckout(order, email);
 
       const refreshed = await fetchSubscriptionOverview();
       setOverview(refreshed);
@@ -200,7 +208,7 @@ export default function PurchaseLicenseScreen() {
     } finally {
       setBusyAction(null);
     }
-  }, [canManagePayments, router, runRazorpayCheckout]);
+  }, [router, runRazorpayCheckout]);
 
   // Credits, on the same screen as the comparison: a shop that decides against
   // the licence for now still needs a way to keep scanning.
@@ -209,7 +217,7 @@ export default function PurchaseLicenseScreen() {
   const rechargeValue = Number(rechargeAmount || 0);
   const rechargeReady = Number.isFinite(rechargeValue) && rechargeValue >= MIN_RECHARGE;
 
-  const handleRecharge = useCallback(async () => {
+  const handleRecharge = useCallback(() => {
     if (!canManagePayments) {
       Alert.alert('Recharge Credits', 'Only the shop owner can buy credits.');
       return;
@@ -218,12 +226,15 @@ export default function PurchaseLicenseScreen() {
       Alert.alert('Recharge Credits', `Minimum purchase of ₹${MIN_RECHARGE} credits is allowed.`);
       return;
     }
+    setEmailFor('recharge');
+  }, [canManagePayments, rechargeReady]);
 
+  const startRecharge = useCallback(async (email: string) => {
     setBusyAction('recharge');
     try {
       assertRazorpayReady();
-      const order = await createCreditRechargeOrder(rechargeValue);
-      await runRazorpayCheckout(order);
+      const order = await createCreditRechargeOrder(rechargeValue, email);
+      await runRazorpayCheckout(order, email);
       setRechargeAmount('');
       await loadOverview();
       Alert.alert('Recharge Credits', `₹${rechargeValue} of credits has been added.`);
@@ -237,7 +248,16 @@ export default function PurchaseLicenseScreen() {
     } finally {
       setBusyAction(null);
     }
-  }, [canManagePayments, loadOverview, rechargeReady, rechargeValue, runRazorpayCheckout]);
+  }, [loadOverview, rechargeValue, runRazorpayCheckout]);
+
+  const continueWithEmail = useCallback((email: string) => {
+    const action = emailFor;
+    setEmailFor(null);
+    // Offered again by the next popup without waiting for a reload.
+    setOverview((current) => (current ? { ...current, billingEmail: email } : current));
+    if (action === 'purchase') void startPurchase(email);
+    else if (action === 'recharge') void startRecharge(email);
+  }, [emailFor, startPurchase, startRecharge]);
 
   const purchaseState = useMemo(() => toPurchaseState(overview), [overview]);
   const displayPrice = rupees(overview?.applicationPrice || 12000);
@@ -424,6 +444,14 @@ export default function PurchaseLicenseScreen() {
           </View>
         )}
       </KeyboardAwareScrollView>
+
+      <PaymentEmailPopup
+        visible={emailFor !== null}
+        initialEmail={overview?.billingEmail ?? ''}
+        actionLabel="Continue to Pay"
+        onCancel={() => setEmailFor(null)}
+        onContinue={continueWithEmail}
+      />
     </SafeAreaView>
   );
 }

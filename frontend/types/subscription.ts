@@ -46,6 +46,8 @@ export interface SubscriptionOverview {
   trialDaysConfigured?: number;
   lastScanCost: number;
   lastScanAt: string | null;
+  /** The email typed before the last payment, offered again in the popup. */
+  billingEmail: string;
 }
 
 export interface ScanBillingRow {

@@ -161,6 +161,7 @@ function toOverview(raw: Record<string, unknown>): SubscriptionOverview {
     trialDaysConfigured: Number(raw.trialDaysConfigured || 7),
     lastScanCost: Number(raw.lastScanCost || 0),
     lastScanAt: (raw.lastScanAt as string) || null,
+    billingEmail: typeof raw.billingEmail === 'string' ? raw.billingEmail : '',
   };
 }
 
@@ -231,10 +232,14 @@ function toPaymentOrder(unwrapped: Record<string, unknown>): PaymentOrderRespons
   };
 }
 
-export async function createApplicationPurchaseOrder(): Promise<PaymentOrderResponse> {
+/**
+ * The email from the popup before paying goes with the order: the server
+ * keeps it on the shop and the next popup offers it again.
+ */
+export async function createApplicationPurchaseOrder(email?: string): Promise<PaymentOrderResponse> {
   const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/payments/orders/application', {
     method: 'POST',
-    body: {},
+    body: email ? { email } : {},
   });
   const unwrapped = unwrapEnvelope(response);
   if (!isSuccessfulResponse(response, unwrapped)) {
@@ -243,10 +248,10 @@ export async function createApplicationPurchaseOrder(): Promise<PaymentOrderResp
   return toPaymentOrder(unwrapped);
 }
 
-export async function createCreditRechargeOrder(amount: number): Promise<PaymentOrderResponse> {
+export async function createCreditRechargeOrder(amount: number, email?: string): Promise<PaymentOrderResponse> {
   const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/payments/orders/credits', {
     method: 'POST',
-    body: { amount },
+    body: email ? { amount, email } : { amount },
   });
   const unwrapped = unwrapEnvelope(response);
   if (!isSuccessfulResponse(response, unwrapped)) {
