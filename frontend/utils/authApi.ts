@@ -75,7 +75,17 @@ function classifyRegistrationError(value: unknown): RegistrationErrorField | und
   return undefined;
 }
 
-export async function verifyBusinessGst(gstNumber: string): Promise<{
+/**
+ * Who is checking a GST number: the name and mobile from the sign-up form.
+ * The server keeps a number that cannot be verified with them, so the shop
+ * can be followed up even though no account was made.
+ */
+export interface GstCheckContact {
+  fullName?: string;
+  mobile?: string;
+}
+
+export async function verifyBusinessGst(gstNumber: string, contact: GstCheckContact = {}): Promise<{
   success: boolean;
   businessName?: string;
   address?: string;
@@ -87,7 +97,7 @@ export async function verifyBusinessGst(gstNumber: string): Promise<{
       '/auth/business/gst/verify',
       {
         method: 'POST',
-        body: { gstNumber: normalizeGstNumber(gstNumber) },
+        body: { gstNumber: normalizeGstNumber(gstNumber), ...contact },
       },
     );
     const unwrapped = unwrapEnvelope(response);
@@ -142,12 +152,15 @@ export async function verifyAndConfirmBusinessGst(gstNumber: string): Promise<{
   }
 }
 
-export async function confirmBusinessGst(gstNumber: string): Promise<{ businessId: string }> {
+export async function confirmBusinessGst(
+  gstNumber: string,
+  contact: GstCheckContact = {},
+): Promise<{ businessId: string }> {
   const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
     '/auth/business/gst/confirm',
     {
       method: 'POST',
-      body: { gstNumber: normalizeGstNumber(gstNumber) },
+      body: { gstNumber: normalizeGstNumber(gstNumber), ...contact },
     },
   );
 

@@ -25,6 +25,15 @@ import {
 import { Reveal } from '@/components/auth/Reveal';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
+
+/**
+ * The name and mobile from the sign-up form, sent with each GST check so a
+ * number that cannot be verified is kept on the server with who tried it.
+ */
+const gstCheckContact = () => {
+  const { fullName, phone } = useAuthStore.getState().registration;
+  return { fullName: fullName ?? '', mobile: phone ?? '' };
+};
 import {
   confirmBusinessGst,
   registerBusiness,
@@ -75,7 +84,7 @@ export default function GstVerificationScreen() {
     setAddress('');
     setGstVerified(false);
     try {
-      const result = await verifyBusinessGst(candidate);
+      const result = await verifyBusinessGst(candidate, gstCheckContact());
       if (seq !== gstCheckSeq.current) return false;
       if (!result.success) {
         setGstError(result.error ?? 'GST verification failed');
@@ -183,7 +192,7 @@ export default function GstVerificationScreen() {
 
     setLoading(true);
     try {
-      const confirmed = await confirmBusinessGst(gstNumber);
+      const confirmed = await confirmBusinessGst(gstNumber, gstCheckContact());
       updateRegistration({
         businessId: confirmed.businessId,
         gstNumber: normalizeGstNumber(gstNumber),
