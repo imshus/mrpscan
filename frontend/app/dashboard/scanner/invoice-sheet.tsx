@@ -31,7 +31,9 @@ import { HSN_JEWELLERY } from '@/components/invoice/InvoiceSheet';
 import { fetchBusinessProfile, type BusinessProfileResponse } from '@/utils/businessProfileApi';
 import { invoicePdfFileName } from '@/utils/invoicePdfCache';
 import { currentScopeGeneration } from '@/utils/userScopedStorage';
+import { ApiError } from '@/utils/apiClient';
 import {
+  apiEmailInvoice,
   apiFetchNextInvoiceNumber,
   apiGenerateInvoice,
   fetchInvoicePreviewHtml,
@@ -442,14 +444,31 @@ export default function InvoiceSheetScreen() {
     }
   };
 
-  // EMAIL — native mail composer with the PDF attached. Without a composer the
-  // file goes through the share sheet instead of a mailto: link, since a
-  // mailto: cannot carry an attachment and a bare link is not the invoice.
+  // EMAIL — with the customer's email filled in, the server sends the PDF
+  // from the shop's SMTP account and nothing else opens. Without an address,
+  // or while the server has no SMTP set up, the native mail composer opens
+  // with the PDF attached; without a composer the file goes through the
+  // share sheet instead of a mailto: link, since a mailto: cannot carry an
+  // attachment and a bare link is not the invoice.
   const handleEmail = async () => {
     if (!guardTotals() || working) return;
     setWorking('email');
     try {
       const { result, uri, fileName } = await fetchPdfToCache();
+      if (customer.customerEmail.trim()) {
+        try {
+          const { sentTo } = await apiEmailInvoice(result.invoiceId);
+          Alert.alert(
+            'Email sent',
+            `Invoice ${result.invoiceNumber} was emailed to ${sentTo || customer.customerEmail.trim()}.`,
+          );
+          return;
+        } catch (err) {
+          // No SMTP on the server, or an address it cannot use: the phone's
+          // mail app takes over, where the address can be corrected.
+          if (!(err instanceof ApiError && (err.status === 503 || err.status === 400))) throw err;
+        }
+      }
       const subject = `Invoice ${result.invoiceNumber} from ${profile.businessName || 'us'}`;
       const body = shareText(result.invoiceNumber);
       const recipients = customer.customerEmail.trim() ? [customer.customerEmail.trim()] : [];

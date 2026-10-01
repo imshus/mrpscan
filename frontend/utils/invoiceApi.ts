@@ -125,6 +125,21 @@ export async function apiGenerateInvoice(
 }
 
 /**
+ * POST /invoices/:id/email — the server emails the PDF over its SMTP account
+ * to the customer email saved on the invoice. Rejects with an ApiError: 503
+ * while the server has no SMTP set up, 400 when the saved address is missing
+ * or unusable. The server may wait for its PDF to finish rendering, hence
+ * the longer timeout.
+ */
+export async function apiEmailInvoice(invoiceId: string): Promise<{ sentTo: string }> {
+  const res = await apiRequest<{ success: boolean; data: { sentTo: string } }>(
+    `/invoices/${encodeURIComponent(invoiceId)}/email`,
+    { method: 'POST', timeoutMs: 60000 },
+  );
+  return res.data;
+}
+
+/**
  * GET /api/v1/invoices
  * Returns the list of invoices for the authenticated business.
  */
