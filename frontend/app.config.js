@@ -1,7 +1,8 @@
 // app.json holds the app's configuration; this only lets a build choose the
-// Android package. The Play Store bundle is com.mrpscan (build-aab.mjs sets
-// ANDROID_PACKAGE); the test APKs installed on the shop's phone keep the
-// package in app.json, so a store build never replaces them.
+// Android package through ANDROID_PACKAGE. The Play Store bundle is
+// com.amitaashitsolutions (build-aab.mjs, and the EAS production profile in
+// eas.json); the test APKs keep app.json's com.amitaashitsolution, so a Play
+// install and a sideloaded test APK are separate apps.
 module.exports = ({ config }) => ({
   ...config,
   android: {

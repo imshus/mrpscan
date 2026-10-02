@@ -31,7 +31,8 @@
         "autoIncrement": true
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://appapi.mrpscan.com"
+        "EXPO_PUBLIC_API_URL": "https://appapi.mrpscan.com",
+        "ANDROID_PACKAGE": "com.amitaashitsolutions"
       }
     }
   },
