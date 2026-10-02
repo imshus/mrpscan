@@ -34,8 +34,10 @@ if (architectures.length === 0 || architectures.some((value) => !supportedArchit
 }
 
 process.env.NODE_ENV ??= 'production';
-// The Play Store package; app.config.js applies it at prebuild.
-process.env.ANDROID_PACKAGE ??= 'com.mrpscan';
+// The Play Store package, the same as the test APK's since 3 Oct 2026 at
+// the owner's word ("com.amitaashitsolution only"); app.config.js applies it
+// at prebuild.
+process.env.ANDROID_PACKAGE ??= 'com.amitaashitsolution';
 
 // Metro and Gradle write to fixed release-bundle paths. Two simultaneous APK
 // builds can corrupt the bundle or source map, so fail early with a clear error.

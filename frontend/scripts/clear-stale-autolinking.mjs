@@ -4,8 +4,8 @@ import { join } from 'node:path';
 /**
  * React Native's Gradle plugin caches the autolinking config — the app's
  * package name included — and refreshes it only when package.json or a
- * lockfile changes. The test APK (com.amitaashitsolution) and the Play bundle
- * (com.mrpscan) are built from one android/ folder, so after a switch the
+ * lockfile changes. Builds with different packages (ANDROID_PACKAGE) share
+ * one android/ folder, so after a switch the
  * cache still named the other package and the generated entry point failed
  * to compile against it. The cache is dropped whenever it names a package
  * other than the one prebuild has just written; it regenerates on the build.
