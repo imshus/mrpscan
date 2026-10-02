@@ -327,12 +327,21 @@ export async function fetchPaymentInvoice(orderId: string): Promise<PaymentInvoi
 /**
  * Emails the invoice for a paid order from MRPscan's SMTP account, to the
  * address given (kept as the billing email) or the saved one. Resolves to
- * where it went.
+ * where it went. `auto` is the send straight after paying: once only, so a
+ * repeat (or the server's own backstop) just reports where it already went.
  */
-export async function emailPaymentInvoice(orderId: string, email?: string): Promise<string> {
+export async function emailPaymentInvoice(
+  orderId: string,
+  email?: string,
+  options: { auto?: boolean } = {},
+): Promise<string> {
   const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
     `/payments/${encodeURIComponent(orderId)}/invoice/email`,
-    { method: 'POST', body: email ? { email } : {}, timeoutMs: 60000 },
+    {
+      method: 'POST',
+      body: options.auto ? { auto: true } : email ? { email } : {},
+      timeoutMs: 60000,
+    },
   );
   const unwrapped = unwrapEnvelope(response);
   if (!isSuccessfulResponse(response, unwrapped)) {

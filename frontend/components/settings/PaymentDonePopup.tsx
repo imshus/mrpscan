@@ -28,10 +28,10 @@ interface PaymentDonePopupProps {
 type EmailState = { kind: 'idle' } | { kind: 'sending' } | { kind: 'sent'; to: string } | { kind: 'error'; message: string };
 
 /**
- * Says the payment went through and hands over MRPscan's invoice for it:
- * View Invoice opens it full screen, Email Invoice sends it from MRPscan's
- * account to the billing email given before paying. Styled as the app's
- * other popups; the cross closes it.
+ * Says the payment went through and emails MRPscan's invoice for it on its
+ * own, to the billing email given before paying, saying where it went (or
+ * why it could not). View Invoice opens it full screen; Email Invoice sends
+ * it again. Styled as the app's other popups; the cross closes it.
  */
 export function PaymentDonePopup({ paid, onClose }: PaymentDonePopupProps) {
   const opacity = useRef(new Animated.Value(0)).current;
@@ -42,9 +42,30 @@ export function PaymentDonePopup({ paid, onClose }: PaymentDonePopupProps) {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
 
+  // The automatic email: sent as the popup opens, once per payment. A popup
+  // closed or replaced meanwhile ignores the answer.
+  const autoSendFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!paid) {
+      autoSendFor.current = null;
+      return;
+    }
+    const orderId = paid.orderId;
+    autoSendFor.current = orderId;
+    setEmailState({ kind: 'sending' });
+    emailPaymentInvoice(orderId, undefined, { auto: true })
+      .then((to) => {
+        if (autoSendFor.current === orderId) setEmailState({ kind: 'sent', to: to || paid.email });
+      })
+      .catch((error) => {
+        if (autoSendFor.current === orderId) {
+          setEmailState({ kind: 'error', message: friendlyServerMessage(error, 'Could not email the invoice.') });
+        }
+      });
+  }, [paid]);
+
   useEffect(() => {
     if (!paid) return;
-    setEmailState({ kind: 'idle' });
     setInvoice(null);
     setInvoiceError(null);
     setViewerOpen(false);
@@ -89,12 +110,14 @@ export function PaymentDonePopup({ paid, onClose }: PaymentDonePopupProps) {
 
   const emailLine =
     emailState.kind === 'sent'
-      ? { text: `Invoice sent to ${emailState.to}.`, error: false }
-      : emailState.kind === 'error'
-        ? { text: emailState.message, error: true }
-        : invoiceError
-          ? { text: invoiceError, error: true }
-          : null;
+      ? { text: `Tax Invoice emailed to ${emailState.to}.`, error: false, ok: true }
+      : emailState.kind === 'sending'
+        ? { text: `Emailing the invoice${paid.email ? ` to ${paid.email}` : ''}…`, error: false, ok: false }
+        : emailState.kind === 'error'
+          ? { text: emailState.message, error: true, ok: false }
+          : invoiceError
+            ? { text: invoiceError, error: true, ok: false }
+            : null;
 
   return (
     <Modal transparent visible animationType="none" onRequestClose={onClose}>
@@ -140,11 +163,12 @@ export function PaymentDonePopup({ paid, onClose }: PaymentDonePopupProps) {
             )}
           </Pressable>
           {emailLine ? (
-            <Text style={[styles.status, emailLine.error && styles.statusError]} accessibilityLiveRegion="polite">
+            <Text
+              style={[styles.status, emailLine.ok && styles.statusOk, emailLine.error && styles.statusError]}
+              accessibilityLiveRegion="polite"
+            >
               {emailLine.text}
             </Text>
-          ) : paid.email ? (
-            <Text style={styles.status}>Sends to {paid.email}</Text>
           ) : null}
         </Animated.View>
       </View>
@@ -186,7 +210,9 @@ export function PaymentDonePopup({ paid, onClose }: PaymentDonePopupProps) {
               )}
             </Pressable>
             {emailLine ? (
-              <Text style={[styles.status, emailLine.error && styles.statusError]}>{emailLine.text}</Text>
+              <Text style={[styles.status, emailLine.ok && styles.statusOk, emailLine.error && styles.statusError]}>
+                {emailLine.text}
+              </Text>
             ) : null}
           </View>
         </SafeAreaView>
@@ -270,6 +296,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
   },
+  statusOk: { color: Colors.successText, fontWeight: '700' },
   statusError: { color: Colors.brandDeep },
   viewer: { flex: 1, backgroundColor: Colors.background },
   viewerHeader: {
