@@ -14,6 +14,8 @@ import { ArrowRight, BarChart3, ChevronLeft, Clock3, History, ShieldCheck, Walle
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
+import { PaymentDonePopup, type PaidOrder } from '@/components/settings/PaymentDonePopup';
+import { PaymentEmailPopup } from '@/components/settings/PaymentEmailPopup';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
@@ -110,6 +112,10 @@ export default function SubscriptionManagerScreen() {
   // used to turn the Start Free Trial button into 'Please wait...' as well.
   const [busyAction, setBusyAction] = useState<'trial' | 'recharge' | 'purchase' | null>(null);
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null);
+  // Which payment the email popup is open for; Continue starts that one.
+  const [emailFor, setEmailFor] = useState<{ kind: 'purchase' } | { kind: 'recharge'; amount: number } | null>(null);
+  // The payment that just went through, with its invoice on offer.
+  const [paid, setPaid] = useState<PaidOrder | null>(null);
   const [rechargeAmount, setRechargeAmount] = useState('');
   const [selectedAmount, setSelectedAmount] = useState<number>(MIN_RECHARGE);
   const [usingCustomAmount, setUsingCustomAmount] = useState(false);
@@ -139,7 +145,7 @@ export default function SubscriptionManagerScreen() {
     orderId: string;
     amountInPaise: number;
     razorpayKeyId?: string | null;
-  }, description = 'Credit Recharge') => {
+  }, email: string, description = 'Credit Recharge') => {
     const RazorpayCheckout = getRazorpayCheckout();
     if (!RazorpayCheckout) {
       throw new Error('Razorpay SDK missing. Install react-native-razorpay to continue.');
@@ -158,9 +164,10 @@ export default function SubscriptionManagerScreen() {
         currency: 'INR',
         order_id: order.orderId,
         name: 'MRPscan',
-        // The business phone on file: fewer taps in the sheet, and Razorpay's
-        // risk checks see a consistent customer.
-        prefill: { contact: String(useAuthStore.getState().registration?.phone ?? '') },
+        // The business phone on file and the email from the popup: fewer taps
+        // in the sheet, Razorpay's risk checks see a consistent customer, and
+        // its payment receipt goes to that email.
+        prefill: { contact: String(useAuthStore.getState().registration?.phone ?? ''), email },
         description,
         theme: { color: Colors.primary },
       });
@@ -220,10 +227,20 @@ export default function SubscriptionManagerScreen() {
       return;
     }
 
+    setEmailFor({ kind: 'recharge', amount });
+  };
+
+  const startRecharge = async (amount: number, email: string) => {
     await runAction('recharge', async () => {
       assertRazorpayReady();
-      const order = await createCreditRechargeOrder(amount);
-      await runRazorpayCheckout(order);
+      const order = await createCreditRechargeOrder(amount, email);
+      await runRazorpayCheckout(order, email);
+      setPaid({
+        orderId: order.orderId,
+        title: 'Credits Added',
+        message: `₹${amount} of credits has been added to your wallet.`,
+        email,
+      });
     });
   };
 
@@ -231,19 +248,34 @@ export default function SubscriptionManagerScreen() {
   // asking — the same order, checkout and verification as the license page,
   // without the stop on it. The server sets the charge (price + 18% GST).
   const handlePurchaseNow = async () => {
+    setEmailFor({ kind: 'purchase' });
+  };
+
+  const startPurchase = async (email: string) => {
     await runAction('purchase', async () => {
       assertRazorpayReady();
-      const order = await createApplicationPurchaseOrder();
-      await runRazorpayCheckout(order, 'Application License Purchase');
+      const order = await createApplicationPurchaseOrder(email);
+      await runRazorpayCheckout(order, email, 'Application License Purchase');
       const refreshed = await fetchSubscriptionOverview();
       if (refreshed.status !== 'PERMANENT_LICENSE' && !refreshed.applicationPurchased) {
         throw new Error('Payment verified. License activation is pending. Please refresh shortly.');
       }
-      Alert.alert(
-        'License Activated',
-        'Your application license is active and bonus wallet credits have been added.',
-      );
+      setPaid({
+        orderId: order.orderId,
+        title: 'License Activated',
+        message: 'Your application license is active and bonus wallet credits have been added.',
+        email,
+      });
     });
+  };
+
+  const continueWithEmail = (email: string) => {
+    const action = emailFor;
+    setEmailFor(null);
+    // Offered again by the next popup without waiting for a reload.
+    setOverview((current) => (current ? { ...current, billingEmail: email } : current));
+    if (action?.kind === 'purchase') void startPurchase(email);
+    else if (action?.kind === 'recharge') void startRecharge(action.amount, email);
   };
 
   const selectQuickAmount = (amount: number) => {
@@ -485,6 +517,15 @@ export default function SubscriptionManagerScreen() {
       </View>
 
       <BottomNav />
+
+      <PaymentEmailPopup
+        visible={emailFor !== null}
+        initialEmail={overview?.billingEmail ?? ''}
+        actionLabel="Continue to Pay"
+        onCancel={() => setEmailFor(null)}
+        onContinue={continueWithEmail}
+      />
+      <PaymentDonePopup paid={paid} onClose={() => setPaid(null)} />
     </SafeAreaView>
   );
 }

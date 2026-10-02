@@ -282,6 +282,52 @@ export async function verifyPayment(orderId: string, paymentId: string, signatur
   }
 }
 
+/** MRPscan's invoice for one of the shop's own paid orders, ready to show. */
+export interface PaymentInvoice {
+  orderId: string;
+  invoiceNumber: string;
+  /** "Tax Invoice", or "Payment Receipt" until MRPscan's GSTIN is set. */
+  title: string;
+  /** A whole HTML document in the app's look. */
+  html: string;
+  billingEmail: string;
+}
+
+export async function fetchPaymentInvoice(orderId: string): Promise<PaymentInvoice> {
+  const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
+    `/payments/${encodeURIComponent(orderId)}/invoice`,
+    { method: 'GET' },
+  );
+  const unwrapped = unwrapEnvelope(response);
+  if (!isSuccessfulResponse(response, unwrapped)) {
+    throw new Error(resolveApiMessage(response, unwrapped, 'Could not load the invoice.'));
+  }
+  return {
+    orderId: readString(unwrapped, ['orderId']) || orderId,
+    invoiceNumber: readString(unwrapped, ['invoiceNumber']) ?? '',
+    title: readString(unwrapped, ['title']) || 'Invoice',
+    html: readString(unwrapped, ['html']) ?? '',
+    billingEmail: readString(unwrapped, ['billingEmail']) ?? '',
+  };
+}
+
+/**
+ * Emails the invoice for a paid order from MRPscan's SMTP account, to the
+ * address given (kept as the billing email) or the saved one. Resolves to
+ * where it went.
+ */
+export async function emailPaymentInvoice(orderId: string, email?: string): Promise<string> {
+  const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
+    `/payments/${encodeURIComponent(orderId)}/invoice/email`,
+    { method: 'POST', body: email ? { email } : {}, timeoutMs: 60000 },
+  );
+  const unwrapped = unwrapEnvelope(response);
+  if (!isSuccessfulResponse(response, unwrapped)) {
+    throw new Error(resolveApiMessage(response, unwrapped, 'Could not email the invoice.'));
+  }
+  return readString(unwrapped, ['sentTo']) || email || '';
+}
+
 export async function markPaymentFailure(orderId: string, paymentId: string | null, reason: string): Promise<void> {
   const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/payments/mark-failure', {
     method: 'POST',

@@ -13,6 +13,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Check, ChevronDown, ChevronLeft, ChevronUp } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PaymentDonePopup, type PaidOrder } from '@/components/settings/PaymentDonePopup';
 import { PaymentEmailPopup } from '@/components/settings/PaymentEmailPopup';
 import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Fonts, Radius, Spacing, Surfaces } from '@/constants/theme';
@@ -171,6 +172,9 @@ export default function PurchaseLicenseScreen() {
 
   // Which payment the email popup is open for; Continue starts that one.
   const [emailFor, setEmailFor] = useState<'purchase' | 'recharge' | null>(null);
+  // The payment that just went through, with its invoice on offer. Closing
+  // it after a licence purchase goes back, as the old "Continue" did.
+  const [paid, setPaid] = useState<(PaidOrder & { leaveOnClose?: boolean }) | null>(null);
 
   const handlePurchase = useCallback(() => {
     if (!canManagePayments) {
@@ -194,11 +198,13 @@ export default function PurchaseLicenseScreen() {
         throw new Error('Payment verified. License activation is pending. Please refresh shortly.');
       }
 
-      Alert.alert(
-        'License Activated',
-        'Your application license is active and bonus wallet credits have been added.',
-        [{ text: 'Continue', onPress: () => router.back() }],
-      );
+      setPaid({
+        orderId: order.orderId,
+        title: 'License Activated',
+        message: 'Your application license is active and bonus wallet credits have been added.',
+        email,
+        leaveOnClose: true,
+      });
     } catch (error) {
       // Backing out of the payment sheet is not a failure to announce.
       if (!isPaymentCancellation(error)) {
@@ -208,7 +214,7 @@ export default function PurchaseLicenseScreen() {
     } finally {
       setBusyAction(null);
     }
-  }, [router, runRazorpayCheckout]);
+  }, [runRazorpayCheckout]);
 
   // Credits, on the same screen as the comparison: a shop that decides against
   // the licence for now still needs a way to keep scanning.
@@ -237,7 +243,12 @@ export default function PurchaseLicenseScreen() {
       await runRazorpayCheckout(order, email);
       setRechargeAmount('');
       await loadOverview();
-      Alert.alert('Recharge Credits', `₹${rechargeValue} of credits has been added.`);
+      setPaid({
+        orderId: order.orderId,
+        title: 'Credits Added',
+        message: `₹${rechargeValue} of credits has been added to your wallet.`,
+        email,
+      });
     } catch (error) {
       if (!isPaymentCancellation(error)) {
         Alert.alert(
@@ -451,6 +462,15 @@ export default function PurchaseLicenseScreen() {
         actionLabel="Continue to Pay"
         onCancel={() => setEmailFor(null)}
         onContinue={continueWithEmail}
+      />
+
+      <PaymentDonePopup
+        paid={paid}
+        onClose={() => {
+          const leave = paid?.leaveOnClose;
+          setPaid(null);
+          if (leave) router.back();
+        }}
       />
     </SafeAreaView>
   );
