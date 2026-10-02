@@ -282,6 +282,19 @@ export async function verifyPayment(orderId: string, paymentId: string, signatur
   }
 }
 
+/** GST charged on top of a credit recharge, as the server charges it. */
+export const CREDIT_GST_PERCENT = 18;
+
+/**
+ * What a recharge of `credits` costs: the credits plus 18% GST, worked in
+ * paise the way the server works it, so the figure shown is the one charged.
+ */
+export function creditRechargeCharge(credits: number): { gst: number; total: number } {
+  const basePaise = Math.round((Number(credits) || 0) * 100);
+  const gstPaise = Math.round((basePaise * CREDIT_GST_PERCENT) / 100);
+  return { gst: gstPaise / 100, total: (basePaise + gstPaise) / 100 };
+}
+
 /** MRPscan's invoice for one of the shop's own paid orders, ready to show. */
 export interface PaymentInvoice {
   orderId: string;

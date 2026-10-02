@@ -14,6 +14,7 @@ import { ArrowRight, BarChart3, ChevronLeft, Clock3, History, ShieldCheck, Walle
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
+import { CreditGstNote } from '@/components/settings/CreditGstNote';
 import { PaymentDonePopup, type PaidOrder } from '@/components/settings/PaymentDonePopup';
 import { PaymentEmailPopup } from '@/components/settings/PaymentEmailPopup';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
@@ -447,6 +448,8 @@ export default function SubscriptionManagerScreen() {
 
                     <Text style={styles.customHint}>Credits are added instantly after successful payment.</Text>
                   </View>
+
+                  <CreditGstNote credits={selectedRechargeAmount} />
 
                   <Pressable disabled={busyAction !== null} onPress={handleRecharge} style={[styles.primaryBtn, busyAction === 'recharge' && styles.primaryBtnDisabled]}>
                     <Text style={styles.primaryBtnText}>{busyAction === 'recharge' ? 'Processing...' : rechargeButtonLabel}</Text>

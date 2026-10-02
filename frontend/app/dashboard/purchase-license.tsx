@@ -13,6 +13,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Check, ChevronDown, ChevronLeft, ChevronUp } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CreditGstNote } from '@/components/settings/CreditGstNote';
 import { PaymentDonePopup, type PaidOrder } from '@/components/settings/PaymentDonePopup';
 import { PaymentEmailPopup } from '@/components/settings/PaymentEmailPopup';
 import { GradientView } from '@/components/ui/GradientView';
@@ -439,6 +440,8 @@ export default function PurchaseLicenseScreen() {
                       </Pressable>
                     ))}
                   </View>
+
+                  <CreditGstNote credits={rechargeValue} />
 
                   <Pressable
                     onPress={handleRecharge}
