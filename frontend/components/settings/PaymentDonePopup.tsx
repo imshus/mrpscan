@@ -133,7 +133,7 @@ export function PaymentDonePopup({ paid, onClose }: PaymentDonePopupProps) {
           <Pressable
             onPress={openInvoice}
             disabled={loadingInvoice}
-            style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
+            style={styles.primary}
             accessibilityRole="button"
           >
             {loadingInvoice ? (
@@ -148,7 +148,7 @@ export function PaymentDonePopup({ paid, onClose }: PaymentDonePopupProps) {
           <Pressable
             onPress={sendEmail}
             disabled={emailState.kind === 'sending'}
-            style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
+            style={styles.secondary}
             accessibilityRole="button"
           >
             {emailState.kind === 'sending' ? (
@@ -195,7 +195,7 @@ export function PaymentDonePopup({ paid, onClose }: PaymentDonePopupProps) {
             <Pressable
               onPress={sendEmail}
               disabled={emailState.kind === 'sending'}
-              style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
+              style={styles.primary}
               accessibilityRole="button"
             >
               {emailState.kind === 'sending' ? (
@@ -288,7 +288,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryLabel: { fontSize: 14, fontWeight: '800', color: Colors.brandDeep },
-  pressed: { opacity: 0.85 },
   status: {
     fontSize: 12.5,
     lineHeight: 18,

@@ -99,7 +99,10 @@ export function PaymentEmailPopup({
           ) : null}
           <Pressable
             onPress={submit}
-            style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+            // A plain style, not a ({ pressed }) function: under NativeWind the
+            // function form loses the background (see PopupCloseButton), which
+            // left Continue to Pay as white text on the white card.
+            style={styles.action}
             accessibilityRole="button"
           >
             <Text style={styles.actionLabel}>{actionLabel}</Text>
@@ -193,7 +196,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.brandDeep,
     alignItems: 'center',
   },
-  actionPressed: { opacity: 0.85 },
   actionLabel: {
     fontSize: 14,
     fontWeight: '800',
