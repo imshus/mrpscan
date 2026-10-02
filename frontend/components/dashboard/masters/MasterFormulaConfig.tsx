@@ -648,7 +648,7 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: BUTTON_GREEN,
+    borderColor: Colors.textPrimary,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: Spacing.lg,

@@ -95,7 +95,11 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 21,
     maxWidth: '52%',
-    fontWeight: '700',
+    // No fontWeight on top of the display face. The loaded file IS the bold
+    // cut; asking Android for "bold" of it as well sends it looking for a
+    // variant the face never registered, and it falls back to the system
+    // sans without a word — which is why the name came out in Roboto while
+    // "Forgot MPIN?", which sets no weight, came out in Playfair.
     fontFamily: Fonts.display,
     color: Colors.textPrimary,
     // Playfair carries oversized metrics, so Android's font padding left the

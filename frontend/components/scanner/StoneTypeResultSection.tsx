@@ -22,9 +22,21 @@ export const StoneTypeResultSection = memo(function StoneTypeResultSection({
       title={row.displayTitle}
       tone={row.stoneType === 'diamond' ? 'diamond' : 'plain'}
     >
-      <FinRow label={`${stoneLabel} Rate`} value={row.rate} />
-      <FinRow label={`${stoneLabel} Quality`} value={row.quality} />
-      <FinRow label={`${stoneLabel} Wt`} value={row.weight} />
+      {row.stoneType === 'colorstone' ? (
+        // A colorstone shows weight, rate and amount only, as its edit card
+        // does, at the shop's asking; its colour and clarity (the quality)
+        // still find the rate but are not shown.
+        <>
+          <FinRow label={`${stoneLabel} Wt`} value={row.weight} />
+          <FinRow label={`${stoneLabel} Rate`} value={row.rate} />
+        </>
+      ) : (
+        <>
+          <FinRow label={`${stoneLabel} Rate`} value={row.rate} />
+          <FinRow label={`${stoneLabel} Quality`} value={row.quality} />
+          <FinRow label={`${stoneLabel} Wt`} value={row.weight} />
+        </>
+      )}
       <FinRow label={`${stoneLabel} Amount`} value={row.amountDisplay} amount />
     </MetalTile>
   );

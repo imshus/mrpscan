@@ -101,6 +101,26 @@ export function findItemByCode(code: string, items: ItemCode[] = getCachedItemCa
   return prefixed;
 }
 
+/**
+ * The saved item any of a tag's identifiers names, trying them in order
+ * (the item number the reader chose first, then each number it set aside),
+ * and the identifier that named it: the code as the tag printed it. A tag
+ * with SR NO 261440 and GR10286 is named from GR10286, where matching the
+ * chosen number alone left it blank. Null when none matches.
+ */
+export function findItemOnTag(
+  identifiers: readonly string[],
+  items: ItemCode[] = getCachedItemCatalogue(),
+): { item: ItemCode; code: string } | null {
+  for (const raw of identifiers) {
+    const code = String(raw ?? '').trim();
+    if (!code) continue;
+    const item = findItemByCode(code, items);
+    if (item) return { item, code };
+  }
+  return null;
+}
+
 /** The catalogue name for a tag's code, or empty when the code is not saved. */
 export function itemNameForCode(code: string, items?: ItemCode[]): string {
   return findItemByCode(code, items)?.description ?? '';

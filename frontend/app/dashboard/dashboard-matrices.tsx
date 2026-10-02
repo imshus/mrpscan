@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,7 +8,9 @@ import { BottomNav } from '@/components/dashboard/BottomNav';
 import { AddBullionRow } from '@/components/settings/AddBullionRow';
 import { BullionHouseCard } from '@/components/settings/BullionHouseCard';
 import { MessagePopup } from '@/components/settings/MessagePopup';
-import { DropdownOption, SettingsDropdown } from '@/components/settings/SettingsDropdown';
+import { DropdownOption } from '@/components/settings/SettingsDropdown';
+import { MasterNavList } from '@/components/dashboard/masters/MasterNavList';
+import type { MasterNavItem } from '@/constants/settingsMasters';
 import {
   GOLD_MATRIX_SECTIONS,
   OPENING_MATRIX_KEYS,
@@ -17,13 +19,16 @@ import {
 import { Colors, Spacing } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useBhawStore } from '@/store/bhawStore';
+import { goldRatesApi } from '@/store/goldRatesApi';
 import { useMatricesStore } from '@/store/matricesStore';
+import { store } from '@/store/store';
 import {
   fetchBullionSources,
   updateBullionSources,
   type BullionSources,
 } from '@/utils/bullionApi';
 import { updateDashboardMatrices } from '@/utils/matricesApi';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 type DashboardMatrixValues = Record<MatrixKey, boolean>;
 
@@ -46,8 +51,8 @@ const RATE_OPTIONS: RateOption[] = GOLD_MATRIX_SECTIONS.flatMap((section) =>
 
 const DEFAULT_DASHBOARD_MATRIX_VALUES: DashboardMatrixValues = {
   '24k_mcx': true,
-  '24k_rtgs': true,
-  '24k_cash': true,
+  '24k_rtgs': false,
+  '24k_cash': false,
   '22k_rtgs': false,
   '22k_cash': false,
   '20k_rtgs': false,
@@ -76,9 +81,34 @@ function normalizeMatrixValues(values: Record<string, boolean> | null | undefine
   return merged;
 }
 
+/**
+ * Dashboard Settings is a hub of two pages, at the shop's asking: one to
+ * choose the bullion house, one to choose which gold rates Home shows. Both
+ * are this screen with a `section`; with none it lists the two.
+ */
+const DASHBOARD_SETTINGS_PAGES: MasterNavItem[] = [
+  {
+    id: 'bullion',
+    title: 'Choose a Bullion',
+    subtitle: '',
+    route: '/dashboard/dashboard-matrices?section=bullion',
+  },
+  {
+    id: 'rate-view',
+    title: 'Choose Gold Rate View',
+    subtitle: '',
+    route: '/dashboard/dashboard-matrices?section=rate-view',
+  },
+];
+
 export default function DashboardMatricesScreen() {
   const allowed = useRequireSettingsAccess('matrices');
   const router = useRouter();
+  const { section } = useLocalSearchParams<{ section?: string }>();
+  const view: 'hub' | 'bullion' | 'rate-view' =
+    section === 'bullion' ? 'bullion' : section === 'rate-view' ? 'rate-view' : 'hub';
+  const screenTitle =
+    view === 'bullion' ? 'Choose a Bullion' : view === 'rate-view' ? 'Choose Gold Rate View' : 'Dashboard Settings';
   const storedValues = useMatricesStore((s) => s.values);
   const [draft, setDraft] = useState<DashboardMatrixValues>(() => normalizeMatrixValues(storedValues));
   // One menu at a time, so a long karat list never hides the field above it.
@@ -97,80 +127,134 @@ export default function DashboardMatricesScreen() {
   // What the tick sits on: the locally followed house first (it answers
   // instantly and survives cold starts), the server's record behind it.
   const selectedSource = bhawProvider || bullion?.selected || '';
-  // What the popup is saying. It closes itself, so nothing here waits on a tap.
+  // What the popup is saying. It stays until its cross (or a tap) closes it.
   const [popup, setPopup] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  // The tap whose server answer still counts; an earlier tap's late answer
+  // must not undo a later one.
+  const bullionSaveSeq = useRef(0);
 
+  // Saves of this screen still on their way to the server. While any is,
+  // the store does not feed the draft: an earlier tap's answer landing
+  // after a later tap used to reset the list for a moment, and that tick
+  // blinked off and on.
+  const savesInFlight = useRef(0);
+
+  // The store's values feed the draft, but only when they differ: a save
+  // writes the toggled key back to the store, and re-setting an equal draft
+  // for that re-rendered every row a beat after the tap.
   useEffect(() => {
-    setDraft(normalizeMatrixValues(storedValues));
+    if (savesInFlight.current > 0) return;
+    const next = normalizeMatrixValues(storedValues);
+    setDraft((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
   }, [storedValues]);
 
   useEffect(() => {
     let cancelled = false;
     void fetchBullionSources().then((loaded) => {
-      if (!cancelled && loaded) setBullion(loaded);
+      if (cancelled || !loaded) return;
+      setBullion(loaded);
+      // The server's record is the house scans are priced on, so the tick
+      // (and every rate on the phone) follows it, not a stamp this phone
+      // made before the server had answered.
+      if (loaded.selected) useBhawStore.getState().setProvider(loaded.selected);
     });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  if (!allowed) return null;
+  // The draft as of the latest tap, for the save that follows it: two quick
+  // taps used to send the second with the first not yet in it, and the
+  // server's answer to that undid the first tick.
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
 
-  const persistToggle = async (
-    key: MatrixKey,
-    nextValue: boolean,
-    previousValue: boolean,
-  ) => {
-    const nextDraft = { ...draft, [key]: nextValue };
-
+  const persistToggle = async (key: MatrixKey, nextValue: boolean, previousValue: boolean) => {
+    const nextDraft = { ...draftRef.current, [key]: nextValue };
+    savesInFlight.current += 1;
     try {
-      const updated = await updateDashboardMatrices(nextDraft as Record<string, boolean>);
-      // Merge over the local draft: a backend that predates a setting drops the
-      // unknown key from its response, which would otherwise revert the choice.
-      const normalized = normalizeMatrixValues({ ...nextDraft, ...(updated ?? {}) });
-      setDraft(normalized);
+      await updateDashboardMatrices(nextDraft as Record<string, boolean>);
+      // The tick was drawn on the tap and stays as drawn: applying the
+      // server's echo re-rendered the whole list a beat later, which read
+      // as the check catching up on itself. Home follows the one key that
+      // changed.
       useMatricesStore.setState((state) => ({
-        values: {
-          ...state.values,
-          ...normalized,
-        },
+        values: { ...state.values, [key]: nextValue },
       }));
     } catch (error) {
       setDraft((current) => ({ ...current, [key]: previousValue }));
       setPopup({ text: 'That change could not be saved. Please try again.', tone: 'error' });
       console.error('Failed to update dashboard matrices', error);
+    } finally {
+      savesInFlight.current -= 1;
     }
   };
 
-  const toggleRate = (key: MatrixKey) => {
-    const previousValue = draft[key];
+  const toggleRate = useCallback((key: MatrixKey) => {
+    const previousValue = Boolean(draftRef.current[key]);
     const nextValue = !previousValue;
+    if (!nextValue) {
+      const othersOn = RATE_OPTIONS.some(
+        (option) => option.key !== key && Boolean(draftRef.current[option.key]),
+      );
+      // Home always shows at least one rate; the last one stays ticked.
+      if (!othersOn) return;
+    }
     setDraft((current) => ({ ...current, [key]: nextValue }));
     void persistToggle(key, nextValue, previousValue);
-  };
+    // persistToggle reaches the latest draft through the ref and nothing
+    // else that changes, so the handler is made once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // One handler per row, made once: a memoised row re-renders only when its
+  // own props change, and a fresh arrow on every render was a changed prop.
+  const toggleHandlers = useMemo(
+    () =>
+      Object.fromEntries(
+        RATE_OPTIONS.map((option) => [option.key, () => toggleRate(option.key)]),
+      ) as Record<MatrixKey, () => void>,
+    [toggleRate],
+  );
+
+  if (!allowed) return null;
 
   const selectBullion = (key: string) => {
     setOpenMenu(null);
     if (selectedSource === key) return;
 
-    // The phone follows the house at once — Home's rates and the tick are
-    // driven from here — and the server records it behind. A server that does
-    // not know a newer house yet clamps its own record without pulling the
-    // phone off the house the shop chose.
+    // The phone follows the house at once — the tick and every rate on the
+    // phone are driven from here — and the server records it behind. If the
+    // server refuses, or cannot be reached, the phone goes back to the house
+    // the server still prices on, and says so.
+    const previousProvider = useBhawStore.getState().provider;
+    const previousJmd = useMatricesStore.getState().values.bhaw_source_jmd;
+    const previous = bullion;
+    const attempt = (bullionSaveSeq.current += 1);
     useBhawStore.getState().setProvider(key);
     useMatricesStore.setState((state) => ({
       values: { ...state.values, bhaw_source_jmd: key === 'jmd_patil' },
     }));
+    if (bullion) setBullion({ ...bullion, selected: key });
 
-    if (!bullion) return;
-    const previous = bullion;
-    setBullion({ ...bullion, selected: key });
-    void updateBullionSources({ selected: key, requestedNames: bullion.requestedNames })
+    void updateBullionSources({ selected: key, requestedNames: bullion?.requestedNames ?? [] })
       .then((saved) => {
+        if (attempt !== bullionSaveSeq.current) return;
         setBullion(saved);
+        // Home and Gold Rate Settings read the server's rates for the house
+        // it now prices on.
+        store.dispatch(goldRatesApi.util.invalidateTags(['GoldRates']));
       })
       .catch(() => {
-        setBullion(previous);
+        // A later tap has already moved on; its own answer settles things.
+        if (attempt !== bullionSaveSeq.current) return;
+        useBhawStore.getState().setProvider(previousProvider);
+        useMatricesStore.setState((state) => ({
+          values: { ...state.values, bhaw_source_jmd: previousJmd },
+        }));
+        if (previous) setBullion(previous);
+        setPopup({ text: 'That change could not be saved. Please try again.', tone: 'error' });
       });
   };
 
@@ -214,20 +298,24 @@ Home keeps following ${following} until then.`,
         <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
           <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.2} />
         </Pressable>
-        <Text style={styles.headerTitle}>Dashboard Settings</Text>
+        <Text style={styles.headerTitle}>{screenTitle}</Text>
       </View>
-      <ScrollView
+      {/* The keyboard-aware list alone lifts the name being typed above the
+          keyboard. It used to sit inside a KeyboardAvoidingView as well,
+          which shrank the list for the keyboard a second time: scrolled to
+          its end, the list then showed the Add Bullion field up under the
+          header with an empty page below it. */}
+      <KeyboardAwareScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.hint}>
-          Choose which gold rates appear on your Home dashboard.
-        </Text>
+        {view === 'hub' ? <MasterNavList items={DASHBOARD_SETTINGS_PAGES} /> : null}
 
         {/* Each house as its own board, so the choice is made on the rates
             themselves rather than on a name in a list. */}
-        {vendors.length > 0 ? (
+        {view !== 'bullion' ? null : vendors.length > 0 ? (
           <>
             {vendors.map((vendor) => (
               <BullionHouseCard
@@ -238,29 +326,37 @@ Home keeps following ${following} until then.`,
                 onSelect={() => selectBullion(String(vendor.source))}
               />
             ))}
-            <AddBullionRow onAdd={addBullion} />
+            <AddBullionRow
+              onAdd={addBullion}
+              // No scroll of its own here: the keyboard-aware list lifts the
+              // name field above the keyboard. Scrolling to the end as well
+              // landed on the keyboard's empty bottom room and blanked the page.
+            />
           </>
         ) : (
           <Text style={styles.loadingText}>Loading the bullion houses…</Text>
         )}
 
-        <SettingsDropdown
-          title="Choose Karat"
-          open={openMenu === 'karat'}
-          onPress={() => setOpenMenu((current) => (current === 'karat' ? null : 'karat'))}
-        >
-          {RATE_OPTIONS.map((option, index) => (
-            <DropdownOption
-              key={option.key}
-              label={option.label}
-              selected={draft[option.key]}
-              onPress={() => toggleRate(option.key)}
-              mode="multi"
-              showDivider={index < RATE_OPTIONS.length - 1}
-            />
-          ))}
-        </SettingsDropdown>
-      </ScrollView>
+        {view === 'rate-view' ? (
+          <>
+            <Text style={styles.hint}>
+              Choose which gold rates appear on your Home dashboard.
+            </Text>
+            <View style={styles.optionsCard}>
+              {RATE_OPTIONS.map((option, index) => (
+                <DropdownOption
+                  key={option.key}
+                  label={option.label}
+                  selected={draft[option.key]}
+                  onPress={toggleHandlers[option.key]}
+                  mode="multi"
+                  showDivider={index < RATE_OPTIONS.length - 1}
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
+      </KeyboardAwareScrollView>
 
       <BottomNav />
 
@@ -279,6 +375,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  flex: { flex: 1 },
   scrollContent: {
     paddingHorizontal: Spacing.screenHorizontal,
     paddingBottom: 120,
@@ -306,6 +403,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: Colors.textPrimary,
+  },
+  optionsCard: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 16,
+    backgroundColor: Colors.white,
+    overflow: 'hidden',
   },
   hint: {
     fontSize: 12,

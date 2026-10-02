@@ -2,8 +2,10 @@ import { useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   Text,
   TextInput,
   View,
@@ -13,9 +15,14 @@ import { ChevronDown } from 'lucide-react-native';
 
 import { Colors } from '@/constants/theme';
 
-/** Highlight for the current choice, matching the platform select popup. */
-const ANCHORED_SELECTED_BG = '#1967D2';
-const ANCHORED_ROW_HEIGHT = 44;
+/**
+ * The anchored popup is drawn the way Labour's Weight Used list is (ReviewCardKit
+ * InlineOptionList): white, radius 9, the chosen row cream with the brand's red
+ * text, 12.8px type. It used the platform's blue highlight and square corners,
+ * so Gold Rate and Wastage looked unlike Labour on the same card.
+ */
+const ANCHORED_ROW_HEIGHT = 38;
+const ANCHORED_RADIUS = 9;
 
 export type SearchableSelectOption = {
   value: string;
@@ -88,21 +95,29 @@ export function SearchableSelectDropdown({
   const maxMenuHeight = Math.min(height * 0.62, 380);
 
   // The anchored list is drawn in a Modal, so it needs the trigger's position
-  // in window coordinates rather than its position inside the scroll view.
+  // on screen rather than its position inside the scroll view. The popup is
+  // drawn from the very top of the screen (statusBarTranslucent below), but
+  // Android's window measurements start under the status bar: taken as they
+  // come, the list sat a status bar too high, over the field it belongs to.
+  // A layer measured inside the popup to correct for it read the same way,
+  // so the status bar is added back directly.
   const openAnchored = () => {
     triggerRef.current?.measureInWindow((x, y, triggerWidth, triggerHeight) => {
-      setAnchor({ x, y, width: triggerWidth, height: triggerHeight });
+      const statusBar = Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0;
+      setAnchor({ x, y: y + statusBar, width: triggerWidth, height: triggerHeight });
       setOpen(true);
     });
   };
 
   const anchoredGeometry = () => {
     if (!anchor) return null;
-    const listHeight = Math.min(options.length, 6) * ANCHORED_ROW_HEIGHT + 8;
-    const below = anchor.y + anchor.height + 4;
+    // Rows plus the 1px border top and bottom.
+    const listHeight = Math.min(options.length, 6) * ANCHORED_ROW_HEIGHT + 2;
+    const fieldTop = anchor.y;
+    const below = fieldTop + anchor.height + 4;
     // Flip above the field when there is not enough room underneath.
     const fitsBelow = below + listHeight <= height - 12;
-    const top = fitsBelow ? below : Math.max(12, anchor.y - listHeight - 4);
+    const top = fitsBelow ? below : Math.max(12, fieldTop - listHeight - 4);
     const menuWidth = Math.max(anchor.width, 120);
     const left = Math.min(Math.max(8, anchor.x), Math.max(8, screenWidth - menuWidth - 8));
     return { top, left, width: menuWidth, listHeight };
@@ -154,7 +169,13 @@ export function SearchableSelectDropdown({
       </Pressable>
 
       {anchored ? (
-        <Modal visible={open} transparent animationType="none" onRequestClose={closeMenu}>
+        <Modal
+          visible={open}
+          transparent
+          statusBarTranslucent
+          animationType="none"
+          onRequestClose={closeMenu}
+        >
           <Pressable className="flex-1" onPress={closeMenu}>
             {geometry ? (
               <View
@@ -165,10 +186,10 @@ export function SearchableSelectDropdown({
                   width: geometry.width,
                   maxHeight: geometry.listHeight,
                   backgroundColor: Colors.white,
-                  borderRadius: 4,
+                  borderRadius: ANCHORED_RADIUS,
                   borderWidth: 1,
                   borderColor: Colors.border,
-                  paddingVertical: 4,
+                  overflow: 'hidden',
                   elevation: 8,
                   shadowColor: '#000',
                   shadowOpacity: 0.18,
@@ -189,15 +210,15 @@ export function SearchableSelectDropdown({
                         style={{
                           height: ANCHORED_ROW_HEIGHT,
                           justifyContent: 'center',
-                          paddingHorizontal: 12,
-                          backgroundColor: isSelected ? ANCHORED_SELECTED_BG : Colors.white,
+                          paddingHorizontal: 9,
+                          backgroundColor: isSelected ? Colors.backgroundAlt : Colors.white,
                         }}
                       >
                         <Text
                           style={{
-                            fontSize: 14,
-                            fontWeight: isSelected ? '700' : '500',
-                            color: isSelected ? Colors.white : Colors.textPrimary,
+                            fontSize: 12.8,
+                            fontWeight: isSelected ? '600' : '400',
+                            color: isSelected ? Colors.brandDeep : Colors.textPrimary,
                           }}
                           numberOfLines={1}
                         >

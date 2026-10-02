@@ -16,8 +16,9 @@ export function resolveMcxChangeValue(mcxChange?: McxChange, fallback = 0): numb
   return mcxChange.operation === '-' ? -amount : amount;
 }
 
+/** The MCX 24K rate counts as 100%; a purity's rate is that fraction of it. */
 export function calculateBaseGoldRate(mcxLiveRate: number, purity: number): number {
-  return Math.round(mcxLiveRate * (purity / 99.9));
+  return Math.round(mcxLiveRate * (purity / 100));
 }
 
 export function applyGoldIncrease(

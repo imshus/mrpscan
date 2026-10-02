@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import { changeUserPassword } from '@/utils/authApi';
 
 const BUTTON_GREEN = '#A81F17';
@@ -62,7 +63,7 @@ export default function PasswordManagerScreen() {
     <SafeAreaView style={screenStyles.safeArea} edges={['top']}>
       <BackgroundPattern />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.scroll}
         contentContainerStyle={screenStyles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -166,7 +167,7 @@ export default function PasswordManagerScreen() {
             </Pressable>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <BottomNav />
     </SafeAreaView>

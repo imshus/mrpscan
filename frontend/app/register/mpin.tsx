@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
@@ -11,6 +11,7 @@ import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { registerBusiness } from '@/utils/authApi';
 import { prepareSignInAfterSignup } from '@/utils/authSession';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 /**
  * The last step of signing up: the four digits this shop will sign in with.
@@ -87,8 +88,11 @@ export default function CreateMpinScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
-        <ScrollView
+      {/* The keyboard-aware list alone keeps the field being typed just above
+          the keyboard. It used to sit inside a KeyboardAvoidingView as well,
+          which shrank the page for the keyboard a second time and threw the
+          field far above it. */}
+      <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
@@ -131,8 +135,7 @@ export default function CreateMpinScreen() {
               <AuthPrimaryButton title="Submit" onPress={() => void submit()} loading={saving} />
             </Reveal>
           </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

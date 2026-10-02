@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Plus } from 'lucide-react-native';
 
-import { Colors, Radius } from '@/constants/theme';
+import { GradientView } from '@/components/ui/GradientView';
+import { Colors, Gradients, Radius } from '@/constants/theme';
 
 interface AddBullionRowProps {
   /** Saves the typed name. Returns an error message to show, or null. */
   onAdd: (name: string) => Promise<string | null>;
+  /** The name field has opened or taken focus: the list scrolls it into view. */
+  onOpen?: () => void;
 }
 
 /**
@@ -17,7 +19,7 @@ interface AddBullionRowProps {
  * Cash change — so the confirmation says as much rather than leaving someone
  * to wonder where its price comes from.
  */
-export function AddBullionRow({ onAdd }: AddBullionRowProps) {
+export function AddBullionRow({ onAdd, onOpen }: AddBullionRowProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -50,9 +52,18 @@ export function AddBullionRow({ onAdd }: AddBullionRowProps) {
 
   if (!open) {
     return (
-      <Pressable onPress={() => setOpen(true)} style={styles.addRow} accessibilityRole="button">
-        <Plus size={15} color={Colors.brandDeep} strokeWidth={2.4} />
-        <Text style={styles.addText}>Add Bullion</Text>
+      // The shop's design: a full-width red pill under the houses.
+      <Pressable
+        onPress={() => {
+          setOpen(true);
+          onOpen?.();
+        }}
+        style={({ pressed }) => [styles.addPillWrap, pressed && styles.addPillPressed]}
+        accessibilityRole="button"
+      >
+        <GradientView colors={Gradients.brand} forceGradient borderRadius={999} style={styles.addPill}>
+          <Text style={styles.addPillText}>+ Add Bullion</Text>
+        </GradientView>
       </Pressable>
     );
   }
@@ -67,6 +78,7 @@ export function AddBullionRow({ onAdd }: AddBullionRowProps) {
             if (error) setError(null);
           }}
           autoFocus
+          onFocus={onOpen}
           autoCapitalize="words"
           maxLength={40}
           accessibilityLabel="Bullion house name"
@@ -92,16 +104,18 @@ export function AddBullionRow({ onAdd }: AddBullionRowProps) {
 }
 
 const styles = StyleSheet.create({
-  addRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+  addPillWrap: {
+    marginTop: 18,
+    borderRadius: 999,
+    shadowColor: '#A81F17',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 5,
   },
-  addText: { fontSize: 14, fontWeight: '700', color: Colors.brandDeep },
+  addPillPressed: { transform: [{ scale: 0.98 }] },
+  addPill: { height: 54, alignItems: 'center', justifyContent: 'center' },
+  addPillText: { fontSize: 16, fontWeight: '800', color: Colors.white },
   formRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',

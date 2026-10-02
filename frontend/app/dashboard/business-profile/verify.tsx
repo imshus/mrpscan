@@ -9,6 +9,7 @@ import { MpinInput, MPIN_LENGTH, type MpinInputHandle } from '@/components/ui/Mp
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Colors, Spacing } from '@/constants/theme';
 import { startProfileEdit } from '@/utils/profileEditApi';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import { friendlyServerMessage } from '@/utils/serverMessages';
 
 /**
@@ -50,7 +51,7 @@ export default function ConfirmMpinForProfileEdit() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <BackgroundPattern />
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
           <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.2} />
         </Pressable>
@@ -82,7 +83,7 @@ export default function ConfirmMpinForProfileEdit() {
           style={styles.cta}
         />
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

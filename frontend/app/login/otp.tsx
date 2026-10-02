@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -23,6 +22,7 @@ import { Colors } from '@/constants/theme';
 import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { useAuthStore } from '@/store/authStore';
 import { loginBusinessWithOtp, sendLoginOtp } from '@/utils/authApi';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import { maskPhone, validateOtp, validatePhone } from '@/utils/validation';
 
 const OTP_LENGTH = 6;
@@ -39,7 +39,6 @@ export default function LoginOtpScreen() {
     setIsSuper,
     setLoggedInEmployee,
     setSavedCredentials,
-    rememberMe,
     updateRegistration,
   } = useAuthStore();
 
@@ -92,9 +91,9 @@ export default function LoginOtpScreen() {
       ...(payload.fullName ? { fullName: payload.fullName } : {}),
     });
 
-    if (rememberMe) {
-      setSavedCredentials(mobile);
-    }
+    // Remembered so the next sign-in, after the midnight sign-out too, is
+    // the MPIN alone.
+    setSavedCredentials(mobile);
   };
 
   const verifyOtpAndLogin = async (otpValue: string) => {
@@ -180,11 +179,8 @@ export default function LoginOtpScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior="padding"
-      >
-        <ScrollView
+      {/* The keyboard-aware list alone keeps the field being typed just above the keyboard; a KeyboardAvoidingView around it shrank the page a second time and threw the field far above it. */}
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
@@ -213,8 +209,7 @@ export default function LoginOtpScreen() {
 
           {otpError ? <AuthErrorText>{otpError}</AuthErrorText> : null}
           {verifying ? <Text style={styles.verifyingText}>Verifying OTP…</Text> : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

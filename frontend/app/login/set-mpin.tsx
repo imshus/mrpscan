@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 
@@ -21,6 +21,7 @@ import {
   setMpinWithResetToken,
   verifyPasswordResetOtp,
 } from '@/utils/authApi';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 /**
  * Sets the four digits an owner signs in with, proved by an OTP to their
@@ -134,7 +135,17 @@ export default function SetMpinScreen() {
         return;
       }
       setDone(true);
-      setTimeout(() => router.replace('/login'), 1400);
+      // Back to Log In at its MPIN step: this number was just proved with a
+      // code here, so it is not asked for another one.
+      const verifiedPhone = phone.replace(/\D/g, '').slice(-10);
+      setTimeout(
+        () =>
+          router.replace({
+            pathname: '/login',
+            params: { phone: verifiedPhone, verified: '1' },
+          } as unknown as Href),
+        1400,
+      );
     } finally {
       setSaving(false);
     }
@@ -142,8 +153,8 @@ export default function SetMpinScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
-        <ScrollView
+      {/* The keyboard-aware list alone keeps the field being typed just above the keyboard; a KeyboardAvoidingView around it shrank the page a second time and threw the field far above it. */}
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
@@ -239,8 +250,7 @@ export default function SetMpinScreen() {
               </>
             )}
           </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

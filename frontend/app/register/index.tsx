@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
   Text,
@@ -36,6 +35,7 @@ import {
 } from '@/utils/authApi';
 import { prepareSignInAfterSignup } from '@/utils/authSession';
 import { normalizeGstNumber, validateGst, validatePhone } from '@/utils/validation';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 const OTP_LENGTH = 6;
 const AVAILABILITY_ERROR = 'Could not check availability. Check your connection and try again.';
@@ -345,8 +345,11 @@ export default function SignupScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
-        <ScrollView
+      {/* The keyboard-aware list alone keeps the field being typed just above
+          the keyboard. It used to sit inside a KeyboardAvoidingView as well,
+          which shrank the page for the keyboard a second time and threw the
+          field far above it. */}
+      <KeyboardAwareScrollView
           ref={scrollRef}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -519,8 +522,8 @@ export default function SignupScreen() {
           </Animated.View>
 
           <AuthSwitch
-            prompt="Already have an account?"
-            linkText="Log in"
+            prompt="Already a user?"
+            linkText="Login"
             onPress={() => router.replace('/login')}
           />
 
@@ -533,8 +536,7 @@ export default function SignupScreen() {
               void signIn?.();
             }}
           />
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

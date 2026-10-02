@@ -43,7 +43,7 @@ interface RawMaterialSectionProps {
 
 const RATE_OPTIONS: ReadonlyArray<{ value: 'rtgs' | 'cash'; label: string }> = [
   { value: 'rtgs', label: 'RTGS' },
-  { value: 'cash', label: 'Cash' },
+  { value: 'cash', label: 'Retail' },
 ];
 
 function normalizeRateKarat(carat: string): string {
@@ -86,7 +86,7 @@ export const RawMaterialSection = memo(function RawMaterialSection({
   backendGoldAmount,
 }: RawMaterialSectionProps) {
   const [isPurityEditing, setIsPurityEditing] = useState(false);
-  const fixedRateLabel = calculationRateAccess === 'cash' ? 'Cash Rate' : 'RTGS Rate';
+  const fixedRateLabel = calculationRateAccess === 'cash' ? 'Retail Rate' : 'RTGS Rate';
   const activeFormula = useFormulaStore((s) => s.activeFormula);
   const formula2Rules = useFormulaStore((s) => s.formula2Rules);
 
@@ -102,7 +102,7 @@ export const RawMaterialSection = memo(function RawMaterialSection({
   const normalizedKarat = normalizeKarat(resolvedKarat);
   const defaultPurity = useMemo(() => {
     if (!normalizedKarat) return 0;
-    if (normalizedKarat === '24K') return 99.9;
+    if (normalizedKarat === '24K') return 100;
     const match = goldRates?.find(
       (rate) => normalizeRateKarat(rate.carat) === normalizedKarat,
     );
@@ -155,9 +155,12 @@ export const RawMaterialSection = memo(function RawMaterialSection({
       : 0;
   const localCurrentGoldRateDisplay =
     currentGoldRate > 0 ? `${formatIndianCurrency(currentGoldRate)} /10gm` : '—';
+  // Pure weight × the 24K rate per gram: purity is already in the pure
+  // weight, so the rate is the whole 24K one, not the purity-adjusted figure
+  // shown above — that figure times the pure weight counted purity twice.
   const localGoldAmount =
-    currentGoldRate > 0 && pureWeightGrams > 0
-      ? (currentGoldRate / 10) * pureWeightGrams
+    finalBaseRate > 0 && pureWeightGrams > 0
+      ? (finalBaseRate / 10) * pureWeightGrams
       : 0;
 
   // Current Gold Rate field should show selected 24K RTGS/Cash base rate adjusted by purity %.

@@ -111,8 +111,11 @@ export function useInvoiceComputation(): InvoiceComputation {
         ? {
             key: 'labour-charge',
             description: 'Labour Charge',
-            note: formatIndianCurrency(labourAmount),
-            qty: 1,
+            // No amount echoed under the name and no quantity of 1.000: the
+            // labour line carries its figure in the Amount column alone, at
+            // the shop's asking.
+            note: '',
+            qty: 0,
             qtyUnit: '',
             price: labourAmount,
             amount: labourAmount,

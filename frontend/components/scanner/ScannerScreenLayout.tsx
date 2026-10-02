@@ -96,6 +96,13 @@ interface ScannerScreenLayoutProps {
   onDeletePress?: () => void;
   /** The red Calculate pill under the shutter, once there is a side to price. */
   onCalculatePress?: () => void;
+  /**
+   * Holds the Calculate pill until the tag finder has finished with the
+   * sides in hand: the shop asked that a scan never start on a side that is
+   * still being adjusted. The pill stays in view, dimmed, so it is plainly
+   * a wait and not a missing button.
+   */
+  calculateDisabled?: boolean;
   /** Lets touches reach what is drawn in the frame, for framing a photo in it. */
   frameInteractive?: boolean;
   /**
@@ -132,6 +139,7 @@ export function ScannerScreenLayout({
   onUploadPress,
   onDeletePress,
   onCalculatePress,
+  calculateDisabled = false,
   frameInteractive = false,
   photoLayer,
   cameraRef,
@@ -291,7 +299,11 @@ export function ScannerScreenLayout({
           <Image
             source={{ uri: capturedPreviewUri }}
             style={styles.capturedThumb}
-            resizeMode="cover"
+            // The whole crop, letterboxed, never a cover-fit slice of it: this
+            // thumbnail is the shop's proof of what was kept, and a cover-fit
+            // hid the top line of a tag that the file still had — or did not.
+            // It has to show the truth either way.
+            resizeMode="contain"
           />
           <View style={styles.capturedTick}>
             <Check size={11} color={Colors.white} strokeWidth={3.2} />
@@ -360,9 +372,21 @@ export function ScannerScreenLayout({
                 {onCalculatePress ? (
                   <>
                     <Text style={styles.orLabel}>OR</Text>
-                    <Pressable onPress={onCalculatePress} style={styles.actionSlot}>
-                      <View style={[styles.actionButton, styles.actionButtonSolid]}>
-                        <Text style={styles.scanLabel}>Calculate directly</Text>
+                    <Pressable
+                      onPress={onCalculatePress}
+                      disabled={calculateDisabled}
+                      style={styles.actionSlot}
+                    >
+                      <View
+                        style={[
+                          styles.actionButton,
+                          styles.actionButtonSolid,
+                          calculateDisabled && styles.actionButtonHeld,
+                        ]}
+                      >
+                        <Text style={styles.scanLabel}>
+                          {calculateDisabled ? 'Adjusting tag…' : 'Calculate directly'}
+                        </Text>
                       </View>
                     </Pressable>
                   </>
@@ -536,6 +560,9 @@ const styles = StyleSheet.create({
   // The 48px pill lives on the inner view so both buttons measure identically:
   // putting it on the Pressable let its `alignItems: center` shrink the
   // gradient child to text height.
+  actionButtonHeld: {
+    opacity: 0.45,
+  },
   actionSlot: {
     width: SCANNER_FRAME_WIDTH,
   },

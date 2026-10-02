@@ -16,6 +16,12 @@ interface GradientViewProps {
    * When FLAT_SURFACES is true only the last stop is used, as a flat fill.
    */
   colors: readonly string[];
+  /**
+   * Draws the real gradient even while FLAT_SURFACES is on. For the one or
+   * two surfaces the shop's own reference draws with a gradient — the trial
+   * banner — while everything else stays flat as they asked.
+   */
+  forceGradient?: boolean;
   /** Matches the container's borderRadius so the fill is clipped correctly. */
   borderRadius?: number;
   /**
@@ -46,6 +52,7 @@ interface GradientViewProps {
  */
 export function GradientView({
   colors,
+  forceGradient = false,
   borderRadius = 0,
   sheen,
   topHighlight,
@@ -72,7 +79,7 @@ export function GradientView({
   // (and behind any SVG rounding gaps); the same colour flat mode paints.
   const fallbackColor = colors[colors.length - 1];
 
-  if (FLAT_SURFACES) {
+  if (FLAT_SURFACES && !forceGradient) {
     // Flat mode: the tile is the gradient's last (bottom-right) stop, nothing layered on top.
     return (
       <View style={[{ borderRadius, overflow: 'hidden', backgroundColor: fallbackColor }, style]}>

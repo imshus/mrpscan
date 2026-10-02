@@ -10,6 +10,13 @@ import type {
 import { apiRequest, ApiError } from '@/utils/apiClient';
 import { unwrapApiData } from '@/utils/apiResponse';
 
+/**
+ * The balance a new scan must be above, at the shop's asking: one scan costs
+ * about 0.68 and is billed only if the wallet covers all of it. The server
+ * sends its own figure (billing config minScanBalance); this is the fallback.
+ */
+export const MIN_SCAN_BALANCE = 0.74;
+
 type ApiEnvelope<T extends Record<string, unknown>> = T & {
   success?: boolean;
   message?: string;
@@ -138,6 +145,11 @@ function toOverview(raw: Record<string, unknown>): SubscriptionOverview {
     creditBalance: Number(raw.creditBalance || 0),
     lowCreditThreshold: Number(raw.lowCreditThreshold || 20),
     criticalCreditThreshold: Number(raw.criticalCreditThreshold || 10),
+    // A server that does not send it yet gets the shop's own figure. A 0
+    // it does send is kept (not read as "missing").
+    minScanBalance: Number.isFinite(Number(raw.minScanBalance)) && raw.minScanBalance !== null && raw.minScanBalance !== ''
+      ? Number(raw.minScanBalance)
+      : MIN_SCAN_BALANCE,
     creditWarningLevel: (raw.creditWarningLevel as SubscriptionOverview['creditWarningLevel']) || 'NONE',
     todayScans: Number(raw.todayScans || 0),
     monthScans: Number(raw.monthScans || 0),
@@ -149,6 +161,7 @@ function toOverview(raw: Record<string, unknown>): SubscriptionOverview {
     trialDaysConfigured: Number(raw.trialDaysConfigured || 7),
     lastScanCost: Number(raw.lastScanCost || 0),
     lastScanAt: (raw.lastScanAt as string) || null,
+    billingEmail: typeof raw.billingEmail === 'string' ? raw.billingEmail : '',
   };
 }
 
@@ -219,10 +232,14 @@ function toPaymentOrder(unwrapped: Record<string, unknown>): PaymentOrderRespons
   };
 }
 
-export async function createApplicationPurchaseOrder(): Promise<PaymentOrderResponse> {
+/**
+ * The email from the popup before paying goes with the order: the server
+ * keeps it on the shop and the next popup offers it again.
+ */
+export async function createApplicationPurchaseOrder(email?: string): Promise<PaymentOrderResponse> {
   const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/payments/orders/application', {
     method: 'POST',
-    body: {},
+    body: email ? { email } : {},
   });
   const unwrapped = unwrapEnvelope(response);
   if (!isSuccessfulResponse(response, unwrapped)) {
@@ -231,10 +248,10 @@ export async function createApplicationPurchaseOrder(): Promise<PaymentOrderResp
   return toPaymentOrder(unwrapped);
 }
 
-export async function createCreditRechargeOrder(amount: number): Promise<PaymentOrderResponse> {
+export async function createCreditRechargeOrder(amount: number, email?: string): Promise<PaymentOrderResponse> {
   const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/payments/orders/credits', {
     method: 'POST',
-    body: { amount },
+    body: email ? { amount, email } : { amount },
   });
   const unwrapped = unwrapEnvelope(response);
   if (!isSuccessfulResponse(response, unwrapped)) {
@@ -263,6 +280,74 @@ export async function verifyPayment(orderId: string, paymentId: string, signatur
   ) {
     throw new Error('Payment has not been captured and verified yet.');
   }
+}
+
+/** GST charged on top of a credit recharge, as the server charges it. */
+export const CREDIT_GST_PERCENT = 18;
+
+/**
+ * What a recharge of `credits` costs: the credits plus 18% GST, worked in
+ * paise the way the server works it, so the figure shown is the one charged.
+ */
+export function creditRechargeCharge(credits: number): { gst: number; total: number } {
+  const basePaise = Math.round((Number(credits) || 0) * 100);
+  const gstPaise = Math.round((basePaise * CREDIT_GST_PERCENT) / 100);
+  return { gst: gstPaise / 100, total: (basePaise + gstPaise) / 100 };
+}
+
+/** MRPscan's invoice for one of the shop's own paid orders, ready to show. */
+export interface PaymentInvoice {
+  orderId: string;
+  invoiceNumber: string;
+  /** "Tax Invoice", or "Payment Receipt" until MRPscan's GSTIN is set. */
+  title: string;
+  /** A whole HTML document in the app's look. */
+  html: string;
+  billingEmail: string;
+}
+
+export async function fetchPaymentInvoice(orderId: string): Promise<PaymentInvoice> {
+  const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
+    `/payments/${encodeURIComponent(orderId)}/invoice`,
+    { method: 'GET' },
+  );
+  const unwrapped = unwrapEnvelope(response);
+  if (!isSuccessfulResponse(response, unwrapped)) {
+    throw new Error(resolveApiMessage(response, unwrapped, 'Could not load the invoice.'));
+  }
+  return {
+    orderId: readString(unwrapped, ['orderId']) || orderId,
+    invoiceNumber: readString(unwrapped, ['invoiceNumber']) ?? '',
+    title: readString(unwrapped, ['title']) || 'Invoice',
+    html: readString(unwrapped, ['html']) ?? '',
+    billingEmail: readString(unwrapped, ['billingEmail']) ?? '',
+  };
+}
+
+/**
+ * Emails the invoice for a paid order from MRPscan's SMTP account, to the
+ * address given (kept as the billing email) or the saved one. Resolves to
+ * where it went. `auto` is the send straight after paying: once only, so a
+ * repeat (or the server's own backstop) just reports where it already went.
+ */
+export async function emailPaymentInvoice(
+  orderId: string,
+  email?: string,
+  options: { auto?: boolean } = {},
+): Promise<string> {
+  const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
+    `/payments/${encodeURIComponent(orderId)}/invoice/email`,
+    {
+      method: 'POST',
+      body: options.auto ? { auto: true } : email ? { email } : {},
+      timeoutMs: 60000,
+    },
+  );
+  const unwrapped = unwrapEnvelope(response);
+  if (!isSuccessfulResponse(response, unwrapped)) {
+    throw new Error(resolveApiMessage(response, unwrapped, 'Could not email the invoice.'));
+  }
+  return readString(unwrapped, ['sentTo']) || email || '';
 }
 
 export async function markPaymentFailure(orderId: string, paymentId: string | null, reason: string): Promise<void> {

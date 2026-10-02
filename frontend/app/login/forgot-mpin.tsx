@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
 
 import { AuthBackButton, AuthErrorText, AuthField, AuthPrimaryButton } from '@/components/auth/AuthKit';
 import { OtpBox } from '@/components/auth/OtpBox';
@@ -22,6 +23,7 @@ import {
   setMpinWithResetToken,
   verifyPasswordResetOtp,
 } from '@/utils/authApi';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 const tenDigits = (value: string) => value.replace(/\D/g, '').slice(0, 10);
 
@@ -132,7 +134,7 @@ export default function ForgotMpinScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <AuthBackButton onPress={() => router.back()} />
 
           <Text style={styles.title}>Forgot MPIN?</Text>
@@ -215,21 +217,23 @@ export default function ForgotMpinScreen() {
 
           {savedMpin ? (
             <View style={styles.footer}>
+              {/* One button, two jobs, at the shop's asking: the four digits
+                  go to the clipboard and the screen goes back. Log In is
+                  handed them anyway, so the copy is for everywhere else —
+                  a note, a message, the next phone. */}
               <AuthPrimaryButton
-                title="Back to Log In"
-                // The shop has just chosen these four digits and is looking
-                // at them; handing them to Log In alongside the number means
-                // the only thing left to do there is press the button.
-                onPress={() =>
+                title="Copy and Back to Log In"
+                onPress={() => {
+                  void Clipboard.setStringAsync(savedMpin);
                   router.replace({
                     pathname: '/login',
                     params: { phone, mpin: savedMpin },
-                  } as unknown as Href)
-                }
+                  } as unknown as Href);
+                }}
               />
             </View>
           ) : null}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

@@ -5,17 +5,19 @@ export const APP_STORAGE_PREFIX = 'pratham-';
 
 /**
  * The sign-in number this device remembers, kept OUTSIDE the stores so it
- * survives signing out and reopening the app. It does NOT survive a new
- * build: the shop asked for a new install to start completely blank, so this
- * goes with everything else and that install opens on Create New Account.
+ * survives signing out, reopening the app, and a new build: a shop that was
+ * signed in before an update is greeted by its own number on Log In and has
+ * only its four-digit MPIN to type. It is a phone number, not a credential;
+ * the session itself never survives a new build.
  */
 export const REMEMBERED_PHONE_KEY = 'pratham-remembered-phone';
 
 /**
- * Keys the build wipe leaves alone — none. A new install carries nothing
- * over from the one before it, at the shop's asking.
+ * Keys the build wipe leaves alone: the remembered number, at the shop's
+ * asking. (A new install started blank for a while, and that cost every
+ * update a full sign-in form instead of four digits.)
  */
-const SPARED_KEYS = new Set<string>();
+const SPARED_KEYS = new Set<string>([REMEMBERED_PHONE_KEY]);
 
 /**
  * The persisted store names. Each is stored under one key per account

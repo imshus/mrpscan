@@ -22,6 +22,7 @@ import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
 import { useEmployeeDraftStore } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { fetchEmployees, finalizeEmployeeCreation } from '@/utils/employeeApi';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 
 export default function CreateEmployeePasswordScreen() {
@@ -94,7 +95,7 @@ export default function CreateEmployeePasswordScreen() {
         style={styles.flex}
         behavior="padding"
       >
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -173,7 +174,7 @@ export default function CreateEmployeePasswordScreen() {
             </GradientView>
           </TouchableOpacity>
           {formError ? <Text style={styles.error}>{formError}</Text> : null}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
 
       <BottomNav />

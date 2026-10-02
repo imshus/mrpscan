@@ -17,6 +17,7 @@ import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import { fetchFaqs, type FaqLanguage, type FaqSection } from '@/utils/faqApi';
 
 const LANGUAGE_CHOICES: { value: FaqLanguage; label: string }[] = [
@@ -149,7 +150,7 @@ export default function FaqsScreen() {
         </>
       ) : null}
 
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.flex}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -215,7 +216,7 @@ export default function FaqsScreen() {
             );
           })
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <BottomNav />
     </SafeAreaView>

@@ -147,6 +147,8 @@ export function SubscriptionBanner({
     >
       <GradientView
         colors={Gradients.trial}
+        // Flat, like every other surface, at the shop's asking: the app's
+        // flat mode fills with the last stop, the deep terracotta.
         borderRadius={16}
         style={styles.tile}
       >

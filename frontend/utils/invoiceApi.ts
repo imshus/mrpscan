@@ -10,6 +10,8 @@ export interface InvoiceLineItemPayload {
    * the server cannot tell them apart to total the weight.
    */
   qty_unit: string;
+  /** HSN/SAC printed on the line and sent to the IRP; 71131913 for every jewellery line. */
+  hsn: string;
   price: number;
   amount: number;
 }
@@ -118,6 +120,21 @@ export async function apiGenerateInvoice(
       method: 'POST',
       body: payload as unknown as Record<string, unknown>,
     },
+  );
+  return res.data;
+}
+
+/**
+ * POST /invoices/:id/email — the server emails the PDF over its SMTP account
+ * to the customer email saved on the invoice. Rejects with an ApiError: 503
+ * while the server has no SMTP set up, 400 when the saved address is missing
+ * or unusable. The server may wait for its PDF to finish rendering, hence
+ * the longer timeout.
+ */
+export async function apiEmailInvoice(invoiceId: string): Promise<{ sentTo: string }> {
+  const res = await apiRequest<{ success: boolean; data: { sentTo: string } }>(
+    `/invoices/${encodeURIComponent(invoiceId)}/email`,
+    { method: 'POST', timeoutMs: 60000 },
   );
   return res.data;
 }

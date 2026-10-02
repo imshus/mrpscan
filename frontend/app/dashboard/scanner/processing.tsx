@@ -27,7 +27,7 @@ import {
   seedServerPricing,
 } from '@/utils/pricingPrefetch';
 import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
-import { findItemByCode, loadItemCatalogue } from '@/utils/itemCatalogue';
+import { findItemOnTag, loadItemCatalogue } from '@/utils/itemCatalogue';
 import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
 import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 
@@ -333,16 +333,20 @@ export default function ProcessingScreen() {
       // still awaited; it was started before the analysis and is normally done.
       await formulaSyncPromise;
 
-      // The tag's number is looked up in the shop's saved item codes, and a
-      // match names and numbers the piece from that record rather than from
-      // a name composed out of its karat and stone.
-      if (adjustedScanData.sku.trim()) {
-        const saved = findItemByCode(adjustedScanData.sku, await cataloguePromise);
-        if (saved) {
+      // The tag's number is looked up in the shop's saved item codes. A
+      // match names the piece from that record, and its code is the tag's
+      // whole number — the saved word and the running number after it —
+      // rather than the word alone.
+      // Every identifier on the tag is tried, the chosen number first: an
+      // item code printed beside an SR NO still names the piece.
+      const tagIdentifiers = [adjustedScanData.sku, ...(result.tagIdentifiers ?? [])];
+      if (tagIdentifiers.some((value) => value.trim())) {
+        const found = findItemOnTag(tagIdentifiers, await cataloguePromise);
+        if (found) {
           adjustedScanData = {
             ...adjustedScanData,
-            itemName: saved.description,
-            itemCode: saved.code,
+            itemName: found.item.description,
+            itemCode: found.code,
           };
         }
       }
@@ -375,6 +379,7 @@ export default function ProcessingScreen() {
       }
 
       setUnknownFields(result.unknownFields ?? []);
+      useScannerStore.getState().setTagIdentifiers(result.tagIdentifiers ?? []);
       setStructuredData({ ...flatData, karat: adjustedScanData.karat });
       // A karat the tag did not print is a default, not a reading: mark it
       // so the review card asks the user to confirm it.
@@ -452,6 +457,18 @@ export default function ProcessingScreen() {
           : error instanceof Error
             ? error.message
             : 'Scan processing failed. Please try again.';
+      // Refused for credits (the wallet fell under a scan's worth between
+      // capture and upload): back to the scanner's start, whose popup says
+      // why and offers the recharge. Recapturing would only be refused again.
+      if (error instanceof ApiError && error.status === 402) {
+        Alert.alert('Low credits', message, [
+          {
+            text: 'OK',
+            onPress: () => router.replace('/dashboard/scanner' as Href),
+          },
+        ]);
+        return;
+      }
       Alert.alert('Scan Error', message, [
         {
           text: 'Back to Capture',

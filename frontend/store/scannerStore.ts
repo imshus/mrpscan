@@ -53,6 +53,9 @@ interface ScannerState {
   setBackImageUri: (uri: string | null) => void;
   setStructuredData: (data: StructuredScanData) => void;
   setUnknownFields: (fields: UnknownField[]) => void;
+  /** Every identifier on the tag (see AnalyzeScanResponse.tagIdentifiers). */
+  tagIdentifiers: string[];
+  setTagIdentifiers: (identifiers: string[]) => void;
   setClarificationFields: (fields: ClarificationField[]) => void;
   setResolvedAbbreviation: (abbreviation: AbbreviationOption) => void;
   setLoading: (loading: boolean) => void;
@@ -82,6 +85,7 @@ const initialSessionState = {
   backImageUri: null as string | null,
   structuredData: {} as StructuredScanData,
   unknownFields: [] as UnknownField[],
+  tagIdentifiers: [] as string[],
   clarificationFields: [] as ClarificationField[],
   isLoading: false,
   error: null as string | null,
@@ -115,6 +119,7 @@ export const useScannerStore = create<ScannerState>((set) => ({
   setFrontImageUri: (uri) => set({ frontImageUri: uri }),
   setBackImageUri: (uri) => set({ backImageUri: uri }),
   setStructuredData: (data) => set({ structuredData: data }),
+  setTagIdentifiers: (identifiers) => set({ tagIdentifiers: identifiers }),
   setUnknownFields: (fields) =>
     set({
       unknownFields: fields,

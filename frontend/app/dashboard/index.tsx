@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useBhawRates } from '@/hooks/useBhawRates';
-import { boardSell } from '@/utils/bhawApi';
 import {
   ActivityIndicator,
   Alert,
@@ -23,12 +21,13 @@ import { fetchBusinessProfile } from '@/utils/businessProfileApi';
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner';
 import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Gradients, Spacing } from '@/constants/theme';
-import type { GoldRate, GoldRatesResponse, SupremeChanges, TaxSettings } from '@/types/rates';
+import type { GoldRate, GoldRatesResponse } from '@/types/rates';
 import type { SubscriptionOverview } from '@/types/subscription';
 import { useAuthStore } from '@/store/authStore';
-import { ApiError } from '@/utils/apiClient';
-import { formatKaratLabel, resolveMcxChangeValue } from '@/utils/goldRateUtils';
-import { fetchGoldRates } from '@/utils/ratesApi';
+import { useGetGoldRatesQuery } from '@/store/goldRatesApi';
+import { useGoldRateFigures } from '@/hooks/useGoldRateFigures';
+import { karatFigure } from '@/utils/goldRateFigures';
+import { formatKaratLabel } from '@/utils/goldRateUtils';
 import {
   fetchSubscriptionOverview,
   startFreeTrial,
@@ -99,7 +98,7 @@ function BhawTile({ rate, label }: { rate: number | null; label: string }) {
   return (
     <View style={styles.bhawTile}>
       <Text style={styles.bhawTileRate}>
-        {rate === null ? '—' : `₹ ${rate.toLocaleString('en-IN')}`}
+        {rate === null ? '—' : rate.toLocaleString('en-IN')}
       </Text>
       <Text style={styles.bhawTileLabel}>{label}</Text>
     </View>
@@ -169,20 +168,22 @@ export default function DashboardScreen() {
   // loader shows only before that.
   const hasDataRef = useRef(false);
   const subscriptionRef = useRef<SubscriptionOverview | null>(null);
-  const [mcxLiveRate, setMcxLiveRate] = useState<number | null>(null);
-  const [goldRates, setGoldRates] = useState<GoldRate[]>([]);
-  const [goldTaxSettings, setGoldTaxSettings] = useState<TaxSettings | undefined>();
-  const [supremeChanges, setSupremeChanges] = useState<SupremeChanges | undefined>();
+  // The rates are the one cached response Gold Rate Settings reads and
+  // saves into, so Home shows the figures Gold Rate Settings arrives at,
+  // at the shop's asking. The last snapshot paints until it has answered.
+  const [snapshotGold, setSnapshotGold] = useState<GoldRatesResponse | null>(null);
+  const { data: liveGold, refetch: refetchGold } = useGetGoldRatesQuery();
+  const gold = liveGold ?? snapshotGold ?? undefined;
+  const mcxLiveRate = gold ? gold.mcxLiveRate : null;
+  const goldRates = useMemo(() => gold?.rates ?? [], [gold]);
+  const goldTaxSettings = gold?.taxSettings;
   const [subscriptionOverview, setSubscriptionOverview] = useState<SubscriptionOverview | null>(null);
   const [trialActionLoading, setTrialActionLoading] = useState(false);
   useEffect(() => {
     let cancelled = false;
     void readHomeSnapshot().then((snapshot) => {
       if (cancelled || !snapshot || hasDataRef.current) return;
-      setMcxLiveRate(snapshot.gold.mcxLiveRate);
-      setGoldRates(snapshot.gold.rates);
-      setGoldTaxSettings(snapshot.gold.taxSettings);
-      setSupremeChanges(snapshot.gold.supremeChanges);
+      setSnapshotGold(snapshot.gold);
       if (snapshot.subscription) {
         subscriptionRef.current = snapshot.subscription;
         setSubscriptionOverview(snapshot.subscription);
@@ -194,6 +195,13 @@ export default function DashboardScreen() {
       cancelled = true;
     };
   }, []);
+  // A fresh answer is on screen and kept for the next open.
+  useEffect(() => {
+    if (!liveGold) return;
+    hasDataRef.current = true;
+    setLoading(false);
+    writeHomeSnapshot({ gold: liveGold, subscription: subscriptionRef.current }, scopedKey(HOME_SNAPSHOT_KEY));
+  }, [liveGold]);
   const { employee, userRole: settingsUserRole } = useSettingsAccess();
   const globalMatrixValues = useMatricesStore((s) => s.values);
 
@@ -210,75 +218,23 @@ export default function DashboardScreen() {
     () => sortGoldRates(goldRates),
     [goldRates],
   );
-  const mcxFinalRate = useMemo(() => {
-    const live = mcxLiveRate ?? 0;
-    const mcxChangeBy =
-      goldTaxSettings?.mcxChangeBy ??
-      resolveMcxChangeValue(goldTaxSettings?.mcxChange);
-    return goldTaxSettings?.mcxFinalRate ?? live + mcxChangeBy;
-  }, [goldTaxSettings?.mcxChange, goldTaxSettings?.mcxChangeBy, goldTaxSettings?.mcxFinalRate, mcxLiveRate]);
-  // Cash/RTGS come from the bhaw provider selected in Dashboard Settings,
-  // applied to the MCX rate. The server's supremeChanges are the fallback for
-  // when the live feed cannot be reached.
-  const bhaw = useBhawRates({
-    mcxBaseRate: mcxFinalRate ?? 0,
-    businessCashChange: goldTaxSettings?.cashChangeBy ?? 0,
-    businessRtgsChange: goldTaxSettings?.rtgsChangeBy ?? 0,
-    fallbackCashBhaw: supremeChanges?.cashChange ?? 0,
-    fallbackRtgsBhaw: supremeChanges?.rtgsChange ?? 0,
-  });
-
-  const rtgsFinalRate = useMemo(() => {
-    if (mcxLiveRate == null) return goldTaxSettings?.rtgsFinalRate ?? 0;
-    return bhaw.rtgsRate;
-  }, [bhaw.rtgsRate, goldTaxSettings?.rtgsFinalRate, mcxLiveRate]);
-  const cashFinalRate = useMemo(() => {
-    if (mcxLiveRate == null) return goldTaxSettings?.cashFinalRate ?? 0;
-    return bhaw.cashRate;
-  }, [bhaw.cashRate, goldTaxSettings?.cashFinalRate, mcxLiveRate]);
-  const twentyFourKRate = useMemo(() => {
-    const matched = sortedGoldRates.find((rate) => {
-      const carat = rate.carat.toLowerCase();
-      return carat.includes('24') || Math.abs(rate.purity - 99.9) < 0.2;
-    });
-
-    if (matched) return matched;
-    if (mcxLiveRate == null && !goldTaxSettings) return null;
-
-    const cashRate = cashFinalRate || mcxFinalRate || 0;
-    const rtgsRate = rtgsFinalRate || mcxFinalRate || 0;
-
-    return {
-      id: '24k-synthetic',
-      carat: '24Kt',
-      purity: 99.9,
-      finalRate: rtgsRate,
-      cashRate,
-      rtgsRate,
-      baseRate: mcxFinalRate ?? rtgsRate,
-      mcxRate: mcxLiveRate ?? undefined,
-    } satisfies GoldRate;
-  }, [cashFinalRate, goldTaxSettings, mcxFinalRate, mcxLiveRate, rtgsFinalRate, sortedGoldRates]);
-  const show24kMcx = matrixValues['24k_mcx' as MatrixKey] !== false;
-  const show24kRtgs = matrixValues['24k_rtgs' as MatrixKey] !== false;
-  const show24kCash = matrixValues['24k_cash' as MatrixKey] !== false;
-  const show24kRateCard = show24kRtgs || show24kCash;
+  // The figures Gold Rate Settings arrives at — MCX final, Retail final and
+  // the RTGS rate ticked there — through the same calculation it uses, so
+  // the two screens can never disagree. The karat rows are those figures'
+  // share by purity.
+  const { figures, houseName } = useGoldRateFigures(gold);
+  // Shown only when the value says so. This read `!== false` before, which
+  // made a key that was simply absent count as on — the opposite of a rule
+  // whose whole point is that nothing but MCX appears unless it is chosen.
+  const show24kMcx = matrixValues['24k_mcx' as MatrixKey] === true;
 
   const loadMarketData = useCallback(async (showLoader = true) => {
     // The blocking loader is for the first paint only; after that the numbers
     // stay on screen and update in place. Rates and the subscription are
     // fetched side by side and each lands as soon as it arrives.
-    const snapshotKey = scopedKey(HOME_SNAPSHOT_KEY);
     if (showLoader && !hasDataRef.current) setLoading(true);
-    const goldPromise = fetchGoldRates().then((gold) => {
-      setMcxLiveRate(gold.mcxLiveRate);
-      setGoldRates(gold.rates);
-      setGoldTaxSettings(gold.taxSettings);
-      setSupremeChanges(gold.supremeChanges);
-      hasDataRef.current = true;
-      setLoading(false);
-      return gold;
-    });
+    // The shared rates query, the one Gold Rate Settings saves into.
+    const goldPromise = Promise.resolve().then(() => refetchGold().unwrap());
     const subscriptionPromise =
       authUserRole === 'business'
         ? fetchSubscriptionOverview().then((subscription) => {
@@ -292,18 +248,16 @@ export default function DashboardScreen() {
       subscriptionRef.current = null;
       setSubscriptionOverview(null);
     }
-    if (goldResult.status === 'fulfilled') {
-      writeHomeSnapshot({ gold: goldResult.value, subscription: subscriptionRef.current }, snapshotKey);
-    } else if (showLoader && !hasDataRef.current) {
-      const error = goldResult.reason;
+    if (goldResult.status === 'rejected' && showLoader && !hasDataRef.current) {
+      const reason = goldResult.reason as { data?: unknown } | undefined;
       const message =
-        error instanceof ApiError
-          ? error.message
+        typeof reason?.data === 'string'
+          ? reason.data
           : 'Failed to load market rates. Showing last known values.';
       Alert.alert('Market Data', message);
     }
     if (showLoader) setLoading(false);
-  }, [authUserRole]);
+  }, [authUserRole, refetchGold]);
 
   useEffect(() => {
     if (authUserRole !== 'business') return;
@@ -424,7 +378,11 @@ export default function DashboardScreen() {
                     trialDaysRemaining={subscriptionOverview?.trialDaysRemaining || 0}
                     trialHoursRemaining={subscriptionOverview?.trialHoursRemaining || 0}
                     trialEndDate={subscriptionOverview?.trialEndDate || null}
-                    trialDays={subscriptionOverview?.trialDays ?? subscriptionOverview?.trialDaysConfigured ?? 10}
+                    // The configured length first: a trial that has not started
+                    // is offered whatever the shop will actually get, and the
+                    // licence's own figure — written when the licence was — can
+                    // still say 10 on an account from before the seven-day rule.
+                    trialDays={subscriptionOverview?.trialDaysConfigured ?? subscriptionOverview?.trialDays ?? 7}
                     onStartTrial={handleStartTrial}
                     onPurchase={handlePurchaseLicense}
                     trialExpiredAt={subscriptionOverview?.trialExpiredAt || null}
@@ -437,52 +395,34 @@ export default function DashboardScreen() {
                 <TimeTile />
               </View>
 
-              {(bhaw.mcxIsLive || mcxLiveRate != null) && show24kMcx ? (
-                <GradientView
-                  colors={Gradients.metallic}
-                  borderRadius={14}
-                  style={styles.mcxTopCard}
-                >
+              {figures && show24kMcx ? (
+                <View style={styles.mcxTopCard}>
                   <View style={styles.mcxTopRow}>
-                    <Text style={styles.mcxTopLabel}>MCX Gold Rate (24 Kt)</Text>
-                    {/* The board's own Gold Future MCX — the same figure the
-                        Dashboard Settings cards print — not the rates API's
-                        adjusted copy of it. */}
-                    <Text style={styles.mcxTopValue}>₹ {bhaw.mcxRate.toLocaleString('en-IN')}</Text>
+                    <View style={styles.mcxTopTitleWrap}>
+                      <Text style={styles.mcxTopLabel}>MCX Gold Rate</Text>
+                      <Text style={styles.mcxTopSub}>24 kt (99.5%)</Text>
+                    </View>
+                    {/* Gold Rate Settings' Final MCX Rate: the market MCX
+                        with the shop's own change on it. A dash until the
+                        boards have answered — never a number no bullion
+                        card shows. */}
+                    <Text style={styles.mcxTopValue}>
+                      {figures.mcxFinal === null ? '—' : figures.mcxFinal.toLocaleString('en-IN')}
+                    </Text>
                   </View>
+                  <View style={styles.mcxDivider} />
 
-                  {/* The house's Cash and RTGS off its own board, each over
-                      the badla bhaw that produced it, and the house's name
-                      underneath — restored at the shop's asking. */}
+                  {/* Gold Rate Settings' Final Retail Rate and the RTGS rate
+                      ticked there (Rate 1 or Rate 2), and the house they
+                      stand on underneath. */}
                   <View style={styles.mcxBhawRow}>
-                    <BhawTile rate={boardSell(bhaw.vendor, /gold\s*cash/i)} label="Cash" />
-                    <BhawTile rate={boardSell(bhaw.vendor, /gold\s*rtgs/i)} label="RTGS" />
+                    <BhawTile rate={figures.retailFinal} label="Retail Rate" />
+                    {/* Rate 1 as ticked in Gold Rate Settings (tax included); a
+                        dash when the house has no board RTGS. */}
+                    <BhawTile rate={figures.rtgsSelected} label="RTGS Retail Rate" />
                   </View>
 
-                  <Text style={styles.mcxSourceLine}>rate by {bhaw.vendorName}</Text>
-                </GradientView>
-              ) : null}
-
-              {twentyFourKRate && show24kRateCard ? (
-                <View style={styles.rateCard}>
-                  <View style={styles.rateCardHeader}>
-                    <Text style={styles.cardKaratLabel}>Gold (24K) 99.5%</Text>
-                  </View>
-
-                  <View style={styles.rateCardBody}>
-                    {show24kCash ? (
-                      <RateBadge
-                        value={`₹ ${(twentyFourKRate.cashRate ?? cashFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
-                        label="Cash Rate"
-                      />
-                    ) : null}
-                    {show24kRtgs ? (
-                      <RateBadge
-                        value={`₹ ${(twentyFourKRate.rtgsRate ?? rtgsFinalRate ?? twentyFourKRate.finalRate).toLocaleString('en-IN')}`}
-                        label="RTGS Rate"
-                      />
-                    ) : null}
-                  </View>
+                  <Text style={styles.mcxSourceLine}>rate by {houseName}</Text>
                 </View>
               ) : null}
 
@@ -490,7 +430,7 @@ export default function DashboardScreen() {
                 sortedGoldRates
                   .filter((rate) => {
                     const carat = rate.carat.toLowerCase();
-                    return !(carat.includes('24') || Math.abs(rate.purity - 99.9) < 0.2);
+                    return !(carat.includes('24') || rate.purity >= 99.5);
                   })
                   .map((rate) => {
                   const karatPrefix = rate.carat.replace('Kt', 'k').toLowerCase();
@@ -500,6 +440,24 @@ export default function DashboardScreen() {
                   if (!showCash && !showRtgs) return null;
 
                   const purityLabel = formatPurityLabel(rate.purity);
+
+                  // A row is its purity's share of the very figures on the
+                  // MCX card above — Gold Rate Settings' finals — rounded as
+                  // the server rounds its rows. MCX 24K counts as 100%, at
+                  // the shop's asking. The server's row stands in only until
+                  // the figures are in.
+                  const rowRetail =
+                    figures && figures.retailFinal !== null
+                      ? karatFigure(figures.retailFinal, rate.purity)
+                      : figures
+                        ? null
+                        : (rate.cashRate ?? rate.finalRate);
+                  const rowRtgs =
+                    figures && figures.rtgsSelected !== null
+                      ? karatFigure(figures.rtgsSelected, rate.purity)
+                      : figures
+                        ? null
+                        : (rate.rtgsRate ?? rate.finalRate);
 
                   return (
                     <View key={rate.carat} style={styles.rateCard}>
@@ -512,13 +470,13 @@ export default function DashboardScreen() {
                       <View style={styles.rateCardBody}>
                         {showCash ? (
                           <RateBadge
-                            value={`₹ ${(rate.cashRate ?? rate.finalRate)?.toLocaleString('en-IN') || 0}`}
-                            label="Cash Rate"
+                            value={rowRetail == null ? '—' : rowRetail.toLocaleString('en-IN')}
+                            label="Retail Rate"
                           />
                         ) : null}
                         {showRtgs ? (
                           <RateBadge
-                            value={`₹ ${(rate.rtgsRate ?? rate.finalRate)?.toLocaleString('en-IN') || 0}`}
+                            value={rowRtgs == null ? '—' : rowRtgs.toLocaleString('en-IN')}
                             label="RTGS Rate"
                           />
                         ) : null}
@@ -532,7 +490,7 @@ export default function DashboardScreen() {
                   {/* Release builds strip console output, so the state behind an
                       empty dashboard is otherwise invisible. Shown only here. */}
                   <Text style={styles.emptyDiag}>
-                    {`mcx ${mcxLiveRate == null ? 'null' : mcxLiveRate} · rows ${goldRates.length} · tax ${goldTaxSettings ? 'y' : 'n'} · 24k ${show24kMcx ? 'M' : '-'}${show24kRtgs ? 'R' : '-'}${show24kCash ? 'C' : '-'} · ${authUserRole}${settingsUserRole === 'employee' && employee ? '/emp' : ''}`}
+                    {`mcx ${mcxLiveRate == null ? 'null' : mcxLiveRate} · rows ${goldRates.length} · tax ${goldTaxSettings ? 'y' : 'n'} · 24k ${show24kMcx ? 'M' : '-'} · ${authUserRole}${settingsUserRole === 'employee' && employee ? '/emp' : ''}`}
                   </Text>
                 </View>
               )}
@@ -634,16 +592,21 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     opacity: 0.75,
   },
+  // The shop's latest layout — the MCX title over its karat, a hairline, the
+  // two rates on cream tiles — in the page's own khaki, and kept compact so
+  // the card stands no taller than the one it replaced.
   mcxTopCard: {
+    backgroundColor: '#C2B28C',
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.08)',
-    paddingHorizontal: 18,
-    paddingVertical: 19,
-    gap: 19,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    gap: 8,
     shadowColor: '#786441',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
     elevation: 4,
   },
   mcxTopRow: {
@@ -652,23 +615,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  mcxTopTitleWrap: { gap: 0 },
   mcxTopLabel: {
     fontSize: 15,
+    lineHeight: 18,
     fontWeight: '600',
     color: Colors.textPrimary,
     opacity: 0.7,
   },
+  mcxTopSub: {
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '500',
+    color: Colors.textPrimary,
+    opacity: 0.6,
+  },
   mcxTopValue: {
-    fontSize: 20.5,
+    fontSize: 21,
     fontWeight: '800',
     color: Colors.textPrimary,
   },
+  mcxDivider: {
+    height: 1,
+    backgroundColor: 'rgba(21,18,13,0.12)',
+  },
   mcxBhawRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   mcxSourceLine: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '600',
     color: Colors.textPrimary,
     opacity: 0.55,
@@ -678,16 +654,15 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    paddingVertical: 18,
+    paddingVertical: 7,
     paddingHorizontal: 8,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.06)',
     backgroundColor: '#FCF8EF',
   },
-  bhawTileRate: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary },
-  bhawTileLabel: { fontSize: 12.5, color: Colors.textPrimary, opacity: 0.7 },
+  bhawTileRate: { fontSize: 18, lineHeight: 22, fontWeight: '800', color: Colors.textPrimary },
+  bhawTileLabel: { fontSize: 12, color: Colors.textPrimary, opacity: 0.7 },
   rateCard: {
     backgroundColor: Colors.white,
     borderRadius: 14,

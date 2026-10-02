@@ -22,7 +22,7 @@ import type { ScanItemData, StoneEntry } from '@/types/scanner';
 import { ApiError } from '@/utils/apiClient';
 import { submitReview } from '@/utils/scanApi';
 import { invalidateBackgroundUploads } from '@/utils/uploadPipeline';
-import { findItemByCode, loadItemCatalogue } from '@/utils/itemCatalogue';
+import { findItemOnTag, useItemCatalogue } from '@/utils/itemCatalogue';
 import { apiKeyForScanField, scanItemToStructuredData } from '@/utils/scanMappers';
 import {
   applyStoneEntriesToScanData,
@@ -233,24 +233,26 @@ export default function ReviewResultsScreen() {
     }
   }, [canEditPurityPercent, scanData.customPurityPercent, handleFieldChange]);
 
-  // Name and code follow the tag's number: matched against the saved item
-  // codes, the piece takes that record's name and code; a number the
-  // catalogue does not know leaves the composed name in place.
+  // Name and code follow the tag's number: when it begins with a code word
+  // saved in Masters, the piece takes that record's name, and its code is
+  // the tag's WHOLE number — word and running number, PSE 1086, not PSE —
+  // at the shop's asking. A number the catalogue does not know leaves the
+  // composed name in place.
+  // Masters -> Item Code first, then the tag: every identifier the reader
+  // found (its chosen number, then each one it set aside) is tried against
+  // the saved codes, and the first that matches names the piece. Run on the
+  // list as it arrives, so a list that was slow to load still names it.
+  const { items: catalogueItems, loading: catalogueLoading } = useItemCatalogue();
+  const tagIdentifiers = useScannerStore((s) => s.tagIdentifiers);
   useEffect(() => {
-    let active = true;
-    void loadItemCatalogue().then((items) => {
-      if (!active) return;
-      const saved = findItemByCode(scanData.sku, items);
-      const current = useScannerStore.getState().scanData;
-      const name = saved?.description ?? '';
-      const code = saved?.code ?? '';
-      if (name !== current.itemName) handleFieldChange('itemName', name);
-      if (code !== current.itemCode) handleFieldChange('itemCode', code);
-    });
-    return () => {
-      active = false;
-    };
-  }, [scanData.sku, handleFieldChange]);
+    if (catalogueLoading) return;
+    const found = findItemOnTag([scanData.sku, ...tagIdentifiers], catalogueItems);
+    const current = useScannerStore.getState().scanData;
+    const name = found?.item.description ?? '';
+    const code = found?.code ?? '';
+    if (name !== current.itemName) handleFieldChange('itemName', name);
+    if (code !== current.itemCode) handleFieldChange('itemCode', code);
+  }, [scanData.sku, tagIdentifiers, catalogueItems, catalogueLoading, handleFieldChange]);
 
   useEffect(() => {
     if (calculationRateAccess === 'both') return;

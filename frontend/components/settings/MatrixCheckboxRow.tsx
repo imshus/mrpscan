@@ -33,7 +33,7 @@ export function MatrixCheckboxRow({
           ]}
         >
           {checked ? (
-            <Check size={13} color={isDark ? Colors.metalGold : Colors.white} strokeWidth={3} />
+            <Check size={13} color={Colors.white} strokeWidth={3} />
           ) : null}
         </View>
       </Pressable>
@@ -69,22 +69,22 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 7,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: Colors.textPrimary,
     backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxChecked: {
-    backgroundColor: Colors.metalGold,
-    borderColor: Colors.metalGold,
+    backgroundColor: Colors.brandDeep,
+    borderColor: Colors.textPrimary,
   },
   checkboxDark: {
     borderColor: 'rgba(255,255,255,0.35)',
     backgroundColor: 'transparent',
   },
   checkboxDarkChecked: {
-    borderColor: Colors.metalGold,
-    backgroundColor: 'transparent',
+    borderColor: Colors.brandDeep,
+    backgroundColor: Colors.brandDeep,
   },
   divider: {
     height: 1,

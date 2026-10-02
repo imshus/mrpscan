@@ -32,6 +32,7 @@ import {
 } from '@/utils/authApi';
 import { prepareSignInAfterSignup } from '@/utils/authSession';
 import { maskPhone, validateOtp } from '@/utils/validation';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 const OTP_LENGTH = 6;
 
@@ -167,7 +168,7 @@ export default function OtpPhoneScreen() {
         style={styles.flex}
         behavior="padding"
       >
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
@@ -204,7 +205,7 @@ export default function OtpPhoneScreen() {
           {accountCreated ? (
             <SuccessToast message="Your account has been created successfully" />
           ) : null}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

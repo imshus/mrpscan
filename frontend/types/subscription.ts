@@ -33,6 +33,8 @@ export interface SubscriptionOverview {
   creditBalance: number;
   lowCreditThreshold?: number;
   criticalCreditThreshold?: number;
+  /** A new scan needs a balance above this (0.74 unless the server says otherwise). */
+  minScanBalance?: number;
   creditWarningLevel?: CreditWarningLevel;
   todayScans: number;
   monthScans: number;
@@ -44,6 +46,8 @@ export interface SubscriptionOverview {
   trialDaysConfigured?: number;
   lastScanCost: number;
   lastScanAt: string | null;
+  /** The email typed before the last payment, offered again in the popup. */
+  billingEmail: string;
 }
 
 export interface ScanBillingRow {

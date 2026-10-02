@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 
 import { Colors, Radius } from '@/constants/theme';
-import { formatBhaw, type BhawVendor } from '@/utils/bhawApi';
+import { formatBhaw, hasLiveBhaw, type BhawVendor } from '@/utils/bhawApi';
 
 interface BullionHouseCardProps {
   name: string;
@@ -40,6 +40,11 @@ const rupees = (value: number | null): string =>
  */
 export function BullionHouseCard({ name, vendor, selected, onSelect }: BullionHouseCardProps) {
   const updated = updatedAtLabel(vendor?.updatedAt ?? '');
+  // A house prices gold once it has published both bhaw sides. One that
+  // has not can still be followed, at the shop's asking — it is named on
+  // Gold Rate Settings and Home as the house followed — and its card says
+  // that no rate stands on it yet.
+  const pricing = hasLiveBhaw(vendor);
 
   return (
     <Pressable
@@ -52,6 +57,9 @@ export function BullionHouseCard({ name, vendor, selected, onSelect }: BullionHo
         <View style={styles.headText}>
           <Text style={styles.name}>{name}</Text>
           {updated ? <Text style={styles.updated}>Updated {updated}</Text> : null}
+          {!pricing ? (
+            <Text style={styles.quietNote}>Not pricing yet — bhaw not published</Text>
+          ) : null}
         </View>
         <View style={[styles.tick, selected && styles.tickOn]}>
           {selected ? <Check size={13} color={Colors.white} strokeWidth={3} /> : null}
@@ -80,7 +88,7 @@ export function BullionHouseCard({ name, vendor, selected, onSelect }: BullionHo
         <Text style={styles.bhawTitle}>BADLA BHAW</Text>
         <View style={styles.bhawRow}>
           <View style={styles.bhawCell}>
-            <Text style={styles.bhawLabel}>Cash</Text>
+            <Text style={styles.bhawLabel}>Retail</Text>
             <Text style={styles.bhawValue}>{formatBhaw(vendor?.cashBhaw)}</Text>
           </View>
           <View style={styles.bhawCell}>
@@ -122,16 +130,17 @@ const styles = StyleSheet.create({
   headText: { flex: 1 },
   name: { fontSize: 14.5, fontWeight: '800', color: Colors.textPrimary },
   updated: { fontSize: 10.5, color: Colors.textMuted, marginTop: 1 },
+  quietNote: { fontSize: 10.5, color: Colors.brandDeep, fontWeight: '600', marginTop: 2 },
   tick: {
     width: 19,
     height: 19,
     borderRadius: 5,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: Colors.textPrimary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tickOn: { backgroundColor: Colors.accentGold, borderColor: Colors.accentGold },
+  tickOn: { backgroundColor: Colors.brandDeep, borderColor: Colors.textPrimary },
   tableHead: {
     flexDirection: 'row',
     justifyContent: 'space-between',

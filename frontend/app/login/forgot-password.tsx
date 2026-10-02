@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -35,6 +34,7 @@ import {
   validatePassword,
   validateUserId,
 } from '@/utils/validation';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 const OTP_LENGTH = 6;
 
@@ -178,11 +178,8 @@ export default function ForgotPasswordScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior="padding"
-      >
-        <ScrollView
+      {/* The keyboard-aware list alone keeps the field being typed just above the keyboard; a KeyboardAvoidingView around it shrank the page a second time and threw the field far above it. */}
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
@@ -266,8 +263,7 @@ export default function ForgotPasswordScreen() {
 
             {resetDone ? <SuccessToast message="Password reset successfully." /> : null}
           </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

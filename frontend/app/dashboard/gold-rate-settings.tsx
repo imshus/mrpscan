@@ -3,16 +3,19 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
-import { GoldRateSettingsPanel } from '@/components/dashboard/market-rates/GoldRateSettings';
+import {
+  GoldRateSettingsPanel,
+  type ChangedFields,
+} from '@/components/dashboard/market-rates/GoldRateSettings';
 import { ToastNotification, type ToastType } from '@/components/scanner/ToastNotification';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { useBhawRates } from '@/hooks/useBhawRates';
+import { useGoldRateFigures } from '@/hooks/useGoldRateFigures';
 import { useRequireMarketRatesAccess } from '@/hooks/useMarketRatesAccess';
 import { useGetGoldRatesQuery, useUpdateGoldTaxSettingsMutation } from '@/store/goldRatesApi';
-import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 export default function GoldRateSettingsScreen() {
   const access = useRequireMarketRatesAccess();
@@ -38,33 +41,11 @@ export default function GoldRateSettingsScreen() {
     type: 'info',
   });
 
+  // The same base Home reads: the market MCX, the house line, the bhaw.
+  // Before the access check, so the hooks run on every render.
+  const { base, changes, houseName } = useGoldRateFigures(goldData);
+
   if (!access.hasAnyAccess) return null;
-
-  const mcxLiveRate = goldData?.mcxLiveRate ?? 0;
-  const mcxChangeBy =
-    goldData?.taxSettings?.mcxChangeBy ??
-    resolveMcxChangeValue(goldData?.taxSettings?.mcxChange);
-  const supremeRtgsBase =
-    goldData?.supremeChanges?.supremeRtgs ??
-    mcxLiveRate + (goldData?.supremeChanges?.rtgsChange ?? 0);
-  const supremeCashBase =
-    goldData?.supremeChanges?.supremeCash ??
-    mcxLiveRate + (goldData?.supremeChanges?.cashChange ?? 0);
-  const supremeRtgsChange = supremeRtgsBase - mcxLiveRate;
-  const supremeCashChange = supremeCashBase - mcxLiveRate;
-  const rtgsChange = goldData?.taxSettings?.rtgsChangeBy ?? 0;
-  const cashChange = goldData?.taxSettings?.cashChangeBy ?? 0;
-
-  const mcxFinalRate = goldData?.taxSettings?.mcxFinalRate ?? mcxLiveRate + mcxChangeBy;
-
-  // Live bhaw for the selected provider, applied to the MCX rate.
-  const bhaw = useBhawRates({
-    mcxBaseRate: mcxFinalRate,
-    businessCashChange: cashChange,
-    businessRtgsChange: rtgsChange,
-    fallbackCashBhaw: supremeCashChange,
-    fallbackRtgsBhaw: supremeRtgsChange,
-  });
 
 
   const isSaving = isUpdatingTaxSettings;
@@ -79,20 +60,34 @@ export default function GoldRateSettingsScreen() {
     nextMcxChange: number,
     nextRtgsChange: number,
     nextCashChange: number,
-  ) => {
+    nextRtgsTaxPercent: number,
+    nextRtgsVariant: 'taxed' | 'plain',
+    changed: ChangedFields,
+  ): Promise<boolean> => {
     try {
+      // Only what the shop changed goes to the server. Sending all five let
+      // a stale figure on screen (an older fetch landing after a save) be
+      // written back: a Rate 1 tap stored the 3 the Tax box briefly showed.
       await updateGoldTaxSettingsMutation({
-        mcxChange: {
-          operation: nextMcxChange < 0 ? '-' : '+',
-          amount: Math.abs(nextMcxChange),
-        },
-        rtgsChangeBy: nextRtgsChange,
-        cashChangeBy: nextCashChange,
+        ...(changed.mcx
+          ? {
+              mcxChange: {
+                operation: nextMcxChange < 0 ? '-' : '+',
+                amount: Math.abs(nextMcxChange),
+              },
+            }
+          : {}),
+        ...(changed.rtgs ? { rtgsChangeBy: nextRtgsChange } : {}),
+        ...(changed.cash ? { cashChangeBy: nextCashChange } : {}),
+        ...(changed.tax ? { rtgsTaxPercent: nextRtgsTaxPercent } : {}),
+        ...(changed.variant ? { rtgsVariant: nextRtgsVariant } : {}),
       }).unwrap();
       showToast('Gold rate settings updated', 'success');
+      return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save gold rate settings';
       showToast(message, 'error');
+      return false;
     }
   };
 
@@ -102,7 +97,7 @@ export default function GoldRateSettingsScreen() {
 
       {/* The header stays put; only the content scrolls beneath it. */}
       <PageHeader title="Gold Rate Settings" />
-      <ScrollView contentContainerStyle={screenStyles.scrollContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView contentContainerStyle={screenStyles.scrollContent} showsVerticalScrollIndicator={false}>
 
         <View style={screenStyles.screenSection}>
           {showLoading ? (
@@ -118,15 +113,20 @@ export default function GoldRateSettingsScreen() {
             <View style={styles.settingsCard}>
               <GoldRateSettingsPanel
                 visible
-                mcxLiveRate={mcxLiveRate}
-                mcxChange={mcxChangeBy}
-                supremeRtgsChange={bhaw.rtgsBhaw}
-                supremeCashChange={bhaw.cashBhaw}
-                rtgsChange={rtgsChange}
-                cashChange={cashChange}
-                bhawSourceName={bhaw.vendorName}
-                bhawRtgs={bhaw.rtgsBhaw}
-                bhawCash={bhaw.cashBhaw}
+                mcxLiveRate={base?.mcx ?? null}
+                pricingMcxRate={base?.pricingMcx}
+                cashLive={base?.cashLive ?? false}
+                rtgsLive={base?.rtgsLive ?? false}
+                mcxChange={changes?.mcxChange ?? 0}
+                supremeRtgsChange={base?.rtgsBhaw ?? 0}
+                supremeCashChange={base?.cashBhaw ?? 0}
+                rtgsChange={changes?.rtgsChange ?? 0}
+                rtgsTaxPercent={changes?.rtgsTaxPercent ?? 0}
+                rtgsVariant={changes?.rtgsVariant ?? 'taxed'}
+                cashChange={changes?.cashChange ?? 0}
+                bhawSourceName={houseName}
+                bhawRtgs={base?.rtgsBhaw}
+                bhawCash={base?.cashBhaw}
                 onApply={handleApplyTaxSettings}
                 showTitle={false}
                 showClose={false}
@@ -136,7 +136,7 @@ export default function GoldRateSettingsScreen() {
             </View>
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <ToastNotification
         visible={toast.visible}

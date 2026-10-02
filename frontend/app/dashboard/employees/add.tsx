@@ -22,6 +22,7 @@ import { useEmployeeDraftStore } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { updateEmployeeApi } from '@/utils/employeeApi';
 import { validateEmail, validatePhone } from '@/utils/validation';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 
 export default function AddEmployeeScreen() {
@@ -87,7 +88,7 @@ export default function AddEmployeeScreen() {
         style={styles.flex}
         behavior="padding"
       >
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -160,7 +161,7 @@ export default function AddEmployeeScreen() {
               )}
             </GradientView>
           </TouchableOpacity>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
 
       <BottomNav />

@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
   Modal,
   Pressable,
   StyleSheet,
@@ -12,13 +10,22 @@ import {
 import { ChevronDown, ChevronRight, X } from 'lucide-react-native';
 
 import { screenStyles } from '@/constants/screenLayout';
+import { computeGoldRateFigures, RTGS_RATE2_DEFAULT_TAX_PERCENT } from '@/utils/goldRateFigures';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { formatInr } from '@/utils/rateMappers';
 
 const BUTTON_GREEN = '#A81F17';
-const GOLD_ACTION_BAR_HEIGHT = 52;
+/** A typed change is saved once the typing has paused this long. */
+const SAVE_AFTER_TYPING_MS = 900;
 
 type Sign = '+' | '-';
+type SavedRates = {
+  mcx: number;
+  rtgs: number;
+  cash: number;
+  tax: number;
+  variant: 'taxed' | 'plain';
+};
 export type ScannerCalculationUse = 'rtgs' | 'cash';
 export type TaxChangeTarget = 'rtgs' | 'cash';
 
@@ -143,11 +150,21 @@ interface RateCardProps {
   icon: React.ReactNode;
   sign: Sign;
   amount: string;
-  currentRate: number;
-  finalRate: number;
+  /** Null until the boards have answered; printed as a dash. */
+  currentRate: number | null;
+  finalRate: number | null;
   formula: string;
   onSignChange: (next: Sign) => void;
   onAmountChange: (value: string) => void;
+  /** A tag after the title, e.g. "(without tax)". */
+  titleTag?: string;
+  /** With `onSelect`, the header carries a radio: this card is the one in force. */
+  selected?: boolean;
+  onSelect?: () => void;
+  /** Another control beside Change By. */
+  extra?: React.ReactNode;
+  /** Replaces the sign and amount with a control of the card's own — RTGS Rate 2's Tax field. */
+  changeControl?: React.ReactNode;
 }
 
 function RateCard({
@@ -164,26 +181,48 @@ function RateCard({
   formula,
   onSignChange,
   onAmountChange,
+  titleTag,
+  selected,
+  onSelect,
+  extra,
+  changeControl,
 }: RateCardProps) {
   return (
     <View style={styles.rateCard}>
       <View style={styles.rateCardHeader}>
         {icon ? <View style={styles.rateCardIconWrap}>{icon}</View> : null}
         <View style={styles.rateCardHeaderTextWrap}>
-          <Text style={styles.rateCardTitle}>{title}</Text>
+          <Text style={styles.rateCardTitle}>
+            {title}
+            {titleTag ? <Text style={styles.rateCardTitleTag}> {titleTag}</Text> : null}
+          </Text>
           {subtitle ? <Text style={styles.rateCardSubtitle}>{subtitle}</Text> : null}
         </View>
+        {onSelect ? (
+          <Pressable
+            onPress={onSelect}
+            hitSlop={10}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: Boolean(selected) }}
+            style={[styles.radioOuter, selected && styles.radioOuterSelected]}
+          >
+            {selected ? <View style={styles.radioInner} /> : null}
+          </Pressable>
+        ) : null}
       </View>
 
       {showCurrentRate ? (
         <View style={styles.currentRatePill}>
           <Text style={styles.currentRateLabel}>{currentLabel ?? title}</Text>
-          <Text style={styles.currentRateValue}>{formatInr(currentRate)}</Text>
+          <Text style={styles.currentRateValue}>
+            {currentRate === null ? '—' : formatInr(currentRate)}
+          </Text>
         </View>
       ) : null}
 
       <View style={styles.changeSection}>
         <Text style={styles.fieldLabel}>Change By</Text>
+        {changeControl ?? (
         <View style={styles.controlsRow}>
           <View style={styles.signToggleWrap}>
             <SignToggle value={sign} onChange={onSignChange} />
@@ -200,23 +239,32 @@ function RateCard({
               maxLength={8}
             />
           </View>
+          {extra}
         </View>
+        )}
       </View>
 
-      <View style={styles.cardDivider} />
-
+      {/* The final figure on one line with its caption, as the shop's design
+          sets it: caption at the left, the rate in red at the right. */}
       <View style={styles.finalSection}>
         <Text style={styles.finalLabel}>{finalLabel ?? `Final ${title}`}</Text>
-        <Text style={styles.finalValue}>{formatInr(finalRate)}</Text>
-        {formula ? <Text style={styles.formulaText}>{formula}</Text> : null}
+        <Text style={styles.finalValue}>{finalRate === null ? '—' : formatInr(finalRate)}</Text>
       </View>
+      {formula ? <Text style={styles.formulaText}>{formula}</Text> : null}
     </View>
   );
 }
 
 interface GoldRateSettingsPanelProps {
   visible: boolean;
-  mcxLiveRate: number;
+  /** Null while the boards have not answered: the MCX card shows a dash. */
+  mcxLiveRate: number | null;
+  /**
+   * The followed house's own MCX line, which its bhaw is quoted over; the
+   * RTGS and Retail cards are built on it. The MCX card shows mcxLiveRate,
+   * the market's figure. Defaults to mcxLiveRate.
+   */
+  pricingMcxRate?: number;
   mcxChange: number;
   supremeRtgsChange: number;
   supremeCashChange: number;
@@ -224,25 +272,59 @@ interface GoldRateSettingsPanelProps {
   cashChange: number;
   /** Provider whose bhaw sets the RTGS/Cash base, e.g. "JMD Patil". */
   bhawSourceName?: string;
+  /** Which sides are the house's own; a side that is not shows no value. */
+  cashLive?: boolean;
+  rtgsLive?: boolean;
   bhawRtgs?: number;
   bhawCash?: number;
+  /** The percent RTGS Rate 2 carries; RTGS Rate 1 carries none. */
+  rtgsTaxPercent?: number;
+  /** Which RTGS rate is in force: 'taxed' is Rate 1, 'plain' is Rate 2. */
+  rtgsVariant?: 'taxed' | 'plain';
   showTitle?: boolean;
   showClose?: boolean;
   onClose?: () => void;
-  onApply: (mcxChangeBy: number, rtgsChangeBy: number, cashChangeBy: number) => Promise<void>;
+  /**
+   * Resolves true when the server took the change, false when it did not.
+   * `changed` says which of the five the shop actually changed: only those
+   * are sent, so a figure on screen that is stale (a fetch that landed late)
+   * is never written back over what the server holds.
+   */
+  onApply: (
+    mcxChangeBy: number,
+    rtgsChangeBy: number,
+    cashChangeBy: number,
+    rtgsTaxPercent: number,
+    rtgsVariant: 'taxed' | 'plain',
+    changed: ChangedFields,
+  ) => Promise<boolean>;
+}
+
+/** Which of the form's five settings differ from what the server last took. */
+export interface ChangedFields {
+  mcx: boolean;
+  rtgs: boolean;
+  cash: boolean;
+  tax: boolean;
+  variant: boolean;
 }
 
 export function GoldRateSettingsPanel({
   visible,
   mcxLiveRate,
+  pricingMcxRate,
   mcxChange,
   supremeRtgsChange,
   supremeCashChange,
   rtgsChange,
   cashChange,
   bhawSourceName,
+  cashLive = true,
+  rtgsLive = true,
   bhawRtgs,
   bhawCash,
+  rtgsTaxPercent = RTGS_RATE2_DEFAULT_TAX_PERCENT,
+  rtgsVariant = 'taxed',
   showTitle = true,
   showClose = false,
   onClose,
@@ -254,14 +336,25 @@ export function GoldRateSettingsPanel({
   const [mcxAmount, setMcxAmount] = useState('');
   const [rtgsAmount, setRtgsAmount] = useState('');
   const [cashAmount, setCashAmount] = useState('');
-  const [savedMcxChange, setSavedMcxChange] = useState(0);
-  const [savedRtgsChange, setSavedRtgsChange] = useState(0);
-  const [savedCashChange, setSavedCashChange] = useState(0);
-  const [saving, setSaving] = useState(false);
-  const [barAnim] = useState(() => new Animated.Value(0));
+  const [taxPercent, setTaxPercent] = useState(String(RTGS_RATE2_DEFAULT_TAX_PERCENT));
+  const [variant, setVariant] = useState<'taxed' | 'plain'>('taxed');
+  // No Restore or Apply, as the design has it: a tick on RTGS Rate 1 or 2
+  // saves and applies at once, and typing saves once it pauses. These hold
+  // what the server last took and whether the form has typing it has not.
+  const savedRef = useRef<SavedRates>({ mcx: 0, rtgs: 0, cash: 0, tax: 0, variant: 'taxed' });
+  const hydratedRef = useRef(false);
+  const dirtyRef = useRef(false);
+  const editSeqRef = useRef(0);
+  const savingRef = useRef(false);
+  const saveAgainRef = useRef(false);
+  const [editTick, setEditTick] = useState(0);
 
   useEffect(() => {
     if (!visible) return;
+    // The server's figures fill the form on opening, and again whenever they
+    // change — but never over typing that is not saved yet.
+    if (hydratedRef.current && (dirtyRef.current || savingRef.current)) return;
+    hydratedRef.current = true;
 
     const mcx = toSafeNumber(mcxChange, 0);
     const rtgs = toSafeNumber(rtgsChange, 0);
@@ -271,16 +364,17 @@ export function GoldRateSettingsPanel({
     const rtgsForm = getSignAndAmount(rtgs + toSafeNumber(bhawRtgs, 0));
     const cashForm = getSignAndAmount(cash + toSafeNumber(bhawCash, 0));
 
-    setSavedMcxChange(mcx);
-    setSavedRtgsChange(rtgs);
-    setSavedCashChange(cash);
     setMcxSign(mcxForm.sign);
     setMcxAmount(mcxForm.amount);
     setRtgsSign(rtgsForm.sign);
     setRtgsAmount(rtgsForm.amount);
     setCashSign(cashForm.sign);
     setCashAmount(cashForm.amount);
-  }, [visible, mcxChange, rtgsChange, cashChange, bhawRtgs, bhawCash]);
+    const tax = toSafeNumber(rtgsTaxPercent, 0);
+    setTaxPercent(String(tax));
+    setVariant(rtgsVariant);
+    savedRef.current = { mcx, rtgs, cash, tax, variant: rtgsVariant };
+  }, [visible, mcxChange, rtgsChange, cashChange, bhawRtgs, bhawCash, rtgsTaxPercent, rtgsVariant]);
 
   /**
    * The provider bhaw is already inside the current RTGS/Cash rate, so the
@@ -288,9 +382,14 @@ export function GoldRateSettingsPanel({
    * different figure moves the rate by the difference alone.
    */
   const bhawIn = (value?: number) => toSafeNumber(value, 0);
-  const bhawNote = (value?: number) => {
+  const bhawNote = (value?: number, live = true) => {
+    if (!bhawSourceName) return undefined;
+    // The followed house is always named. Its own bhaw is credited to it
+    // when it has published this side; when it has not, the note says so
+    // rather than crediting it with a fallback figure it never published.
+    if (!live) return `Following ${bhawSourceName} — bhaw not published yet`;
     const amount = bhawIn(value);
-    if (!bhawSourceName || !amount) return undefined;
+    if (!amount) return undefined;
     const sign = amount < 0 ? '−' : '+';
     return `Includes ${bhawSourceName} bhaw ${sign}${Math.abs(Math.round(amount)).toLocaleString('en-IN')}`;
   };
@@ -304,65 +403,140 @@ export function GoldRateSettingsPanel({
     () => signedValue(cashSign, cashAmount) - toSafeNumber(bhawCash, 0),
     [cashSign, cashAmount, bhawCash],
   );
-  const hasChanges =
-    !isSameNumber(mcxDraftChange, savedMcxChange) ||
-    !isSameNumber(rtgsDraftChange, savedRtgsChange) ||
-    !isSameNumber(cashDraftChange, savedCashChange);
-
-  const mcxLiveFinal = useMemo(
-    () => mcxLiveRate + mcxDraftChange,
-    [mcxLiveRate, mcxDraftChange],
-  );
-
-  const rtgsCurrentRate = useMemo(
-    () => mcxLiveFinal + supremeRtgsChange,
-    [mcxLiveFinal, supremeRtgsChange],
-  );
-  const cashCurrentRate = useMemo(
-    () => mcxLiveFinal + supremeCashChange,
-    [mcxLiveFinal, supremeCashChange],
-  );
-  const rtgsLiveFinal = useMemo(
-    () => rtgsCurrentRate + rtgsDraftChange,
-    [rtgsCurrentRate, rtgsDraftChange],
-  );
-  const cashLiveFinal = useMemo(
-    () => cashCurrentRate + cashDraftChange,
-    [cashCurrentRate, cashDraftChange],
-  );
-
-  useEffect(() => {
-    Animated.timing(barAnim, {
-      toValue: hasChanges ? 1 : 0,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-  }, [hasChanges, barAnim]);
-
-  const handleRestore = () => {
-    const mcxForm = getSignAndAmount(savedMcxChange);
-    const rtgsForm = getSignAndAmount(savedRtgsChange + toSafeNumber(bhawRtgs, 0));
-    const cashForm = getSignAndAmount(savedCashChange + toSafeNumber(bhawCash, 0));
-    setMcxSign(mcxForm.sign);
-    setMcxAmount(mcxForm.amount);
-    setRtgsSign(rtgsForm.sign);
-    setRtgsAmount(rtgsForm.amount);
-    setCashSign(cashForm.sign);
-    setCashAmount(cashForm.amount);
+  const taxDraft = useMemo(() => {
+    const parsed = Number.parseFloat(taxPercent);
+    return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : 0;
+  }, [taxPercent]);
+  const draftRef = useRef<SavedRates>(savedRef.current);
+  draftRef.current = {
+    mcx: mcxDraftChange,
+    rtgs: rtgsDraftChange,
+    cash: cashDraftChange,
+    tax: taxDraft,
+    variant,
   };
 
-  const handleApply = async () => {
-    if (saving || !hasChanges) return;
+  // The finals through the one calculation Home shows, with the draft as
+  // it is being typed in place of the saved changes: what this screen
+  // prints is exactly what Home prints once the draft is saved.
+  const figures = useMemo(
+    () =>
+      computeGoldRateFigures(
+        {
+          mcx: mcxLiveRate,
+          pricingMcx: pricingMcxRate ?? mcxLiveRate ?? 0,
+          rtgsBhaw: supremeRtgsChange,
+          cashBhaw: supremeCashChange,
+          houseName: bhawSourceName ?? '',
+          cashLive,
+          rtgsLive,
+          houseLive: cashLive || rtgsLive,
+        },
+        {
+          mcxChange: mcxDraftChange,
+          rtgsChange: rtgsDraftChange,
+          cashChange: cashDraftChange,
+          rtgsTaxPercent: taxDraft,
+          rtgsVariant: variant,
+        },
+      ),
+    [
+      mcxLiveRate,
+      pricingMcxRate,
+      supremeRtgsChange,
+      supremeCashChange,
+      bhawSourceName,
+      cashLive,
+      rtgsLive,
+      mcxDraftChange,
+      rtgsDraftChange,
+      cashDraftChange,
+      taxDraft,
+      variant,
+    ],
+  );
+  const mcxLiveFinal = figures.mcxFinal;
+  const cashLiveFinal = figures.retailFinal;
+  const rtgsRate1LiveFinal = figures.rtgsRate1;
+  const rtgsRate2LiveFinal = figures.rtgsRate2;
+  // The cards hide their current-rate pill (showCurrentRate={false}); these
+  // keep the props whole.
+  const cashCurrentRate = cashLiveFinal === null ? null : cashLiveFinal - cashDraftChange;
+  const rtgsCurrentRate = rtgsRate1LiveFinal === null ? null : rtgsRate1LiveFinal - rtgsDraftChange;
 
-    setSaving(true);
-    try {
-      await onApply(mcxDraftChange, rtgsDraftChange, cashDraftChange);
-      setSavedMcxChange(mcxDraftChange);
-      setSavedRtgsChange(rtgsDraftChange);
-      setSavedCashChange(cashDraftChange);
-    } finally {
-      setSaving(false);
+  /**
+   * Saves the form as it stands, when it differs from what the server has.
+   * One save at a time; a change made while one is on its way goes up
+   * straight after it.
+   */
+  const save = useCallback(async () => {
+    if (savingRef.current) {
+      saveAgainRef.current = true;
+      return;
     }
+    const draft = draftRef.current;
+    const saved = savedRef.current;
+    const fields: ChangedFields = {
+      mcx: !isSameNumber(draft.mcx, saved.mcx),
+      rtgs: !isSameNumber(draft.rtgs, saved.rtgs),
+      cash: !isSameNumber(draft.cash, saved.cash),
+      tax: !isSameNumber(draft.tax, saved.tax),
+      variant: draft.variant !== saved.variant,
+    };
+    const changed = fields.mcx || fields.rtgs || fields.cash || fields.tax || fields.variant;
+    if (!changed) {
+      dirtyRef.current = false;
+      return;
+    }
+    const seq = editSeqRef.current;
+    savingRef.current = true;
+    try {
+      // A refused save is not a save: the draft stays dirty, so the next
+      // edit or leaving the page tries again, and Home (rolled back) and
+      // this screen are not left saying different things.
+      const ok = await onApply(draft.mcx, draft.rtgs, draft.cash, draft.tax, draft.variant, fields);
+      if (ok) {
+        savedRef.current = draft;
+        if (editSeqRef.current === seq) dirtyRef.current = false;
+      }
+    } finally {
+      savingRef.current = false;
+      if (saveAgainRef.current) {
+        saveAgainRef.current = false;
+        void save();
+      }
+    }
+  }, [onApply]);
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
+  /** A field the shop typed in: saved once the typing pauses. */
+  const edited = <T,>(setter: (value: T) => void) => (value: T) => {
+    setter(value);
+    dirtyRef.current = true;
+    editSeqRef.current += 1;
+    setEditTick((tick) => tick + 1);
+  };
+
+  useEffect(() => {
+    if (!dirtyRef.current) return;
+    const timer = setTimeout(() => void saveRef.current(), SAVE_AFTER_TYPING_MS);
+    return () => clearTimeout(timer);
+  }, [editTick]);
+
+  // Typing not yet saved goes up when the page is left or closed.
+  useEffect(
+    () => () => {
+      if (dirtyRef.current) void saveRef.current();
+    },
+    [visible],
+  );
+
+  /** The tick on RTGS Rate 1 or 2 saves and applies at once. */
+  const selectVariant = (next: 'taxed' | 'plain') => {
+    setVariant(next);
+    draftRef.current = { ...draftRef.current, variant: next };
+    void save();
   };
 
   return (
@@ -387,29 +561,13 @@ export function GoldRateSettingsPanel({
           formula=""
           currentLabel="Current MCX Rate"
           finalLabel="Final MCX Rate"
-          onSignChange={setMcxSign}
-          onAmountChange={setMcxAmount}
+          onSignChange={edited(setMcxSign)}
+          onAmountChange={edited(setMcxAmount)}
         />
 
         <RateCard
-          title="RTGS Rate"
-          subtitle={bhawNote(bhawRtgs)}
-          showCurrentRate={false}
-          icon={null}
-          sign={rtgsSign}
-          amount={rtgsAmount}
-          currentRate={rtgsCurrentRate}
-          finalRate={rtgsLiveFinal}
-          formula={''}
-          currentLabel="Current RTGS Rate"
-          finalLabel="Final RTGS Rate"
-          onSignChange={setRtgsSign}
-          onAmountChange={setRtgsAmount}
-        />
-
-        <RateCard
-          title="Cash Rate"
-          subtitle={bhawNote(bhawCash)}
+          title="Retail Rate"
+          subtitle={bhawNote(bhawCash, cashLive)}
           showCurrentRate={false}
           icon={null}
           sign={cashSign}
@@ -417,47 +575,75 @@ export function GoldRateSettingsPanel({
           currentRate={cashCurrentRate}
           finalRate={cashLiveFinal}
           formula={''}
-          currentLabel="Current Cash Rate"
-          finalLabel="Final Cash Rate"
-          onSignChange={setCashSign}
-          onAmountChange={setCashAmount}
+          currentLabel="Current Retail Rate"
+          finalLabel="Final Retail Rate"
+          onSignChange={edited(setCashSign)}
+          onAmountChange={edited(setCashAmount)}
+        />
+
+        {/* RTGS in two forms: Rate 1 is the board RTGS from Dashboard
+            Settings plus its Change By, no tax on it; Rate 2 is Rate 1
+            divided by 1 + the percent typed into its Tax field (3 gives
+            1.03). The radio picks the one the app prices on, Rate 1 unless
+            Rate 2 is ticked. */}
+        <RateCard
+          title="RTGS Rate 1"
+          subtitle={bhawNote(bhawRtgs, rtgsLive)}
+          showCurrentRate={false}
+          icon={null}
+          sign={rtgsSign}
+          amount={rtgsAmount}
+          currentRate={rtgsCurrentRate}
+          finalRate={rtgsRate1LiveFinal}
+          formula={''}
+          currentLabel="Current RTGS Rate"
+          finalLabel="Final RTGS Rate 1"
+          onSignChange={edited(setRtgsSign)}
+          onAmountChange={edited(setRtgsAmount)}
+          selected={variant === 'taxed'}
+          onSelect={() => selectVariant('taxed')}
+        />
+
+        <RateCard
+          title="RTGS Rate 2"
+          titleTag="(without tax)"
+          subtitle={bhawNote(bhawRtgs, rtgsLive)}
+          showCurrentRate={false}
+          icon={null}
+          sign={rtgsSign}
+          amount={rtgsAmount}
+          currentRate={rtgsCurrentRate}
+          finalRate={rtgsRate2LiveFinal}
+          formula={''}
+          currentLabel="Current RTGS Rate"
+          finalLabel="Final RTGS Rate 2"
+          onSignChange={edited(setRtgsSign)}
+          onAmountChange={edited(setRtgsAmount)}
+          selected={variant === 'plain'}
+          onSelect={() => selectVariant('plain')}
+          changeControl={
+            <View style={styles.taxFieldWrap}>
+              <Text style={styles.taxFieldLabel}>− Tax</Text>
+              <TextInput
+                value={taxPercent}
+                onChangeText={edited((value: string) =>
+                  setTaxPercent(value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')),
+                )}
+                keyboardType="decimal-pad"
+                // A tap selects what is there, so typing replaces it: a 0
+                // typed in front of a 3 made "03", which reads as 3 and
+                // looked like the 0 had not taken.
+                selectTextOnFocus
+                // Cleared and left: the box says 0, which is what was saved.
+                onBlur={() => setTaxPercent((current) => (current.trim() === '' ? '0' : current))}
+                accessibilityLabel="Tax percent taken off RTGS Rate 2"
+                style={styles.taxFieldInput}
+                maxLength={5}
+              />
+            </View>
+          }
         />
       </View>
-
-      <Animated.View
-        pointerEvents={hasChanges ? 'auto' : 'none'}
-        style={[
-          styles.bottomActionBar,
-          {
-            opacity: barAnim,
-            transform: [
-              {
-                translateY: barAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }),
-              },
-            ],
-          },
-        ]}
-      >
-        <Pressable
-          onPress={handleRestore}
-          disabled={saving}
-          style={[styles.restoreBtn, saving && styles.actionBtnDisabled]}
-        >
-          <Text style={styles.restoreBtnText}>Restore</Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => void handleApply()}
-          disabled={saving}
-          style={[styles.applyBtn, saving && styles.actionBtnDisabled]}
-        >
-          {saving ? (
-            <ActivityIndicator color={Colors.white} />
-          ) : (
-            <Text style={styles.applyBtnText}>Apply</Text>
-          )}
-        </Pressable>
-      </Animated.View>
     </>
   );
 }
@@ -475,6 +661,7 @@ interface GoldRateSettingsModalProps {
   bhawRtgs?: number;
   bhawCash?: number;
   onClose: () => void;
+  /** The legacy three-argument form; a save that resolves counts as taken. */
   onApply: (mcxChangeBy: number, rtgsChangeBy: number, cashChangeBy: number) => Promise<void>;
 }
 
@@ -510,7 +697,10 @@ export function GoldRateSettingsModal({
             bhawRtgs={bhawRtgs}
             bhawCash={bhawCash}
             onClose={onClose}
-            onApply={onApply}
+            onApply={async (mcx, rtgs, cash) => {
+              await onApply(mcx, rtgs, cash);
+              return true;
+            }}
             showClose
             showTitle
           />
@@ -682,7 +872,6 @@ const styles = StyleSheet.create({
   modalBody: {
     flexGrow: 1,
     gap: 6,
-    paddingBottom: GOLD_ACTION_BAR_HEIGHT,
   },
   rateCard: {
     borderWidth: 1,
@@ -716,7 +905,46 @@ const styles = StyleSheet.create({
     color: BUTTON_GREEN,
   },
   rateCardHeaderTextWrap: { flex: 1 },
-  rateCardTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
+  rateCardTitle: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
+  rateCardTitleTag: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: Colors.textPrimary,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  radioOuterSelected: {
+    borderColor: Colors.textPrimary,
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.brandDeep,
+  },
+  taxInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    height: 44,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    backgroundColor: Colors.white,
+  },
+  taxLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
+  taxInput: { minWidth: 34, fontSize: 14, fontWeight: '700', color: Colors.textPrimary, paddingVertical: 0 },
+  taxSuffix: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary },
   rateCardSubtitle: { marginTop: 2, fontSize: 12, color: Colors.textSecondary },
   currentRatePill: {
     borderRadius: Radius.input,
@@ -801,75 +1029,46 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
   },
-  finalSection: { gap: 4 },
+  finalSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 6,
+  },
   finalLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    color: Colors.textMuted,
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.textPrimary,
   },
   finalValue: {
-    marginTop: 0,
-    fontSize: 16,
-    lineHeight: 20,
-    fontWeight: '700',
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: '800',
     color: BUTTON_GREEN,
   },
+  // RTGS Rate 2's own control: one field across the card, "− Tax" then the percent.
+  taxFieldWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    height: 44,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.input,
+    backgroundColor: Colors.white,
+  },
+  taxFieldLabel: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
+  taxFieldInput: { flex: 1, fontSize: 15, fontWeight: '600', color: Colors.textPrimary, paddingVertical: 0 },
   formulaText: {
     fontSize: 11,
     color: Colors.textSecondary,
-  },
-  bottomActionBar: {
-    position: 'absolute',
-    left: Spacing.lg,
-    right: Spacing.lg,
-    bottom: Spacing.lg,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: Spacing.md,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: '#E9DDC4',
-    borderRadius: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  restoreBtn: {
-    flex: 1,
-    height: 40,
-    borderWidth: 1,
-    borderColor: '#E9DDC4',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.white,
-  },
-  restoreBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#857A63',
-  },
-  applyBtn: {
-    flex: 1,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: BUTTON_GREEN,
   },
   applyBtnText: {
     fontSize: 13,
     fontWeight: '600',
     color: Colors.white,
-  },
-  actionBtnDisabled: {
-    opacity: 0.7,
   },
   operatorDropdown: {
     flexDirection: 'row',

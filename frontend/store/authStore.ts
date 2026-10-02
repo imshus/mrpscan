@@ -47,6 +47,8 @@ interface AuthState {
   savedPhone: string;
   savedEmployeePhone: string;
   registration: Partial<RegistrationData>;
+  /** When this session was signed in (ms). It ends at the next 12:00 AM. */
+  sessionStartedAt: number | null;
   _hasHydrated: boolean;
   setAuthenticated: (value: boolean) => void;
   setAuthToken: (token: string | null) => void;
@@ -78,8 +80,20 @@ export const useAuthStore = create<AuthState>()(
       savedPhone: '',
       savedEmployeePhone: '',
       registration: {},
+      sessionStartedAt: null,
       _hasHydrated: false,
-      setAuthenticated: (value) => set({ isAuthenticated: value }),
+      // A session starts when it is signed in, not each time the flag is
+      // set: the login flow may set it more than once on the way in, and
+      // that must not push the session's day forward.
+      setAuthenticated: (value) =>
+        set((state) => ({
+          isAuthenticated: value,
+          sessionStartedAt: value
+            ? state.isAuthenticated && state.sessionStartedAt
+              ? state.sessionStartedAt
+              : Date.now()
+            : null,
+        })),
       setAuthToken: (token) => set({ authToken: token }),
       setIsSuper: (value) => set({ isSuper: value }),
       setRefreshToken: (token) => set({ refreshToken: token }),
@@ -90,8 +104,11 @@ export const useAuthStore = create<AuthState>()(
       setSavedCredentials: (phone) => {
         set({ savedPhone: phone });
         // Mirrored into the key the build wipe spares, so the next install
-        // still knows whose shop this is and asks for the MPIN alone.
-        if (phone) AsyncStorage.setItem(REMEMBERED_PHONE_KEY, phone).catch(() => {});
+        // still knows whose shop this is and asks for the MPIN alone. Only a
+        // ten-digit number goes there: the key outlives every update, and a
+        // login ID from the old sign-up screens would name nobody.
+        const digits = phone.replace(/\D/g, '').slice(-10);
+        if (digits.length === 10) AsyncStorage.setItem(REMEMBERED_PHONE_KEY, digits).catch(() => {});
       },
       setSavedEmployeePhone: (phone) => set({ savedEmployeePhone: phone }),
       updateRegistration: (data) =>
@@ -109,6 +126,7 @@ export const useAuthStore = create<AuthState>()(
           isSuper: false,
           loggedInEmployeeId: null,
           registration: {},
+          sessionStartedAt: null,
         }),
       setHasHydrated: (value) => set({ _hasHydrated: value }),
     }),
@@ -127,6 +145,7 @@ export const useAuthStore = create<AuthState>()(
         savedEmployeePhone: state.savedEmployeePhone,
         loginMethod: state.loginMethod,
         registration: getPersistedRegistration(state.registration),
+        sessionStartedAt: state.sessionStartedAt,
         appBuild: APP_BUILD,
       }),
       onRehydrateStorage: () => (state, error) => {

@@ -27,45 +27,44 @@ export interface MatrixSection {
 export const GOLD_MATRIX_SECTIONS: MatrixSection[] = [
   {
     sectionLabel: '24K GOLD',
-    rows: [
-      { key: '24k_mcx', label: ' MCX Rate ' },
-      { key: '24k_rtgs', label: ' RTGS Rate ' },
-      { key: '24k_cash', label: ' Cash Rate ' },
-    ],
+    // RTGS and Cash for 24K live on the MCX card itself; their rows were
+    // removed here at the shop's asking. The keys remain for old records.
+    // The MCX card carries 24K RTGS and Retail too, so its row names all three.
+    rows: [{ key: '24k_mcx', label: ' MCX/RTGS/Retail Rate ' }],
   },
   {
     sectionLabel: '22K GOLD',
     rows: [
       { key: '22k_rtgs', label: ' RTGS Rate ' },
-      { key: '22k_cash', label: ' Cash Rate ' },
+      { key: '22k_cash', label: ' Retail Rate ' },
     ],
   },
   {
     sectionLabel: '20K GOLD',
     rows: [
       { key: '20k_rtgs', label: ' RTGS Rate ' },
-      { key: '20k_cash', label: ' Cash Rate ' },
+      { key: '20k_cash', label: ' Retail Rate ' },
     ],
   },
   {
     sectionLabel: '18K GOLD',
     rows: [
       { key: '18k_rtgs', label: ' RTGS Rate ' },
-      { key: '18k_cash', label: ' Cash Rate ' },
+      { key: '18k_cash', label: ' Retail Rate ' },
     ],
   },
   {
     sectionLabel: '14K GOLD',
     rows: [
       { key: '14k_rtgs', label: ' RTGS Rate ' },
-      { key: '14k_cash', label: ' Cash Rate ' },
+      { key: '14k_cash', label: ' Retail Rate ' },
     ],
   },
   {
     sectionLabel: '9K GOLD',
     rows: [
       { key: '9k_rtgs', label: ' RTGS Rate ' },
-      { key: '9k_cash', label: ' Cash Rate ' },
+      { key: '9k_cash', label: ' Retail Rate ' },
     ],
   },
 ];
@@ -115,5 +114,6 @@ export const DEFAULT_MATRIX_VALUES: Record<MatrixKey, boolean> = {
   '9k_rtgs': false,
   '9k_cash': false,
   // Bhaw rate source: true = JMD Patil live feed, false = Mega Bullion.
-  'bhaw_source_jmd': false,
+  // JMD Patil unless the shop has picked otherwise, at the shop's asking.
+  'bhaw_source_jmd': true,
 };

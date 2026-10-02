@@ -7,6 +7,7 @@ import {
   BottomNav,
   getBottomNavBottom,
 } from '@/components/dashboard/BottomNav';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import { ScreenBackHeader } from './ScreenBackHeader';
 
 /**
@@ -65,14 +66,14 @@ export function ScanScreenWrapper({
   return (
     <SafeAreaView className={`flex-1 ${className}`} edges={['top']}>
       <ScreenBackHeader title={title} onBack={onBack} />
-      <ScrollView
+      <KeyboardAwareScrollView
         className="flex-1"
         contentContainerClassName="px-screen pt-1"
         contentContainerStyle={{ paddingBottom: contentBottomPadding }}
         showsVerticalScrollIndicator={false}
       >
         {children}
-      </ScrollView>
+      </KeyboardAwareScrollView>
       {footer ? (
         <View
           className="absolute left-0 right-0 px-screen"

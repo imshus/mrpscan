@@ -42,6 +42,13 @@ export interface AnalyzeScanResponse {
   /** Confidence per structured field ("grossWeight", "diamonds.0.weight"), 0-100. */
   fieldConfidence?: Record<string, number>;
   unknownFields: UnknownField[];
+  /**
+   * Every identifier the reader found on the tag, main one first: the item
+   * number it chose and each number it set aside (an SR NO beside the item
+   * code). The Item Code and Wastage masters are matched against all of
+   * them. Empty from a server that does not send it yet.
+   */
+  tagIdentifiers?: string[];
   billing?: {
     billed: boolean;
     /** True while the server finalizes billing in the background (two-step scan). */
@@ -186,6 +193,8 @@ export interface ScanItemData {
    * the override.
    */
   wastagePercent?: string;
+  /** The Masters → Wastage code picked for this scan; its percent fills wastagePercent. */
+  wastageCode?: string;
   calculationRate: 'rtgs' | 'cash';
   otherChargesAmount: string;
   otherChargesItems: OtherChargeItem[];
@@ -313,6 +322,8 @@ export interface CalculateMrpPayload {
   otherCharges?: number;
   /** The shop's item code for this piece: what its wastage is kept against. */
   itemCode?: string;
+  /** Every identifier on the tag, so a Masters -> Wastage code printed anywhere on it is found. */
+  tagIdentifiers?: string[];
   /** Overrides the item's own wastage, for a piece that is an exception. */
   wastagePercent?: number;
   diamonds: Array<{ weight: number; rate: number; discountPercent?: number }>;

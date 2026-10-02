@@ -13,6 +13,9 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Check, ChevronDown, ChevronLeft, ChevronUp } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CreditGstNote } from '@/components/settings/CreditGstNote';
+import { PaymentDonePopup, type PaidOrder } from '@/components/settings/PaymentDonePopup';
+import { PaymentEmailPopup } from '@/components/settings/PaymentEmailPopup';
 import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Fonts, Radius, Spacing, Surfaces } from '@/constants/theme';
 import { useRequireSettingsAccess } from '@/hooks/useSettingsAccess';
@@ -29,6 +32,7 @@ import {
 } from '@/utils/subscriptionApi';
 import { friendlyServerMessage } from '@/utils/serverMessages';
 import Constants from 'expo-constants';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 type RazorpayModule = {
   open: (options: Record<string, unknown>) => Promise<unknown>;
@@ -75,9 +79,14 @@ function toPurchaseState(overview: SubscriptionOverview | null): 'LOADING' | 'PE
   return 'CAN_PURCHASE';
 }
 
-/** Flat panel fills — the right-side stop of each mockup gradient (see Surfaces). */
-const TRIAL_PANEL_GRADIENT = [Surfaces.metallic];
-const PREMIUM_PANEL_GRADIENT = [Surfaces.premium];
+/**
+ * The two panels' colours, measured off the shop's design: khaki for the
+ * trial, deep red for the subscription. Drawn solid, at the shop's asking:
+ * GradientView without forceGradient fills each with its last (deepest)
+ * stop, the way every other flattened surface in the app is filled.
+ */
+const TRIAL_PANEL_GRADIENT = ['#F8F5EB', '#E6DBC3', '#C7B792'];
+const PREMIUM_PANEL_GRADIENT = ['#E9AA9A', '#BE5B4A', Surfaces.premium];
 
 export default function PurchaseLicenseScreen() {
   const router = useRouter();
@@ -85,7 +94,9 @@ export default function PurchaseLicenseScreen() {
   const userRole = useAuthStore((s) => s.userRole);
 
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  // Which action is under way, so only its own button says so: a recharge
+  // used to turn Purchase Now into 'Processing…' as well.
+  const [busyAction, setBusyAction] = useState<'purchase' | 'recharge' | null>(null);
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null);
 
   const canManagePayments = userRole === 'business';
@@ -113,7 +124,7 @@ export default function PurchaseLicenseScreen() {
     orderId: string;
     amountInPaise: number;
     razorpayKeyId?: string | null;
-  }) => {
+  }, email: string) => {
     const RazorpayCheckout = getRazorpayCheckout();
     if (!RazorpayCheckout) {
       throw new Error('Razorpay SDK missing. Install react-native-razorpay to continue.');
@@ -132,9 +143,10 @@ export default function PurchaseLicenseScreen() {
         currency: 'INR',
         order_id: order.orderId,
         name: 'MRPscan',
-        // The business phone on file: fewer taps in the sheet, and Razorpay's
-        // risk checks see a consistent customer.
-        prefill: { contact: String(useAuthStore.getState().registration?.phone ?? '') },
+        // The business phone on file and the email from the popup: fewer taps
+        // in the sheet, Razorpay's risk checks see a consistent customer, and
+        // its payment receipt goes to that email.
+        prefill: { contact: String(useAuthStore.getState().registration?.phone ?? ''), email },
         description: 'Application License Purchase',
         theme: { color: Colors.primary },
       });
@@ -159,17 +171,26 @@ export default function PurchaseLicenseScreen() {
     await verifyPayment(order.orderId, payment.razorpay_payment_id, payment.razorpay_signature);
   }, []);
 
-  const handlePurchase = useCallback(async () => {
+  // Which payment the email popup is open for; Continue starts that one.
+  const [emailFor, setEmailFor] = useState<'purchase' | 'recharge' | null>(null);
+  // The payment that just went through, with its invoice on offer. Closing
+  // it after a licence purchase goes back, as the old "Continue" did.
+  const [paid, setPaid] = useState<(PaidOrder & { leaveOnClose?: boolean }) | null>(null);
+
+  const handlePurchase = useCallback(() => {
     if (!canManagePayments) {
       Alert.alert('License Purchase', 'Only business account can purchase application license.');
       return;
     }
+    setEmailFor('purchase');
+  }, [canManagePayments]);
 
-    setBusy(true);
+  const startPurchase = useCallback(async (email: string) => {
+    setBusyAction('purchase');
     try {
       assertRazorpayReady();
-      const order = await createApplicationPurchaseOrder();
-      await runRazorpayCheckout(order);
+      const order = await createApplicationPurchaseOrder(email);
+      await runRazorpayCheckout(order, email);
 
       const refreshed = await fetchSubscriptionOverview();
       setOverview(refreshed);
@@ -178,11 +199,13 @@ export default function PurchaseLicenseScreen() {
         throw new Error('Payment verified. License activation is pending. Please refresh shortly.');
       }
 
-      Alert.alert(
-        'License Activated',
-        'Your application license is active and bonus wallet credits have been added.',
-        [{ text: 'Continue', onPress: () => router.back() }],
-      );
+      setPaid({
+        orderId: order.orderId,
+        title: 'License Activated',
+        message: 'Your application license is active and bonus wallet credits have been added.',
+        email,
+        leaveOnClose: true,
+      });
     } catch (error) {
       // Backing out of the payment sheet is not a failure to announce.
       if (!isPaymentCancellation(error)) {
@@ -190,9 +213,9 @@ export default function PurchaseLicenseScreen() {
         Alert.alert('License Purchase', message);
       }
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
-  }, [canManagePayments, router, runRazorpayCheckout]);
+  }, [runRazorpayCheckout]);
 
   // Credits, on the same screen as the comparison: a shop that decides against
   // the licence for now still needs a way to keep scanning.
@@ -201,7 +224,7 @@ export default function PurchaseLicenseScreen() {
   const rechargeValue = Number(rechargeAmount || 0);
   const rechargeReady = Number.isFinite(rechargeValue) && rechargeValue >= MIN_RECHARGE;
 
-  const handleRecharge = useCallback(async () => {
+  const handleRecharge = useCallback(() => {
     if (!canManagePayments) {
       Alert.alert('Recharge Credits', 'Only the shop owner can buy credits.');
       return;
@@ -210,15 +233,23 @@ export default function PurchaseLicenseScreen() {
       Alert.alert('Recharge Credits', `Minimum purchase of ₹${MIN_RECHARGE} credits is allowed.`);
       return;
     }
+    setEmailFor('recharge');
+  }, [canManagePayments, rechargeReady]);
 
-    setBusy(true);
+  const startRecharge = useCallback(async (email: string) => {
+    setBusyAction('recharge');
     try {
       assertRazorpayReady();
-      const order = await createCreditRechargeOrder(rechargeValue);
-      await runRazorpayCheckout(order);
+      const order = await createCreditRechargeOrder(rechargeValue, email);
+      await runRazorpayCheckout(order, email);
       setRechargeAmount('');
       await loadOverview();
-      Alert.alert('Recharge Credits', `₹${rechargeValue} of credits has been added.`);
+      setPaid({
+        orderId: order.orderId,
+        title: 'Credits Added',
+        message: `₹${rechargeValue} of credits has been added to your wallet.`,
+        email,
+      });
     } catch (error) {
       if (!isPaymentCancellation(error)) {
         Alert.alert(
@@ -227,9 +258,18 @@ export default function PurchaseLicenseScreen() {
         );
       }
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
-  }, [canManagePayments, loadOverview, rechargeReady, rechargeValue, runRazorpayCheckout]);
+  }, [loadOverview, rechargeValue, runRazorpayCheckout]);
+
+  const continueWithEmail = useCallback((email: string) => {
+    const action = emailFor;
+    setEmailFor(null);
+    // Offered again by the next popup without waiting for a reload.
+    setOverview((current) => (current ? { ...current, billingEmail: email } : current));
+    if (action === 'purchase') void startPurchase(email);
+    else if (action === 'recharge') void startRecharge(email);
+  }, [emailFor, startPurchase, startRecharge]);
 
   const purchaseState = useMemo(() => toPurchaseState(overview), [overview]);
   const displayPrice = rupees(overview?.applicationPrice || 12000);
@@ -240,7 +280,7 @@ export default function PurchaseLicenseScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.flex}
         contentContainerStyle={styles.screen}
         showsVerticalScrollIndicator={false}
@@ -280,6 +320,7 @@ export default function PurchaseLicenseScreen() {
                 {/* Free trial — what they have now */}
                 <GradientView
                   colors={TRIAL_PANEL_GRADIENT}
+                  sheen={0}
                   style={styles.panel}
                 >
                   <Text style={styles.trialHeading}>Free Trial</Text>
@@ -299,6 +340,7 @@ export default function PurchaseLicenseScreen() {
                 {/* Paid licence */}
                 <GradientView
                   colors={PREMIUM_PANEL_GRADIENT}
+                  sheen={0}
                   style={styles.panel}
                 >
                   <Text
@@ -315,21 +357,23 @@ export default function PurchaseLicenseScreen() {
                     <Feature text="+ Everything in Free trial" tone="paid" />
                     {/* GST is charged on top, so the figure says so rather
                         than reading as the whole of what is due. */}
-                    <Feature text={`${displayPrice} + GST`} sub="(one time purchase)" tone="paid" />
+                    {/* The price on its own line; "+ GST" moves down under it
+                        with the one-time note, at the shop's asking. */}
+                    <Feature text={displayPrice} note="Plus GST (18%)" sub="(one time purchase)" tone="paid" />
                   </View>
                   <Pressable
-                    disabled={busy || isPurchased}
+                    disabled={busyAction === 'purchase' || isPurchased}
                     onPress={handlePurchase}
                     style={[
                       styles.purchaseBtn,
                       styles.panelAction,
-                      (busy || isPurchased) && styles.btnDisabled,
+                      (busyAction === 'purchase' || isPurchased) && styles.btnDisabled,
                     ]}
                   >
                     <Text style={styles.purchaseBtnText}>
                       {isPurchased
                         ? 'Already Purchased'
-                        : busy
+                        : busyAction === 'purchase'
                           ? 'Processing…'
                           : 'Purchase Now'}
                     </Text>
@@ -397,13 +441,15 @@ export default function PurchaseLicenseScreen() {
                     ))}
                   </View>
 
+                  <CreditGstNote credits={rechargeValue} />
+
                   <Pressable
                     onPress={handleRecharge}
-                    disabled={busy || !rechargeReady}
-                    style={[styles.rechargeBtn, (busy || !rechargeReady) && styles.btnDisabled]}
+                    disabled={busyAction !== null || !rechargeReady}
+                    style={[styles.rechargeBtn, (busyAction !== null || !rechargeReady) && styles.btnDisabled]}
                   >
                     <Text style={styles.rechargeBtnText}>
-                      {busy ? 'Processing…' : 'Recharge Now'}
+                      {busyAction === 'recharge' ? 'Processing…' : 'Recharge Now'}
                     </Text>
                   </Pressable>
                 </View>
@@ -411,7 +457,24 @@ export default function PurchaseLicenseScreen() {
             </View>
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
+
+      <PaymentEmailPopup
+        visible={emailFor !== null}
+        initialEmail={overview?.billingEmail ?? ''}
+        actionLabel="Continue to Pay"
+        onCancel={() => setEmailFor(null)}
+        onContinue={continueWithEmail}
+      />
+
+      <PaymentDonePopup
+        paid={paid}
+        onClose={() => {
+          const leave = paid?.leaveOnClose;
+          setPaid(null);
+          if (leave) router.back();
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -419,10 +482,12 @@ export default function PurchaseLicenseScreen() {
 type FeatureProps = {
   text: string;
   sub?: string;
+  /** A bold line under the text, above `sub` — "+ GST" under the price. */
+  note?: string;
   tone: 'trial' | 'paid';
 };
 
-function Feature({ text, sub, tone }: FeatureProps) {
+function Feature({ text, sub, note, tone }: FeatureProps) {
   const paid = tone === 'paid';
   return (
     <View style={styles.featureRow}>
@@ -442,6 +507,9 @@ function Feature({ text, sub, tone }: FeatureProps) {
         >
           {text}
         </Text>
+        {note ? (
+          <Text style={[styles.featureText, paid && styles.featureTextPaid, styles.featureNote]}>{note}</Text>
+        ) : null}
         {sub ? <Text style={styles.featureSub}>{sub}</Text> : null}
       </View>
     </View>
@@ -531,7 +599,8 @@ const styles = StyleSheet.create({
   orText: { fontSize: 10, fontWeight: '800', color: Colors.textSecondary },
   featureTextWrap: { flex: 1 },
   featureTextPaid: { color: Colors.white },
-  featurePrice: { fontSize: 16, lineHeight: 19, fontWeight: '900' },
+  featurePrice: { fontSize: 18, lineHeight: 22, fontWeight: '900' },
+  featureNote: { fontSize: 14, lineHeight: 18, fontWeight: '800', marginTop: 2 },
   featureSub: {
     fontSize: 10,
     lineHeight: 13,

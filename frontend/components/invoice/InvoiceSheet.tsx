@@ -77,7 +77,8 @@ function stateCode(gstinOrPlace: string): string {
   return gstinOrPlace.match(/\((\d{2})\)/)?.[1] ?? '';
 }
 
-const HSN_JEWELLERY = '71131913';
+/** Articles of jewellery, gold of every karat and diamond alike: one code for every line. */
+export const HSN_JEWELLERY = '71131913';
 
 export function InvoiceSheet({ data }: { data: InvoiceSheetData }) {
   const supplierState = stateCode(data.companyGstin);
@@ -213,7 +214,7 @@ export function InvoiceSheet({ data }: { data: InvoiceSheetData }) {
           </Text>
           <Text style={[styles.td, styles.colHsn]}>{HSN_JEWELLERY}</Text>
           <Text style={[styles.td, styles.colQty]}>
-            {row.qty > 0 ? `${row.qty.toFixed(3)} ${row.qtyUnit}`.trim() : '—'}
+            {row.qty > 0 ? `${row.qty.toFixed(3)} ${row.qtyUnit}`.trim() : ''}
           </Text>
           <Text style={[styles.td, styles.colPrice, styles.right]}>
             {row.price > 0 ? inr(row.price) : '—'}

@@ -1,13 +1,12 @@
 import type { ScanItemData } from '@/types/scanner';
-import { resolveScannedKarat } from '@/utils/formulaUtils';
 
 /**
  * How a scanned piece is identified on screen and on the invoice.
  *
- * Both halves come from the shop's own item codes when the tag's number
- * matches one: the saved code and the name saved beside it. Without a match
- * the number is the one the tag printed and the name is composed from what
- * was scanned, since the tag has no product title of its own.
+ * Only what Masters -> Item Code gives, at the shop's asking: when one of
+ * the tag's numbers matches a saved code, the name is that row's and the
+ * number is the code as the tag printed it. Without a match both are empty
+ * — the raw number off the tag is not shown in its place.
  */
 export interface ItemIdentity {
   name: string;
@@ -15,14 +14,9 @@ export interface ItemIdentity {
 }
 
 export function resolveItemIdentity(scanData: ScanItemData): ItemIdentity {
-  const catalogueName = scanData.itemName?.trim();
-  const karat = resolveScannedKarat(scanData.karat, scanData.tunch);
-  const category = scanData.category || 'Gold';
-  const composed = [karat, category].filter(Boolean).join(' ').trim();
-
   return {
-    name: catalogueName || composed || 'Jewellery',
-    number: scanData.itemCode?.trim() || scanData.sku?.trim() || '',
+    name: scanData.itemName?.trim() || '',
+    number: scanData.itemCode?.trim() || '',
   };
 }
 

@@ -32,8 +32,20 @@ export interface TaxSettings {
   rtgsChangeBy: number;
   cashChangeBy: number;
   scannerCalculationUse: 'rtgs' | 'cash';
+  /** The percent RTGS Rate 2 carries; RTGS Rate 1 carries none. */
+  rtgsTaxPercent?: number;
+  /** Which RTGS rate the app prices on: 'taxed' (Rate 1) or 'plain' (Rate 2). */
+  rtgsVariant?: 'taxed' | 'plain';
+  rtgsRate1FinalRate?: number;
+  rtgsRate2FinalRate?: number;
   rtgsFinalRate?: number;
   cashFinalRate?: number;
+  /**
+   * The MCX the server built this shop's RTGS and Cash on, before the shop's
+   * own MCX change: the followed house's own line while its bhaw is live,
+   * else the market MCX. Absent from servers older than the majority MCX.
+   */
+  pricingMcxLiveRate?: number;
 }
 
 export interface SupremeChanges {
@@ -70,6 +82,8 @@ export interface UpdateGoldTaxSettingsPayload {
   rtgsChangeBy?: number;
   cashChangeBy?: number;
   scannerCalculationUse?: 'rtgs' | 'cash';
+  rtgsTaxPercent?: number;
+  rtgsVariant?: 'taxed' | 'plain';
 }
 
 export interface StoneRate {

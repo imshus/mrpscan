@@ -17,7 +17,7 @@ import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { fetchReferralOverview, type ReferralOverview } from '@/utils/referralApi';
 
-const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.amitaashitsolutions';
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.mrpscan';
 
 /**
  * The Play Store link with the sender's code and the offer it was shared

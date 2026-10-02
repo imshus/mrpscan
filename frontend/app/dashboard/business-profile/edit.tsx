@@ -24,6 +24,7 @@ import {
 } from '@/utils/profileEditApi';
 import { friendlyServerMessage } from '@/utils/serverMessages';
 import { ApiError } from '@/utils/apiClient';
+import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 
 const tenDigits = (value: string) => value.replace(/\D/g, '').slice(-10);
@@ -51,6 +52,7 @@ export default function EditBusinessProfileScreen() {
   const { editToken } = useLocalSearchParams<{ editToken?: string }>();
   const registration = useAuthStore((s) => s.registration);
   const updateRegistration = useAuthStore((s) => s.updateRegistration);
+  const setSavedCredentials = useAuthStore((s) => s.setSavedCredentials);
   const original = useMemo(() => getBusinessProfile(registration), [registration]);
 
   const originalPhone = tenDigits(original.phone || '');
@@ -108,6 +110,10 @@ export default function EditBusinessProfileScreen() {
         businessType: result.businessType,
         address: result.address,
       });
+      // The sign-in number Log In greets the shop with (and the one the next
+      // install remembers) is the new one from now on, not the number it
+      // just stopped being.
+      if (target === 'phone' && result.phone) setSavedCredentials(result.phone);
       setDone(true);
     } catch (caught) {
       submitted.current = false;
@@ -224,7 +230,7 @@ export default function EditBusinessProfileScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <BackgroundPattern />
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
             <ChevronLeft size={18} color={Colors.textPrimary} strokeWidth={2.2} />
@@ -335,7 +341,7 @@ export default function EditBusinessProfileScreen() {
             </View>
           ) : null}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {done ? (
         <ProfileUpdatedPopup
