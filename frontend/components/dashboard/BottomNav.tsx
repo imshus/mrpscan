@@ -6,6 +6,8 @@ import type { BottomNavRoute } from '@/types/scanner';
 
 import { Colors } from '@/constants/theme';
 import { togglePrathamAiCall, usePrathamAiSession } from '@/utils/prathamAiSession';
+import { useScannerStore } from '@/store/scannerStore';
+import { invalidateBackgroundUploads } from '@/utils/uploadPipeline';
 
 const NAV_OFFSET = 2;
 /**
@@ -41,7 +43,8 @@ function activeRouteFor(pathname: string): BottomNavRoute | 'none' {
 export function BottomNav({ onHeightChange }: BottomNavProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const activeRoute = activeRouteFor(usePathname());
+  const pathname = usePathname();
+  const activeRoute = activeRouteFor(pathname);
 
   // navigate, not replace: replace tore down the home screen on the way into
   // the scanner, so coming Home rebuilt it from scratch — a spinner and a
@@ -50,6 +53,22 @@ export function BottomNav({ onHeightChange }: BottomNavProps) {
   // its own focus effect refreshes the numbers in place.
   const handleScannerPress = () => {
     if (activeRoute === 'scanner') {
+      // Already taking photos, or a read is in flight (stopping it would
+      // throw away a scan that is being charged): nothing to restart.
+      if (
+        pathname === '/dashboard/scanner' ||
+        pathname.startsWith('/dashboard/scanner/barcode') ||
+        pathname.startsWith('/dashboard/scanner/processing')
+      ) {
+        return;
+      }
+      // On a finished scan (the result, its invoice): start a new scan, the
+      // same reset the result screen's back button does.
+      const scanner = useScannerStore.getState();
+      scanner.resetScanSession();
+      invalidateBackgroundUploads();
+      scanner.setScanSessionBootstrapping(false);
+      router.replace('/dashboard/scanner' as Href);
       return;
     }
     router.navigate('/dashboard/scanner' as Href);
