@@ -1,19 +1,22 @@
+import { parseBhawPayload, type BhawVendor } from './bhawPayload';
+import { openEventStream } from './sseClient';
+
+export { normalizeVendor, parseBhawPayload } from './bhawPayload';
+export type { BhawRow, BhawVendor } from './bhawPayload';
+
 /**
  * Live bhaw feed — the premium/discount each bullion house quotes over MCX.
  *
- *   GET https://17gdivfex7.execute-api.ap-south-1.amazonaws.com/bhaw
- *   -> [ { source: 'jmd_patil',    name, cash_bhaw, rtgs_bhaw, rows, timestamp },
- *        { source: 'mega_bullion', name, cash_bhaw, rtgs_bhaw, rows, timestamp } ]
- *
- * The endpoint returns an ARRAY containing EVERY provider, so callers pick the
- * one the business selected by `source` rather than trusting array position.
- * Values arrive as numeric strings ("-3200"), hence the coercion below.
+ * A Server-Sent Events stream (~5 snapshots a second), each snapshot an
+ * ARRAY containing EVERY provider — the shape is in utils/bhawPayload.ts.
+ * Home, Gold Rate Settings and Dashboard Settings show it; the connection
+ * itself is held by store/bhawStore.ts. Scans and invoices are priced by
+ * the server on its own 3-minute snapshot, not on this. EXPO_PUBLIC_*
+ * values are inlined at bundle time, so a changed URL needs a rebuild.
  */
+export const BHAW_LIVE_STREAM_URL =
+  process.env.EXPO_PUBLIC_MCX_LIVE_STEAMING || 'https://jmd.mrpscan.com/api/stream';
 
-const BHAW_URL = 'https://17gdivfex7.execute-api.ap-south-1.amazonaws.com/bhaw';
-
-/** Every 30 seconds, at the shop's asking: a bhaw that moved is money. */
-export const BHAW_POLL_INTERVAL_MS = 30_000;
 const BHAW_TIMEOUT_MS = 8_000;
 
 export const BHAW_PROVIDERS = {
@@ -25,107 +28,40 @@ export const BHAW_PROVIDERS = {
 
 export type BhawProvider = (typeof BHAW_PROVIDERS)[keyof typeof BHAW_PROVIDERS];
 
-/** One line of a house's published board: "99.50 Gold Cash", sell 150400. */
-export interface BhawRow {
-  label: string;
-  buy: number | null;
-  sell: number | null;
-}
-
-export interface BhawVendor {
-  source: BhawProvider | string;
-  name: string;
-  /**
-   * Premium (+) or discount (−) over MCX, in rupees.
-   *
-   * Null when the house has not published that side today — several quote
-   * only MCX until their counter opens. Null is not zero: zero would mean
-   * "no premium" and would misprice every item, so anything that computes a
-   * rate must treat null as "no live figure" and fall back.
-   */
-  cashBhaw: number | null;
-  rtgsBhaw: number | null;
-  /** The house's own board, shown on the Dashboard Settings card. */
-  rows: BhawRow[];
-  updatedAt: string;
-}
-
 /** True when this house has published both sides and can price a scan. */
 export function hasLiveBhaw(vendor: BhawVendor | null): boolean {
   return vendor !== null && vendor.cashBhaw !== null && vendor.rtgsBhaw !== null;
 }
 
-function toNumber(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (typeof value === 'string' && value.trim() !== '') {
-    // "1,53,052" reads as the server reads it; the sign stays.
-    const parsed = Number(value.replace(/,/g, ''));
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function normalizeVendor(raw: unknown): BhawVendor | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const row = raw as Record<string, unknown>;
-
-  const source = typeof row.source === 'string' ? row.source.toLowerCase() : '';
-  const cashBhaw = toNumber(row.cash_bhaw);
-  const rtgsBhaw = toNumber(row.rtgs_bhaw);
-
-  // Only a house with no identity at all is dropped. One that has not
-  // published its bhaw yet is kept, with nulls: Dashboard Settings lists
-  // every house the feed carries, and showing a dash against one is how a
-  // shop sees that it has nothing to follow there yet. Pricing refuses a
-  // null separately — see hasLiveBhaw.
-  if (!source) return null;
-
-  const rows = Array.isArray(row.rows)
-    ? row.rows
-        .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
-        .map((entry) => ({
-          label: typeof entry.label === 'string' ? entry.label : '',
-          buy: toNumber(entry.buy),
-          sell: toNumber(entry.sell),
-        }))
-        .filter((entry) => entry.label)
-    : [];
-
-  return {
-    source,
-    name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : source,
-    rows,
-    cashBhaw,
-    rtgsBhaw,
-    updatedAt: typeof row.timestamp === 'string' ? row.timestamp : '',
-  };
-}
-
-/** Fetches every provider the feed publishes. Throws on network/HTTP failure. */
-export async function fetchBhawVendors(): Promise<BhawVendor[]> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), BHAW_TIMEOUT_MS);
-  try {
-    // Cache-proofed both ways: RN's fetch on Android happily re-serves a
-    // cached GET, which left the boards frozen on old figures while the feed
-    // moved. The headers refuse the cache and the timestamped URL makes each
-    // poll a request nothing has ever cached.
-    const response = await fetch(`${BHAW_URL}?t=${Date.now()}`, {
-      signal: controller.signal,
-      headers: {
-        'Cache-Control': 'no-cache, no-store, max-age=0',
-        Pragma: 'no-cache',
+/**
+ * One look at the live stream: opens it, resolves with the first snapshot
+ * that carries a house, and closes it. Rejects when the stream fails or
+ * nothing usable arrives within 8 s.
+ */
+export function fetchBhawVendors(): Promise<BhawVendor[]> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let close: (() => void) | null = null;
+    const finish = (settle: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      close?.();
+      settle();
+    };
+    const timer = setTimeout(
+      () => finish(() => reject(new Error('Live rates stream timed out'))),
+      BHAW_TIMEOUT_MS,
+    );
+    close = openEventStream(BHAW_LIVE_STREAM_URL, {
+      onMessage: (data) => {
+        const vendors = parseBhawPayload(data);
+        if (vendors && vendors.length > 0) finish(() => resolve(vendors));
       },
+      onError: (error) => finish(() => reject(error)),
     });
-    if (!response.ok) throw new Error(`Bhaw API returned ${response.status}`);
-
-    const payload: unknown = await response.json();
-    // Tolerate a bare object in case the upstream shape changes back.
-    const rows = Array.isArray(payload) ? payload : [payload];
-    return rows.map(normalizeVendor).filter((v): v is BhawVendor => v !== null);
-  } finally {
-    clearTimeout(timer);
-  }
+    if (settled) close();
+  });
 }
 
 /** Picks one provider out of the feed by its `source` key. */

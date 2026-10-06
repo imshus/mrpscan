@@ -9,8 +9,10 @@ import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
  * figures Gold Rate Settings arrives at — the same inputs through the same
  * arithmetic, at the shop's asking, after the two screens read different
  * things and disagreed by the shop's own MCX change. The arithmetic is the
- * server's (rateCalculation.service.js), which is what scans are priced
- * on, so all three agree.
+ * server's (rateCalculation.service.js). The boards are not: Home and Gold
+ * Rate Settings show the live stream, while scans and invoices are priced
+ * by the server on its 3-minute snapshot, so a scan can differ from these
+ * screens by up to three minutes of market movement.
  */
 
 /** What the figures stand on: the market MCX, the house line, the bhaw. */
@@ -84,9 +86,10 @@ export function houseNameFor(key: string, fallback?: string): string {
 
 /**
  * The base off the server's response and the live boards. The house is the
- * one the server priced on (bhawSource), so what the screens show is what
- * scans charge, whichever house this phone last tapped; the phone's own
- * choice stands in only until the server has answered.
+ * one the server priced on (bhawSource), whichever house this phone last
+ * tapped; the phone's own choice stands in only until the server has
+ * answered. The board figures are the live stream's, so they can run up to
+ * three minutes ahead of the 3-minute snapshot the server prices scans on.
  */
 export function goldRateBase(
   gold: GoldRatesResponse,

@@ -115,8 +115,8 @@ export default function DashboardMatricesScreen() {
   const [openMenu, setOpenMenu] = useState<'bullion' | 'karat' | null>(null);
   // The houses to choose from: the two on the live feed, plus the shop's own.
   const [bullion, setBullion] = useState<BullionSources | null>(null);
-  // The live boards behind the cards. Polling is shared with Home, so opening
-  // this screen costs one request rather than a second feed.
+  // The live boards behind the cards. The stream connection is shared with
+  // Home, so opening this screen opens no second connection.
   const vendors = useBhawStore((state) => state.vendors);
   const bhawProvider = useBhawStore((state) => state.provider);
   const startBhawPolling = useBhawStore((state) => state.startPolling);

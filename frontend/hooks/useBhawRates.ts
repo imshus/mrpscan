@@ -45,9 +45,12 @@ export interface UseBhawRatesResult extends BhawRates {
 /**
  * Live cash/RTGS rates for the provider selected in Dashboard Settings.
  *
- * Polls the bhaw feed while the calling screen is mounted and keeps the
- * provider in step with the `bhaw_source_jmd` toggle, so Home and Gold Rate
- * Settings always show the same numbers.
+ * Keeps the shared live stream open while the calling screen is mounted and
+ * keeps the provider in step with the `bhaw_source_jmd` toggle, so Home and
+ * Gold Rate Settings always show the same numbers. Those are the live
+ * stream's; scans and invoices are priced by the server on its 3-minute
+ * snapshot with the same arithmetic, so a scan can differ from what these
+ * screens show by up to three minutes of market movement.
  */
 export function useBhawRates(input: UseBhawRatesInput): UseBhawRatesResult {
   const {

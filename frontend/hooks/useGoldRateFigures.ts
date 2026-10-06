@@ -26,7 +26,7 @@ export interface GoldRateFiguresResult {
  * they show the same numbers at the same moment.
  */
 export function useGoldRateFigures(gold: GoldRatesResponse | undefined): GoldRateFiguresResult {
-  // Keeps the followed house hydrated and the board feed polling.
+  // Keeps the followed house hydrated and the live board stream open.
   const bhaw = useBhawRates({ mcxBaseRate: gold?.mcxLiveRate ?? 0 });
   const vendors = useBhawStore((state) => state.vendors);
 
