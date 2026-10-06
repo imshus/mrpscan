@@ -90,14 +90,24 @@ export function normalizeVendor(raw: unknown): BhawVendor | null {
 }
 
 /**
- * One snapshot's houses, from its JSON text or the parsed value.
+ * One house in a snapshot, in the feed's order. `vendor` is null when the
+ * feed could not read that house this round (`ok: false`).
+ */
+export interface BhawSnapshotEntry {
+  source: string;
+  vendor: BhawVendor | null;
+}
+
+/**
+ * One snapshot's houses, from its JSON text or the parsed value, failed
+ * houses included (vendor null) so a reader can stand them on their last
+ * good board.
  *
  * Null when it is not a snapshot at all — not JSON, or neither an array nor
  * an object with a `sources` array (a heartbeat's {"type":"heartbeat"}) —
- * and the caller ignores it. A house the feed could not read this round
- * (`ok: false`) is left out; an empty array means none could be read.
+ * and the caller ignores it.
  */
-export function parseBhawPayload(raw: unknown): BhawVendor[] | null {
+export function readBhawSnapshot(raw: unknown): BhawSnapshotEntry[] | null {
   let payload = raw;
   if (typeof payload === 'string') {
     try {
@@ -116,8 +126,63 @@ export function parseBhawPayload(raw: unknown): BhawVendor[] | null {
   }
   if (!sources) return null;
 
-  return sources
-    .filter((entry) => !(entry && typeof entry === 'object' && (entry as { ok?: unknown }).ok === false))
-    .map(normalizeVendor)
+  const entries: BhawSnapshotEntry[] = [];
+  for (const entry of sources) {
+    if (entry && typeof entry === 'object' && (entry as { ok?: unknown }).ok === false) {
+      const source = (entry as { source?: unknown }).source;
+      if (typeof source === 'string' && source) entries.push({ source: source.toLowerCase(), vendor: null });
+      continue;
+    }
+    const vendor = normalizeVendor(entry);
+    if (vendor) entries.push({ source: vendor.source, vendor });
+  }
+  return entries;
+}
+
+/**
+ * One snapshot's houses as read this round: a house the feed could not read
+ * (`ok: false`) is left out, and an empty array means none could be read.
+ * Null when it is not a snapshot (see readBhawSnapshot).
+ */
+export function parseBhawPayload(raw: unknown): BhawVendor[] | null {
+  const entries = readBhawSnapshot(raw);
+  if (!entries) return null;
+  return entries
+    .map((entry) => entry.vendor)
     .filter((vendor): vendor is BhawVendor => vendor !== null);
+}
+
+/**
+ * Stands a house the feed could not read this round on its last good board.
+ *
+ * The live stream re-scrapes every house several times a second, and one
+ * failed scrape used to drop that house from the store until the next good
+ * one — Home's tiles blinked to a dash and pricing fell back. A failed house
+ * now keeps its last good board, in its place in the feed's order, while
+ * that board is under `holdMs` old; past that, or with no good board ever
+ * seen, it is left out as before. `now` is the caller's clock, in ms.
+ */
+export function createLastGoodKeeper(holdMs: number): {
+  apply: (entries: BhawSnapshotEntry[], now: number) => BhawVendor[];
+  clear: () => void;
+} {
+  const lastGood = new Map<string, { vendor: BhawVendor; at: number }>();
+  return {
+    apply(entries, now) {
+      const vendors: BhawVendor[] = [];
+      for (const { source, vendor } of entries) {
+        if (vendor) {
+          lastGood.set(source, { vendor, at: now });
+          vendors.push(vendor);
+          continue;
+        }
+        const kept = lastGood.get(source);
+        if (kept && now - kept.at < holdMs) vendors.push(kept.vendor);
+      }
+      return vendors;
+    },
+    clear() {
+      lastGood.clear();
+    },
+  };
 }

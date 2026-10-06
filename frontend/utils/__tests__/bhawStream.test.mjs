@@ -11,7 +11,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parseBhawPayload } from '../bhawPayload.ts';
+import { createLastGoodKeeper, parseBhawPayload, readBhawSnapshot } from '../bhawPayload.ts';
 import { createSseFrameParser, isSnapshotEvent } from '../sseFrames.ts';
 
 const SOURCE = {
@@ -151,4 +151,59 @@ test('frames + payload: a stream fed byte by byte yields only the snapshots', ()
   }
   assert.equal(snapshots.length, 2);
   assert.equal(snapshots[1][0].source, 'jmd_patil');
+});
+
+test('snapshot: failed houses stay in the feed order with a null vendor', () => {
+  const entries = readBhawSnapshot([
+    { ...SOURCE, source: 'JMD_PATIL' },
+    { ...SOURCE, source: 'Shri_Sai', ok: false, error: 'timeout' },
+    { ok: false, error: 'no source at all' },
+    { ...SOURCE, source: 'mega_bullion' },
+  ]);
+  assert.deepEqual(
+    entries.map((e) => [e.source, e.vendor === null]),
+    [
+      ['jmd_patil', false],
+      ['shri_sai', true],
+      ['mega_bullion', false],
+    ],
+  );
+  assert.equal(readBhawSnapshot('{"type":"heartbeat"}'), null);
+  // parseBhawPayload is the same read with the failed houses left out.
+  assert.deepEqual(
+    parseBhawPayload([{ ...SOURCE, ok: false }, SOURCE]),
+    readBhawSnapshot([SOURCE]).map((e) => e.vendor),
+  );
+});
+
+test('keeper: a house that fails one round keeps its last good board, in place', () => {
+  const keeper = createLastGoodKeeper(60_000);
+  const jmd = { ...SOURCE, cash_bhaw: -1356 };
+  const sai = { ...SOURCE, source: 'shri_sai', name: 'Shri Sai', cash_bhaw: -900 };
+  const first = keeper.apply(readBhawSnapshot([jmd, sai]), 1_000);
+  assert.deepEqual(first.map((v) => v.source), ['jmd_patil', 'shri_sai']);
+
+  // JMD fails the next round: its last good board stands, first as before.
+  const second = keeper.apply(readBhawSnapshot([{ ...jmd, ok: false }, { ...sai, cash_bhaw: -901 }]), 1_200);
+  assert.deepEqual(second.map((v) => [v.source, v.cashBhaw]), [
+    ['jmd_patil', -1356],
+    ['shri_sai', -901],
+  ]);
+
+  // Still failing past the hold: dropped, as a house with no good board is.
+  const third = keeper.apply(readBhawSnapshot([{ ...jmd, ok: false }, sai]), 61_000);
+  assert.deepEqual(third.map((v) => v.source), ['shri_sai']);
+
+  // Back with a good board: that one is used.
+  const fourth = keeper.apply(readBhawSnapshot([{ ...jmd, cash_bhaw: -1350 }, sai]), 61_500);
+  assert.equal(fourth[0].cashBhaw, -1350);
+});
+
+test('keeper: a house never seen good is left out; clear() forgets the boards', () => {
+  const keeper = createLastGoodKeeper(60_000);
+  assert.deepEqual(keeper.apply(readBhawSnapshot([{ ...SOURCE, ok: false }]), 0), []);
+  keeper.apply(readBhawSnapshot([SOURCE]), 10);
+  assert.equal(keeper.apply(readBhawSnapshot([{ ...SOURCE, ok: false }]), 20).length, 1);
+  keeper.clear();
+  assert.deepEqual(keeper.apply(readBhawSnapshot([{ ...SOURCE, ok: false }]), 30), []);
 });

@@ -5,11 +5,13 @@ import { create } from 'zustand';
 import {
   BHAW_LIVE_STREAM_URL,
   BHAW_PROVIDERS,
+  createLastGoodKeeper,
   feedMcxSell,
-  fetchBhawVendors,
-  parseBhawPayload,
+  fetchBhawSnapshot,
+  readBhawSnapshot,
   selectVendor,
   type BhawProvider,
+  type BhawSnapshotEntry,
   type BhawVendor,
 } from '@/utils/bhawApi';
 import { registerScopeResetCallback, scopedKey } from '@/utils/userScopedStorage';
@@ -25,11 +27,15 @@ import { openEventStream } from '@/utils/sseClient';
  * toggle (matricesStore `bhaw_source_jmd`) and pushed in via setProvider.
  *
  * The boards come off the live stream (BHAW_LIVE_STREAM_URL) over ONE
- * connection shared by every mounted screen: opened when the first screen
- * subscribes, closed when the last one leaves or the app goes to the
- * background, reopened when it comes back. The stream sends ~5 snapshots a
- * second; the store takes at most one a second, and only when a board
- * actually moved, so Home does not re-render on every tick.
+ * connection shared by the screens that show rates: opened when the first
+ * one comes into focus, closed a few seconds after the last one leaves
+ * focus (so going from Home to Gold Rate Settings and back does not reopen
+ * it) or at once when the app goes to the background, reopened when it
+ * comes back. The stream runs at ~20 KB a second while the market moves, so
+ * it is held only while a rate is on screen, not while Home merely sits
+ * under the scanner. It sends up to ~5 snapshots a second; the store takes
+ * at most one a second, and only when a board actually moved, so Home does
+ * not re-render on every tick.
  */
 
 /** Which house this account follows, remembered across cold starts. */
@@ -52,8 +58,9 @@ interface BhawState {
   /** One look at the stream, outside the shared connection (de-duped). */
   refresh: () => Promise<void>;
   /**
-   * Keeps the shared live connection open while a screen is mounted;
-   * returns the unsubscribe. (Named for the 30 s poll it replaced.)
+   * Keeps the shared live connection open while a rate screen is in focus
+   * (callers hold it from useFocusEffect); returns the release. (Named for
+   * the 30 s poll it replaced.)
    */
   startPolling: () => () => void;
 
@@ -69,17 +76,48 @@ interface BhawState {
 
 /** At most one store write a second; the latest snapshot in that second wins. */
 const WRITE_THROTTLE_MS = 1_000;
-/** The stream pings at least every 20 s; silence that long is a dead line. */
-const WATCHDOG_MS = 20_000;
+/**
+ * The stream sends a snapshot only when a board moves, and otherwise a
+ * ": ping" plus a heartbeat event every 20 s (gold-rate-tracker-aws
+ * local_server.py, PING_EVERY_SECONDS). With the market shut, the heartbeat
+ * is all that comes, so a 20 s watchdog raced it and reconnected every
+ * 20-60 s. This allows one missed heartbeat and network jitter; only
+ * silence past it is a dead line. (The backend's own reader of the feed
+ * waits 60 s.)
+ */
+const WATCHDOG_MS = 45_000;
 /** Reconnects wait 1, 2, 4, 8 s… capped here; a snapshot resets the count. */
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 15_000;
+/**
+ * How long the line stays open after the last rate screen leaves focus.
+ * Going back from Gold Rate Settings unmounts it before Home is focused
+ * again; this keeps that hand-over on the same connection.
+ */
+const RELEASE_GRACE_MS = 5_000;
+/**
+ * How long a house the feed could not read keeps its last good board
+ * before it is dropped (see createLastGoodKeeper).
+ */
+const KEEP_FAILED_HOUSE_MS = 60_000;
 
 const NO_PROVIDERS = 'Bhaw feed returned no providers';
+
+/**
+ * A clock that only moves forward. Date.now() follows the phone's wall
+ * clock, and a network-time correction or a hand-set date moving it back
+ * would stretch a throttle wait or a board's age by that much.
+ */
+function monotonicNow(): number {
+  return typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now();
+}
 
 // Module-level so concurrent screens share one connection, one set of
 // timers and one in-flight one-shot request.
 let subscribers = 0;
+let releaseTimer: ReturnType<typeof setTimeout> | null = null;
 let inFlight: Promise<void> | null = null;
 let closeStream: (() => void) | null = null;
 /** Bumped per connection, so a dropped connection's late callbacks are ignored. */
@@ -90,10 +128,18 @@ let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
 let writeTimer: ReturnType<typeof setTimeout> | null = null;
-let lastWriteAt = 0;
+/** On monotonicNow()'s clock; the first snapshot is written at once. */
+let lastWriteAt = Number.NEGATIVE_INFINITY;
 let pendingVendors: BhawVendor[] | null = null;
 /** The boards the store last wrote, as boardsSignature reads them. */
 let lastSignature = '';
+/** Every snapshot passes through here, stream and one-shot alike. */
+const lastGood = createLastGoodKeeper(KEEP_FAILED_HOUSE_MS);
+
+/** A snapshot's boards, a house that failed this round on its last good one. */
+function boardsOf(entries: BhawSnapshotEntry[]): BhawVendor[] {
+  return lastGood.apply(entries, monotonicNow());
+}
 
 export const useBhawStore = create<BhawState>()((set, get) => ({
   // Empty until the remembered choice is read (or the legacy toggle answers
@@ -129,7 +175,7 @@ export const useBhawStore = create<BhawState>()((set, get) => ({
     set({ isRefreshing: true });
     inFlight = (async () => {
       try {
-        applyVendors(await fetchBhawVendors());
+        applyVendors(boardsOf(await fetchBhawSnapshot()));
       } catch (err) {
         reportError(err);
       } finally {
@@ -143,11 +189,18 @@ export const useBhawStore = create<BhawState>()((set, get) => ({
   startPolling: () => {
     subscribers += 1;
     if (subscribers === 1) {
-      // Nothing listened while no screen did; read where the app is now.
-      inForeground = isForeground(AppState.currentState);
-      appStateSubscription?.remove();
-      appStateSubscription = AppState.addEventListener('change', onAppStateChange);
-      reconnectAttempt = 0;
+      if (releaseTimer) {
+        // Back within the grace: the line and its listener are still up.
+        clearTimeout(releaseTimer);
+        releaseTimer = null;
+      } else {
+        // Nothing listened while no screen did; read where the app is now.
+        inForeground = isForeground(AppState.currentState);
+        appStateSubscription?.remove();
+        appStateSubscription = AppState.addEventListener('change', onAppStateChange);
+        reconnectAttempt = 0;
+      }
+      // A no-op while the line is open; reopens one that dropped in the grace.
       connect();
     }
     let released = false;
@@ -156,9 +209,8 @@ export const useBhawStore = create<BhawState>()((set, get) => ({
       released = true;
       subscribers = Math.max(0, subscribers - 1);
       if (subscribers === 0) {
-        appStateSubscription?.remove();
-        appStateSubscription = null;
-        disconnect();
+        if (releaseTimer) clearTimeout(releaseTimer);
+        releaseTimer = setTimeout(releaseConnection, RELEASE_GRACE_MS);
       }
     };
   },
@@ -227,7 +279,7 @@ function flushPendingWrite(): void {
   const vendors = pendingVendors;
   pendingVendors = null;
   if (!vendors) return;
-  lastWriteAt = Date.now();
+  lastWriteAt = monotonicNow();
   applyVendors(vendors);
 }
 
@@ -235,7 +287,8 @@ function flushPendingWrite(): void {
 function queueWrite(vendors: BhawVendor[]): void {
   pendingVendors = vendors;
   if (writeTimer) return;
-  const wait = lastWriteAt + WRITE_THROTTLE_MS - Date.now();
+  // Never longer than one throttle period, whatever the clock did.
+  const wait = Math.min(WRITE_THROTTLE_MS, lastWriteAt + WRITE_THROTTLE_MS - monotonicNow());
   if (wait <= 0) flushPendingWrite();
   else writeTimer = setTimeout(flushPendingWrite, wait);
 }
@@ -281,10 +334,12 @@ function connect(): void {
       if (id !== connectionId) return;
       // Heartbeat events never get here; anything else that is not a
       // snapshot's shape is ignored rather than read as rates.
-      const vendors = parseBhawPayload(data);
-      if (vendors === null) return;
+      const entries = readBhawSnapshot(data);
+      if (entries === null) return;
       reconnectAttempt = 0;
-      queueWrite(vendors);
+      // Through the keeper on every snapshot, not only the ones written, so
+      // a house's last good board is the latest one the stream sent.
+      queueWrite(boardsOf(entries));
     },
     onError: (error) => {
       if (id !== connectionId) return;
@@ -300,6 +355,15 @@ function disconnect(): void {
   dropConnection();
   if (reconnectTimer) clearTimeout(reconnectTimer);
   reconnectTimer = null;
+}
+
+/** The grace after the last rate screen left focus is over: close up. */
+function releaseConnection(): void {
+  releaseTimer = null;
+  if (subscribers > 0) return;
+  appStateSubscription?.remove();
+  appStateSubscription = null;
+  disconnect();
 }
 
 function scheduleReconnect(): void {
@@ -328,6 +392,10 @@ function onAppStateChange(next: AppStateStatus): void {
   } else if (next === 'background' || next === 'inactive') {
     inForeground = false;
     disconnect();
+    // The monotonic clock may stand still while the phone sleeps, so a
+    // board from before it would look fresh; after a trip to the
+    // background a failed house waits for a good board again.
+    lastGood.clear();
   }
 }
 

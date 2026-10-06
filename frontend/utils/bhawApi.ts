@@ -1,8 +1,13 @@
-import { parseBhawPayload, type BhawVendor } from './bhawPayload';
+import { readBhawSnapshot, type BhawSnapshotEntry, type BhawVendor } from './bhawPayload';
 import { openEventStream } from './sseClient';
 
-export { normalizeVendor, parseBhawPayload } from './bhawPayload';
-export type { BhawRow, BhawVendor } from './bhawPayload';
+export {
+  createLastGoodKeeper,
+  normalizeVendor,
+  parseBhawPayload,
+  readBhawSnapshot,
+} from './bhawPayload';
+export type { BhawRow, BhawSnapshotEntry, BhawVendor } from './bhawPayload';
 
 /**
  * Live bhaw feed — the premium/discount each bullion house quotes over MCX.
@@ -35,10 +40,11 @@ export function hasLiveBhaw(vendor: BhawVendor | null): boolean {
 
 /**
  * One look at the live stream: opens it, resolves with the first snapshot
- * that carries a house, and closes it. Rejects when the stream fails or
- * nothing usable arrives within 8 s.
+ * that carries a house it could read, and closes it. Houses the feed could
+ * not read that round are in it with a null vendor (see readBhawSnapshot).
+ * Rejects when the stream fails or nothing usable arrives within 8 s.
  */
-export function fetchBhawVendors(): Promise<BhawVendor[]> {
+export function fetchBhawSnapshot(): Promise<BhawSnapshotEntry[]> {
   return new Promise((resolve, reject) => {
     let settled = false;
     let close: (() => void) | null = null;
@@ -55,13 +61,23 @@ export function fetchBhawVendors(): Promise<BhawVendor[]> {
     );
     close = openEventStream(BHAW_LIVE_STREAM_URL, {
       onMessage: (data) => {
-        const vendors = parseBhawPayload(data);
-        if (vendors && vendors.length > 0) finish(() => resolve(vendors));
+        const entries = readBhawSnapshot(data);
+        if (entries && entries.some((entry) => entry.vendor !== null)) {
+          finish(() => resolve(entries));
+        }
       },
       onError: (error) => finish(() => reject(error)),
     });
     if (settled) close();
   });
+}
+
+/** The same one look, as the houses read that round (failed ones left out). */
+export async function fetchBhawVendors(): Promise<BhawVendor[]> {
+  const entries = await fetchBhawSnapshot();
+  return entries
+    .map((entry) => entry.vendor)
+    .filter((vendor): vendor is BhawVendor => vendor !== null);
 }
 
 /** Picks one provider out of the feed by its `source` key. */

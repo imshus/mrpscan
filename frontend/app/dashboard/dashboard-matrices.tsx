@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -116,11 +116,12 @@ export default function DashboardMatricesScreen() {
   // The houses to choose from: the two on the live feed, plus the shop's own.
   const [bullion, setBullion] = useState<BullionSources | null>(null);
   // The live boards behind the cards. The stream connection is shared with
-  // Home, so opening this screen opens no second connection.
+  // Home, so opening this screen opens no second connection; it is held
+  // only while this screen is in focus.
   const vendors = useBhawStore((state) => state.vendors);
   const bhawProvider = useBhawStore((state) => state.provider);
   const startBhawPolling = useBhawStore((state) => state.startPolling);
-  useEffect(() => startBhawPolling(), [startBhawPolling]);
+  useFocusEffect(useCallback(() => startBhawPolling(), [startBhawPolling]));
   useEffect(() => {
     void useBhawStore.getState().hydrateProvider();
   }, []);

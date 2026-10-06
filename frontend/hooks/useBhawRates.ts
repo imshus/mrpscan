@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useFocusEffect } from 'expo-router';
 
 import { useBhawStore, providerFromToggle } from '@/store/bhawStore';
 import { useMatricesStore } from '@/store/matricesStore';
@@ -45,8 +46,10 @@ export interface UseBhawRatesResult extends BhawRates {
 /**
  * Live cash/RTGS rates for the provider selected in Dashboard Settings.
  *
- * Keeps the shared live stream open while the calling screen is mounted and
- * keeps the provider in step with the `bhaw_source_jmd` toggle, so Home and
+ * Keeps the shared live stream open while the calling screen is in focus
+ * (Home stays mounted under every screen pushed over it, so holding it while
+ * merely mounted kept ~20 KB/s flowing behind the scanner) and keeps the
+ * provider in step with the `bhaw_source_jmd` toggle, so Home and
  * Gold Rate Settings always show the same numbers. Those are the live
  * stream's; scans and invoices are priced by the server on its 3-minute
  * snapshot with the same arithmetic, so a scan can differ from what these
@@ -84,7 +87,7 @@ export function useBhawRates(input: UseBhawRatesInput): UseBhawRatesResult {
     });
   }, [hydrateProvider, useJmd, setProvider]);
 
-  useEffect(() => startPolling(), [startPolling]);
+  useFocusEffect(useCallback(() => startPolling(), [startPolling]));
 
   return useMemo(() => {
     const vendor = vendors.find((entry) => entry.source === provider) ?? null;
