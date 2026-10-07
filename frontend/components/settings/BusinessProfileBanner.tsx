@@ -6,11 +6,6 @@ import { Colors, Fonts, Surfaces } from '@/constants/theme';
 interface BusinessProfileBannerProps {
   businessName: string;
   secondaryText?: string;
-  /**
-   * A second line under secondaryText, in the same type. An employee's tile
-   * carries the shop's plan above and its credits here; the owner's has none.
-   */
-  detailText?: string;
   logoUri?: string | null;
   showChevron?: boolean;
   /**
@@ -24,7 +19,6 @@ interface BusinessProfileBannerProps {
 export function BusinessProfileBanner({
   businessName,
   secondaryText,
-  detailText,
   logoUri,
   showChevron = true,
   onEditPress,
@@ -50,11 +44,6 @@ export function BusinessProfileBanner({
         {secondaryText ? (
           <Text style={styles.profileMeta} numberOfLines={1}>
             {secondaryText}
-          </Text>
-        ) : null}
-        {detailText ? (
-          <Text style={styles.profileMeta} numberOfLines={1}>
-            {detailText}
           </Text>
         ) : null}
       </View>

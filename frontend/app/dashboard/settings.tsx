@@ -1,6 +1,5 @@
-import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useFocusEffect, useRouter, type Href } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { ChevronLeft, LogOut } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,8 +10,6 @@ import { Colors, Spacing } from '@/constants/theme';
 import { useSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useAuthStore } from '@/store/authStore';
 import { getBusinessProfile, formatProfileValue } from '@/utils/businessProfile';
-import { fetchSubscriptionSummary } from '@/utils/subscriptionApi';
-import { subscriptionTileLines, type SubscriptionSummary } from '@/utils/subscriptionSummary';
 
 /** Per-item icon accent colors matching the mockup's settings menu. */
 const ICON_ACCENTS: Record<string, { bg: string; color: string }> = {
@@ -30,43 +27,7 @@ export default function SettingsScreen() {
   const registration = useAuthStore((s) => s.registration);
   const logout = useAuthStore((s) => s.logout);
   const profile = getBusinessProfile(registration);
-  const { visibleMenuItems, isEmployee } = useSettingsAccess();
-
-  // An employee's tile states the shop's plan and credits. Fetched each time
-  // the screen comes into view; the last one received stays up meanwhile.
-  const [summary, setSummary] = useState<SubscriptionSummary | null>(null);
-  const [summaryFailed, setSummaryFailed] = useState(false);
-  useFocusEffect(
-    useCallback(() => {
-      if (!isEmployee) return undefined;
-      const controller = new AbortController();
-      let active = true;
-      fetchSubscriptionSummary({ signal: controller.signal })
-        .then((next) => {
-          if (!active) return;
-          setSummary(next);
-          setSummaryFailed(false);
-        })
-        .catch(() => {
-          if (active) setSummaryFailed(true);
-        });
-      return () => {
-        active = false;
-        controller.abort();
-      };
-    }, [isEmployee]),
-  );
-
-  const businessName = formatProfileValue(profile.businessName, 'Your Business');
-  const businessLine = profile.gstNumber
-    ? `GSTIN ${profile.gstNumber}`
-    : profile.businessType
-      ? profile.businessType
-      : registration.businessId
-        ? `Business ID: ${registration.businessId}`
-        : 'Registered Organization';
-  // Null once the first fetch has failed: the tile keeps its GSTIN line.
-  const employeeLines = isEmployee ? subscriptionTileLines(summary, summaryFailed) : null;
+  const { visibleMenuItems } = useSettingsAccess();
 
   const handleLogout = () => {
     // Employees, inventory, purity and wishlist are stored per account (see
@@ -94,19 +55,20 @@ export default function SettingsScreen() {
           </Pressable>
           <Text style={[screenStyles.pageTitle, styles.headerTitle]}>Settings</Text>
         </View>
-        {isEmployee ? (
-          // The owner's to open and edit; an employee's tile only reports.
+        <Pressable onPress={() => router.push('/dashboard/business-profile' as Href)}>
           <BusinessProfileBanner
-            businessName={businessName}
-            secondaryText={employeeLines ? employeeLines.plan : businessLine}
-            detailText={employeeLines?.credits}
-            showChevron={false}
+            businessName={formatProfileValue(profile.businessName, 'Your Business')}
+            secondaryText={
+              profile.gstNumber
+                ? `GSTIN ${profile.gstNumber}`
+                : profile.businessType
+                  ? profile.businessType
+                  : registration.businessId
+                    ? `Business ID: ${registration.businessId}`
+                    : 'Registered Organization'
+            }
           />
-        ) : (
-          <Pressable onPress={() => router.push('/dashboard/business-profile' as Href)}>
-            <BusinessProfileBanner businessName={businessName} secondaryText={businessLine} />
-          </Pressable>
-        )}
+        </Pressable>
 
         <View style={styles.menuList}>
           {visibleMenuItems.map((item) => {

@@ -9,7 +9,6 @@ import type {
 } from '@/types/subscription';
 import { apiRequest, ApiError } from '@/utils/apiClient';
 import { unwrapApiData } from '@/utils/apiResponse';
-import { toSubscriptionSummary, type SubscriptionSummary } from '@/utils/subscriptionSummary';
 
 /**
  * The balance a new scan must be above, at the shop's asking: one scan costs
@@ -175,25 +174,6 @@ export async function fetchSubscriptionOverview(): Promise<SubscriptionOverview>
     throw new Error(resolveApiMessage(response, unwrapped, 'Failed to load subscription overview.'));
   }
   return toOverview(unwrapped);
-}
-
-/**
- * The shop's plan and credit balance, for anyone signed in to the shop —
- * employees included, for whom /subscription/overview stays closed. Nothing
- * about payments comes with it.
- */
-export async function fetchSubscriptionSummary(
-  options: { signal?: AbortSignal } = {},
-): Promise<SubscriptionSummary> {
-  const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/subscription/summary', {
-    method: 'GET',
-    signal: options.signal,
-  });
-  const unwrapped = unwrapEnvelope(response);
-  if (!isSuccessfulResponse(response, unwrapped)) {
-    throw new Error(resolveApiMessage(response, unwrapped, 'Failed to load subscription summary.'));
-  }
-  return toSubscriptionSummary(unwrapped);
 }
 
 /**
