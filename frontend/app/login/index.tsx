@@ -21,6 +21,7 @@ import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { useAuthStore } from '@/store/authStore';
 import { fetchPhoneStatus, loginBusiness, sendLoginOtp, verifyLoginOtp } from '@/utils/authApi';
 import { REMEMBERED_PHONE_KEY } from '@/utils/clearAppState';
+import { classifyLoginFailure, EMPLOYEE_MPIN_NOT_SET_MESSAGE } from '@/utils/loginFailure';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 /** Seconds before a code can be sent again, as the mockup counts them. */
@@ -146,6 +147,8 @@ export default function BusinessLoginScreen() {
 
   const [mpin, setMpin] = useState(handedBackMpin);
   const [invalid, setInvalid] = useState(false);
+  // A refusal that is not a wrong MPIN, in words the person can act on.
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
 
@@ -190,6 +193,7 @@ export default function BusinessLoginScreen() {
       setOtpVerified(false);
       setMpin('');
       setInvalid(false);
+      setLoginError(null);
       setResendIn(RESEND_AFTER_SECONDS);
     } finally {
       setSending(false);
@@ -206,6 +210,7 @@ export default function BusinessLoginScreen() {
     setOtpVerified(false);
     setMpin('');
     setInvalid(false);
+    setLoginError(null);
   };
 
   const verifyCode = async (code: string) => {
@@ -250,21 +255,32 @@ export default function BusinessLoginScreen() {
     try {
       const result = await loginBusiness(loginPhone, { mpin: submittedMpin });
 
-      // The account exists but has no MPIN — everyone who registered before
-      // MPINs did. Send them to set one rather than showing them an error
-      // about a credential they were never given.
-      if (result.code === 'MPIN_NOT_SET') {
-        setMpin('');
-        router.push({
-          pathname: '/login/set-mpin',
-          params: { phone: loginPhone, mode: 'first' },
-        } as unknown as Href);
-        return;
-      }
-
       if (!result.success || !result.data) {
+        const failure = classifyLoginFailure(result.code);
         setMpin('');
-        setInvalid(true);
+
+        // The account exists but has no MPIN — everyone who registered before
+        // MPINs did. Send them to set one rather than showing them an error
+        // about a credential they were never given.
+        if (failure === 'owner-mpin-not-set') {
+          router.push({
+            pathname: '/login/set-mpin',
+            params: { phone: loginPhone, mode: 'first' },
+          } as unknown as Href);
+          return;
+        }
+
+        // An employee's MPIN is their owner's to set, never through the
+        // owner's set-MPIN screen: say who to ask, and stay here.
+        if (failure === 'employee-mpin-not-set') {
+          setLoginError(EMPLOYEE_MPIN_NOT_SET_MESSAGE);
+        } else if (failure === 'refused' && result.error) {
+          // A named refusal — a revoked employee, say — in the server's words.
+          setLoginError(result.error);
+        } else {
+          setLoginError(null);
+          setInvalid(true);
+        }
         triggerShake();
         return;
       }
@@ -275,6 +291,10 @@ export default function BusinessLoginScreen() {
         setRefreshToken(payload.refreshToken);
       }
 
+      // An employee signs in here too, with the number and MPIN their owner
+      // set. The session is theirs from this point: the dashboard loads
+      // their own record (GET /employees answers an employee with themself)
+      // and every permission gate reads it, matched by this phone number.
       const backendRole = payload.role;
       if (backendRole === 'EMP') {
         setUserRole('employee');
@@ -402,6 +422,7 @@ export default function BusinessLoginScreen() {
                   onChange={(next) => {
                     setMpin(next);
                     setInvalid(false);
+                    setLoginError(null);
                   }}
                   autoFocus
                   onComplete={(complete) => void handleLogin(complete)}
@@ -423,6 +444,7 @@ export default function BusinessLoginScreen() {
               </Reveal>
 
               {invalid ? <AuthErrorText center>Incorrect MPIN.</AuthErrorText> : null}
+              {loginError ? <AuthErrorText center>{loginError}</AuthErrorText> : null}
 
               <Reveal d={1}>
                 <AuthPrimaryButton
