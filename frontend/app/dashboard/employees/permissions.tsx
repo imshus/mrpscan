@@ -21,8 +21,17 @@ import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
 import { useEmployeeDraftStore } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import type { EmployeePermissionKey } from '@/types/employee';
-import type { MatrixKey } from '@/constants/dashboardMatrices';
-import { buildEmployeeDraftPayload, createEmployeeDraft, updateEmployeeApi } from '@/utils/employeeApi';
+import {
+  createEmployeeWithMpin,
+  EMPLOYEE_ERROR_CODES,
+  fetchEmployees,
+  updateEmployeeApi,
+} from '@/utils/employeeApi';
+import {
+  isMpinPairValid,
+  normalizeIndianPhone,
+  PHONE_TAKEN_MESSAGE,
+} from '@/utils/employeeCredentials';
 
 const ACCENT_GOLD = Colors.metalGold;
 
@@ -65,11 +74,18 @@ export default function EmployeePermissionsScreen() {
   const setPermissions = useEmployeeDraftStore((s) => s.setPermissions);
   const mode = useEmployeeDraftStore((s) => s.mode);
   const editEmployeeId = useEmployeeDraftStore((s) => s.editEmployeeId);
+  const credentials = useEmployeeDraftStore((s) => s.credentials);
+  const setTakenPhone = useEmployeeDraftStore((s) => s.setTakenPhone);
+  const resetDraft = useEmployeeDraftStore((s) => s.resetDraft);
   const updateEmployee = useEmployeeStore((s) => s.updateEmployee);
+  const setEmployees = useEmployeeStore((s) => s.setEmployees);
 
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // The number turned out to be someone's login after all (taken between the
+  // check on Add and this create): the way back to change it.
+  const [phoneTaken, setPhoneTaken] = useState(false);
   const [rateOptionError, setRateOptionError] = useState<string | null>(null);
 
   const toggle = (key: EmployeePermissionKey) => togglePermission(key);
@@ -97,7 +113,9 @@ export default function EmployeePermissionsScreen() {
   const rateOption = resolveRateOption();
 
   const handleContinue = async () => {
+    if (saving) return;
     setFormError(null);
+    setPhoneTaken(false);
 
     if (!rateOption) {
       setRateOptionError('Select a gold rate option before continuing.');
@@ -129,14 +147,51 @@ export default function EmployeePermissionsScreen() {
       return;
     }
 
+    // Adding: this Continue is the one create — the details from Add, the
+    // MPIN from Employee Credentials and the permissions on this screen, all
+    // in one call, so the employee's login carries them from the start.
+    if (!isMpinPairValid(credentials.mpin, credentials.confirmMpin)) {
+      // Only reachable if the draft was cleared under the flow; the MPIN is
+      // set on the screen before this one.
+      router.back();
+      return;
+    }
+
     setSaving(true);
     try {
-      const result = await createEmployeeDraft(buildEmployeeDraftPayload(draft));
+      const result = await createEmployeeWithMpin({
+        name: draft.fullName,
+        phone: draft.phone,
+        email: draft.email,
+        designation: draft.designation,
+        mpin: credentials.mpin,
+        confirmMpin: credentials.confirmMpin,
+        permissions,
+      });
+
       if (!result.success) {
-        setFormError(result.error ?? 'Failed to save employee draft.');
+        if (result.code === EMPLOYEE_ERROR_CODES.phoneTaken) {
+          // Nothing was saved. The draft stays as typed, so Add opens with
+          // the number marked and everything else still filled in.
+          setTakenPhone(normalizeIndianPhone(draft.phone));
+          setPhoneTaken(true);
+          setFormError(PHONE_TAKEN_MESSAGE);
+          return;
+        }
+        // TRIAL_REQUIRED_FOR_MORE_EMPLOYEES and anything else: the server's
+        // own words, as before.
+        setFormError(result.error);
         return;
       }
-      router.push('/dashboard/employees/create-password' as Href);
+
+      const listResult = await fetchEmployees();
+      if (listResult.success && listResult.data) {
+        setEmployees(listResult.data);
+      }
+
+      // The MPIN goes with the draft: nothing of it outlives the create.
+      resetDraft();
+      router.dismissTo('/dashboard/employees' as Href);
     } finally {
       setSaving(false);
     }
@@ -273,6 +328,16 @@ export default function EmployeePermissionsScreen() {
           </GradientView>
         </TouchableOpacity>
         {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
+        {phoneTaken ? (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => router.dismissTo('/dashboard/employees/add' as Href)}
+            style={styles.changeNumberBtn}
+            accessibilityRole="button"
+          >
+            <Text style={styles.changeNumberText}>Change phone number</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
 
       <BottomNav />
@@ -407,6 +472,21 @@ const styles = StyleSheet.create({
     color: Colors.brandDeep,
     marginTop: 12,
     textAlign: 'center',
+  },
+  changeNumberBtn: {
+    alignSelf: 'center',
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundAlt,
+  },
+  changeNumberText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.brandDeep,
   },
   radioGroup: {
     marginTop: 12,

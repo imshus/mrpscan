@@ -20,6 +20,13 @@ interface MpinInputProps {
   /** Called once the fourth digit is typed: move on, or submit. */
   onComplete?: (value: string) => void;
   label?: string;
+  /**
+   * Which eye stands for the hidden state. 'eye' (the default) shows the
+   * open eye while masked, as the sign-in screens always have. 'eye-off' is
+   * the mockup's own semantics — slashed while masked, open while shown —
+   * used by the owner's employee MPIN screens.
+   */
+  maskedIcon?: 'eye' | 'eye-off';
 }
 
 /**
@@ -35,7 +42,7 @@ interface MpinInputProps {
  * instead and the eye appeared to do nothing.
  */
 export const MpinInput = forwardRef<MpinInputHandle, MpinInputProps>(function MpinInput(
-  { value, onChange, error, autoFocus = false, onComplete, label },
+  { value, onChange, error, autoFocus = false, onComplete, label, maskedIcon = 'eye' },
   ref,
 ) {
   const inputRef = useRef<TextInput>(null);
@@ -115,7 +122,7 @@ export const MpinInput = forwardRef<MpinInputHandle, MpinInputProps>(function Mp
           accessibilityLabel={revealed ? 'Hide MPIN' : 'Show MPIN'}
           style={styles.eye}
         >
-          {revealed ? (
+          {revealed === (maskedIcon === 'eye') ? (
             <EyeOff size={20} color={Colors.textMuted} />
           ) : (
             <Eye size={20} color={Colors.textMuted} />

@@ -55,7 +55,8 @@ function linkAbortSignal(controller: AbortController, signal?: AbortSignal): () 
 
 const getResponseCache = new Map<string, unknown>();
 
-const SENSITIVE_LOG_KEY = /password|otp|token|secret|authorization/i;
+// mpin/confirmMpin travel in sign-in and employee bodies; never in the log.
+const SENSITIVE_LOG_KEY = /password|otp|token|secret|authorization|mpin/i;
 
 function redactSensitiveLogValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redactSensitiveLogValue);

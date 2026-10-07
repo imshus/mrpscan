@@ -20,7 +20,8 @@ import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
 import { useEmployeeDraftStore } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
-import { updateEmployeeApi } from '@/utils/employeeApi';
+import { checkEmployeePhone, EMPLOYEE_ERROR_CODES, updateEmployeeApi } from '@/utils/employeeApi';
+import { normalizeIndianPhone, PHONE_TAKEN_MESSAGE } from '@/utils/employeeCredentials';
 import { validateEmail, validatePhone } from '@/utils/validation';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
@@ -31,12 +32,24 @@ export default function AddEmployeeScreen() {
   const updateDraft = useEmployeeDraftStore((s) => s.updateDraft);
   const mode = useEmployeeDraftStore((s) => s.mode);
   const editEmployeeId = useEmployeeDraftStore((s) => s.editEmployeeId);
+  const takenPhone = useEmployeeDraftStore((s) => s.takenPhone);
+  const setTakenPhone = useEmployeeDraftStore((s) => s.setTakenPhone);
   const updateEmployee = useEmployeeStore((s) => s.updateEmployee);
 
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // "Already registered" follows the number, not the visit: it shows while
+  // the field still holds the number the server refused (here or on Set
+  // Permissions) and goes the moment it is changed.
+  const phoneError =
+    errors.phone ??
+    (takenPhone && normalizeIndianPhone(draft.phone) === takenPhone ? PHONE_TAKEN_MESSAGE : null);
 
   const handleContinue = async () => {
+    if (saving) return;
+    setFormError(null);
     const nextErrors = {
       fullName: !draft.fullName.trim() ? 'Full name is required' : null,
       phone: validatePhone(draft.phone),
@@ -57,6 +70,10 @@ export default function AddEmployeeScreen() {
         });
 
         if (!result.success) {
+          if (result.code === EMPLOYEE_ERROR_CODES.phoneTaken) {
+            setErrors({ ...nextErrors, phone: PHONE_TAKEN_MESSAGE });
+            return;
+          }
           Alert.alert('Error', result.error ?? 'Failed to update employee details');
           return;
         }
@@ -77,7 +94,27 @@ export default function AddEmployeeScreen() {
       return;
     }
 
-    router.push('/dashboard/employees/permissions' as Href);
+    // A number that is already anyone's login — an owner's, an admin's or
+    // another employee's — can never be saved, so it is refused here, before
+    // the owner sets an MPIN for it.
+    setSaving(true);
+    try {
+      const phone = normalizeIndianPhone(draft.phone);
+      const check = await checkEmployeePhone(phone);
+      if (!check.success) {
+        setFormError(check.error);
+        return;
+      }
+      if (!check.available) {
+        setTakenPhone(phone);
+        return;
+      }
+      setTakenPhone(null);
+    } finally {
+      setSaving(false);
+    }
+
+    router.push('/dashboard/employees/credentials' as Href);
   };
 
   return (
@@ -119,9 +156,9 @@ export default function AddEmployeeScreen() {
               }
               accessibilityLabel="Phone Number"
               keyboardType="phone-pad"
-              style={[styles.input, errors.phone ? styles.inputError : null]}
+              style={[styles.input, phoneError ? styles.inputError : null]}
             />
-            {errors.phone ? <Text style={styles.error}>{errors.phone}</Text> : null}
+            {phoneError ? <Text style={styles.error}>{phoneError}</Text> : null}
 
             <Text style={styles.label}>Email</Text>
             <TextInput
@@ -161,6 +198,7 @@ export default function AddEmployeeScreen() {
               )}
             </GradientView>
           </TouchableOpacity>
+          {formError ? <Text style={[styles.error, styles.formError]}>{formError}</Text> : null}
         </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
 
@@ -234,6 +272,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.brandDeep,
     marginTop: 6,
+  },
+  formError: {
+    marginTop: 12,
+    textAlign: 'center',
   },
   continueBtn: {
     height: Spacing.buttonHeight,

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
@@ -13,7 +13,8 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useSettingsAccess } from '@/hooks/useSettingsAccess';
 import { loadEmployeeIntoDraft, useEmployeeDraftStore } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
-import { updateEmployeeApi } from '@/utils/employeeApi';
+import { getEmployeeMpin, updateEmployeeApi } from '@/utils/employeeApi';
+import { formatPhoneForDisplay } from '@/utils/employeeCredentials';
 
 export default function EmployeeDetailScreen() {
   const router = useRouter();
@@ -28,6 +29,23 @@ export default function EmployeeDetailScreen() {
 
   const [showDelete, setShowDelete] = useState(false);
   const [togglingRevoke, setTogglingRevoke] = useState(false);
+  // The four digits on the MPIN Manager row: undefined while loading, null
+  // when the server has no readable copy. Held in this screen only, and read
+  // again on every return, so Update MPIN's new value shows on the way back.
+  const [mpin, setMpin] = useState<string | null | undefined>(undefined);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!isOwner || !id) return undefined;
+      let active = true;
+      void getEmployeeMpin(String(id)).then((result) => {
+        if (active) setMpin(result.success ? result.mpin : null);
+      });
+      return () => {
+        active = false;
+      };
+    }, [id, isOwner]),
+  );
 
   if (!employee) {
     return (
@@ -37,18 +55,22 @@ export default function EmployeeDetailScreen() {
     );
   }
 
-  const startEdit = (target: 'profile' | 'password' | 'permissions') => {
+  const startEdit = (target: 'profile' | 'permissions') => {
     loadEmployeeIntoDraft(employee);
     setMode('edit', employee.id);
 
     if (target === 'profile') {
       router.push('/dashboard/employees/add' as Href);
-    } else if (target === 'password') {
-      router.push('/dashboard/employees/create-password' as Href);
     } else {
       router.push('/dashboard/employees/permissions' as Href);
     }
   };
+
+  const openUpdateMpin = () =>
+    router.push({
+      pathname: '/dashboard/employees/update-mpin',
+      params: { id: employee.id },
+    } as unknown as Href);
 
   const handleDelete = async () => {
     try {
@@ -99,17 +121,23 @@ export default function EmployeeDetailScreen() {
           rows={[
             { label: 'Name', value: employee.fullName },
             { label: 'Designation', value: employee.designation },
-            { label: 'Phone No.', value: `+91 ${employee.phone}` },
-            { label: 'Email', value: employee.email },
+            { label: 'Phone No.', value: formatPhoneForDisplay(employee.phone) },
+            { label: 'Email', value: employee.email || '—' },
           ]}
         />
 
-        <EmployeeInfoCard
-          title="PASSWORD MANAGER"
-          actionLabel="Employee Password"
-          actionValue={employee.password}
-          onEdit={isOwner ? () => startEdit('password') : undefined}
-        />
+        {/* The MPIN the employee signs in with, as the owner set it. Only the
+            owner can read or change it; an employee viewing their own record
+            does not get this card. */}
+        {isOwner ? (
+          <EmployeeInfoCard
+            title="MPIN MANAGER"
+            actionLabel="Employee MPIN"
+            actionValue={mpin === undefined ? '…' : mpin ?? '—'}
+            onActionEdit={openUpdateMpin}
+            actionEditLabel="Edit MPIN"
+          />
+        ) : null}
 
         <EmployeePermissionsPreview onEdit={isOwner ? () => startEdit('permissions') : undefined} />
 
