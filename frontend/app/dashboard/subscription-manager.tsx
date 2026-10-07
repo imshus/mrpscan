@@ -32,6 +32,8 @@ import {
   validateRazorpayPaymentResult,
   verifyPayment,
 } from '@/utils/subscriptionApi';
+// Shared with the employee's Settings tile, so both say the same countdown.
+import { trialTimeLabel } from '@/utils/subscriptionSummary';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import Constants from 'expo-constants';
 
@@ -94,12 +96,6 @@ function formatStatus(status: string): string {
     .replace(/_/g, ' ')
     .toLowerCase()
     .replace(/\b\w/g, (ch) => ch.toUpperCase());
-}
-
-function trialTimeLabel(days: number, hours: number): string {
-  if (days > 0) return `${days} day${days === 1 ? '' : 's'} remaining`;
-  if (hours > 0) return `${hours} hour${hours === 1 ? '' : 's'} remaining`;
-  return 'Less than 1 hour remaining';
 }
 
 export default function SubscriptionManagerScreen() {
