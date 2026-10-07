@@ -30,7 +30,9 @@ import { karatFigure } from '@/utils/goldRateFigures';
 import { formatKaratLabel } from '@/utils/goldRateUtils';
 import {
   fetchSubscriptionOverview,
+  fetchSubscriptionSummary,
   startFreeTrial,
+  type SubscriptionSummary,
 } from '@/utils/subscriptionApi';
 import { useMatricesStore } from '@/store/matricesStore';
 import { useSettingsAccess } from '@/hooks/useSettingsAccess';
@@ -160,6 +162,9 @@ function writeHomeSnapshot(snapshot: HomeSnapshot, keyAtFetchStart: string): voi
   AsyncStorage.setItem(keyAtFetchStart, JSON.stringify(snapshot)).catch(() => {});
 }
 
+/** The read-only tile has no buttons; its handlers are never called. */
+const noop = () => {};
+
 export default function DashboardScreen() {
   const router = useRouter();
   const authUserRole = useAuthStore((s) => s.userRole);
@@ -178,6 +183,8 @@ export default function DashboardScreen() {
   const goldRates = useMemo(() => gold?.rates ?? [], [gold]);
   const goldTaxSettings = gold?.taxSettings;
   const [subscriptionOverview, setSubscriptionOverview] = useState<SubscriptionOverview | null>(null);
+  // An employee's read-only view of the shop's plan, for the same tile.
+  const [employeeSubscription, setEmployeeSubscription] = useState<SubscriptionSummary | null>(null);
   const [trialActionLoading, setTrialActionLoading] = useState(false);
   useEffect(() => {
     let cancelled = false;
@@ -242,11 +249,21 @@ export default function DashboardScreen() {
             setSubscriptionOverview(subscription);
             return subscription;
           })
-        : Promise.resolve(null);
+        : authUserRole === 'employee'
+          ? fetchSubscriptionSummary().then((summary) => {
+              setEmployeeSubscription(summary);
+              return summary;
+            })
+          : Promise.resolve(null);
     const [goldResult, subscriptionResult] = await Promise.allSettled([goldPromise, subscriptionPromise]);
     if (subscriptionResult.status === 'rejected' && authUserRole === 'business') {
       subscriptionRef.current = null;
       setSubscriptionOverview(null);
+    }
+    // A server without the summary yet, or a failed read, leaves the space
+    // empty as before rather than showing a made-up plan.
+    if (subscriptionResult.status === 'rejected' && authUserRole === 'employee') {
+      setEmployeeSubscription(null);
     }
     if (goldResult.status === 'rejected' && showLoader && !hasDataRef.current) {
       const reason = goldResult.reason as { data?: unknown } | undefined;
@@ -349,10 +366,12 @@ export default function DashboardScreen() {
     router.push('/dashboard/purchase-license');
   }, [router]);
 
-  // Licences belong to the business, so an employee is never shown one. A
-  // business sees the tile in every licence state — a bought subscription
-  // included — because it is the home screen's only route to that page.
+  // A business sees the tile in every licence state — a bought subscription
+  // included — because it is the home screen's only route to that page. An
+  // employee sees the same tile, at the shop's asking, read-only: the plan and
+  // credits, with no way to start a trial or buy.
   const showTopBanner = authUserRole === 'business';
+  const showEmployeeBanner = authUserRole === 'employee' && employeeSubscription !== null;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -388,6 +407,17 @@ export default function DashboardScreen() {
                     trialExpiredAt={subscriptionOverview?.trialExpiredAt || null}
                     creditBalance={subscriptionOverview?.creditBalance}
                     loading={trialActionLoading}
+                  />
+                ) : showEmployeeBanner && employeeSubscription ? (
+                  <SubscriptionBanner
+                    readOnly
+                    licenseStatus={employeeSubscription.status}
+                    trialDaysRemaining={employeeSubscription.trialDaysRemaining || 0}
+                    trialEndDate={employeeSubscription.trialEndDate || null}
+                    trialExpiredAt={employeeSubscription.trialExpiredAt || null}
+                    creditBalance={employeeSubscription.creditBalance}
+                    onStartTrial={noop}
+                    onPurchase={noop}
                   />
                 ) : (
                   <View style={styles.topRowSpacer} />

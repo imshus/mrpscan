@@ -26,6 +26,11 @@ type Props = {
   trialExpiredAt?: string | null;
   creditBalance?: number;
   loading?: boolean;
+  /**
+   * An employee's view of the shop's plan: the same tile, showing the state
+   * only. Starting a trial or buying a licence is the owner's, so no button.
+   */
+  readOnly?: boolean;
 };
 
 /**
@@ -68,6 +73,7 @@ export function SubscriptionBanner({
   trialExpiredAt,
   creditBalance,
   loading = false,
+  readOnly = false,
 }: Props) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const liftAnim = useRef(new Animated.Value(8)).current;
@@ -105,9 +111,9 @@ export function SubscriptionBanner({
   const headline = useMemo(() => {
     if (hasLicence) return 'Your subscription is active';
     if (trialEnded) return 'Free trial ended';
-    if (showTrialOnboarding) return 'Start your free trial';
+    if (showTrialOnboarding) return readOnly ? 'Free trial not started' : 'Start your free trial';
     return buildTrialSentence(trialDaysLeft(trialEndDate, trialDaysRemaining));
-  }, [hasLicence, showTrialOnboarding, trialDaysRemaining, trialEndDate, trialEnded]);
+  }, [hasLicence, readOnly, showTrialOnboarding, trialDaysRemaining, trialEndDate, trialEnded]);
 
   const actionLabel = showTrialOnboarding ? 'Start Free Trial →' : 'Purchase License →';
   const handlePress = showTrialOnboarding ? onStartTrial : onPurchase;
@@ -122,6 +128,7 @@ export function SubscriptionBanner({
         : null;
     }
     if (trialEnded) return null;
+    if (showTrialOnboarding && readOnly) return null;
     if (showTrialOnboarding) {
       const days = Math.max(1, Math.round(Number(trialDays || 7)));
       return `${days} day${days === 1 ? '' : 's'} free`;
@@ -131,6 +138,7 @@ export function SubscriptionBanner({
   }, [
     creditBalance,
     hasLicence,
+    readOnly,
     showTrialOnboarding,
     trialDays,
     trialDaysRemaining,
@@ -162,7 +170,7 @@ export function SubscriptionBanner({
         ) : null}
         {/* Nothing is left to buy or manage once a licence is held, so the
             tile reports the balance and offers no way through to a page. */}
-        {hasLicence ? null : (
+        {hasLicence || readOnly ? null : (
           <Pressable disabled={loading} onPress={handlePress} style={styles.cta}>
             <Text style={styles.ctaText}>{loading ? 'Please wait…' : actionLabel}</Text>
           </Pressable>
