@@ -236,12 +236,21 @@ export const useBhawStore = create<BhawState>()((set, get) => ({
 
 /**
  * What a write would change on screen: each house's key, board lines and
- * bhaw. The feed's timestamp moves on every tick and is left out, so a
- * snapshot that only re-dates the same boards is not written.
+ * bhaw — the premium rates are built on and the feed's own figure the
+ * Dashboard Settings card prints. The feed's timestamp moves on every tick
+ * and is left out, so a snapshot that only re-dates the same boards is not
+ * written.
  */
 function boardsSignature(vendors: BhawVendor[]): string {
   return JSON.stringify(
-    vendors.map((v) => [v.source, v.rows.map((r) => [r.label, r.buy, r.sell]), v.cashBhaw, v.rtgsBhaw]),
+    vendors.map((v) => [
+      v.source,
+      v.rows.map((r) => [r.label, r.buy, r.sell]),
+      v.cashBhaw,
+      v.rtgsBhaw,
+      v.boardCashBhaw,
+      v.boardRtgsBhaw,
+    ]),
   );
 }
 

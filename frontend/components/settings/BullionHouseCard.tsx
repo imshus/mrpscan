@@ -37,6 +37,9 @@ const rupees = (value: number | null): string =>
  * price down the other, and the badla bhaw underneath — rather than asking
  * them to trust a name in a list. A house that has not published yet shows
  * dashes, which is the honest answer and also the reason not to pick it.
+ * The badla bhaw is the feed's own figure (side sell − MCX buy), as the
+ * jmd.mrpscan.com page prints it — not the premium over MCX sell that the
+ * rates are built on, which is lower by the house's MCX spread.
  */
 export function BullionHouseCard({ name, vendor, selected, onSelect }: BullionHouseCardProps) {
   const updated = updatedAtLabel(vendor?.updatedAt ?? '');
@@ -89,11 +92,11 @@ export function BullionHouseCard({ name, vendor, selected, onSelect }: BullionHo
         <View style={styles.bhawRow}>
           <View style={styles.bhawCell}>
             <Text style={styles.bhawLabel}>Retail</Text>
-            <Text style={styles.bhawValue}>{formatBhaw(vendor?.cashBhaw)}</Text>
+            <Text style={styles.bhawValue}>{formatBhaw(vendor?.boardCashBhaw)}</Text>
           </View>
           <View style={styles.bhawCell}>
             <Text style={styles.bhawLabel}>RTGS</Text>
-            <Text style={styles.bhawValue}>{formatBhaw(vendor?.rtgsBhaw)}</Text>
+            <Text style={styles.bhawValue}>{formatBhaw(vendor?.boardRtgsBhaw)}</Text>
           </View>
         </View>
       </View>

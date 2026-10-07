@@ -15,6 +15,14 @@
  * Callers pick the house the business selected by `source`, never by array
  * position. Figures may arrive as numeric strings ("-3200"), hence the
  * coercion below.
+ *
+ * The feed's cash_bhaw / rtgs_bhaw are its "Badla Bhaw": the side's sell
+ * less the MCX *buy* (gold-rate-tracker lambda_function.py, diff1/diff2).
+ * The houses price Cash and RTGS as their MCX *sell* plus a fixed premium,
+ * and the app builds those rates the same way (MCX sell + bhaw), so adding
+ * the feed's figure ran every rate high by the house's MCX spread. The bhaw
+ * the app prices on is the premium over the MCX sell off the same board;
+ * the feed's own figure is kept beside it for the card that prints it.
  */
 
 /** One line of a house's published board: "99.50 Gold Cash", sell 150400. */
@@ -29,7 +37,9 @@ export interface BhawVendor {
   source: string;
   name: string;
   /**
-   * Premium (+) or discount (−) over MCX, in rupees.
+   * Premium (+) or discount (−) over the house's own MCX *sell*, in rupees:
+   * the figure every rate is built on (MCX sell + this = the house's Cash
+   * or RTGS sell). See premiumOverMcxSell for how it is read.
    *
    * Null when the house has not published that side today — several quote
    * only MCX until their counter opens. Null is not zero: zero would mean
@@ -38,6 +48,14 @@ export interface BhawVendor {
    */
   cashBhaw: number | null;
   rtgsBhaw: number | null;
+  /**
+   * The feed's Badla Bhaw as published (cash_bhaw / rtgs_bhaw: the side's
+   * sell less the MCX *buy*), for printing only — the Dashboard Settings
+   * card shows it so it matches the jmd.mrpscan.com page. Never price on
+   * it: it runs above the premium by the house's MCX spread.
+   */
+  boardCashBhaw: number | null;
+  boardRtgsBhaw: number | null;
   /** The house's own board, shown on the Dashboard Settings card. */
   rows: BhawRow[];
   updatedAt: string;
@@ -53,13 +71,49 @@ function toNumber(value: unknown): number | null {
   return null;
 }
 
+const MCX_LINE = /gold\s*future\s*mcx/i;
+const CASH_LINE = /gold\s*cash/i;
+const RTGS_LINE = /gold\s*rtgs/i;
+
+/**
+ * A price off one board line, or null. A price of zero or less is no price
+ * — the same rule as houseMcxSell in utils/bhawApi.ts — so a blank line can
+ * never turn into a premium the size of the rate itself.
+ */
+function linePrice(rows: BhawRow[], label: RegExp, side: 'buy' | 'sell'): number | null {
+  const line = rows.find((entry) => label.test(entry.label));
+  const value = line ? line[side] : null;
+  return value !== null && value > 0 ? value : null;
+}
+
+/**
+ * One side's premium over the house's MCX sell, off one board:
+ *
+ *   1. the side's sell less the MCX sell, when the board carries both;
+ *   2. else the feed's bhaw less the MCX spread (sell − buy), when it
+ *      carries that bhaw and both MCX prices — the same figure, as the
+ *      feed's bhaw is the side's sell less the MCX buy;
+ *   3. else the feed's bhaw as given — an older feed that publishes only
+ *      the bhaw — or null when it has none.
+ */
+export function premiumOverMcxSell(
+  sideSell: number | null,
+  mcxBuy: number | null,
+  mcxSell: number | null,
+  boardBhaw: number | null,
+): number | null {
+  if (sideSell !== null && mcxSell !== null) return sideSell - mcxSell;
+  if (boardBhaw !== null && mcxBuy !== null && mcxSell !== null) return boardBhaw - (mcxSell - mcxBuy);
+  return boardBhaw;
+}
+
 export function normalizeVendor(raw: unknown): BhawVendor | null {
   if (!raw || typeof raw !== 'object') return null;
   const row = raw as Record<string, unknown>;
 
   const source = typeof row.source === 'string' ? row.source.toLowerCase() : '';
-  const cashBhaw = toNumber(row.cash_bhaw);
-  const rtgsBhaw = toNumber(row.rtgs_bhaw);
+  const boardCashBhaw = toNumber(row.cash_bhaw);
+  const boardRtgsBhaw = toNumber(row.rtgs_bhaw);
 
   // Only a house with no identity at all is dropped. One that has not
   // published its bhaw yet is kept, with nulls: Dashboard Settings lists
@@ -79,12 +133,17 @@ export function normalizeVendor(raw: unknown): BhawVendor | null {
         .filter((entry) => entry.label)
     : [];
 
+  const mcxBuy = linePrice(rows, MCX_LINE, 'buy');
+  const mcxSell = linePrice(rows, MCX_LINE, 'sell');
+
   return {
     source,
     name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : source,
     rows,
-    cashBhaw,
-    rtgsBhaw,
+    cashBhaw: premiumOverMcxSell(linePrice(rows, CASH_LINE, 'sell'), mcxBuy, mcxSell, boardCashBhaw),
+    rtgsBhaw: premiumOverMcxSell(linePrice(rows, RTGS_LINE, 'sell'), mcxBuy, mcxSell, boardRtgsBhaw),
+    boardCashBhaw,
+    boardRtgsBhaw,
     updatedAt: typeof row.timestamp === 'string' ? row.timestamp : '',
   };
 }
