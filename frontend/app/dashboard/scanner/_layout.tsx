@@ -2,15 +2,18 @@ import { Stack } from 'expo-router';
 
 const scannerScreenOptions = { headerShown: false, animation: 'slide_from_right' } as const;
 const scannerIndexOptions = { animation: 'fade' } as const;
+// Capture -> processing -> review is one scan moving along, not a new page
+// each time: a fade lands sooner and reads as the same place changing.
+const scannerScanStepOptions = { animation: 'fade' } as const;
 
 export default function ScannerLayout() {
   return (
     <Stack screenOptions={scannerScreenOptions}>
       <Stack.Screen name="index" options={scannerIndexOptions} />
       <Stack.Screen name="barcode" />
-      <Stack.Screen name="processing" />
+      <Stack.Screen name="processing" options={scannerScanStepOptions} />
       <Stack.Screen name="undetected-abbreviation" />
-      <Stack.Screen name="review-results" />
+      <Stack.Screen name="review-results" options={scannerScanStepOptions} />
       <Stack.Screen name="manual-entry" />
       <Stack.Screen name="product-extraction" />
       <Stack.Screen name="data-mapping" />

@@ -90,6 +90,11 @@ interface ScannerScreenLayoutProps {
   shutterLabel?: string;
   /** The shutter is the red pill on the first side, cream once a side is held. */
   shutterTone?: 'primary' | 'secondary';
+  /**
+   * The camera is still answering the last press: the shutter is dimmed and
+   * ignores taps until it has, so one press is one photo.
+   */
+  shutterBusy?: boolean;
   /** Gallery button beside the frame; shown when there is nothing to discard. */
   onUploadPress?: () => void;
   /** Discard button beside the frame, which takes the scan back to its start. */
@@ -136,6 +141,7 @@ export function ScannerScreenLayout({
   onShutterPress,
   shutterLabel = 'Click',
   shutterTone = 'primary',
+  shutterBusy = false,
   onUploadPress,
   onDeletePress,
   onCalculatePress,
@@ -356,13 +362,30 @@ export function ScannerScreenLayout({
               ) : null}
 
               <View style={[styles.controls, { top: frameBottom + 20 }]}>
-                <Pressable onPress={onShutterPress} style={styles.actionSlot}>
+                <Pressable
+                  onPress={onShutterPress}
+                  disabled={shutterBusy}
+                  accessibilityState={{ busy: shutterBusy, disabled: shutterBusy }}
+                  style={styles.actionSlot}
+                >
                   {shutterTone === 'secondary' ? (
-                    <View style={[styles.actionButton, styles.uploadButton]}>
+                    <View
+                      style={[
+                        styles.actionButton,
+                        styles.uploadButton,
+                        shutterBusy && styles.actionButtonHeld,
+                      ]}
+                    >
                       <Text style={styles.uploadLabel}>{shutterLabel}</Text>
                     </View>
                   ) : (
-                    <View style={[styles.actionButton, styles.actionButtonSolid]}>
+                    <View
+                      style={[
+                        styles.actionButton,
+                        styles.actionButtonSolid,
+                        shutterBusy && styles.actionButtonHeld,
+                      ]}
+                    >
                       <CapScanIcon color={Colors.white} />
                       <Text style={styles.scanLabel}>{shutterLabel}</Text>
                     </View>

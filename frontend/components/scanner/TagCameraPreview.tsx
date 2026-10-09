@@ -162,29 +162,16 @@ async function cropToFrame(
 }
 
 /**
- * One press of the shutter, both ways it can be used.
+ * One press of the shutter, handed back the moment the camera has the photo.
  *
- * `framed` is the photo cut to the on-screen frame — what the shop lined up,
- * and what a capture always used to be. `full` is the whole photo, kept so
- * the tag finder can look through it and cut to the tag itself; when the
- * finder has nothing to say, `framed` is what gets used.
+ * `full` is the whole photo as the camera wrote it. `framed` is that photo
+ * cut to the on-screen frame — what the shop lined up, and what goes up — and
+ * it is still being cut when the press answers: the side is held at once and
+ * the cut lands behind it. Everything that needs the framed file awaits it.
  */
 export type TagCapture = {
-  framed: string;
   full: string;
-  /**
-   * The finder's small copy of `full`, already being made — it starts the
-   * moment the photo exists, alongside the frame crop, so the finder's
-   * upload can leave the instant the side is confirmed. Null when nothing
-   * was started (the web fallback).
-   */
-  detection: Promise<string> | null;
-  /**
-   * `full` with its real pixel size, when the framing established one — the
-   * finder cuts from it directly. Null means the finder must find out the
-   * size for itself.
-   */
-  upright: UprightImage | null;
+  framed: Promise<string>;
 };
 
 export type TagCameraPreviewRef = {
@@ -235,16 +222,14 @@ export const TagCameraPreview = forwardRef<TagCameraPreviewRef, TagCameraPreview
 
       const orientation = Number(photo.exif?.Orientation) || undefined;
 
-      // No finder runs behind a camera capture (the shop's asking), so no
-      // small copy is made for one: the capture is the framed photo alone.
-      const { uri: framed, upright } = await cropToFrame(
-        photo.uri,
-        photo.width,
-        photo.height,
-        orientation,
-        viewSize,
+      // The press answers now, with the cut to the frame still running: the
+      // shop is already lining up the next side while it lands. No finder
+      // runs behind a camera capture (the shop's asking), so the capture is
+      // the framed photo alone.
+      const framed = cropToFrame(photo.uri, photo.width, photo.height, orientation, viewSize).then(
+        (cropped) => cropped.uri,
       );
-      return { framed, full: upright?.uri ?? photo.uri, upright, detection: null };
+      return { full: photo.uri, framed };
     } catch {
       return null;
     }
