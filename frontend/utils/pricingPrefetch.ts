@@ -37,10 +37,14 @@ export function derivePricingInput(
   const { diamonds, colorstones } = parseStoneArraysFromStructuredData(structuredData ?? {}, scanData);
   const otherChargesTotal = computeOtherChargesTotal(scanData);
   const rawCustomPurity = scanData.customPurityPercent?.trim();
+  // The first number in each field, never below zero: weights, rates and
+  // percents are not negative, and the card's own figures read them the
+  // same way (a stray minus used to be dropped and flip the sign).
+  const figure = (raw: string | undefined | null) => Math.max(0, parseNumericValue(raw));
   const payload: CalculateMrpPayload = {
     jewelleryType: selectedType,
-    netWt: parseNumericValue(scanData.netWt) || 0,
-    grossWt: parseNumericValue(scanData.grossWt) || 0,
+    netWt: figure(scanData.netWt),
+    grossWt: figure(scanData.grossWt),
     purityKarat: resolvedKarat,
     labourChargeAmount: scanData.labourChargeAmount,
     labourChargeUnit: scanData.labourChargeUnit,
@@ -56,21 +60,21 @@ export function derivePricingInput(
     // Sent only when typed: an empty box means "the item's own figure", and
     // sending 0 instead would wipe wastage off the price.
     ...(scanData.wastagePercent?.trim()
-      ? { wastagePercent: parseNumericValue(scanData.wastagePercent) }
+      ? { wastagePercent: figure(scanData.wastagePercent) }
       : {}),
     diamonds: diamonds.map((d) => ({
-      weight: parseNumericValue(d.weight) || 0,
-      rate: parseNumericValue(d.rate) || 0,
-      discountPercent: parseNumericValue(d.discountPercent ?? '0') || 0,
+      weight: figure(d.weight),
+      rate: figure(d.rate),
+      discountPercent: figure(d.discountPercent ?? '0'),
     })),
     colorstones: colorstones.map((c) => ({
-      weight: parseNumericValue(c.weight) || 0,
-      rate: parseNumericValue(c.rate) || 0,
+      weight: figure(c.weight),
+      rate: figure(c.rate),
     })),
   };
 
   if (rawCustomPurity) {
-    payload.customPurityPercent = parseNumericValue(rawCustomPurity);
+    payload.customPurityPercent = figure(rawCustomPurity);
   }
 
   return { diamonds, colorstones, payload, resolvedKarat };
@@ -79,6 +83,15 @@ export function derivePricingInput(
 interface PrefetchEntry {
   payloadKey: string;
   promise: Promise<CalculateMrpResponse>;
+  /** The answer, once it has landed — read synchronously by the card. */
+  settled?: CalculateMrpResponse;
+}
+
+/** A prefetched first calculation handed to the pricing hook. */
+export interface PrefetchedPricing {
+  promise: Promise<CalculateMrpResponse>;
+  /** Already answered: the card shows it at once, with nothing before it. */
+  settled?: CalculateMrpResponse;
 }
 
 /** One in-flight first calculation per scan; old scans fall off the end. */
@@ -99,10 +112,16 @@ export function prefetchFirstPricing(scanId: string, input: PricingInput): void 
   if (prefetched.get(scanId)?.payloadKey === payloadKey) return;
 
   const promise = calculateScanMrp(scanId, input.payload);
-  prefetched.set(scanId, { payloadKey, promise });
-  promise.catch(() => {
-    if (prefetched.get(scanId)?.promise === promise) prefetched.delete(scanId);
-  });
+  const entry: PrefetchEntry = { payloadKey, promise };
+  prefetched.set(scanId, entry);
+  promise.then(
+    (response) => {
+      entry.settled = response;
+    },
+    () => {
+      if (prefetched.get(scanId)?.promise === promise) prefetched.delete(scanId);
+    },
+  );
 
   while (prefetched.size > MAX_ENTRIES) {
     const oldest = prefetched.keys().next().value;
@@ -112,9 +131,9 @@ export function prefetchFirstPricing(scanId: string, input: PricingInput): void 
 }
 
 /**
- * The price the server computed inside the analysis itself. The hook shows
- * it the instant the card opens — no round trip at all — and then confirms
- * with its own request, which replaces it only if the figures differ.
+ * The price the server computed inside the analysis itself. The card shows
+ * it only while its own first price is still out (a slow or failed prefetch,
+ * or an edit before it landed); its own request replaces it.
  */
 const serverPricing = new Map<string, CalculateMrpResponse>();
 
@@ -141,13 +160,16 @@ export function takeServerPricing(scanId: string): CalculateMrpResponse | null {
 }
 
 /**
- * Resolves once a price for this scan is in hand — the server's from the
- * analysis, or the prefetched first calculation once it settles — so the
- * counter can hold its hand-off until the card has something to show.
+ * Resolves once the card's own first price for this scan is in hand — the
+ * prefetched first calculation, made from exactly the inputs the card sends —
+ * so the counter can hold its hand-off until the card has it to show. The
+ * price the server made inside the analysis is derived from the reading on
+ * the server's side and can differ from the card's (labour weight basis,
+ * tag labour, other charges, item code), so it no longer ends the wait; it
+ * is the fallback the card shows while its own price is still out.
  * Never rejects: a failed prefetch simply means the card prices itself.
  */
 export async function awaitPricingReady(scanId: string): Promise<void> {
-  if (serverPricing.has(scanId)) return;
   const entry = prefetched.get(scanId);
   if (!entry) return;
   await entry.promise.then(
@@ -164,9 +186,9 @@ export async function awaitPricingReady(scanId: string): Promise<void> {
 export function takePrefetchedPricing(
   scanId: string,
   payload: CalculateMrpPayload,
-): Promise<CalculateMrpResponse> | null {
+): PrefetchedPricing | null {
   const entry = prefetched.get(scanId);
   if (!entry || entry.payloadKey !== payloadKeyFor(payload)) return null;
   prefetched.delete(scanId);
-  return entry.promise;
+  return { promise: entry.promise, settled: entry.settled };
 }

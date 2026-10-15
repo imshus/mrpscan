@@ -31,22 +31,25 @@ import { findItemOnTag, loadItemCatalogue } from '@/utils/itemCatalogue';
 import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
 import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
 
-// The counter runs 0 to 99 over six seconds, showing every digit through
-// five labelled sections of twenty digits each, pinned to the wall clock: the
-// digit due at any moment comes from elapsed time, so a busy JS thread can
-// delay a frame but never stretch the count — it catches up a couple of
-// digits per frame instead. Everything happens behind the count: upload, the
-// reading, and the first MRP calculation. The last digit — and the hand-off
-// to the review card — waits for BOTH the six seconds and the reading with
-// its price, so the card always opens complete: a reading that outlives the
-// window holds the counter at 99 until it lands, and one that finishes early
-// still lets the count run its full six seconds.
+// The counter climbs toward 99 at a six-second pace, showing every digit
+// through five labelled sections of twenty digits each, pinned to the wall
+// clock: the digit due at any moment comes from elapsed time, so a busy JS
+// thread can delay a frame but never stretch the count — it catches up a
+// couple of digits per frame instead. Everything happens behind the count:
+// upload, the reading, and the first MRP calculation. The hand-off to the
+// review card waits for the reading with its price and nothing else: the
+// moment both are stored the count sprints to 100 and the card opens. There
+// is no minimum window any more — a reading that is already done (the photo
+// started its read as it landed on the server) opens the card at once, and
+// one that outlives the pace holds the counter at 99 until it lands.
 // Billing is finalized server-side in the background and never blocks this.
 const TICK_MS = 16;
 /** How many digits one frame may advance while catching up to the clock. */
 const MAX_DIGITS_PER_TICK = 2;
-/** The counter's window: six seconds to 99; 100 lands when the reading and price are in hand. */
-const EARLY_REVIEW_MS = 6000;
+/** The counter's pace while it waits: 99 at six seconds. It gates nothing. */
+const COUNTER_PACE_MS = 6000;
+/** How long the count takes to run out to 100 once the reading and price are in hand. */
+const SPRINT_MS = 200;
 /** How long to wait for the first price after the reading before opening the card regardless. */
 const PRICE_WAIT_CAP_MS = 4000;
 
@@ -83,14 +86,11 @@ export default function ProcessingScreen() {
   const progressRef = useRef(0);
   const analysisRunKeyRef = useRef<string | null>(null);
   const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // The review screen opens after EARLY_REVIEW_MS whether or not the analysis
-  // has returned; these track whether that hand-off already happened.
+  // Whether the hand-off to the review card already happened.
   const navigatedRef = useRef(false);
-  const earlyNavRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The two conditions the hand-off waits for: the six seconds have run, and
-  // the reading with its price is stored. Whichever lands second opens the card.
-  const windowElapsedRef = useRef(false);
-  const analysisReadyRef = useRef(false);
+  // When the reading and its price were in hand, and the digit the count
+  // sprints to 100 from; null while still waiting.
+  const sprintRef = useRef<{ startedAt: number; from: number } | null>(null);
   // Wall-clock marks for the timings shown on the review screen.
   const scanStartRef = useRef(0);
   const uploadDoneRef = useRef(0);
@@ -144,7 +144,6 @@ export default function ProcessingScreen() {
   useEffect(
     () => () => {
       if (tickerRef.current) clearInterval(tickerRef.current);
-      if (earlyNavRef.current) clearTimeout(earlyNavRef.current);
     },
     [],
   );
@@ -175,39 +174,45 @@ export default function ProcessingScreen() {
     navigatedRef.current = false;
     setAnalysisPending(true);
 
-    // The hand-off fires when both the window and the reading are done —
-    // never before either — so the review card opens with values and price.
-    windowElapsedRef.current = false;
-    analysisReadyRef.current = false;
-    const finishIfReady = () => {
-      if (!windowElapsedRef.current || !analysisReadyRef.current) return;
+    // The hand-off fires once the reading with its price is stored — never
+    // before, so the review card opens with values and price, and no later
+    // than the short sprint of the count to 100.
+    sprintRef.current = null;
+    const handOff = () => {
       if (navigatedRef.current) return;
-      if (useScannerStore.getState().scanId !== scanId) return;
-      navigatedRef.current = true;
       if (tickerRef.current) {
         clearInterval(tickerRef.current);
         tickerRef.current = null;
       }
+      if (useScannerStore.getState().scanId !== scanId) return;
+      navigatedRef.current = true;
       applyDigit(100);
       router.replace('/dashboard/scanner/review-results' as Href);
     };
-    if (earlyNavRef.current) clearTimeout(earlyNavRef.current);
-    earlyNavRef.current = setTimeout(() => {
-      earlyNavRef.current = null;
-      windowElapsedRef.current = true;
-      finishIfReady();
-    }, EARLY_REVIEW_MS);
+    const finishWhenReady = () => {
+      if (navigatedRef.current || sprintRef.current) return;
+      if (useScannerStore.getState().scanId !== scanId) return;
+      sprintRef.current = { startedAt: Date.now(), from: progressRef.current };
+    };
 
     // The counter: the digit due now comes from elapsed wall-clock time, and
     // each frame advances at most a couple of digits toward it — so the count
-    // is visible digit by digit yet always finishes on schedule, even when
-    // uploads keep the JS thread busy. Section labels switch every twenty
-    // digits. The last digit lands when the review card opens or the
-    // analysis returns.
+    // is visible digit by digit even when uploads keep the JS thread busy.
+    // Section labels switch every twenty digits. Once the reading and its
+    // price are in hand the count runs out to 100 over SPRINT_MS, and the
+    // review card opens on the last digit.
     if (tickerRef.current) clearInterval(tickerRef.current);
     const ticker = setInterval(() => {
+      const sprint = sprintRef.current;
+      if (sprint) {
+        const share = Math.min(1, (Date.now() - sprint.startedAt) / SPRINT_MS);
+        const digit = Math.min(100, sprint.from + Math.ceil((100 - sprint.from) * share));
+        applyDigit(digit);
+        if (digit >= 100) handOff();
+        return;
+      }
       const elapsed = Date.now() - scanStartRef.current;
-      const due = Math.min(99, Math.floor((elapsed / EARLY_REVIEW_MS) * 100));
+      const due = Math.min(99, Math.floor((elapsed / COUNTER_PACE_MS) * 100));
       if (due > progressRef.current) {
         applyDigit(Math.min(due, progressRef.current + MAX_DIGITS_PER_TICK));
       }
@@ -401,13 +406,14 @@ export default function ProcessingScreen() {
       updateScanData(adjustedScanData);
       setAnalysisPending(false);
 
-      // The server priced the reading inside the analysis: hand that price to
-      // the card so it shows the instant the values do, with no round trip.
+      // The server priced the reading inside the analysis: kept as the
+      // stand-in the card shows if its own first price is slow to land.
       if (result.pricing) seedServerPricing(scanId, result.pricing);
-      // Also start the card's own first calculation now, while the counter
-      // is still running, so its confirmation is already in hand too.
-      // Derived exactly the way the pricing hook derives it, or the hook
-      // cannot claim this request as its own.
+      // Start the card's own first calculation now, while the counter is
+      // still running, so it is in hand when the card opens: the first price
+      // the card shows is then made from the card's own inputs. Derived
+      // exactly the way the pricing hook derives it, or the hook cannot claim
+      // this request as its own.
       {
         const state = useScannerStore.getState();
         prefetchFirstPricing(
@@ -431,23 +437,19 @@ export default function ProcessingScreen() {
       }
       console.info('[LOADER_PROGRESS]', { scanId, timestamp: Date.now(), stage: 'analysis_stored' });
 
-      // The price: already here when the server priced the reading inside
-      // the analysis; otherwise the first calculation just fired is waited
-      // for, capped so a slow rate lookup cannot hold the card hostage.
+      // The price: the card's own first calculation, just fired, is waited
+      // for — capped so a slow rate lookup cannot hold the card hostage (the
+      // server's price from the analysis then stands in until it lands).
       await Promise.race([
         awaitPricingReady(scanId),
         new Promise<void>((resolve) => setTimeout(resolve, PRICE_WAIT_CAP_MS)),
       ]);
-      analysisReadyRef.current = true;
-      finishIfReady();
+      finishWhenReady();
     } catch (error) {
       clearInterval(ticker);
       tickerRef.current = null;
+      sprintRef.current = null;
       analysisRunKeyRef.current = null;
-      if (earlyNavRef.current) {
-        clearTimeout(earlyNavRef.current);
-        earlyNavRef.current = null;
-      }
       setAnalysisPending(false);
       // Aborted by an account change: nothing to tell whoever signed in next.
       if (isRequestAbortedError(error)) return;

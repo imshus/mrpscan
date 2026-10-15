@@ -74,6 +74,10 @@ function buildPricingStateKey(pricing: FinalTabPricingResult): string {
     diamondAmount: pricing.diamondAmount,
     colorstoneAmount: pricing.colorstoneAmount,
     labourAmount: pricing.labourAmount,
+    wastageCode: pricing.wastageCode,
+    wastagePercent: pricing.wastagePercent,
+    wastageAmount: pricing.wastageAmount,
+    wastageWeightGrams: pricing.wastageWeightGrams,
     otherChargesAmount: pricing.otherChargesAmount,
     ultimateMrp: pricing.ultimateMrp,
     stoneRows: pricing.stoneRows,
@@ -89,6 +93,9 @@ export function useFinalTabPricing({
   const scanId = useScannerStore((s) => s.scanId);
   const mrpRefreshToken = useScannerStore((s) => s.mrpRefreshToken);
   const analysisPending = useScannerStore((s) => s.analysisPending);
+  // Sent with every request (derivePricingInput reads it from the store), so
+  // a change to it has to price again like any field.
+  const tagIdentifiers = useScannerStore((s) => s.tagIdentifiers);
   const [pricing, setPricing] = useState<FinalTabPricingResult>(defaultPricing);
 
   const lastRequestKeyRef = useRef<string | null>(null);
@@ -115,7 +122,15 @@ export function useFinalTabPricing({
         diamondRate: scanData.diamondRate,
         colorstoneWeight: scanData.colorstoneWeight,
         colorstoneRate: scanData.colorstoneRate,
+        // Wastage is priced from these: a typed percent, a picked wastage
+        // code (its percent), and the item the server looks the wastage up
+        // by. Left out, an edit to any of them never re-priced the card.
+        wastagePercent: scanData.wastagePercent,
+        wastageCode: scanData.wastageCode,
+        itemCode: scanData.itemCode,
+        sku: scanData.sku,
       },
+      tagIdentifiers,
       structuredData: {
         diamonds: structuredData?.diamonds ?? '',
         colorstones: structuredData?.colorstones ?? '',
@@ -146,6 +161,11 @@ export function useFinalTabPricing({
       scanData.diamondRate,
       scanData.colorstoneWeight,
       scanData.colorstoneRate,
+      scanData.wastagePercent,
+      scanData.wastageCode,
+      scanData.itemCode,
+      scanData.sku,
+      tagIdentifiers,
       structuredData?.diamonds,
       structuredData?.colorstones,
       structuredData?.packetCode,
@@ -183,30 +203,34 @@ export function useFinalTabPricing({
     const requestPricing = () => {
       const { diamonds, colorstones, payload, resolvedKarat } = calculationInput;
 
-      // The server priced the reading inside the analysis: show that the
-      // instant the card opens, with no request at all. The request below
-      // then confirms it and replaces it only if the figures differ.
-      if (isFirstRequestForScan) {
-        const seeded = takeServerPricing(scanId);
-        if (seeded) {
-          const seededPricing = toPricingResult(seeded);
-          setPricing((current) =>
-            buildPricingStateKey(current) === buildPricingStateKey(seededPricing) ? current : seededPricing,
-          );
-        }
-      }
-
       // The processing screen starts the first calculation while its counter
-      // runs; when the payloads match, that answer is already in hand here.
-      const prefetchedPromise = isFirstRequestForScan
+      // runs, from exactly these inputs; when the payloads match, that answer
+      // is normally in hand already and is the first price the card shows.
+      const prefetched = isFirstRequestForScan
         ? takePrefetchedPricing(scanId, payload)
         : null;
+
+      // The server also priced the reading inside the analysis, from its own
+      // derivation of the inputs, which can differ from the card's. It is
+      // shown only while the card's own price is still out.
+      if (isFirstRequestForScan) {
+        const seeded = takeServerPricing(scanId);
+        const first = prefetched?.settled ?? seeded;
+        if (first) {
+          const firstPricing = toPricingResult(first);
+          setPricing((current) =>
+            buildPricingStateKey(current) === buildPricingStateKey(firstPricing) ? current : firstPricing,
+          );
+        }
+        if (prefetched?.settled) return;
+      }
 
       function toPricingResult(res: CalculateMrpResponse): FinalTabPricingResult {
         const stoneBlocks = buildDisplayStoneBlocks(diamonds, colorstones);
         const stoneRows: StoneAmountRow[] = stoneBlocks.map(block => {
-            const wt = parseNumericValue(block.entry.weight) || 0;
-            const rt = parseNumericValue(block.entry.rate) || 0;
+            // As the request reads them (derivePricingInput): never below zero.
+            const wt = Math.max(0, parseNumericValue(block.entry.weight));
+            const rt = Math.max(0, parseNumericValue(block.entry.rate));
             const rowAmt =
               block.stoneType === 'diamond'
                 ? computeStoneAmountWithDiscount(
@@ -301,6 +325,7 @@ export function useFinalTabPricing({
           // read; an item without one sends nothing and the tile stays blank.
           wastageCode: res.breakdown.wastageCode || '',
           wastagePercent: Number(res.breakdown.wastagePercent) || 0,
+          wastageWeightGrams: Number(res.breakdown.wastageWeightGrams) || 0,
           wastageAmount: backendWastageAmount,
           wastageDisplay:
             backendWastageAmount > 0 ? formatIndianCurrency(backendWastageAmount) : '—',
@@ -311,7 +336,7 @@ export function useFinalTabPricing({
         };
       }
 
-      (prefetchedPromise ?? calculateScanMrp(scanId, payload))
+      (prefetched?.promise ?? calculateScanMrp(scanId, payload))
       .then((res: CalculateMrpResponse) => {
         if (!isMounted) return;
         const nextPricing = toPricingResult(res);
