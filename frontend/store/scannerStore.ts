@@ -8,6 +8,7 @@ import type {
   AbbreviationOption,
   ClarificationField,
   JewelleryType,
+  OtherChargeItem,
   ScanLoadingState,
   ScanItemData,
   ScanMode,
@@ -16,6 +17,11 @@ import type {
   UnknownField,
 } from '@/types/scanner';
 import type { FinalTabPricingResult } from '@/utils/scanPriceCalculation';
+
+export interface PreviewOtherCharges {
+  items: OtherChargeItem[];
+  remarks: string;
+}
 
 interface ScannerState {
   selectedType: JewelleryType;
@@ -43,7 +49,15 @@ interface ScannerState {
    * second answer to the same question.
    */
   previewPricing: FinalTabPricingResult | null;
-  setPreviewPricing: (pricing: FinalTabPricingResult | null) => void;
+  /**
+   * The other charges that pricing was made from, when they are not the
+   * current scan's — a wishlist item's own. Null means the current scan's.
+   */
+  previewOtherCharges: PreviewOtherCharges | null;
+  setPreviewPricing: (
+    pricing: FinalTabPricingResult | null,
+    otherCharges?: PreviewOtherCharges | null,
+  ) => void;
   bumpMrpRefresh: () => void;
   setSelectedType: (type: JewelleryType) => void;
   setScanMode: (mode: ScanMode) => void;
@@ -95,6 +109,7 @@ const initialSessionState = {
     message: 'Uploading Tags...',
   } as ScanLoadingState,
   previewPricing: null as FinalTabPricingResult | null,
+  previewOtherCharges: null as PreviewOtherCharges | null,
   analysisPending: false,
   fieldConfidence: {} as Record<string, number>,
 };
@@ -185,7 +200,8 @@ export const useScannerStore = create<ScannerState>((set) => ({
       ...initialSessionState,
     }),
   mrpRefreshToken: 0,
-  setPreviewPricing: (pricing) => set({ previewPricing: pricing }),
+  setPreviewPricing: (pricing, otherCharges = null) =>
+    set({ previewPricing: pricing, previewOtherCharges: otherCharges }),
   bumpMrpRefresh: () => set((state) => ({ mrpRefreshToken: Date.now() })),
 }));
 

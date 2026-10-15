@@ -74,11 +74,20 @@ export default function ScanResultsScreen() {
     : livePricing;
 
   // Hand these exact figures to the invoice, so the bill prints the price shown
-  // here instead of asking the server for a second opinion.
+  // here instead of asking the server for a second opinion. A wishlist item's
+  // price goes with its own other charges: the invoice used to bill the
+  // current scan's beside the item's prices.
   const setPreviewPricing = useScannerStore((state) => state.setPreviewPricing);
+  const snapshotChargeItems = isFromWishlist ? activeScanData.otherChargesItems : undefined;
+  const snapshotChargeRemarks = isFromWishlist ? activeScanData.otherChargesRemarks : undefined;
   useEffect(() => {
-    setPreviewPricing(activePricing);
-  }, [activePricing, setPreviewPricing]);
+    setPreviewPricing(
+      activePricing,
+      isFromWishlist
+        ? { items: snapshotChargeItems ?? [], remarks: snapshotChargeRemarks ?? '' }
+        : null,
+    );
+  }, [activePricing, isFromWishlist, snapshotChargeItems, snapshotChargeRemarks, setPreviewPricing]);
 
   const handleAddToWishlist = async () => {
     if (addingToWishlist) return;
@@ -159,7 +168,7 @@ export default function ScanResultsScreen() {
                 jewelleryType={activeSelectedType}
                 pricing={activePricing}
                 editable={false}
-                gstNote={demoResult?.gstNote ?? 'MRP = Gold + Stones + Labour + Other Charges'}
+                gstNote={demoResult?.gstNote ?? 'MRP = Gold + Stones + Labour + Wastage + Other Charges'}
               />
             </KeyboardAwareScrollView>
 

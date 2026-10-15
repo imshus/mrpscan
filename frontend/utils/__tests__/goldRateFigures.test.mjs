@@ -48,7 +48,8 @@ registerHooks({
 const { parseBhawPayload } = await import('@/utils/bhawPayload');
 const { houseMcxSell } = await import('@/utils/bhawApi');
 const { calculateBhawRates } = await import('@/utils/bhawCalculation');
-const { computeGoldRateFigures, goldRateBase, goldRateChanges } = await import('@/utils/goldRateFigures');
+const { computeGoldRateFigures, goldRateBase, goldRateChanges, karatFigure } = await import('@/utils/goldRateFigures');
+const { formatIndianCurrency } = await import('@/utils/scanPriceCalculation');
 
 // One live frame (jmd.mrpscan.com/api/stream, 7 Oct 2026, 10:09:46), the
 // three houses as sent, all_rows left out.
@@ -179,4 +180,16 @@ test('bhaw rates: the store\'s cash/RTGS on the house line are its own sells', (
     if (vendor.cashBhaw !== null) assert.equal(rates.cashRate, sells['99.50 Gold Cash'], vendor.source);
     if (vendor.rtgsBhaw !== null) assert.equal(rates.rtgsRate, sells['99.50 Gold RTGS'], vendor.source);
   }
+});
+
+test('rounding: karat rows and the card MRP round exact halves up', () => {
+  // ₹1,20,125 at 91.6% is exactly 1,10,034.50; the float product used to
+  // round down to 1,10,034.
+  assert.equal(karatFigure(120125, 91.6), 110035);
+  assert.equal(karatFigure(120125, 75), 90094);
+  // 24.575 g at 18K and ₹1,32,400/10 g, labour ₹610/g: an exact ₹2,59,020.50
+  // whose float sits just under the half.
+  const mrp = 24.575 * (75 / 100) * (132400 / 10) + 24.575 * 610;
+  assert.equal(formatIndianCurrency(mrp), '₹2,59,021');
+  assert.equal(formatIndianCurrency(93750.4), '₹93,750');
 });

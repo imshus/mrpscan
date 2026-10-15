@@ -8,6 +8,7 @@ import { Colors, Radius } from '@/constants/theme';
 import { DEFAULT_CHARGE_OPTIONS } from '@/constants/otherCharges';
 import type { OtherChargeItem } from '@/types/scanner';
 import { createCustomCharge, fetchChargeNames } from '@/utils/customChargesApi';
+import { roundHalfUp } from '@/utils/moneyMath';
 
 interface OtherChargesSectionProps {
   charges: OtherChargeItem[];
@@ -20,7 +21,7 @@ function sanitizeAmountInput(text: string): string {
 
 function formatInr(amount: number): string {
   if (!Number.isFinite(amount)) return '₹0';
-  return `₹${Math.round(amount).toLocaleString('en-IN')}`;
+  return `₹${roundHalfUp(amount).toLocaleString('en-IN')}`;
 }
 
 const ADD_CUSTOM_CHARGE_VALUE = '__ADD_CUSTOM__';

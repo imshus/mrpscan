@@ -10,6 +10,7 @@ import { useStoneRateFetch } from '@/hooks/useStoneRateFetch';
 import type { StoneKind } from '@/types/scanner';
 import { computeStoneAmountWithDiscount, computeStoneAmount } from '@/utils/scanPriceCalculation';
 import { parseNumericLabourValue } from '@/utils/labourUtils';
+import { roundHalfUp } from '@/utils/moneyMath';
 
 export interface StoneTypeRowValues {
   weight: string;
@@ -74,7 +75,7 @@ const STONE_LABELS: Record<StoneKind, { rate: string; weight: string; amount: st
 
 function formatInr(amount: number): string {
   if (!Number.isFinite(amount) || amount <= 0) return '—';
-  return `₹${Math.round(amount).toLocaleString('en-IN')}`;
+  return `₹${roundHalfUp(amount).toLocaleString('en-IN')}`;
 }
 
 export const StoneTypeRowCard = memo(function StoneTypeRowCard({

@@ -6,13 +6,23 @@ import {
 } from '@/constants/labour';
 import type { GoldRate } from '@/types/rates';
 import type { ScanItemData, StoneEntry } from '@/types/scanner';
-import { ALL_FORMULA_KARATS, normalizeKarat, parseWeightValue, resolveScannedKarat } from '@/utils/formulaUtils';
+import {
+  SCANNABLE_KARATS,
+  normalizeKarat,
+  parseNumericValue,
+  parseWeightValue,
+  resolveScannedKarat,
+} from '@/utils/formulaUtils';
 import {
   hasActiveLabourCharge,
   hasActiveLabourPurity,
   parseNumericLabourValue,
 } from '@/utils/labourUtils';
+import { roundHalfUp } from '@/utils/moneyMath';
 import { buildQuality } from '@/utils/qualityUtils';
+
+// Read off the tag the same way everywhere; it lives with the karat parsing.
+export { parseNumericValue };
 
 /**
  * Default karat → purity % map (backend gold-rates table fallback). 24K is
@@ -21,10 +31,15 @@ import { buildQuality } from '@/utils/qualityUtils';
  */
 export const DEFAULT_KARAT_PURITY_PERCENT: Record<string, number> = {
   '24K': 100,
+  // No row in the shop's table for these three: the server prices them at
+  // karat / 24 (95.83%, 87.5%, 41.67%), and these are those, to 2 places.
+  '23K': 95.83,
   '22K': 91.6,
+  '21K': 87.5,
   '20K': 85,
   '18K': 75,
   '14K': 58.5,
+  '10K': 41.67,
   '9K': 37.5,
 };
 
@@ -76,18 +91,14 @@ export interface FinalTabPricingResult {
    */
   wastageCode?: string;
   wastagePercent?: number;
+  /** The grams of metal the wastage charges, at the 24K rate per gram. */
+  wastageWeightGrams?: number;
   wastageAmount?: number;
   wastageDisplay?: string;
   otherChargesAmount: number;
   otherChargesDisplay: string;
   ultimateMrp: number;
   ultimateMrpDisplay: string;
-}
-
-export function parseNumericValue(raw: string | number | undefined | null): number {
-  if (raw == null) return 0;
-  const parsed = Number.parseFloat(String(raw).replace(/[^\d.]/g, ''));
-  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export function computeOtherChargesTotal(
@@ -99,9 +110,10 @@ export function computeOtherChargesTotal(
   return parseNumericValue(scanData.otherChargesAmount);
 }
 
+/** Whole rupees, half-up — the rounding the invoice bills with (utils/moneyMath). */
 export function formatIndianCurrency(amount: number): string {
   if (!Number.isFinite(amount)) return '₹0';
-  return `₹${Math.round(amount).toLocaleString('en-IN')}`;
+  return `₹${roundHalfUp(amount).toLocaleString('en-IN')}`;
 }
 
 export function formatWeightGrams(grams: number): string {
@@ -430,4 +442,4 @@ export function withStoneRows(
   };
 }
 
-export const KARAT_DROPDOWN_OPTIONS = [...ALL_FORMULA_KARATS];
+export const KARAT_DROPDOWN_OPTIONS = [...SCANNABLE_KARATS];

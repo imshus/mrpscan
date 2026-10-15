@@ -1,6 +1,7 @@
 import type { GoldRatesResponse } from '@/types/rates';
 import { feedMcxSell, houseMcxSell, type BhawVendor } from '@/utils/bhawApi';
 import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
+import { roundHalfUp } from '@/utils/moneyMath';
 
 /**
  * The one calculation behind every gold figure the app shows.
@@ -152,9 +153,9 @@ export function computeGoldRateFigures(base: GoldRateBase, changes: GoldRateChan
   // 1.03, 4 by 1.04, 0 leaves it as Rate 1. The server's expression and
   // rounding.
   const rtgsBoard = base.rtgsLive ? pricing + base.rtgsBhaw + changes.rtgsChange : null;
-  const rtgsRate1 = rtgsBoard === null ? null : Math.round(rtgsBoard);
+  const rtgsRate1 = rtgsBoard === null ? null : roundHalfUp(rtgsBoard);
   const rtgsRate2 =
-    rtgsBoard === null ? null : Math.round(rtgsBoard / (1 + changes.rtgsTaxPercent / 100));
+    rtgsBoard === null ? null : roundHalfUp(rtgsBoard / (1 + changes.rtgsTaxPercent / 100));
   return {
     mcxFinal,
     retailFinal,
@@ -164,7 +165,11 @@ export function computeGoldRateFigures(base: GoldRateBase, changes: GoldRateChan
   };
 }
 
-/** A karat's share of a 24K figure, rounded as the server rounds its rows. */
+/**
+ * A karat's share of a 24K figure, half-up to the rupee as the server rounds
+ * its rows. Exactly: ₹1,20,125 at 91.6% is 1,10,034.50 and shows ₹1,10,035;
+ * Math.round on the float (110034.49999999999) showed ₹1,10,034.
+ */
 export function karatFigure(figure: number, purity: number): number {
-  return Math.round(figure * (purity / 100));
+  return roundHalfUp((figure * purity) / 100);
 }
