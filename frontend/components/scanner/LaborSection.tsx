@@ -18,6 +18,7 @@ import {
 } from '@/constants/labour';
 import type { ScanItemData } from '@/types/scanner';
 import { parseWeightValue } from '@/utils/formulaUtils';
+import { roundHalfUp } from '@/utils/moneyMath';
 
 export interface LaborSectionValues {
   labourPurityPercent: string;
@@ -31,6 +32,12 @@ interface LaborSectionProps {
   onChange: (values: Partial<LaborSectionValues>) => void;
   grossWeightGrams?: string;
   netWeightGrams?: string;
+  /**
+   * The labour the server priced into the MRP. Shown as the Labour Amount
+   * whenever it is given, so the tile is the figure the MRP and the invoice
+   * carry; the phone's own sum is only the fallback.
+   */
+  labourAmount?: number;
   pureWeightDisplay?: string;
   goldAmountDisplay?: string;
   /** Generate was refused and an empty Labour Rate is one of the reasons. */
@@ -75,7 +82,7 @@ function WeightDropdown({
 }
 
 function formatInr(amount: number): string {
-  return `₹${Math.round(amount).toLocaleString('en-IN')}`;
+  return `₹${roundHalfUp(amount).toLocaleString('en-IN')}`;
 }
 
 /**
@@ -91,7 +98,9 @@ export function computeFinalLabourAmount(
 ): number {
   const grossWt = parseWeightValue(grossWeightGrams);
   const netWt = parseWeightValue(netWeightGrams);
-  const selectedWeight = values.labourWeightBasis === 'gross' ? grossWt : netWt;
+  // Gross falls back to net when no gross weight is known, as the server does.
+  const selectedWeight =
+    values.labourWeightBasis === 'gross' ? (grossWt > 0 ? grossWt : netWt) : netWt;
   const rate = Number(values.labourChargeAmount) || 0;
   if (rate <= 0 || selectedWeight <= 0) return 0;
   if (values.labourChargeUnit === 'Per 10 Gram') {
@@ -123,6 +132,7 @@ export const LaborSection = memo(function LaborSection({
   onChange,
   grossWeightGrams = '',
   netWeightGrams = '',
+  labourAmount,
   pureWeightDisplay = '—',
   goldAmountDisplay = '—',
   missing = false,
@@ -157,7 +167,11 @@ export const LaborSection = memo(function LaborSection({
               it used to sit under Wastage and read as one card with it. */}
           <MetalValueBox
             label="Labour Amount"
-            value={formatInr(computeFinalLabourAmount(values, grossWeightGrams, netWeightGrams))}
+            value={formatInr(
+              typeof labourAmount === 'number' && Number.isFinite(labourAmount)
+                ? labourAmount
+                : computeFinalLabourAmount(values, grossWeightGrams, netWeightGrams),
+            )}
             amount
             fullWidth
           />

@@ -89,7 +89,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
   onStoneEntryChange,
   onRateErrorChange,
   showLabourValidation = false,
-  gstNote = 'MRP = Gold + Stones + Labour + Other Charges (server verified)',
+  gstNote = 'MRP = Gold + Stones + Labour + Wastage + Other Charges (server verified)',
   calculationRateAccess = 'both',
   clubDiamonds = false,
   highlightMissingStones = false,
@@ -257,6 +257,10 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
           goldTaxSettings={goldTaxSettings}
           mcxLiveRate={mcxLiveRate}
           backendGoldAmount={pricing.goldBasePrice}
+          // The rate and pure weight from the same answer as the amount.
+          backendGoldRatePerGram={pricing.goldRatePerGram}
+          backendPureWeight={pricing.pureWtGrams}
+          backendPurityPercent={pricing.effectivePurityPercent}
           calculationMode={scanData.calculationRate}
           calculationRateAccess={calculationRateAccess}
           editable
@@ -345,6 +349,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
           onChange={handleLaborChange}
           grossWeightGrams={scanData.grossWt}
           netWeightGrams={scanData.netWt}
+          labourAmount={pricing.labourAmount}
           pureWeightDisplay={pricing.pureWtDisplay}
           goldAmountDisplay={pricing.goldBasePriceDisplay}
           missing={highlightMissingStones}
@@ -404,6 +409,9 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
               : undefined
           }
           labourAmount={pricing.labourDisplay}
+          wastageAmount={
+            (pricing.wastageAmount ?? 0) > 0 ? pricing.wastageDisplay : undefined
+          }
           otherChargesTotal={
             pricing.otherChargesAmount > 0 ? pricing.otherChargesDisplay : undefined
           }
