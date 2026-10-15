@@ -72,10 +72,68 @@ export function allocateWholeRupees(amounts: readonly number[], target: number):
   return result;
 }
 
-/** GST on a subtotal, half-up to the paisa. */
-export function computeGstAmount(subtotal: number, gstRatePercent: number): number {
-  if (!Number.isFinite(subtotal) || !Number.isFinite(gstRatePercent)) return 0;
-  return roundHalfUp((toPaise(subtotal) * gstRatePercent) / 100) / 100;
+/**
+ * numerator / denominator rounded half-up, for whole numbers (backend
+ * utils/money.divHalfUp). Exact while the operands stay below 2^53.
+ */
+function divHalfUp(numerator: number, denominator: number): number {
+  const negative = numerator < 0 !== denominator < 0;
+  const num = Math.abs(numerator);
+  const den = Math.abs(denominator);
+  const quotient = Math.floor((2 * num + den) / (2 * den));
+  return negative && quotient !== 0 ? -quotient : quotient;
+}
+
+/**
+ * Whether the shop charges CGST + SGST rather than IGST — the server's rule
+ * (backend invoiceMath.isIntraStateSupply): a supplier GSTIN starting 07,
+ * Delhi.
+ */
+export function isIntraStateSupplier(supplierGstin: string | null | undefined): boolean {
+  return String(supplierGstin ?? '').trim().slice(0, 2) === '07';
+}
+
+/** The invoice's tax heads, in rupees to the paisa. */
+export interface InvoiceTax {
+  cgst: number;
+  sgst: number;
+  igst: number;
+  /** CGST + SGST + IGST. */
+  gst: number;
+}
+
+/**
+ * GST exactly as the server works it out and prints it (backend
+ * invoiceMath.computeInvoiceFigures): each line taxed on its own amount in
+ * whole paise, half-up — CGST and SGST each at half the rate for an
+ * intra-state supplier, IGST at the full rate otherwise — and each head the
+ * sum of its line taxes. Taxing the subtotal once instead lost the half paisa
+ * every odd-rupee line carries under CGST and SGST, so a Delhi bill could
+ * total a rupee under the PDF.
+ */
+export function computeInvoiceTax(
+  lineAmounts: readonly number[],
+  gstRatePercent: number,
+  intraState: boolean,
+): InvoiceTax {
+  if (!Number.isFinite(gstRatePercent) || gstRatePercent <= 0) {
+    return { cgst: 0, sgst: 0, igst: 0, gst: 0 };
+  }
+  const rateBasisPoints = toPaise(roundHalfUp(gstRatePercent, 2));
+  let halfPaise = 0;
+  let igstPaise = 0;
+  for (const amount of lineAmounts) {
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    const amountPaise = toPaise(amount);
+    if (intraState) halfPaise += divHalfUp(amountPaise * rateBasisPoints, 20000);
+    else igstPaise += divHalfUp(amountPaise * rateBasisPoints, 10000);
+  }
+  return {
+    cgst: halfPaise / 100,
+    sgst: halfPaise / 100,
+    igst: igstPaise / 100,
+    gst: (2 * halfPaise + igstPaise) / 100,
+  };
 }
 
 /** The grand total the invoice prints: subtotal plus GST, half-up to the rupee. */
@@ -114,6 +172,8 @@ export interface InvoiceLinesInput {
     quality: string;
     carats: number;
     amount: number;
+    /** The rate per carat the card showed, before any discount; 0 if unknown. */
+    listRate?: number;
   }>;
   labourAmount: number;
   /** Wastage: grams of metal at the 24K rate per gram, as the server priced it. */
@@ -132,25 +192,53 @@ interface DraftLine {
   key: string;
   description: string;
   note: string;
+  /** The quantity as printed and registered: to QTY_DECIMALS places. */
   qty: number;
   qtyUnit: string;
   exact: number;
   /** 'unit': price per gram/carat; 'lump': the amount is the price. */
   kind: 'unit' | 'lump';
-  /** A per-unit price the line must print, whatever its billed amount. */
-  fixedPrice?: number;
+  /**
+   * The rate the line is quoted at (wastage: the 24K rate per gram; a stone:
+   * its rate per carat). Printed when Qty × it rounds to the billed amount.
+   */
+  listPrice?: number;
+  /** A stone sold below its list rate: the list rate prints beside a discount. */
+  discounted?: boolean;
 }
 
 /** Amounts under half a paisa are no amount at all. */
 const NEGLIGIBLE = 0.005;
 
 /**
- * The per-unit price printed for a billed amount: the line's own rate when
- * Qty × that rate rounds to the amount, else the amount over the quantity,
- * to the paisa, nudged a paisa either way if needed so it rounds back.
+ * Places a quantity prints and registers to: grams to the milligram, carats
+ * to the thousandth (the PDF and the server's figures both round there).
  */
-function unitPrice(qty: number, exact: number, billed: number): number {
+const QTY_DECIMALS = 3;
+
+/**
+ * Whether the server reads a line as discounted (backend
+ * invoiceMath.computeInvoiceFigures): Qty × Price at the quantity it
+ * registers is more than a rupee above the amount billed. It then prints
+ * "Less discount" for the gap and registers it as the line's Discount.
+ */
+export function serverSeesDiscount(qty: number, price: number, amount: number): boolean {
+  const qtyRegistered = roundHalfUp(qty, QTY_DECIMALS);
+  const listPrice = roundHalfUp(price, 3);
+  if (!(qtyRegistered > 0) || !(listPrice > 0)) return false;
+  return toPaise(qtyRegistered * listPrice) - toPaise(amount) > 100;
+}
+
+/**
+ * The per-unit price printed for a billed amount, such that Qty × Price
+ * rounds to it on the printed quantity: the line's list rate when it does,
+ * else its own rate (the exact amount over the quantity), else the billed
+ * amount over the quantity, to the paisa, nudged a paisa either way if
+ * needed so it rounds back.
+ */
+function unitPrice(qty: number, exact: number, billed: number, listPrice?: number): number {
   const closes = (price: number) => roundHalfUp(qty * price) === billed;
+  if (listPrice !== undefined && closes(listPrice)) return listPrice;
   const own = roundHalfUp(exact / qty, 2);
   if (closes(own)) return own;
   const derived = roundHalfUp(billed / qty, 2);
@@ -161,34 +249,68 @@ function unitPrice(qty: number, exact: number, billed: number): number {
 }
 
 /**
+ * The price a per-unit line prints. A stone sold below its list rate prints
+ * that rate, so the server shows and registers the discount — but only when
+ * the gap is one the server reads as a discount (over a rupee); a smaller
+ * one is the line's own rounding, and the line prints a price that closes.
+ */
+function linePrice(draft: DraftLine, billed: number): number {
+  const list =
+    draft.listPrice !== undefined && draft.listPrice > 0 ? roundHalfUp(draft.listPrice, 2) : undefined;
+  if (list !== undefined && draft.discounted && serverSeesDiscount(draft.qty, list, billed)) {
+    return list;
+  }
+  return unitPrice(draft.qty, draft.exact, billed, list);
+}
+
+/**
  * The invoice's lines, in the card's order — gold, stones, labour, wastage,
  * other charges — with whole-rupee amounts that add up to the MRP the card
- * showed, rounded once. Wastage is its own line, as gold: the grams wasted at
- * the 24K rate per gram. Without it the bill came to less than the MRP quoted
- * by the whole wastage amount.
+ * showed, rounded once. Wastage is its own line, as gold: the grams wasted,
+ * priced at the 24K rate per gram. Without it the bill came to less than the
+ * MRP quoted by the whole wastage amount.
+ *
+ * Each per-unit line prints a quantity to 3 places and a price such that
+ * Qty × Price rounds to its Amount — the quoted rate whenever it does — so
+ * the server (backend invoiceMath) never reads a discount into it. The one
+ * exception is a stone sold below its list rate: it prints the list rate and
+ * the server shows and registers the discount.
  */
 export function buildInvoiceLines(input: InvoiceLinesInput): InvoiceLineItemRow[] {
   const drafts: DraftLine[] = [];
+
+  // Every per-unit quantity is the one printed and registered, to three
+  // places, and its price is worked out on that: a price fitted to 0.3728 g
+  // did not foot on the 0.373 g printed, and the server read the gap as a
+  // discount.
+  const printedQty = (value: number) =>
+    Number.isFinite(value) && value > 0 ? roundHalfUp(value, QTY_DECIMALS) : 0;
 
   drafts.push({
     key: 'gold-base-metal',
     description: 'Gold (in grams)',
     note: input.karatNote || '—',
-    qty: input.netWtGrams,
+    qty: printedQty(input.netWtGrams),
     qtyUnit: 'g',
     exact: Math.max(0, input.goldAmount),
     kind: 'unit',
   });
 
   input.stones.forEach((stone, index) => {
+    const listRate = Number.isFinite(stone.listRate) && (stone.listRate ?? 0) > 0 ? stone.listRate : undefined;
+    const amount = Math.max(0, stone.amount);
     drafts.push({
       key: `stone-${stone.stoneType}-${index}`,
       description: stone.stoneType === 'diamond' ? 'Diamond (in carats)' : 'Colorstone (in carats)',
       note: stone.quality && stone.quality !== '—' ? stone.quality : '',
-      qty: stone.carats,
+      qty: printedQty(stone.carats),
       qtyUnit: 'Ct',
-      exact: Math.max(0, stone.amount),
+      exact: amount,
       kind: 'unit',
+      listPrice: listRate,
+      // Priced below carats × its rate: a discount on the rate, which the
+      // invoice shows against the rate the card showed.
+      discounted: listRate !== undefined && stone.carats * listRate - amount >= NEGLIGIBLE,
     });
   });
 
@@ -219,11 +341,14 @@ export function buildInvoiceLines(input: InvoiceLinesInput): InvoiceLineItemRow[
       key: 'wastage',
       description: 'Wastage (in grams)',
       note: input.wastage.percent > 0 ? `${input.wastage.percent}%` : '',
-      qty: grams,
+      qty: printedQty(grams),
       qtyUnit: 'g',
       exact: input.wastage.amount,
       kind: 'unit',
-      fixedPrice: ratePerGram > 0 ? roundHalfUp(ratePerGram, 2) : undefined,
+      // The 24K rate per gram prints when the printed grams at it round to
+      // the amount billed; otherwise a price that does, so the line foots
+      // and the server never reads a discount into it.
+      listPrice: ratePerGram > 0 ? ratePerGram : undefined,
     });
   }
 
@@ -272,10 +397,8 @@ export function buildInvoiceLines(input: InvoiceLinesInput): InvoiceLineItemRow[
       price = amount;
     } else if (!(draft.qty > 0)) {
       price = 0;
-    } else if (draft.fixedPrice !== undefined) {
-      price = draft.fixedPrice;
     } else {
-      price = unitPrice(draft.qty, draft.exact, amount);
+      price = linePrice(draft, amount);
     }
     return {
       key: draft.key,

@@ -1,15 +1,19 @@
 import { useMemo } from 'react';
 
+import { useAuthStore } from '@/store/authStore';
 import { useInvoiceStore } from '@/store/invoiceStore';
 import { useScannerStore } from '@/store/scannerStore';
+import { getBusinessProfile } from '@/utils/businessProfile';
+import { type InvoiceLineItemRow } from '@/utils/invoiceCalculation';
 import {
+  buildInvoiceLines,
   computeGrandTotal,
-  computeGstAmount,
-  type InvoiceLineItemRow,
-} from '@/utils/invoiceCalculation';
-import { buildInvoiceLines, sumLineAmounts } from '@/utils/moneyMath';
+  computeInvoiceTax,
+  isIntraStateSupplier,
+  sumLineAmounts,
+} from '@/utils/moneyMath';
 import { amountInWords } from '@/utils/numberToWords';
-import { parseWeightValue, resolveScannedKarat } from '@/utils/formulaUtils';
+import { parseNumericValue, parseWeightValue, resolveScannedKarat } from '@/utils/formulaUtils';
 import { type FinalTabPricingResult } from '@/utils/scanPriceCalculation';
 
 /** Zero pricing, used only if the invoice is opened without a preview behind it. */
@@ -58,8 +62,19 @@ export interface InvoiceComputation {
  * The lines are rounded once (utils/moneyMath.buildInvoiceLines): the MRP the
  * card showed, half-up, shared out over the lines in whole rupees, so the
  * subtotal is that MRP — wastage included, on its own line.
+ *
+ * GST is the server's own arithmetic (moneyMath.computeInvoiceTax): each line
+ * taxed on its own, CGST + SGST for a Delhi (07) supplier, IGST otherwise.
+ * `supplierGstin` is the shop's GSTIN as the server holds it, when the caller
+ * has it; the signed-in profile's otherwise.
  */
-export function useInvoiceComputation(): InvoiceComputation {
+export function useInvoiceComputation(
+  options: { supplierGstin?: string | null } = {},
+): InvoiceComputation {
+  const registration = useAuthStore((state) => state.registration);
+  const supplierGstin =
+    options.supplierGstin?.trim() || getBusinessProfile(registration).gstNumber;
+  const intraState = isIntraStateSupplier(supplierGstin);
   const scanData = useScannerStore((state) => state.scanData);
   const storedPricing = useScannerStore((state) => state.previewPricing);
   const previewOtherCharges = useScannerStore((state) => state.previewOtherCharges);
@@ -94,6 +109,9 @@ export function useInvoiceComputation(): InvoiceComputation {
           quality: stone.quality,
           carats: parseWeightValue(stone.weight),
           amount: stone.amount,
+          // The rate per carat the row showed: a discounted stone prints it,
+          // with the discount beside it, rather than a net rate.
+          listRate: Math.max(0, parseNumericValue(stone.rate)),
         })),
         labourAmount: pricing.labourAmount,
         wastage: {
@@ -115,7 +133,10 @@ export function useInvoiceComputation(): InvoiceComputation {
   // The subtotal is the sum of the printed lines, which is the MRP the card
   // showed, rounded.
   const subtotal = useMemo(() => sumLineAmounts(lineItemRows), [lineItemRows]);
-  const gstAmount = useMemo(() => computeGstAmount(subtotal, gstRate), [subtotal, gstRate]);
+  const gstAmount = useMemo(
+    () => computeInvoiceTax(lineItemRows.map((row) => row.amount), gstRate, intraState).gst,
+    [lineItemRows, gstRate, intraState],
+  );
   const grandTotal = useMemo(
     () => computeGrandTotal(subtotal, gstAmount),
     [subtotal, gstAmount],

@@ -50,6 +50,10 @@ export interface GenerateInvoiceResponse {
   invoiceId: string;
   /** Data URI of the QR printed on the PDF, so the app shows the same code. */
   qrCodeImage?: string;
+  /** The figures as issued — the server's, worked out from the line items. */
+  subtotal?: number;
+  gstAmount?: number;
+  grandTotal?: number;
 }
 
 /** Prefers the durable URL, falling back to the expiring one. */

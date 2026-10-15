@@ -5,11 +5,7 @@ import {
   deriveActiveBaseRate,
   type ScannerCalculationUse,
 } from '@/utils/goldRateUtils';
-import {
-  computeGrandTotal as grandTotalHalfUp,
-  computeGstAmount as gstHalfUp,
-  type InvoiceLineItemRow,
-} from '@/utils/moneyMath';
+import { type InvoiceLineItemRow } from '@/utils/moneyMath';
 import { buildQuality } from '@/utils/qualityUtils';
 import {
   computeStoneAmountWithDiscount,
@@ -81,15 +77,11 @@ export function computeInvoiceSubtotal(rows: InvoiceLineItemRow[]): number {
   return rows.reduce((sum, row) => sum + row.amount, 0);
 }
 
-/** GST on the subtotal, half-up to the paisa. */
-export function computeGstAmount(subtotal: number, gstRate: GstRateOption): number {
-  return gstHalfUp(subtotal, gstRate);
-}
-
-/** Subtotal plus GST, half-up to the rupee: the Grand Total the invoice prints. */
-export function computeGrandTotal(subtotal: number, gstAmount: number): number {
-  return grandTotalHalfUp(subtotal, gstAmount);
-}
+/*
+ * GST and the grand total are utils/moneyMath's computeInvoiceTax and
+ * computeGrandTotal: the server's per-line arithmetic, so the app's totals
+ * are the PDF's.
+ */
 
 export function formatInvoiceDateTime(date: Date = new Date()): string {
   return date.toLocaleString('en-IN', {

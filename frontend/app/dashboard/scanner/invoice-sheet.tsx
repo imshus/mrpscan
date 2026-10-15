@@ -30,6 +30,7 @@ import { formatItemIdentity, resolveItemIdentity } from '@/utils/itemIdentity';
 import { HSN_JEWELLERY } from '@/components/invoice/InvoiceSheet';
 import { fetchBusinessProfile, type BusinessProfileResponse } from '@/utils/businessProfileApi';
 import { invoicePdfFileName } from '@/utils/invoicePdfCache';
+import { roundHalfUp } from '@/utils/moneyMath';
 import { currentScopeGeneration } from '@/utils/userScopedStorage';
 import { ApiError } from '@/utils/apiClient';
 import {
@@ -108,7 +109,10 @@ export default function InvoiceSheetScreen() {
     grandTotal,
     grandTotalWords,
     ratesLoaded,
-  } = useInvoiceComputation();
+  } = useInvoiceComputation({
+    // The GSTIN the server taxes by (CGST + SGST for 07), once fetched.
+    supplierGstin: business?.gstNumber,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -416,9 +420,16 @@ export default function InvoiceSheetScreen() {
 
   // Accompanying text for the email body. No link: the PDF travels as the
   // attachment, so there is nothing for the recipient to open elsewhere.
-  const shareText = (number: string) =>
-    `Invoice ${number} from ${profile.businessName || 'us'} — ` +
-    `₹ ${Math.round(grandTotal).toLocaleString('en-IN')}. The invoice is attached as a PDF.`;
+  // The total is the issued invoice's own — the figure its PDF prints —
+  // and the app's only for a server that does not return it.
+  const shareText = (issued: GenerateInvoiceResponse) => {
+    const issuedTotal = Number(issued.grandTotal);
+    const total = Number.isFinite(issuedTotal) && issuedTotal > 0 ? issuedTotal : grandTotal;
+    return (
+      `Invoice ${issued.invoiceNumber} from ${profile.businessName || 'us'} — ` +
+      `₹ ${roundHalfUp(total).toLocaleString('en-IN')}. The invoice is attached as a PDF.`
+    );
+  };
 
   // DRIVE — system share sheet; the user taps "Drive"/"Save to Drive". expo-sharing
   // hands Android a FileProvider content:// URI with a Parcelable EXTRA_STREAM, which
@@ -470,7 +481,7 @@ export default function InvoiceSheetScreen() {
         }
       }
       const subject = `Invoice ${result.invoiceNumber} from ${profile.businessName || 'us'}`;
-      const body = shareText(result.invoiceNumber);
+      const body = shareText(result);
       const recipients = customer.customerEmail.trim() ? [customer.customerEmail.trim()] : [];
       if (await MailComposer.isAvailableAsync()) {
         await MailComposer.composeAsync({ recipients, subject, body, attachments: [uri] });
