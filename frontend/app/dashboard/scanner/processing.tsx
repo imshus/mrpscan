@@ -25,11 +25,19 @@ import {
   derivePricingInput,
   prefetchFirstPricing,
   seedServerPricing,
+  seedServerPricingError,
 } from '@/utils/pricingPrefetch';
+import { prefillLabour } from '@/utils/pricingRules';
+import { applyStoneRateTables } from '@/utils/stoneSequenceUtils';
 import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
 import { findItemOnTag, loadItemCatalogue } from '@/utils/itemCatalogue';
 import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
-import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
+import {
+  fetchColorstoneRates,
+  fetchDiamondRates,
+  fetchGoldRates,
+  fetchLabourRate,
+} from '@/utils/ratesApi';
 
 // The counter climbs toward 99 at a six-second pace, showing every digit
 // through five labelled sections of twenty digits each, pinned to the wall
@@ -265,6 +273,17 @@ export default function ProcessingScreen() {
       // These requests do not depend on the OCR result. Start them while the
       // tag is being analyzed so the preview does not wait for rate setup.
       const labourRatePromise = fetchLabourRate().catch(() => null);
+      // The shop's stone rate tables, so each stone starts with the rate its
+      // row would look up (packet code first) and the card's first price is
+      // the one the server worked out inside the analysis; without them the
+      // first price used the printed rates and changed once the rows looked
+      // theirs up. A failed read leaves the printed rates for the rows.
+      const stoneRatesPromise = isDemoScanMode()
+        ? Promise.resolve([null, null] as const)
+        : Promise.all([
+            fetchDiamondRates().catch(() => null),
+            fetchColorstoneRates().catch(() => null),
+          ]);
       // The saved item codes, fetched alongside the analysis so the tag's
       // code can be named the moment the reading lands.
       const cataloguePromise = loadItemCatalogue();
@@ -298,7 +317,12 @@ export default function ProcessingScreen() {
         throw new ApiError('Scan analysis completed, but billing was not confirmed. Please contact support before retrying.');
       }
 
-      const flatData = result.structuredData ?? {};
+      const [diamondRateRows, colorstoneRateRows] = await stoneRatesPromise;
+      const flatData = applyStoneRateTables(
+        result.structuredData ?? {},
+        diamondRateRows,
+        colorstoneRateRows,
+      );
       let adjustedScanData = applyClientFormulaRules({
         ...DEFAULT_SCAN_ITEM,
         ...structuredDataToScanItem(flatData),
@@ -309,30 +333,6 @@ export default function ProcessingScreen() {
       const extractedKarat = readScannedKarat(adjustedScanData.karat, adjustedScanData.tunch);
       const fallbackKarat = extractedKarat || '14K';
       adjustedScanData = { ...adjustedScanData, karat: fallbackKarat };
-
-      const hasLabourValues = Boolean(adjustedScanData.labourChargeAmount?.trim());
-
-      if (!hasLabourValues) {
-        // Errors are already swallowed at kickoff and keep scanned values.
-        const labourRate = await labourRatePromise;
-        if (labourRate) {
-          // Only support AMOUNT type - percentage type removed
-          if (labourRate.chargeType === 'AMOUNT') {
-            adjustedScanData = {
-              ...adjustedScanData,
-              labourChargeAmount: String(labourRate.value ?? ''),
-              labourChargeUnit:
-                labourRate.rupeesUnit ?? adjustedScanData.labourChargeUnit,
-              // The rate is set against a chosen weight, so the scan has to
-              // charge it against the same one.
-              labourWeightBasis:
-                labourRate.weightBasis ?? adjustedScanData.labourWeightBasis,
-              labourPurityPercent: '',
-            };
-          }
-          // Percentage type no longer supported - ignore it
-        }
-      }
 
       // Formulas shape the price the review screen shows, so this one is
       // still awaited; it was started before the analysis and is normally done.
@@ -345,14 +345,32 @@ export default function ProcessingScreen() {
       // Every identifier on the tag is tried, the chosen number first: an
       // item code printed beside an SR NO still names the piece.
       const tagIdentifiers = [adjustedScanData.sku, ...(result.tagIdentifiers ?? [])];
+      let foundItem: Awaited<ReturnType<typeof loadItemCatalogue>>[number] | null = null;
       if (tagIdentifiers.some((value) => value.trim())) {
         const found = findItemOnTag(tagIdentifiers, await cataloguePromise);
         if (found) {
+          foundItem = found.item;
           adjustedScanData = {
             ...adjustedScanData,
             itemName: found.item.description,
             itemCode: found.code,
           };
+        }
+      }
+
+      // The labour the card starts with when the tag prints none: the
+      // Masters item's own labour in its unit, else the shop's charge —
+      // AMOUNT per its unit, PERCENTAGE as a percent of the gold value — on
+      // the weight the shop's charge was saved against. The server prices
+      // the reading from the same choice, and charges whatever this box
+      // holds; the shop's rate used to be filled in over the item's, so the
+      // item's labour was never what the card or the invoice charged.
+      if (!adjustedScanData.labourChargeAmount?.trim()) {
+        // Errors are already swallowed at kickoff and keep scanned values.
+        const labourRate = await labourRatePromise;
+        const prefill = prefillLabour(foundItem, labourRate, adjustedScanData.labourWeightBasis);
+        if (prefill) {
+          adjustedScanData = { ...adjustedScanData, ...prefill, labourPurityPercent: '' };
         }
       }
 
@@ -409,6 +427,8 @@ export default function ProcessingScreen() {
       // The server priced the reading inside the analysis: kept as the
       // stand-in the card shows if its own first price is slow to land.
       if (result.pricing) seedServerPricing(scanId, result.pricing);
+      // Or why it could not: no live gold rate, or a reading it cannot price.
+      else if (result.pricingError?.message) seedServerPricingError(scanId, result.pricingError.message);
       // Start the card's own first calculation now, while the counter is
       // still running, so it is in hand when the card opens: the first price
       // the card shows is then made from the card's own inputs. Derived

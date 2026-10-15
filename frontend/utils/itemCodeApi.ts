@@ -12,6 +12,19 @@ export interface ItemCode {
    */
   wastage: number | null;
   labour: number | null;
+  /**
+   * The unit the labour is in: rupees per gram (rows saved before the unit
+   * existed), per 10 g, or a percent of the gold value. Priced in it.
+   */
+  labourUnit: ItemLabourUnit;
+}
+
+export type ItemLabourUnit = 'Per Gram' | 'Per 10 Gram' | 'Percent';
+export const ITEM_LABOUR_UNITS: ItemLabourUnit[] = ['Per Gram', 'Per 10 Gram', 'Percent'];
+
+function toItemLabourUnit(value: unknown): ItemLabourUnit {
+  const text = String(value ?? '').trim();
+  return (ITEM_LABOUR_UNITS as string[]).includes(text) ? (text as ItemLabourUnit) : 'Per Gram';
 }
 
 type RawItemCode = {
@@ -21,6 +34,7 @@ type RawItemCode = {
   description?: string;
   wastage?: number | string | null;
   labour?: number | string | null;
+  labourUnit?: string | null;
 };
 
 /** A figure the shop may not have given: blank and zero stay distinct. */
@@ -40,6 +54,7 @@ function toItemCode(raw: RawItemCode): ItemCode | null {
     description: String(raw.description ?? '').trim(),
     wastage: toOptionalNumber(raw.wastage),
     labour: toOptionalNumber(raw.labour),
+    labourUnit: toItemLabourUnit(raw.labourUnit),
   };
 }
 
@@ -58,6 +73,7 @@ export async function saveItemCode(payload: {
   /** Empty string clears the figure; the server stores null for it. */
   wastage?: string | number | null;
   labour?: string | number | null;
+  labourUnit?: ItemLabourUnit;
 }): Promise<ItemCode | null> {
   const response = await apiRequest<Record<string, unknown>>('/item-codes', {
     method: 'POST',
@@ -67,6 +83,7 @@ export async function saveItemCode(payload: {
       description: payload.description ?? '',
       wastage: payload.wastage ?? '',
       labour: payload.labour ?? '',
+      ...(payload.labourUnit ? { labourUnit: payload.labourUnit } : {}),
     },
   });
   return toItemCode(unwrapApiData(response) as RawItemCode);

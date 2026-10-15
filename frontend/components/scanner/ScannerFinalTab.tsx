@@ -352,6 +352,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
           labourAmount={pricing.labourAmount}
           pureWeightDisplay={pricing.pureWtDisplay}
           goldAmountDisplay={pricing.goldBasePriceDisplay}
+          goldAmount={pricing.goldBasePrice}
           missing={highlightMissingStones}
         />
         </View>

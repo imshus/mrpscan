@@ -224,6 +224,10 @@ function normalizeAnalyzeResponse(raw: AnalyzeScanResponse): AnalyzeScanResponse
       unwrapped.pricing && typeof unwrapped.pricing.finalMRP === 'number'
         ? unwrapped.pricing
         : null,
+    pricingError:
+      unwrapped.pricingError && typeof unwrapped.pricingError.message === 'string'
+        ? { code: String(unwrapped.pricingError.code ?? ''), message: unwrapped.pricingError.message }
+        : null,
   };
 }
 

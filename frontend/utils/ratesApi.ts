@@ -17,6 +17,7 @@ import type {
 import { apiRequest, ApiError } from '@/utils/apiClient';
 import { unwrapApiData } from '@/utils/apiResponse';
 import { findMatchingDiamondRate } from '@/utils/stoneRateUtils';
+import { findColorstoneRateMatch } from '@/utils/pricingRules';
 
 type ApiEnvelope = Record<string, unknown> & {
   success?: boolean;
@@ -230,13 +231,33 @@ export async function fetchGoldRates(): Promise<GoldRatesResponse> {
   return normalizeGoldRatesResponse(response);
 }
 
+/**
+ * A karat row the server saved while live rates were unavailable: it comes
+ * back as saved, with no computed rate and ratesUnavailable set. The save
+ * went through, so it is not an error; the row carries no rate (0) and the
+ * table is read again for the figures.
+ */
+function savedRowWithoutRates(response: unknown, unwrapped: Record<string, unknown>): GoldRate | null {
+  if ((response as { ratesUnavailable?: unknown } | null)?.ratesUnavailable !== true) return null;
+  const carat = readString(unwrapped.carat ?? unwrapped.karat);
+  const purity = readNumber(unwrapped.purity);
+  if (!carat || purity == null) return null;
+  return {
+    id: readString(unwrapped.id ?? unwrapped._id),
+    carat,
+    purity,
+    finalRate: 0,
+    isHidden: unwrapped.isHidden === true,
+  } as GoldRate;
+}
+
 export async function updateGoldRate(payload: UpdateGoldRatePayload): Promise<GoldRate> {
   const response = await apiRequest<ApiEnvelope>('/rates/gold', {
     method: 'POST',
     body: payload as unknown as Record<string, unknown>,
   });
   const unwrapped = unwrapApiData(response);
-  const normalized = normalizeGoldRate(unwrapped);
+  const normalized = normalizeGoldRate(unwrapped) ?? savedRowWithoutRates(response, unwrapped);
   if (normalized) return normalized;
 
   const nested = unwrapped.rate ?? unwrapped.data;
@@ -256,7 +277,8 @@ export async function updateGoldRateVisibility(
     body: payload as unknown as Record<string, unknown>,
   });
   const unwrapped = unwrapApiData(response);
-  const normalized = normalizeGoldRate(unwrapped);
+  const normalized =
+    normalizeGoldRate(unwrapped) ?? savedRowWithoutRates(response, unwrapped as Record<string, unknown>);
   if (normalized) return normalized;
 
   const nested = (unwrapped as Record<string, unknown>).rate ??
@@ -426,10 +448,14 @@ export async function lookupStoneRate(
     // Proceed with empty rates so we can still check for local fallbacks
   }
 
-  const match = rates.find((item) => {
-    const colorMatch = item.color.trim().toLowerCase() === trimmedColor.toLowerCase();
-    const clarityMatch = item.clarity.trim().toLowerCase() === trimmedClarity.toLowerCase();
-    return colorMatch && clarityMatch;
+  // The row the server prices the stone at: its packet code's first, else
+  // its colour and clarity on a row without a packet code. Colour and
+  // clarity alone used to be matched against every row, packet rows too, and
+  // a packet code was never looked at.
+  const match = findColorstoneRateMatch(rates, {
+    packetCode: trimmedPacketCode,
+    color: trimmedColor,
+    clarity: trimmedClarity,
   });
 
   if (match) {

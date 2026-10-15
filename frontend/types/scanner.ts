@@ -62,6 +62,11 @@ export interface AnalyzeScanResponse {
    * the server could not price it; the card then prices itself.
    */
   pricing?: CalculateMrpResponse | null;
+  /**
+   * Why the analysis has no price, when it is a reason the card can say: no
+   * live gold rate (RATES_UNAVAILABLE) or a reading that cannot be priced.
+   */
+  pricingError?: { code: string; message: string } | null;
 }
 
 export interface ClarificationField {
@@ -225,6 +230,11 @@ export interface StoneEntry {
   rate: string;
   discountPercent?: string;
   pieces?: string;
+  /**
+   * The unit the weight was printed in: 'g' (priced as 5 ct a gram) or
+   * 'ct'. Absent on rows saved before units were read: carats.
+   */
+  unit?: 'g' | 'ct';
 }
 
 export interface SequentialStoneBlock {
@@ -326,8 +336,9 @@ export interface CalculateMrpPayload {
   tagIdentifiers?: string[];
   /** Overrides the item's own wastage, for a piece that is an exception. */
   wastagePercent?: number;
-  diamonds: Array<{ weight: number; rate: number; discountPercent?: number }>;
-  colorstones: Array<{ weight: number; rate: number }>;
+  /** `unit`: the weight's unit, 'ct' or 'g' (5 ct a gram). */
+  diamonds: Array<{ weight: number; rate: number; discountPercent?: number; unit?: 'g' | 'ct' }>;
+  colorstones: Array<{ weight: number; rate: number; unit?: 'g' | 'ct' }>;
 }
 
 export interface CalculateMrpResponse {
@@ -346,6 +357,12 @@ export interface CalculateMrpResponse {
     wastageAmount?: number;
     otherCharges: number;
     subtotal?: number;
+    /** The net weight the gold was priced on: the gross less the stones when none was given. */
+    netWeightUsed?: number;
+    /** True when netWeightUsed was worked out from the gross weight (low confidence). */
+    netWeightEstimated?: boolean;
   };
   finalMRP: number;
+  /** finalMRP to the rupee, half-up. */
+  finalMRPRounded?: number;
 }

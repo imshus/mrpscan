@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { CheckCircle, Heart } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -153,6 +153,11 @@ export default function ScanResultsScreen() {
                 amount={activePricing.ultimateMrpDisplay}
                 style={styles.mrpCard}
               />
+              {/* No price to bill (refused inputs, no live rate): said here,
+                  and nothing is invoiced or saved at a price the card lost. */}
+              {activePricing.pricingError ? (
+                <Text style={styles.pricingError}>{activePricing.pricingError}</Text>
+              ) : null}
             </CardHeader>
 
             <KeyboardAwareScrollView
@@ -179,7 +184,7 @@ export default function ScanResultsScreen() {
                     variant="alt"
                     title={hasAdded ? 'Item Added' : addingToWishlist ? 'Adding...' : 'Add to Wishlist'}
                     onPress={handleAddToWishlist}
-                    disabled={hasAdded || addingToWishlist}
+                    disabled={hasAdded || addingToWishlist || Boolean(activePricing.pricingError)}
                     icon={wishlistIcon}
                     style={styles.footerBtn}
                   />
@@ -188,6 +193,7 @@ export default function ScanResultsScreen() {
                   variant="brand"
                   title="Generate Invoice"
                   onPress={() => router.push('/dashboard/scanner/invoice-preview')}
+                  disabled={Boolean(activePricing.pricingError)}
                   style={styles.footerBtn}
                 />
               </View>
@@ -202,6 +208,13 @@ export default function ScanResultsScreen() {
 }
 
 const styles = StyleSheet.create({
+  pricingError: {
+    marginTop: 6,
+    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.dangerText,
+  },
   mrpCard: {
     marginBottom: 0,
   },

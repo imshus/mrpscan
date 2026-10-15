@@ -8,7 +8,10 @@ import type {
 } from '@/types/scanner';
 import { buildQuality } from '@/utils/qualityUtils';
 import { parseWeightValue } from '@/utils/formulaUtils';
+import { caratsOf, findColorstoneRateMatch, stoneWeightUnit } from '@/utils/pricingRules';
+import { findMatchingDiamondRate } from '@/utils/stoneRateUtils';
 import { resolveWeightAndRate } from '@/utils/stoneWeightRate';
+import type { StoneRate } from '@/types/rates';
 
 const STONE_ARRAY_KEYS: Record<StoneKind, 'diamonds' | 'colorstones'> = {
   diamond: 'diamonds',
@@ -72,19 +75,27 @@ function normalizeStoneEntry(raw: unknown, stoneType: StoneKind): StoneEntry {
   const prefix = stoneType === 'diamond' ? 'diamond' : 'colorstone';
   const color = flattenStoneField(record.color ?? record[`${prefix}Color`]);
   const clarity = flattenStoneField(record.clarity ?? record[`${prefix}Clarity`]);
+  // A colour stone's own packet code when it has one (the tag-wide code is
+  // seeded below), so its rate is looked up by packet first, as the server
+  // prices it.
   const packetCode =
     stoneType === 'diamond'
       ? flattenStoneField(record.packetCode ?? record.diamondPacketCode)
-      : '';
+      : flattenStoneField(record.packetCode);
   const quality =
     flattenStoneField(record.quality ?? record[`${prefix}Quality`]) ||
     buildQuality(color, clarity);
 
   // "1.56/550" on the weight line is a weight and a rate, not a weight.
+  const printedWeight = flattenStoneField(record.weight ?? record[`${prefix}Weight`]);
   const { weight, rate } = resolveWeightAndRate(
-    flattenStoneField(record.weight ?? record[`${prefix}Weight`]),
+    printedWeight,
     flattenStoneField(record.rate ?? record[`${prefix}Rate`]),
   );
+  // The unit the weight was printed in: the reader's, else one written after
+  // the figure ("0.40 g"), else carats. A stone kept by this app already
+  // carries it.
+  const unit = stoneWeightUnit(printedWeight, record.unit);
 
   return {
     stoneType,
@@ -97,6 +108,7 @@ function normalizeStoneEntry(raw: unknown, stoneType: StoneKind): StoneEntry {
     rate,
     discountPercent: flattenStoneField(record.discountPercent ?? record.diamondDiscountPercent) || '0',
     pieces: flattenStoneField(record.pieces ?? record.diamondPieces),
+    unit,
   };
 }
 
@@ -163,6 +175,12 @@ export function parseStoneArraysFromStructuredData(
   if (globalPacketCode && diamonds.length > 0 && diamonds.every((entry) => !entry.packetCode)) {
     diamonds = diamonds.map((entry) => ({ ...entry, packetCode: globalPacketCode }));
   }
+  // Colour stones the same way: the tag's packet code names their rate row
+  // too (the server's findColorstoneRateMatch), and the reader gives a
+  // colour stone no packet code of its own.
+  if (globalPacketCode && colorstones.length > 0 && colorstones.every((entry) => !entry.packetCode)) {
+    colorstones = colorstones.map((entry) => ({ ...entry, packetCode: globalPacketCode }));
+  }
 
   if (diamonds.length === 0 && scanData) {
     const fallback = stoneEntryFromScanData(scanData as ScanItemData, 'diamond');
@@ -175,6 +193,64 @@ export function parseStoneArraysFromStructuredData(
   }
 
   return { diamonds, colorstones };
+}
+
+/**
+ * A fresh reading's stones with the rates the shop's tables give them, as
+ * the review card's rows would look them up once open (and as the server
+ * prices the reading): a diamond by packet code, else colour, clarity and
+ * shape; a colour stone by packet code, else colour and clarity on a row
+ * without one (utils/pricingRules findColorstoneRateMatch). The tag-wide
+ * packet code stands in for the stones' own while none has one. A stone no
+ * row matches keeps its printed rate. Applied before the card's first price,
+ * so that price is already the one the rows settle on.
+ */
+export function applyStoneRateTables(
+  data: StructuredScanData,
+  diamondRates: readonly StoneRate[] | null | undefined,
+  colorstoneRates: readonly StoneRate[] | null | undefined,
+): StructuredScanData {
+  const record = data as Record<string, unknown>;
+  const globalPacketCode = typeof record.packetCode === 'string' ? record.packetCode.trim() : '';
+  const result: StructuredScanData = { ...data };
+  const groups: Array<['diamonds' | 'colorstones', StoneKind, readonly StoneRate[] | null | undefined]> = [
+    ['diamonds', 'diamond', diamondRates],
+    ['colorstones', 'colorstone', colorstoneRates],
+  ];
+  for (const [key, stoneType, rows] of groups) {
+    const raw = record[key];
+    if (!rows?.length || typeof raw !== 'string') continue;
+    let stones: unknown;
+    try {
+      stones = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(stones)) continue;
+    const ownCode = (stone: Record<string, unknown>) =>
+      flattenStoneField(stone.packetCode ?? (stoneType === 'diamond' ? stone.diamondPacketCode : undefined));
+    const seedGlobal = Boolean(globalPacketCode) &&
+      stones.every((stone) => !stone || typeof stone !== 'object' || !ownCode(stone as Record<string, unknown>));
+    let changed = false;
+    const priced = stones.map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
+      const stone = item as Record<string, unknown>;
+      const packetCode = ownCode(stone) || (seedGlobal ? globalPacketCode : '');
+      const color = flattenStoneField(stone.color);
+      const clarity = flattenStoneField(stone.clarity);
+      const match =
+        stoneType === 'diamond'
+          ? findMatchingDiamondRate([...rows], color, clarity, flattenStoneField(stone.shape), packetCode)
+          : findColorstoneRateMatch(rows, { packetCode, color, clarity });
+      if (!match) return item;
+      const rate = String(match.rate);
+      if (flattenStoneField(stone.rate) === rate) return item;
+      changed = true;
+      return { ...stone, rate };
+    });
+    if (changed) result[key] = JSON.stringify(priced);
+  }
+  return result;
 }
 
 export function resolveStoneEntryArrays(
@@ -280,10 +356,11 @@ export function buildSequentialStoneBlocks(
   return blocks;
 }
 
+/** The stones' weight in carats (a weight printed in grams is 5 ct a gram), for the net weight fallback. */
 export function sumStoneWeights(entries: StoneEntry[]): string {
   const total = entries.reduce((sum, entry) => {
     const parsed = Number.parseFloat(entry.weight.replace(/[^\d.]/g, ''));
-    return sum + (Number.isFinite(parsed) ? parsed : 0);
+    return sum + (Number.isFinite(parsed) ? caratsOf(parsed, entry.unit) : 0);
   }, 0);
   if (total <= 0) return '';
   return String(total);

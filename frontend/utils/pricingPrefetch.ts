@@ -62,14 +62,19 @@ export function derivePricingInput(
     ...(scanData.wastagePercent?.trim()
       ? { wastagePercent: figure(scanData.wastagePercent) }
       : {}),
+    // Each stone's unit as printed: a weight in grams is priced as 5 ct a
+    // gram, as the server prices the reading; without it the card priced
+    // "0.40 g" as 0.40 ct, a fifth of the analysis's price.
     diamonds: diamonds.map((d) => ({
       weight: figure(d.weight),
       rate: figure(d.rate),
       discountPercent: figure(d.discountPercent ?? '0'),
+      unit: d.unit === 'g' ? 'g' : 'ct',
     })),
     colorstones: colorstones.map((c) => ({
       weight: figure(c.weight),
       rate: figure(c.rate),
+      unit: c.unit === 'g' ? 'g' : 'ct',
     })),
   };
 
@@ -157,6 +162,31 @@ export function takeServerPricing(scanId: string): CalculateMrpResponse | null {
   const pricing = serverPricing.get(scanId) ?? null;
   serverPricing.delete(scanId);
   return pricing;
+}
+
+/**
+ * Why the analysis could not price the reading (no live gold rate, a
+ * reading that cannot be priced): the card says so, rather than showing a
+ * price, until its own request answers.
+ */
+const serverPricingErrors = new Map<string, string>();
+registerScopeResetCallback(() => {
+  serverPricingErrors.clear();
+});
+
+export function seedServerPricingError(scanId: string, message: string): void {
+  serverPricingErrors.set(scanId, message);
+  while (serverPricingErrors.size > MAX_ENTRIES) {
+    const oldest = serverPricingErrors.keys().next().value;
+    if (oldest == null) break;
+    serverPricingErrors.delete(oldest);
+  }
+}
+
+export function takeServerPricingError(scanId: string): string | null {
+  const message = serverPricingErrors.get(scanId) ?? null;
+  serverPricingErrors.delete(scanId);
+  return message;
 }
 
 /**

@@ -40,6 +40,8 @@ interface LaborSectionProps {
   labourAmount?: number;
   pureWeightDisplay?: string;
   goldAmountDisplay?: string;
+  /** The gold amount a percent labour is a share of, for the figure shown before the server's. */
+  goldAmount?: number;
   /** Generate was refused and an empty Labour Rate is one of the reasons. */
   missing?: boolean;
 }
@@ -54,7 +56,18 @@ function sanitizePurityInput(text: string): string {
 }
 
 function sanitizeChargeAmount(text: string): string {
-  return text.replace(/[₹,\s]/g, '');
+  return text.replace(/[₹,%\s]/g, '');
+}
+
+/**
+ * The Labour Rate box's label and prefix for the unit the figure is in: a
+ * percent of the gold value (a tag's "12%", an item saved in percent, a
+ * PERCENTAGE shop charge) reads as a percent, not as rupees.
+ */
+function rateFieldFor(unit: LabourChargeUnit): { label: string; prefix?: string } {
+  if (unit === 'Percent') return { label: 'Labour (% of gold)' };
+  if (unit === 'Per 10 Gram') return { label: 'Labour Rate /10g', prefix: '₹' };
+  return { label: 'Labour Rate', prefix: '₹' };
 }
 
 /**
@@ -95,7 +108,13 @@ export function computeFinalLabourAmount(
   values: Pick<LaborSectionValues, 'labourChargeAmount' | 'labourChargeUnit' | 'labourWeightBasis'>,
   grossWeightGrams: string,
   netWeightGrams: string,
+  /** A percent labour is that share of the gold amount (the server's rule). */
+  goldAmount = 0,
 ): number {
+  if (values.labourChargeUnit === 'Percent') {
+    const percent = Number(values.labourChargeAmount) || 0;
+    return percent > 0 && goldAmount > 0 ? goldAmount * (percent / 100) : 0;
+  }
   const grossWt = parseWeightValue(grossWeightGrams);
   const netWt = parseWeightValue(netWeightGrams);
   // Gross falls back to net when no gross weight is known, as the server does.
@@ -135,8 +154,10 @@ export const LaborSection = memo(function LaborSection({
   labourAmount,
   pureWeightDisplay = '—',
   goldAmountDisplay = '—',
+  goldAmount = 0,
   missing = false,
 }: LaborSectionProps) {
+  const rateField = rateFieldFor(values.labourChargeUnit);
 
   const handleChargeChange = (text: string) => {
     const next = sanitizeChargeAmount(text);
@@ -150,11 +171,11 @@ export const LaborSection = memo(function LaborSection({
       <MetalTile title="Labour Charge" tone="labour">
         <MetalGrid>
           <MetalInput
-            label="Labour Rate"
+            label={rateField.label}
             value={values.labourChargeAmount}
             onChangeText={handleChargeChange}
-            keyboardType="number-pad"
-            prefix="₹"
+            keyboardType={values.labourChargeUnit === 'Percent' ? 'decimal-pad' : 'number-pad'}
+            prefix={rateField.prefix}
             invalid={missing && !values.labourChargeAmount.trim()}
           />
           <MetalFieldSlot label="Weight Used">
@@ -170,7 +191,7 @@ export const LaborSection = memo(function LaborSection({
             value={formatInr(
               typeof labourAmount === 'number' && Number.isFinite(labourAmount)
                 ? labourAmount
-                : computeFinalLabourAmount(values, grossWeightGrams, netWeightGrams),
+                : computeFinalLabourAmount(values, grossWeightGrams, netWeightGrams, goldAmount),
             )}
             amount
             fullWidth

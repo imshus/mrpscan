@@ -1,5 +1,6 @@
 import { API_BASE_URL, getApiUrl } from '@/constants/api';
 import { useAuthStore } from '@/store/authStore';
+import { PRICING_RULES, PRICING_RULES_HEADER } from '@/utils/pricingRules';
 import {
   currentScopeGeneration,
   currentUserScope,
@@ -190,6 +191,12 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const headers = new Headers(customHeaders);
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
+  }
+  // Which pricing rules this build bills with: the server prices the
+  // analysis and every /calculate by them, so the MRP the card quotes is
+  // the one this build's invoice bills (utils/pricingRules).
+  if (!headers.has(PRICING_RULES_HEADER)) {
+    headers.set(PRICING_RULES_HEADER, PRICING_RULES);
   }
 
   let requestBody: BodyInit | undefined;

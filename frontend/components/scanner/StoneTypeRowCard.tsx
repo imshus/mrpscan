@@ -8,7 +8,11 @@ import {
 } from '@/components/scanner/ReviewCardKit';
 import { useStoneRateFetch } from '@/hooks/useStoneRateFetch';
 import type { StoneKind } from '@/types/scanner';
-import { computeStoneAmountWithDiscount, computeStoneAmount } from '@/utils/scanPriceCalculation';
+import {
+  computeStoneAmountWithDiscount,
+  computeStoneAmount,
+  stoneCaratsText,
+} from '@/utils/scanPriceCalculation';
 import { parseNumericLabourValue } from '@/utils/labourUtils';
 import { roundHalfUp } from '@/utils/moneyMath';
 
@@ -21,6 +25,8 @@ export interface StoneTypeRowValues {
   discountPercent?: string;
   shape?: string;
   packetCode?: string;
+  /** The weight's unit as printed: 'g' is priced as 5 ct a gram. */
+  unit?: 'g' | 'ct';
 }
 
 /** Row fields the reader was not sure of; each marked one asks for a check. */
@@ -98,10 +104,12 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
     },
     [onChange, stoneType, entryIndex],
   );
+  // In carats, as the server prices it: a weight printed in grams is 5 ct a gram.
+  const carats = stoneCaratsText(values);
   const amount =
     stoneType === 'diamond'
-      ? computeStoneAmountWithDiscount(values.weight, values.rate, values.discountPercent)
-      : computeStoneAmount(values.weight, values.rate);
+      ? computeStoneAmountWithDiscount(carats, values.rate, values.discountPercent)
+      : computeStoneAmount(carats, values.rate);
   const resolvedShape = (() => {
     const raw = values.shape?.trim() ?? '';
     if (!raw) return '';
@@ -109,7 +117,9 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
     const match = shapeOptions?.find((opt) => opt.value.toLowerCase() === raw.toLowerCase());
     return match?.value ?? raw;
   })();
-  // Diamond Rate setup permits any one of packet code, shape, color or clarity.
+  // Diamond Rate setup permits any one of packet code, shape, color or
+  // clarity; a colour stone is found by its packet code, or a colour or a
+  // clarity, as the server finds it.
   const hasLookupCriteria =
     stoneType === 'diamond'
       ? Boolean(
@@ -118,7 +128,7 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
             values.color.trim() ||
             values.clarity.trim(),
         )
-      : Boolean(values.color.trim() && values.clarity.trim());
+      : Boolean(values.packetCode?.trim() || values.color.trim() || values.clarity.trim());
 
   // A rate the user typed or the scanner read is theirs. Only a rate supplied
   // by the table may be cleared by a later table miss.
@@ -137,11 +147,14 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
       const previousTableRate = tableRateRef.current;
       tableRateRef.current = null;
       if (userTypedRateRef.current || !values.rate) return;
-      if (stoneType === 'colorstone' || values.rate === previousTableRate) {
+      // Only a rate the table supplied goes with a miss: a printed rate is
+      // the tag's and stays, as the server prices a stone no row matches.
+      // A colour stone's printed rate used to be cleared here.
+      if (values.rate === previousTableRate) {
         emitChange({ rate: '' }, false);
       }
     },
-    [emitChange, stoneType, values.rate],
+    [emitChange, values.rate],
   );
 
   // Fields stay editable while a lookup runs: flipping them to read-only
@@ -151,7 +164,7 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
     color: values.color,
     clarity: values.clarity,
     shape: stoneType === 'diamond' ? resolvedShape : undefined,
-    packetCode: stoneType === 'diamond' ? values.packetCode : undefined,
+    packetCode: values.packetCode,
     enabled: editable && hasLookupCriteria,
     onRateFetched: handleRateFetched,
   });
@@ -172,7 +185,7 @@ export const StoneTypeRowCard = memo(function StoneTypeRowCard({
             discount are still read from the tag and still price the stone;
             they are simply not more boxes to read past on a counter. */}
         <MetalInput
-          label={labels.weight}
+          label={values.unit === 'g' ? `${labels.weight} (g)` : labels.weight}
           value={values.weight}
           onChangeText={(weight) => emitChange({ weight })}
           editable={editable}

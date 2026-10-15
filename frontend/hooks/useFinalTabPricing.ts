@@ -10,12 +10,18 @@ import {
   formatIndianCurrency,
   formatWeightGrams,
   parseNumericValue,
+  stoneCaratsText,
   type FinalTabPricingResult,
   type StoneAmountRow,
 } from '@/utils/scanPriceCalculation';
 import { parseWeightValue } from '@/utils/formulaUtils';
 import { calculateScanMrp } from '@/utils/scanApi';
-import { derivePricingInput, takePrefetchedPricing, takeServerPricing } from '@/utils/pricingPrefetch';
+import {
+  derivePricingInput,
+  takePrefetchedPricing,
+  takeServerPricing,
+  takeServerPricingError,
+} from '@/utils/pricingPrefetch';
 import { ApiError } from '@/utils/apiClient';
 import { useScannerStore } from '@/store/scannerStore';
 
@@ -61,6 +67,26 @@ const defaultPricing: FinalTabPricingResult = {
 
 const PRICING_EDIT_DEBOUNCE_MS = 350;
 
+/**
+ * No price: the server refused the inputs (400 INVALID_PRICING_INPUT) or had
+ * no live gold rate (503 RATES_UNAVAILABLE). The card shows why instead of a
+ * figure, and Generate Invoice stays off: keeping the last price, as every
+ * build did, let the invoice bill a price for inputs the card no longer held.
+ */
+function pricingRefused(message: string): FinalTabPricingResult {
+  return {
+    ...defaultPricing,
+    goldBasePriceDisplay: '—',
+    ultimateMrpDisplay: '—',
+    pricingError: message,
+  };
+}
+
+/** A refusal the card can explain, as opposed to a dropped connection. */
+function isPricingRefusal(err: unknown): err is ApiError {
+  return err instanceof ApiError && (err.status === 400 || err.status === 503);
+}
+
 function buildPricingStateKey(pricing: FinalTabPricingResult): string {
   return JSON.stringify({
     grossWtDisplay: pricing.grossWtDisplay,
@@ -81,6 +107,8 @@ function buildPricingStateKey(pricing: FinalTabPricingResult): string {
     otherChargesAmount: pricing.otherChargesAmount,
     ultimateMrp: pricing.ultimateMrp,
     stoneRows: pricing.stoneRows,
+    netWeightEstimated: pricing.netWeightEstimated,
+    pricingError: pricing.pricingError,
   });
 }
 
@@ -215,12 +243,17 @@ export function useFinalTabPricing({
       // shown only while the card's own price is still out.
       if (isFirstRequestForScan) {
         const seeded = takeServerPricing(scanId);
+        const seededError = takeServerPricingError(scanId);
         const first = prefetched?.settled ?? seeded;
         if (first) {
           const firstPricing = toPricingResult(first);
           setPricing((current) =>
             buildPricingStateKey(current) === buildPricingStateKey(firstPricing) ? current : firstPricing,
           );
+        } else if (seededError) {
+          // The analysis could not price the reading either: say why while
+          // the card's own request is out.
+          setPricing(pricingRefused(seededError));
         }
         if (prefetched?.settled) return;
       }
@@ -228,13 +261,17 @@ export function useFinalTabPricing({
       function toPricingResult(res: CalculateMrpResponse): FinalTabPricingResult {
         const stoneBlocks = buildDisplayStoneBlocks(diamonds, colorstones);
         const stoneRows: StoneAmountRow[] = stoneBlocks.map(block => {
-            // As the request reads them (derivePricingInput): never below zero.
-            const wt = Math.max(0, parseNumericValue(block.entry.weight));
+            // As the request reads them (derivePricingInput): never below
+            // zero, and in carats — a weight printed in grams is 5 ct a
+            // gram, as the server prices it. The row carries carats, so the
+            // invoice's stone line is in carats too.
+            const carats = stoneCaratsText(block.entry);
+            const wt = Math.max(0, parseNumericValue(carats));
             const rt = Math.max(0, parseNumericValue(block.entry.rate));
             const rowAmt =
               block.stoneType === 'diamond'
                 ? computeStoneAmountWithDiscount(
-                    block.entry.weight,
+                    carats,
                     block.entry.rate,
                     block.entry.discountPercent,
                   )
@@ -245,7 +282,7 @@ export function useFinalTabPricing({
               stoneType: block.stoneType,
               rate: `₹${block.entry.rate}/ct`,
               quality: block.entry.quality || '—',
-              weight: `${block.entry.weight} ct`,
+              weight: `${carats} ct`,
                 amount: rowAmt,
                 amountDisplay: formatIndianCurrency(rowAmt),
             };
@@ -256,7 +293,13 @@ export function useFinalTabPricing({
         const backendStoneTotal = diamondAmount + colorstoneAmount;
 
         const grossWtGrams = parseWeightValue(scanData.grossWt);
-        const netWtGrams = payload.netWt;
+        // The net weight the gold was priced on: with none on the tag, the
+        // server works it out from the gross (less the stones) and says so.
+        // The invoice's gold line and the purity figures use it; the blank
+        // net weight sent used to bill gold with no quantity.
+        const netWtUsed = Number(res.breakdown.netWeightUsed);
+        const netWtGrams = Number.isFinite(netWtUsed) && netWtUsed > 0 ? netWtUsed : payload.netWt;
+        const netWeightEstimated = res.breakdown.netWeightEstimated === true;
         const pureWeight = res.breakdown.pureWeight;
         const goldAmount = res.breakdown.goldAmount;
         const effectivePurityPercent =
@@ -275,6 +318,7 @@ export function useFinalTabPricing({
           },
           netWtGrams,
           grossWtGrams,
+          res.breakdown.goldAmount,
         );
         const backendLabourAmount = res.breakdown.labourAmount;
         const backendWastageAmount = Number(res.breakdown.wastageAmount) || 0;
@@ -303,7 +347,10 @@ export function useFinalTabPricing({
         return {
           grossWtDisplay: scanData.grossWt || '—',
           netWtGrams,
-          netWtDisplay: formatWeightGrams(netWtGrams),
+          netWtDisplay: netWeightEstimated
+            ? `${formatWeightGrams(netWtGrams)} (est.)`
+            : formatWeightGrams(netWtGrams),
+          netWeightEstimated,
           selectedKarat: resolvedKarat,
           effectivePurityPercent,
           puritySource,
@@ -362,6 +409,16 @@ export function useFinalTabPricing({
               }),
             );
           }
+          return;
+        }
+
+        if (isPricingRefusal(err)) {
+          // The price the card held belongs to inputs it no longer has (or
+          // to a rate that is gone): clear it and say why.
+          const refused = pricingRefused(err.message);
+          setPricing((current) =>
+            buildPricingStateKey(current) === buildPricingStateKey(refused) ? current : refused,
+          );
           return;
         }
 

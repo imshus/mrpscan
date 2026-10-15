@@ -379,7 +379,13 @@ export function ReviewScannedResultsModal({
     if (!hasIncompleteStones) setShowMissingStones(false);
   }, [hasIncompleteStones]);
 
+  // No price to bill: the server refused the inputs or has no live gold rate
+  // (pricing.pricingError, said under the MRP). Generate stays off until a
+  // price comes back; it used to bill whatever price the card last held.
+  const pricingRefused = Boolean(pricing.pricingError);
+
   const handleGenerateInvoice = useCallback(() => {
+    if (pricingRefused) return;
     if (hasIncompleteStones) {
       // Red boxes, one shake and one buzz — the same refusal a wrong MPIN
       // gives, which is a language the hand already knows.
@@ -396,7 +402,7 @@ export function ReviewScannedResultsModal({
       return;
     }
     onGenerateInvoice();
-  }, [hasIncompleteStones, firstMissingSection, onGenerateInvoice, triggerShake]);
+  }, [pricingRefused, hasIncompleteStones, firstMissingSection, onGenerateInvoice, triggerShake]);
 
   useEffect(() => {
     // Nothing to resolve until the tag's own karat is in: writing the 14K
@@ -531,6 +537,11 @@ export function ReviewScannedResultsModal({
           amount={pricing.ultimateMrpDisplay}
           style={styles.mrpCard}
         />
+        {pricing.pricingError ? (
+          <Text style={styles.pricingError} accessibilityLiveRegion="polite">
+            {pricing.pricingError}
+          </Text>
+        ) : null}
 
         {/* Mockup .fin-item-row — what was scanned, named and numbered. */}
         <View style={styles.itemRow}>
@@ -632,7 +643,7 @@ export function ReviewScannedResultsModal({
                 hasAddedToWishlist ? 'Item Added' : addingToWishlist ? 'Adding...' : '♡ Add to Wishlist'
               }
               onPress={onAddToWishlist}
-              disabled={hasAddedToWishlist || addingToWishlist || analysisPending}
+              disabled={hasAddedToWishlist || addingToWishlist || analysisPending || pricingRefused}
               style={styles.footerBtn}
             />
           </View>
@@ -640,7 +651,7 @@ export function ReviewScannedResultsModal({
             variant="brand"
             title="Generate Invoice"
             onPress={handleGenerateInvoice}
-            disabled={analysisPending}
+            disabled={analysisPending || pricingRefused}
             large
             style={styles.primaryAction}
           />
@@ -699,6 +710,13 @@ const styles = StyleSheet.create({
   },
   rateError: {
     marginTop: 4,
+    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.dangerText,
+  },
+  pricingError: {
+    marginTop: 6,
     textAlign: 'center',
     fontSize: 12,
     lineHeight: 18,

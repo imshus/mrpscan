@@ -19,6 +19,7 @@ import {
   parseNumericLabourValue,
 } from '@/utils/labourUtils';
 import { roundHalfUp } from '@/utils/moneyMath';
+import { caratsOf } from '@/utils/pricingRules';
 import { buildQuality } from '@/utils/qualityUtils';
 
 // Read off the tag the same way everywhere; it lives with the karat parsing.
@@ -99,6 +100,14 @@ export interface FinalTabPricingResult {
   otherChargesDisplay: string;
   ultimateMrp: number;
   ultimateMrpDisplay: string;
+  /** True when the gold was priced on a net weight worked out from the gross (low confidence). */
+  netWeightEstimated?: boolean;
+  /**
+   * Why there is no price: the server refused the card's inputs (400) or had
+   * no live gold rate (503). The card shows it in place of the MRP and will
+   * not invoice until a price comes back.
+   */
+  pricingError?: string;
 }
 
 export function computeOtherChargesTotal(
@@ -134,6 +143,17 @@ export function formatStoneRateDisplay(rate: string): string {
   if (trimmed.includes('₹') || /\/ct/i.test(trimmed)) return trimmed;
   const numeric = parseNumericValue(trimmed);
   return numeric > 0 ? `₹${numeric.toLocaleString('en-IN')}/ct` : '—';
+}
+
+/**
+ * A stone row's weight in carats, as text the amount helpers read: a weight
+ * printed in grams is five carats a gram (the server's rule), worked out
+ * exactly as the server does so the row's amount is the server's line.
+ */
+export function stoneCaratsText(entry: Pick<StoneEntry, 'weight' | 'unit'>): string {
+  if (entry.unit !== 'g') return entry.weight;
+  const carats = caratsOf(parseWeightValue(entry.weight), 'g');
+  return carats > 0 ? String(carats) : entry.weight;
 }
 
 export function computeStoneAmount(weight: string, rate: string): number {
@@ -285,6 +305,8 @@ export function computeLabourAmount(
   >,
   netWtGrams: number,
   grossWtGrams: number,
+  /** The gold amount a percent labour is a share of; 0 when not known. */
+  goldAmount = 0,
 ): { amount: number; display: string; mode: LabourInputMode } {
   const mode = resolveLabourInputMode(scanData);
 
@@ -296,7 +318,10 @@ export function computeLabourAmount(
       scanData.labourWeightBasis || DEFAULT_LABOUR_WEIGHT_BASIS;
     const weightGrams =
       basis === 'gross' ? (grossWtGrams > 0 ? grossWtGrams : netWtGrams) : netWtGrams;
-    const amount = applyLabourRateToNetWeight(weightGrams, rate, unit);
+    const amount = applyLabourRateToNetWeight(weightGrams, rate, unit, goldAmount);
+    if (unit === 'Percent') {
+      return { amount, display: `${formatIndianCurrency(amount)} (${rate}% of gold)`, mode };
+    }
     const unitLabel = unit === 'Per 10 Gram' ? '/10g' : '/g';
     return {
       amount,
@@ -312,7 +337,10 @@ export function applyLabourRateToNetWeight(
   netWtGrams: number,
   rate: number,
   unit: LabourChargeUnit,
+  /** A percent labour is that share of the gold amount (the server's rule). */
+  goldAmount = 0,
 ): number {
+  if (unit === 'Percent') return rate > 0 && goldAmount > 0 ? goldAmount * (rate / 100) : 0;
   if (netWtGrams <= 0 || rate <= 0) return 0;
   if (unit === 'Per 10 Gram') return netWtGrams * (rate / 10);
   return netWtGrams * rate;
@@ -326,10 +354,12 @@ export function buildStoneAmountRow(
 ): StoneAmountRow {
   const quality =
     entry.quality.trim() || buildQuality(entry.color, entry.clarity);
+  // Priced in carats: a weight printed in grams is five carats a gram.
+  const carats = stoneCaratsText(entry);
   const amount =
     stoneType === 'diamond'
-      ? computeStoneAmountWithDiscount(entry.weight, entry.rate, entry.discountPercent)
-      : computeStoneAmount(entry.weight, entry.rate);
+      ? computeStoneAmountWithDiscount(carats, entry.rate, entry.discountPercent)
+      : computeStoneAmount(carats, entry.rate);
 
   return {
     sequenceIndex,
@@ -337,7 +367,7 @@ export function buildStoneAmountRow(
     stoneType,
     rate: formatStoneRateDisplay(entry.rate),
     quality: quality || '—',
-    weight: formatCaratDisplay(entry.weight),
+    weight: formatCaratDisplay(carats),
     amount,
     amountDisplay: formatIndianCurrency(amount),
   };
@@ -375,7 +405,7 @@ export function computeFinalTabPricing(input: FinalTabPricingInput): FinalTabPri
   });
   const goldBasePrice = goldMetrics.goldAmount;
 
-  const labour = computeLabourAmount(input.scanData, netWtGrams, grossWtGrams);
+  const labour = computeLabourAmount(input.scanData, netWtGrams, grossWtGrams, goldBasePrice);
   const usePercentageMode = labour.mode === 'percentage';
   const useFixedAmountMode = labour.mode === 'fixedAmount';
   const otherChargesAmount = computeOtherChargesTotal(input.scanData);
