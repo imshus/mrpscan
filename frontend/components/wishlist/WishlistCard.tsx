@@ -3,10 +3,11 @@ import { Trash2 } from 'lucide-react-native';
 
 import { Colors } from '@/constants/theme';
 import type { WishlistItem } from '@/types/wishlist';
+import { roundHalfUp } from '@/utils/moneyMath';
 import { formatWishlistAge } from '@/utils/wishlistUtils';
 
 function formatWishlistAmount(amount: number) {
-  return `₹ ${Math.round(amount).toLocaleString('en-IN')}`;
+  return `₹ ${roundHalfUp(amount).toLocaleString('en-IN')}`;
 }
 
 interface WishlistCardProps {

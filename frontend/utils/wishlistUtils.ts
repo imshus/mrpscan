@@ -12,6 +12,7 @@ import {
   parseStoneArraysFromStructuredData,
 } from '@/utils/stoneSequenceUtils';
 import { resolveScannedKarat } from '@/utils/formulaUtils';
+import { roundHalfUp } from '@/utils/moneyMath';
 
 /** Unique ID for each wishlist addition so variants of the same tag can be saved. */
 function generateWishlistId(tagCode: string): string {
@@ -38,8 +39,9 @@ export function formatWishlistPriceBadge(
   _selectedType: JewelleryType,
   pricing: FinalTabPricingResult,
 ): string {
-  // Always show the total MRP regardless of jewellery type
-  const amount = Math.round(pricing.ultimateMrp).toLocaleString('en-IN');
+  // Always show the total MRP regardless of jewellery type, rounded as the
+  // card rounds it (half-up on the exact figure).
+  const amount = roundHalfUp(pricing.ultimateMrp).toLocaleString('en-IN');
   return `₹ ${amount}`;
 }
 
@@ -157,7 +159,7 @@ export function buildWishlistItem(input: {
     tagCode,
     priceBadge: formatWishlistPriceBadge(input.selectedType, pricing),
     calculationRate: input.scanData.calculationRate,
-    totalMrp: Math.round(pricing.ultimateMrp),
+    totalMrp: roundHalfUp(pricing.ultimateMrp),
     addedAt: now,
     scanTimestamp: input.scanTimestamp ?? now,
     snapshot,
