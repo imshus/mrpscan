@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,7 +19,7 @@ import { GradientView } from '@/components/ui/GradientView';
 import { MatrixCheckboxRow } from '@/components/settings/MatrixCheckboxRow';
 import { GOLD_MATRIX_SECTIONS } from '@/constants/dashboardMatrices';
 import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
-import { useEmployeeDraftStore } from '@/store/employeeDraftStore';
+import { useEmployeeDraftStore, verifiedPhoneToken } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import type { EmployeePermissionKey } from '@/types/employee';
 import {
@@ -77,6 +78,8 @@ export default function EmployeePermissionsScreen() {
   const credentials = useEmployeeDraftStore((s) => s.credentials);
   const setTakenPhone = useEmployeeDraftStore((s) => s.setTakenPhone);
   const resetDraft = useEmployeeDraftStore((s) => s.resetDraft);
+  const phoneVerification = useEmployeeDraftStore((s) => s.phoneVerification);
+  const setPhoneVerification = useEmployeeDraftStore((s) => s.setPhoneVerification);
   const updateEmployee = useEmployeeStore((s) => s.updateEmployee);
   const setEmployees = useEmployeeStore((s) => s.setEmployees);
 
@@ -157,6 +160,23 @@ export default function EmployeePermissionsScreen() {
       return;
     }
 
+    // The number was proved by OTP on the way here; a proof that has lapsed
+    // (the owner took more than 25 minutes) is done again from Add, where
+    // Continue sends a fresh code. The MPIN and permissions stay as set.
+    const phoneVerificationToken = verifiedPhoneToken(phoneVerification, draft.phone);
+    const verifyAgain = () => {
+      setPhoneVerification(null);
+      Alert.alert(
+        'Verify the phone again',
+        "The employee's phone check has expired. Tap Continue to send a new OTP.",
+      );
+      router.dismissTo('/dashboard/employees/add' as Href);
+    };
+    if (!phoneVerificationToken) {
+      verifyAgain();
+      return;
+    }
+
     setSaving(true);
     try {
       const result = await createEmployeeWithMpin({
@@ -169,9 +189,14 @@ export default function EmployeePermissionsScreen() {
         mpin: credentials.mpin,
         confirmMpin: credentials.confirmMpin,
         permissions,
+        phoneVerificationToken,
       });
 
       if (!result.success) {
+        if (result.code === EMPLOYEE_ERROR_CODES.phoneNotVerified) {
+          verifyAgain();
+          return;
+        }
         if (result.code === EMPLOYEE_ERROR_CODES.phoneTaken) {
           // Nothing was saved. The draft stays as typed, so Add opens with
           // the number marked and everything else still filled in.

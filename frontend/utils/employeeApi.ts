@@ -72,6 +72,8 @@ function resolveApiMessage(
 export const EMPLOYEE_ERROR_CODES = {
   phoneTaken: 'PHONE_ALREADY_REGISTERED',
   trialRequired: 'TRIAL_REQUIRED_FOR_MORE_EMPLOYEES',
+  /** The add or number change came without a valid OTP token (or it expired). */
+  phoneNotVerified: 'EMPLOYEE_PHONE_NOT_VERIFIED',
 } as const;
 
 export interface EmployeeApiFailure {
@@ -253,6 +255,62 @@ export async function checkEmployeePhone(
 }
 
 /**
+ * Sends a 6-digit OTP by SMS to the number a new employee is added with (or
+ * an employee's number is changed to). The server refuses a number that is
+ * already anyone's login with PHONE_ALREADY_REGISTERED.
+ */
+export async function sendEmployeePhoneOtp(
+  phone: string,
+): Promise<{ success: true; resendAfterSeconds: number } | EmployeeApiFailure> {
+  const fallback = 'Could not send the OTP. Please try again.';
+  try {
+    const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/employees/phone-otp', {
+      method: 'POST',
+      body: { phone: normalizeIndianPhone(phone) },
+    });
+    const unwrapped = unwrapEnvelope(response);
+    if (!isSuccessfulResponse(response, unwrapped)) {
+      return envelopeFailure(response, unwrapped, fallback);
+    }
+    const wait = Number(unwrapped.resendAfterSeconds);
+    return { success: true, resendAfterSeconds: Number.isFinite(wait) && wait > 0 ? wait : 30 };
+  } catch (error) {
+    const failure = toFailure(error, fallback);
+    if (failure.status === 404) {
+      return { ...failure, error: 'The server is not updated for employee OTP yet. Please try again later.' };
+    }
+    return failure;
+  }
+}
+
+/**
+ * Checks the OTP the employee received. The answer is the token the add (or
+ * the number change) carries: the server accepts the number only with it,
+ * for 30 minutes.
+ */
+export async function verifyEmployeePhoneOtp(
+  phone: string,
+  otp: string,
+): Promise<{ success: true; token: string } | EmployeeApiFailure> {
+  const fallback = 'Could not check the OTP. Please try again.';
+  try {
+    const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/employees/phone-otp/verify', {
+      method: 'POST',
+      body: { phone: normalizeIndianPhone(phone), otp: otp.trim() },
+    });
+    const unwrapped = unwrapEnvelope(response);
+    if (!isSuccessfulResponse(response, unwrapped)) {
+      return envelopeFailure(response, unwrapped, fallback);
+    }
+    const token = readString(unwrapped, ['phoneVerificationToken']);
+    if (!token) return { success: false, error: fallback };
+    return { success: true, token };
+  } catch (error) {
+    return toFailure(error, fallback);
+  }
+}
+
+/**
  * Creates the employee in one call — details, the login MPIN the owner set
  * and the permissions chosen — which the server also saves as the
  * employee's own user, so they sign in like an owner does.
@@ -268,6 +326,8 @@ export async function createEmployeeWithMpin(payload: {
   mpin: string;
   confirmMpin: string;
   permissions: EmployeePermissions;
+  /** From verifyEmployeePhoneOtp, for this phone. */
+  phoneVerificationToken?: string;
 }): Promise<{ success: true; employee: Employee } | EmployeeApiFailure> {
   const fallback = 'Failed to create employee.';
   try {
@@ -282,6 +342,7 @@ export async function createEmployeeWithMpin(payload: {
         mpin: payload.mpin,
         confirmMpin: payload.confirmMpin,
         permissions: mapDraftPermissionsToApi(payload.permissions),
+        ...(payload.phoneVerificationToken ? { phoneVerificationToken: payload.phoneVerificationToken } : {}),
       },
     });
     const unwrapped = unwrapEnvelope(response);
@@ -358,6 +419,8 @@ export async function updateEmployeeApi(
     designation?: string;
     permissions?: EmployeePermissions;
     isActive?: boolean;
+    /** Needed only when `phone` is a new number: the token for that number. */
+    phoneVerificationToken?: string;
   }
 ): Promise<{ success: boolean; error?: string; code?: string }> {
   const fallback = 'Failed to update employee.';
@@ -369,6 +432,7 @@ export async function updateEmployeeApi(
     if (typeof payload.designation === 'string') body.designation = payload.designation.trim();
     if (payload.permissions) body.permissions = mapDraftPermissionsToApi(payload.permissions);
     if (typeof payload.isActive === 'boolean') body.isActive = payload.isActive;
+    if (payload.phoneVerificationToken) body.phoneVerificationToken = payload.phoneVerificationToken;
 
     const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(`/employees/${id}`, {
       method: 'PUT',

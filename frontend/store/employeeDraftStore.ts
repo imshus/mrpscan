@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import { DEFAULT_EMPLOYEE_PERMISSIONS } from '@/constants/employeeData';
 import type { EmployeeDraft, EmployeeGender, EmployeePermissionKey } from '@/types/employee';
+import { normalizeIndianPhone } from '@/utils/employeeCredentials';
 import { registerScopeResetCallback } from '@/utils/userScopedStorage';
 
 /**
@@ -18,6 +19,20 @@ export interface EmployeeCredentialsDraft {
   confirmMpin: string;
 }
 
+/**
+ * The number the employee proved with the OTP sent to it, and the token the
+ * server gave for it. The server takes a new employee (or a changed number)
+ * only with this token, for 30 minutes; in memory only, like the MPIN.
+ */
+export interface EmployeePhoneVerification {
+  phone: string;
+  token: string;
+  verifiedAt: number;
+}
+
+/** A little under the server's 30 minutes, so a token is never sent as it lapses. */
+const VERIFICATION_TTL_MS = 25 * 60 * 1000;
+
 interface EmployeeDraftState {
   mode: 'add' | 'edit';
   editEmployeeId: string | null;
@@ -29,12 +44,14 @@ interface EmployeeDraftState {
    * draft still holds it; changing the number clears it by itself.
    */
   takenPhone: string | null;
+  phoneVerification: EmployeePhoneVerification | null;
   setMode: (mode: 'add' | 'edit', employeeId?: string | null) => void;
   updateDraft: (data: Partial<EmployeeDraft>) => void;
   togglePermission: (key: EmployeePermissionKey) => void;
   setPermissions: (permissions: EmployeeDraft['permissions']) => void;
   setCredentials: (data: Partial<EmployeeCredentialsDraft>) => void;
   setTakenPhone: (phone: string | null) => void;
+  setPhoneVerification: (verification: EmployeePhoneVerification | null) => void;
   resetDraft: () => void;
 }
 
@@ -55,11 +72,19 @@ export const useEmployeeDraftStore = create<EmployeeDraftState>()((set) => ({
   draft: { ...emptyDraft, permissions: { ...DEFAULT_EMPLOYEE_PERMISSIONS } },
   credentials: { ...emptyCredentials },
   takenPhone: null,
-  // Editing someone never carries a half-set MPIN for a new hire along.
+  phoneVerification: null,
+  // Editing someone never carries a half-set MPIN, or a number proved for a
+  // new hire, along.
   setMode: (mode, employeeId = null) =>
     set(
       mode === 'edit'
-        ? { mode, editEmployeeId: employeeId, credentials: { ...emptyCredentials }, takenPhone: null }
+        ? {
+            mode,
+            editEmployeeId: employeeId,
+            credentials: { ...emptyCredentials },
+            takenPhone: null,
+            phoneVerification: null,
+          }
         : { mode, editEmployeeId: employeeId },
     ),
   updateDraft: (data) => set((state) => ({ draft: { ...state.draft, ...data } })),
@@ -78,6 +103,7 @@ export const useEmployeeDraftStore = create<EmployeeDraftState>()((set) => ({
   setCredentials: (data) =>
     set((state) => ({ credentials: { ...state.credentials, ...data } })),
   setTakenPhone: (phone) => set({ takenPhone: phone }),
+  setPhoneVerification: (verification) => set({ phoneVerification: verification }),
   resetDraft: () =>
     set({
       mode: 'add',
@@ -85,8 +111,25 @@ export const useEmployeeDraftStore = create<EmployeeDraftState>()((set) => ({
       draft: { ...emptyDraft, permissions: { ...DEFAULT_EMPLOYEE_PERMISSIONS } },
       credentials: { ...emptyCredentials },
       takenPhone: null,
+      phoneVerification: null,
     }),
 }));
+
+/**
+ * The token for `phone` when that exact number was proved by OTP recently
+ * enough for the server to still accept it; null otherwise. A number changed
+ * after it was proved is never verified.
+ */
+export function verifiedPhoneToken(
+  verification: EmployeePhoneVerification | null,
+  phone: string,
+  now: number = Date.now(),
+): string | null {
+  if (!verification) return null;
+  if (verification.phone !== normalizeIndianPhone(phone)) return null;
+  if (now - verification.verifiedAt > VERIFICATION_TTL_MS) return null;
+  return verification.token;
+}
 
 /**
  * The half-filled form belongs to whoever was signing in when it was typed.

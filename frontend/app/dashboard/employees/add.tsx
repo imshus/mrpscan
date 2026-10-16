@@ -18,9 +18,14 @@ import { BottomNav } from '@/components/dashboard/BottomNav';
 import { EmployeeScreenHeader } from '@/components/employees/EmployeeScreenHeader';
 import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
-import { useEmployeeDraftStore } from '@/store/employeeDraftStore';
+import { useEmployeeDraftStore, verifiedPhoneToken } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
-import { checkEmployeePhone, EMPLOYEE_ERROR_CODES, updateEmployeeApi } from '@/utils/employeeApi';
+import {
+  checkEmployeePhone,
+  EMPLOYEE_ERROR_CODES,
+  sendEmployeePhoneOtp,
+  updateEmployeeApi,
+} from '@/utils/employeeApi';
 import { normalizeIndianPhone, PHONE_TAKEN_MESSAGE } from '@/utils/employeeCredentials';
 import { validatePhone } from '@/utils/validation';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
@@ -34,7 +39,13 @@ export default function AddEmployeeScreen() {
   const editEmployeeId = useEmployeeDraftStore((s) => s.editEmployeeId);
   const takenPhone = useEmployeeDraftStore((s) => s.takenPhone);
   const setTakenPhone = useEmployeeDraftStore((s) => s.setTakenPhone);
+  const phoneVerification = useEmployeeDraftStore((s) => s.phoneVerification);
   const updateEmployee = useEmployeeStore((s) => s.updateEmployee);
+  // The number the employee being edited has now: a different one is proved
+  // by OTP before it is saved.
+  const storedPhone = useEmployeeStore(
+    (s) => s.employees.find((e) => e.id === editEmployeeId)?.phone ?? null,
+  );
 
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
@@ -57,7 +68,32 @@ export default function AddEmployeeScreen() {
     setErrors(nextErrors);
     if (Object.values(nextErrors).some(Boolean)) return;
 
+    // Sends the OTP to the employee's SIM and opens Verify Phone, which
+    // carries on from there (Credentials when adding; the save when editing).
+    const sendOtpAndVerify = async (phone: string) => {
+      const sent = await sendEmployeePhoneOtp(phone);
+      if (!sent.success) {
+        if (sent.code === EMPLOYEE_ERROR_CODES.phoneTaken) {
+          setTakenPhone(phone);
+          return;
+        }
+        setFormError(sent.error);
+        return;
+      }
+      router.push('/dashboard/employees/verify-phone' as Href);
+    };
+
     if (mode === 'edit' && editEmployeeId) {
+      const phone = normalizeIndianPhone(draft.phone);
+      if (storedPhone && phone !== normalizeIndianPhone(storedPhone)) {
+        setSaving(true);
+        try {
+          await sendOtpAndVerify(phone);
+        } finally {
+          setSaving(false);
+        }
+        return;
+      }
       setSaving(true);
       try {
         const result = await updateEmployeeApi(editEmployeeId, {
@@ -70,6 +106,12 @@ export default function AddEmployeeScreen() {
         if (!result.success) {
           if (result.code === EMPLOYEE_ERROR_CODES.phoneTaken) {
             setErrors({ ...nextErrors, phone: PHONE_TAKEN_MESSAGE });
+            return;
+          }
+          if (result.code === EMPLOYEE_ERROR_CODES.phoneNotVerified) {
+            // The roster on this phone had an older number: the server says
+            // this one is new, so it is proved first.
+            await sendOtpAndVerify(normalizeIndianPhone(draft.phone));
             return;
           }
           Alert.alert('Error', result.error ?? 'Failed to update employee details');
@@ -108,11 +150,15 @@ export default function AddEmployeeScreen() {
         return;
       }
       setTakenPhone(null);
+      // Proved a moment ago (back from Credentials, say): no second code.
+      if (verifiedPhoneToken(phoneVerification, phone)) {
+        router.push('/dashboard/employees/credentials' as Href);
+        return;
+      }
+      await sendOtpAndVerify(phone);
     } finally {
       setSaving(false);
     }
-
-    router.push('/dashboard/employees/credentials' as Href);
   };
 
   return (
