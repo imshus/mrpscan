@@ -268,6 +268,27 @@ function linePrice(draft: DraftLine, billed: number): number {
 }
 
 /**
+ * The whole rupees each line bills, with the wastage line on its own half-up
+ * figure and the other lines sharing out the rest of the MRP. The grams are
+ * to the milligram (pricing rules 3), so at its own figure the line prints
+ * the Current Gold Rate; given the MRP's odd rupee instead (8.769 g of 22K:
+ * 9,645.48 billed as 9,646) it had to print 13,740.74 a gram. The gold
+ * line, whose price is its amount over its grams anyway, takes that rupee.
+ * Null when there is no wastage line or the others cannot take it up.
+ */
+function allocateKeepingWastage(drafts: readonly DraftLine[], target: number): number[] | null {
+  const wastageIndex = drafts.findIndex((draft) => draft.key === 'wastage');
+  if (wastageIndex < 0) return null;
+  const pinned = roundHalfUp(drafts[wastageIndex].exact);
+  const others = drafts.filter((_, index) => index !== wastageIndex).map((draft) => draft.exact);
+  const shared = allocateWholeRupees(others, target - pinned);
+  if (!shared) return null;
+  const billed = shared.slice();
+  billed.splice(wastageIndex, 0, pinned);
+  return billed;
+}
+
+/**
  * The rate per gram the invoice's wastage line bills at: the rate the server
  * priced the wastage grams at — from pricing rules 3 the Gold tile's Current
  * Gold Rate per gram (the 24K rate × the purity) — so grams × price is the
@@ -408,8 +429,11 @@ export function buildInvoiceLines(input: InvoiceLinesInput): InvoiceLineItemRow[
   // rupees. Lines that do not add up to the MRP at all (they disagree by a
   // rupee or more) are billed each at its own half-up figure instead.
   const exacts = drafts.map((draft) => draft.exact);
+  const target = roundHalfUp(input.mrp);
   const billed =
-    allocateWholeRupees(exacts, roundHalfUp(input.mrp)) ?? exacts.map((exact) => roundHalfUp(exact));
+    allocateKeepingWastage(drafts, target) ??
+    allocateWholeRupees(exacts, target) ??
+    exacts.map((exact) => roundHalfUp(exact));
 
   return drafts.map((draft, index) => {
     const amount = billed[index];

@@ -269,6 +269,34 @@ test('invoice: wastage grams past 3 places print the Current Gold Rate only once
   assert.equal(serverSeesDiscount(exact.qty, exact.price, exact.amount), false);
 });
 
+test('invoice: the MRP\'s odd rupee goes to the gold line, so the wastage line keeps the Current Gold Rate', () => {
+  // 22K at ₹1,50,000/10 g: ₹13,740 a gram. 8.769 g net at 8% is 0.702 g to
+  // the milligram, ₹9,645.48; the gold is ₹1,20,486.06; the MRP ₹1,30,131.54
+  // rounds to ₹1,30,132. Largest remainders gave the odd rupee to wastage
+  // (₹9,646), which then printed ₹13,740.74 a gram.
+  const rate = (150000 / 10) * (91.6 / 100);
+  const gold = goldAmount(8.769, 91.6, 150000);
+  const amount = 0.702 * rate;
+  const rows = buildInvoiceLines(
+    invoice({
+      karatNote: '22K',
+      netWtGrams: 8.769,
+      goldAmount: gold,
+      labourAmount: 0,
+      wastage: { grams: 0.702, ratePerGram: rate, percent: 8, amount },
+      mrp: gold + amount,
+    }),
+  );
+  const wastage = rows.find((row) => row.key === 'wastage');
+  assert.equal(wastage.amount, 9645);
+  assert.equal(wastage.price, 13740);
+  assert.equal(rows.find((row) => row.key === 'gold-base-metal').amount, 120487);
+  assert.equal(sumLineAmounts(rows), 130132);
+  for (const row of rows.filter((r) => r.qty > 0)) {
+    assert.equal(serverSeesDiscount(row.qty, row.price, row.amount), false);
+  }
+});
+
 test('invoice: a price with no wastage rate (a server before rules 3, an older wishlist item) bills the 24K rate', () => {
   // Those prices charged the wastage at the 24K rate per gram, the gold
   // line's goldRatePerGram, so that is still what their invoice prints.
