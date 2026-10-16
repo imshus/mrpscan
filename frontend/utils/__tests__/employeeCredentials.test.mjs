@@ -1,8 +1,9 @@
 /**
  * Pins the plain logic behind an employee's login: the phone number as the
- * server keys it, the Create/Confirm MPIN check, the message the owner
- * shares, the links the share sheet opens, and what Log In does with each
- * refusal code (utils/employeeCredentials.ts, utils/loginFailure.ts).
+ * server keys it, what Add and Verify Phone say about a number that is
+ * already someone's login, the Create/Confirm MPIN check, the message the
+ * owner shares, the links the share sheet opens, and what Log In does with
+ * each refusal code (utils/employeeCredentials.ts, utils/loginFailure.ts).
  *
  * Both modules have no imports, so node loads the app's own files directly
  * (type stripping, Node 22.18+ / 24) — no mirrored copy to drift.
@@ -17,12 +18,15 @@ import {
   EMPLOYEE_MPIN_LENGTH,
   MPIN_MISMATCH_MESSAGE,
   MPIN_REQUIRED_MESSAGE,
+  OWN_NUMBER_MESSAGE,
   PHONE_TAKEN_MESSAGE,
   buildEmployeeLoginShareMessage,
   formatPhoneForDisplay,
   isMpinPairValid,
   isTenDigitPhone,
   normalizeIndianPhone,
+  phoneTransferNotice,
+  readPhoneTransfer,
   smsShareUrl,
   validateMpinPair,
   whatsappShareUrls,
@@ -59,6 +63,38 @@ test('phone: printed as "+91 <ten digits>", a dash when there is none', () => {
   assert.equal(formatPhoneForDisplay('98765'), '—');
 });
 
+test('transfer: read from the server only when it names an owner or an employee', () => {
+  assert.deepEqual(readPhoneTransfer({ kind: 'owner', sameShop: false }), { kind: 'owner', sameShop: false });
+  assert.deepEqual(readPhoneTransfer({ kind: 'owner', sameShop: true }), { kind: 'owner', sameShop: true });
+  assert.deepEqual(readPhoneTransfer({ kind: 'employee', sameShop: false }), { kind: 'employee', sameShop: false });
+  // A missing or odd sameShop is not "this shop".
+  assert.deepEqual(readPhoneTransfer({ kind: 'owner' }), { kind: 'owner', sameShop: false });
+  assert.deepEqual(readPhoneTransfer({ kind: 'owner', sameShop: 'true' }), { kind: 'owner', sameShop: false });
+  assert.equal(readPhoneTransfer(undefined), null);
+  assert.equal(readPhoneTransfer(null), null);
+  assert.equal(readPhoneTransfer('owner'), null);
+  assert.equal(readPhoneTransfer({ kind: 'super', sameShop: false }), null);
+  assert.equal(readPhoneTransfer({}), null);
+});
+
+test('transfer: Verify Phone says whose login the code hands over', () => {
+  assert.equal(
+    phoneTransferNotice({ kind: 'owner', sameShop: false }),
+    "This number is the owner login of another shop. Once verified, it becomes your employee. That shop's records stay saved.",
+  );
+  assert.equal(
+    phoneTransferNotice({ kind: 'owner', sameShop: true }),
+    'This number is an admin of your shop. Once verified, it becomes an employee instead.',
+  );
+  assert.equal(
+    phoneTransferNotice({ kind: 'employee', sameShop: false }),
+    'This number is an employee of another shop. Once verified, they move to your shop.',
+  );
+  // This shop's employees are refused, never moved; a free number says nothing.
+  assert.equal(phoneTransferNotice({ kind: 'employee', sameShop: true }), null);
+  assert.equal(phoneTransferNotice(null), null);
+});
+
 test('MPIN: four digits first, then the confirmation must match', () => {
   assert.equal(EMPLOYEE_MPIN_LENGTH, 4);
   assert.deepEqual(validateMpinPair('', ''), { mpin: MPIN_REQUIRED_MESSAGE, confirm: null });
@@ -76,6 +112,7 @@ test('MPIN: the copy matches the owner screens', () => {
   assert.equal(MPIN_REQUIRED_MESSAGE, 'Enter a 4-digit MPIN');
   assert.equal(MPIN_MISMATCH_MESSAGE, "MPINs don't match");
   assert.equal(PHONE_TAKEN_MESSAGE, 'This number is already registered');
+  assert.equal(OWN_NUMBER_MESSAGE, "You can't add your own number as an employee.");
 });
 
 test('share message: word for word as the mockup', () => {

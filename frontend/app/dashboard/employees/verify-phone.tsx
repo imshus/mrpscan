@@ -10,7 +10,7 @@ import { GradientView } from '@/components/ui/GradientView';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import { OtpInput } from '@/components/ui/OtpInput';
 import { Colors, Gradients, Spacing } from '@/constants/theme';
-import { useEmployeeDraftStore, verifiedPhoneToken } from '@/store/employeeDraftStore';
+import { transferForPhone, useEmployeeDraftStore, verifiedPhoneToken } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import {
   EMPLOYEE_ERROR_CODES,
@@ -23,7 +23,9 @@ import {
   formatPhoneForDisplay,
   isTenDigitPhone,
   normalizeIndianPhone,
+  OWN_NUMBER_MESSAGE,
   PHONE_TAKEN_MESSAGE,
+  phoneTransferNotice,
 } from '@/utils/employeeCredentials';
 
 /** Another code may be asked for this long after the last one was texted. */
@@ -41,6 +43,10 @@ const secondsUntilResend = (sentAt: number | undefined): number =>
  *
  * Adding: on to Employee Credentials. Editing: the change is saved here and
  * the employee's page opens with the new number.
+ *
+ * A number that is another shop's owner or employee, or another admin of
+ * this shop, is moved here by the add (or the save): a line above the OTP
+ * boxes says whose login it is, so the owner knows before the code is typed.
  */
 export default function VerifyEmployeePhoneScreen() {
   const router = useRouter();
@@ -52,6 +58,9 @@ export default function VerifyEmployeePhoneScreen() {
   const otpSent = useEmployeeDraftStore((s) => s.otpSent);
   const setOtpSent = useEmployeeDraftStore((s) => s.setOtpSent);
   const setTakenPhone = useEmployeeDraftStore((s) => s.setTakenPhone);
+  const setOwnPhone = useEmployeeDraftStore((s) => s.setOwnPhone);
+  const phoneTransfer = useEmployeeDraftStore((s) => s.phoneTransfer);
+  const setPhoneTransfer = useEmployeeDraftStore((s) => s.setPhoneTransfer);
   const updateEmployee = useEmployeeStore((s) => s.updateEmployee);
   const setEmployees = useEmployeeStore((s) => s.setEmployees);
 
@@ -77,6 +86,7 @@ export default function VerifyEmployeePhoneScreen() {
   // Editing: a number already proved (the save after the check failed) is
   // saved with that proof; the code itself works only once.
   const heldToken = mode === 'edit' ? verifiedPhoneToken(phoneVerification, phone) : null;
+  const transferNotice = phoneTransferNotice(transferForPhone(phoneTransfer, phone));
 
   // The draft can be gone (an account switch resets it): no number to prove.
   useEffect(() => {
@@ -121,8 +131,13 @@ export default function VerifyEmployeePhoneScreen() {
         });
         if (!alive.current) return;
         if (!saved.success) {
-          if (saved.code === EMPLOYEE_ERROR_CODES.phoneTaken) {
+          if (saved.code === EMPLOYEE_ERROR_CODES.ownNumber) {
             // Back on Edit, the number is marked under the field.
+            setOwnPhone(phone);
+            router.back();
+            return;
+          }
+          if (saved.code === EMPLOYEE_ERROR_CODES.phoneTaken) {
             setTakenPhone(phone);
             router.back();
             return;
@@ -168,10 +183,17 @@ export default function VerifyEmployeePhoneScreen() {
     try {
       const result = await sendEmployeePhoneOtp(phone, mode === 'edit' ? editEmployeeId : null);
       if (!result.success) {
-        setError(result.code === EMPLOYEE_ERROR_CODES.phoneTaken ? PHONE_TAKEN_MESSAGE : result.error);
+        setError(
+          result.code === EMPLOYEE_ERROR_CODES.ownNumber
+            ? OWN_NUMBER_MESSAGE
+            : result.code === EMPLOYEE_ERROR_CODES.phoneTaken
+              ? PHONE_TAKEN_MESSAGE
+              : result.error,
+        );
         return;
       }
       setOtpSent({ phone, sentAt: Date.now() });
+      setPhoneTransfer(result.transfer ? { phone, transfer: result.transfer } : null);
       setOtp('');
       setSecondsLeft(result.resendAfterSeconds);
     } finally {
@@ -203,6 +225,7 @@ export default function VerifyEmployeePhoneScreen() {
             <Text style={styles.cardHeadText}>ENTER OTP</Text>
           </View>
           <View style={styles.cardBody}>
+            {transferNotice ? <Text style={styles.transferNotice}>{transferNotice}</Text> : null}
             <OtpInput
               value={otp}
               onChange={(next) => {
@@ -287,6 +310,12 @@ const styles = StyleSheet.create({
   cardBody: {
     padding: 16,
     gap: 12,
+  },
+  transferNotice: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    fontWeight: '600',
+    color: Colors.textPrimary,
   },
   resendBtn: {
     alignSelf: 'center',

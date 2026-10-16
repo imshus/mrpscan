@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 import { DEFAULT_EMPLOYEE_PERMISSIONS } from '@/constants/employeeData';
 import type { EmployeeDraft, EmployeeGender, EmployeePermissionKey } from '@/types/employee';
-import { normalizeIndianPhone } from '@/utils/employeeCredentials';
+import { normalizeIndianPhone, type EmployeePhoneTransfer } from '@/utils/employeeCredentials';
 import { registerScopeResetCallback } from '@/utils/userScopedStorage';
 
 /**
@@ -44,17 +44,35 @@ export interface EmployeeOtpSent {
 }
 const OTP_REUSE_MS = 9 * 60 * 1000;
 
+/**
+ * Whose login a number is, when the server moves it on the add (or the
+ * number change): another shop's owner or employee, or another admin of this
+ * shop. Verify Phone says so above the OTP boxes. It belongs to that number
+ * only: once the draft holds a different one, it is gone.
+ */
+export interface EmployeePhoneTransferFor {
+  phone: string;
+  transfer: EmployeePhoneTransfer;
+}
+
 interface EmployeeDraftState {
   mode: 'add' | 'edit';
   editEmployeeId: string | null;
   draft: EmployeeDraft;
   credentials: EmployeeCredentialsDraft;
   /**
-   * A number the server said is already someone's login. Add New Employee
-   * shows "This number is already registered" under the phone while the
-   * draft still holds it; changing the number clears it by itself.
+   * A number the server refused as already registered (an employee of this
+   * shop, or a super admin's login). Add New Employee shows "This number is
+   * already registered" under the phone while the draft still holds it;
+   * changing the number clears it by itself.
    */
   takenPhone: string | null;
+  /**
+   * The owner's own number, which the server refuses as an employee's. Shown
+   * under the phone the same way, while the draft still holds it.
+   */
+  ownPhone: string | null;
+  phoneTransfer: EmployeePhoneTransferFor | null;
   phoneVerification: EmployeePhoneVerification | null;
   otpSent: EmployeeOtpSent | null;
   setMode: (mode: 'add' | 'edit', employeeId?: string | null) => void;
@@ -63,6 +81,8 @@ interface EmployeeDraftState {
   setPermissions: (permissions: EmployeeDraft['permissions']) => void;
   setCredentials: (data: Partial<EmployeeCredentialsDraft>) => void;
   setTakenPhone: (phone: string | null) => void;
+  setOwnPhone: (phone: string | null) => void;
+  setPhoneTransfer: (transfer: EmployeePhoneTransferFor | null) => void;
   setPhoneVerification: (verification: EmployeePhoneVerification | null) => void;
   setOtpSent: (sent: EmployeeOtpSent | null) => void;
   resetDraft: () => void;
@@ -85,6 +105,8 @@ export const useEmployeeDraftStore = create<EmployeeDraftState>()((set) => ({
   draft: { ...emptyDraft, permissions: { ...DEFAULT_EMPLOYEE_PERMISSIONS } },
   credentials: { ...emptyCredentials },
   takenPhone: null,
+  ownPhone: null,
+  phoneTransfer: null,
   phoneVerification: null,
   otpSent: null,
   // Editing someone never carries a half-set MPIN, or a number proved for a
@@ -97,6 +119,8 @@ export const useEmployeeDraftStore = create<EmployeeDraftState>()((set) => ({
             editEmployeeId: employeeId,
             credentials: { ...emptyCredentials },
             takenPhone: null,
+            ownPhone: null,
+            phoneTransfer: null,
             phoneVerification: null,
             otpSent: null,
           }
@@ -118,6 +142,8 @@ export const useEmployeeDraftStore = create<EmployeeDraftState>()((set) => ({
   setCredentials: (data) =>
     set((state) => ({ credentials: { ...state.credentials, ...data } })),
   setTakenPhone: (phone) => set({ takenPhone: phone }),
+  setOwnPhone: (phone) => set({ ownPhone: phone }),
+  setPhoneTransfer: (transfer) => set({ phoneTransfer: transfer }),
   setPhoneVerification: (verification) => set({ phoneVerification: verification }),
   setOtpSent: (sent) => set({ otpSent: sent }),
   resetDraft: () =>
@@ -127,6 +153,8 @@ export const useEmployeeDraftStore = create<EmployeeDraftState>()((set) => ({
       draft: { ...emptyDraft, permissions: { ...DEFAULT_EMPLOYEE_PERMISSIONS } },
       credentials: { ...emptyCredentials },
       takenPhone: null,
+      ownPhone: null,
+      phoneTransfer: null,
       phoneVerification: null,
       otpSent: null,
     }),
@@ -146,6 +174,14 @@ export function verifiedPhoneToken(
   if (verification.phone !== normalizeIndianPhone(phone)) return null;
   if (now - verification.verifiedAt > VERIFICATION_TTL_MS) return null;
   return verification.token;
+}
+
+/** Whose login `phone` moves from, when that is what the server said of this exact number. */
+export function transferForPhone(
+  stored: EmployeePhoneTransferFor | null,
+  phone: string,
+): EmployeePhoneTransfer | null {
+  return stored && stored.phone === normalizeIndianPhone(phone) ? stored.transfer : null;
 }
 
 /** Whether a code texted to `phone` is recent enough to still be the one in use. */

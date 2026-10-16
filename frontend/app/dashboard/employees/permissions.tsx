@@ -31,6 +31,7 @@ import {
 import {
   isMpinPairValid,
   normalizeIndianPhone,
+  OWN_NUMBER_MESSAGE,
   PHONE_TAKEN_MESSAGE,
 } from '@/utils/employeeCredentials';
 
@@ -77,6 +78,7 @@ export default function EmployeePermissionsScreen() {
   const editEmployeeId = useEmployeeDraftStore((s) => s.editEmployeeId);
   const credentials = useEmployeeDraftStore((s) => s.credentials);
   const setTakenPhone = useEmployeeDraftStore((s) => s.setTakenPhone);
+  const setOwnPhone = useEmployeeDraftStore((s) => s.setOwnPhone);
   const resetDraft = useEmployeeDraftStore((s) => s.resetDraft);
   const phoneVerification = useEmployeeDraftStore((s) => s.phoneVerification);
   const setPhoneVerification = useEmployeeDraftStore((s) => s.setPhoneVerification);
@@ -86,9 +88,10 @@ export default function EmployeePermissionsScreen() {
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  // The number turned out to be someone's login after all (taken between the
-  // check on Add and this create): the way back to change it.
-  const [phoneTaken, setPhoneTaken] = useState(false);
+  // The number turned out to be one that cannot be taken after all (it
+  // changed hands between the check on Add and this create): the way back to
+  // change it.
+  const [phoneRefused, setPhoneRefused] = useState(false);
   const [rateOptionError, setRateOptionError] = useState<string | null>(null);
 
   const toggle = (key: EmployeePermissionKey) => togglePermission(key);
@@ -118,7 +121,7 @@ export default function EmployeePermissionsScreen() {
   const handleContinue = async () => {
     if (saving) return;
     setFormError(null);
-    setPhoneTaken(false);
+    setPhoneRefused(false);
 
     if (!rateOption) {
       setRateOptionError('Select a gold rate option before continuing.');
@@ -195,11 +198,18 @@ export default function EmployeePermissionsScreen() {
           verifyAgain();
           return;
         }
+        if (result.code === EMPLOYEE_ERROR_CODES.ownNumber) {
+          // Nothing was saved (and no one was moved): as below.
+          setOwnPhone(normalizeIndianPhone(draft.phone));
+          setPhoneRefused(true);
+          setFormError(OWN_NUMBER_MESSAGE);
+          return;
+        }
         if (result.code === EMPLOYEE_ERROR_CODES.phoneTaken) {
           // Nothing was saved. The draft stays as typed, so Add opens with
           // the number marked and everything else still filled in.
           setTakenPhone(normalizeIndianPhone(draft.phone));
-          setPhoneTaken(true);
+          setPhoneRefused(true);
           setFormError(PHONE_TAKEN_MESSAGE);
           return;
         }
@@ -353,7 +363,7 @@ export default function EmployeePermissionsScreen() {
           </GradientView>
         </TouchableOpacity>
         {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
-        {phoneTaken ? (
+        {phoneRefused ? (
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => router.dismissTo('/dashboard/employees/add' as Href)}

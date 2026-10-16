@@ -4,7 +4,11 @@ import type { MatrixKey } from '@/constants/dashboardMatrices';
 import type { Employee, EmployeePermissions } from '@/types/employee';
 import { apiRequest, ApiError } from '@/utils/apiClient';
 import { unwrapApiData } from '@/utils/apiResponse';
-import { normalizeIndianPhone } from '@/utils/employeeCredentials';
+import {
+  normalizeIndianPhone,
+  readPhoneTransfer,
+  type EmployeePhoneTransfer,
+} from '@/utils/employeeCredentials';
 
 type ApiEnvelope<T extends Record<string, unknown>> = T & {
   success?: boolean;
@@ -71,6 +75,8 @@ function resolveApiMessage(
 /** Error codes the employee screens act on, rather than just print. */
 export const EMPLOYEE_ERROR_CODES = {
   phoneTaken: 'PHONE_ALREADY_REGISTERED',
+  /** The number is the signed-in owner's own login. */
+  ownNumber: 'OWN_NUMBER',
   trialRequired: 'TRIAL_REQUIRED_FOR_MORE_EMPLOYEES',
   /** The add or number change came without a valid OTP token (or it expired). */
   phoneNotVerified: 'EMPLOYEE_PHONE_NOT_VERIFIED',
@@ -85,10 +91,13 @@ export interface EmployeeApiFailure {
   error: string;
 }
 
-/** A server code is an UPPER_SNAKE word; anything else in `error` is prose. */
-function readErrorCode(body: unknown): string | undefined {
+/**
+ * A server code is an UPPER_SNAKE word; anything else in `error` (or check
+ * phone's `reason`) is prose.
+ */
+function readErrorCode(body: unknown, key = 'error'): string | undefined {
   if (!body || typeof body !== 'object') return undefined;
-  const value = (body as Record<string, unknown>).error;
+  const value = (body as Record<string, unknown>)[key];
   return typeof value === 'string' && /^[A-Z][A-Z0-9_]+$/.test(value) ? value : undefined;
 }
 
@@ -220,13 +229,18 @@ function normalizeEmployeeList(raw: unknown): Employee[] {
 }
 
 /**
- * Whether a number is free to become a new employee's login: false when it
- * is already any account's (owner, admin or employee, in any shop). The
- * server does not say whose.
+ * Whether a number can become a new employee's login. False for a super
+ * admin's login or an employee of this shop, and for the owner's own number
+ * (`reason` OWN_NUMBER). True, with `transfer`, for a login the server moves
+ * once the number is proved: another shop's owner or employee, or another
+ * admin of this shop.
  */
 export async function checkEmployeePhone(
   phone: string,
-): Promise<{ success: true; available: boolean } | EmployeeApiFailure> {
+): Promise<
+  | { success: true; available: boolean; transfer: EmployeePhoneTransfer | null; reason: string | null }
+  | EmployeeApiFailure
+> {
   const fallback = 'Could not check this number. Please try again.';
   try {
     const query = encodeURIComponent(normalizeIndianPhone(phone));
@@ -242,7 +256,12 @@ export async function checkEmployeePhone(
       // A server from before this check: no answer is not a yes.
       return { success: false, error: fallback };
     }
-    return { success: true, available: unwrapped.available };
+    return {
+      success: true,
+      available: unwrapped.available,
+      transfer: unwrapped.available ? readPhoneTransfer(unwrapped.transfer) : null,
+      reason: unwrapped.available ? null : (readErrorCode(unwrapped, 'reason') ?? null),
+    };
   } catch (error) {
     const failure = toFailure(error, fallback);
     // The route is missing on a server that has not been updated yet; say
@@ -256,14 +275,19 @@ export async function checkEmployeePhone(
 
 /**
  * Sends a 6-digit OTP by SMS to the number a new employee is added with (or
- * an employee's number is changed to). The server refuses a number that is
- * already anyone's login with PHONE_ALREADY_REGISTERED.
+ * an employee's number is changed to). The server refuses the owner's own
+ * number with OWN_NUMBER, and a super admin's login or an employee of this
+ * shop with PHONE_ALREADY_REGISTERED. `transfer` says whose login the number
+ * is when the add will move it.
  */
 export async function sendEmployeePhoneOtp(
   phone: string,
   /** The employee whose number is changing; absent when adding someone. */
   employeeId?: string | null,
-): Promise<{ success: true; resendAfterSeconds: number } | EmployeeApiFailure> {
+): Promise<
+  | { success: true; resendAfterSeconds: number; transfer: EmployeePhoneTransfer | null }
+  | EmployeeApiFailure
+> {
   const fallback = 'Could not send the OTP. Please try again.';
   try {
     const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/employees/phone-otp', {
@@ -275,7 +299,11 @@ export async function sendEmployeePhoneOtp(
       return envelopeFailure(response, unwrapped, fallback);
     }
     const wait = Number(unwrapped.resendAfterSeconds);
-    return { success: true, resendAfterSeconds: Number.isFinite(wait) && wait > 0 ? wait : 30 };
+    return {
+      success: true,
+      resendAfterSeconds: Number.isFinite(wait) && wait > 0 ? wait : 30,
+      transfer: readPhoneTransfer(unwrapped.transfer),
+    };
   } catch (error) {
     const failure = toFailure(error, fallback);
     if (failure.status === 404) {
@@ -317,8 +345,10 @@ export async function verifyEmployeePhoneOtp(
  * and the permissions chosen — which the server also saves as the
  * employee's own user, so they sign in like an owner does.
  *
- * Nothing is written when the number is already registered: that comes back
- * as `code` PHONE_ALREADY_REGISTERED.
+ * A number that is another shop's owner or employee, or another admin of
+ * this shop, has that login moved here by this call. Nothing is written when
+ * the number cannot be taken: that comes back as `code` OWN_NUMBER or
+ * PHONE_ALREADY_REGISTERED.
  */
 export async function createEmployeeWithMpin(payload: {
   name: string;

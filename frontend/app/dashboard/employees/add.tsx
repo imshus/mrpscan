@@ -26,7 +26,11 @@ import {
   sendEmployeePhoneOtp,
   updateEmployeeApi,
 } from '@/utils/employeeApi';
-import { normalizeIndianPhone, PHONE_TAKEN_MESSAGE } from '@/utils/employeeCredentials';
+import {
+  normalizeIndianPhone,
+  OWN_NUMBER_MESSAGE,
+  PHONE_TAKEN_MESSAGE,
+} from '@/utils/employeeCredentials';
 import { validatePhone } from '@/utils/validation';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
@@ -50,6 +54,9 @@ export default function AddEmployeeScreen() {
   const editEmployeeId = useEmployeeDraftStore((s) => s.editEmployeeId);
   const takenPhone = useEmployeeDraftStore((s) => s.takenPhone);
   const setTakenPhone = useEmployeeDraftStore((s) => s.setTakenPhone);
+  const ownPhone = useEmployeeDraftStore((s) => s.ownPhone);
+  const setOwnPhone = useEmployeeDraftStore((s) => s.setOwnPhone);
+  const setPhoneTransfer = useEmployeeDraftStore((s) => s.setPhoneTransfer);
   const phoneVerification = useEmployeeDraftStore((s) => s.phoneVerification);
   const otpSent = useEmployeeDraftStore((s) => s.otpSent);
   const setOtpSent = useEmployeeDraftStore((s) => s.setOtpSent);
@@ -64,12 +71,14 @@ export default function AddEmployeeScreen() {
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [formError, setFormError] = useState<string | null>(null);
 
-  // "Already registered" follows the number, not the visit: it shows while
-  // the field still holds the number the server refused (here or on Set
-  // Permissions) and goes the moment it is changed.
+  // "Already registered" (and "your own number") follows the number, not the
+  // visit: it shows while the field still holds the number the server
+  // refused (here or on Set Permissions) and goes the moment it is changed.
+  const typedPhone = normalizeIndianPhone(draft.phone);
   const phoneError =
     errors.phone ??
-    (takenPhone && normalizeIndianPhone(draft.phone) === takenPhone ? PHONE_TAKEN_MESSAGE : null);
+    (ownPhone && typedPhone === ownPhone ? OWN_NUMBER_MESSAGE : null) ??
+    (takenPhone && typedPhone === takenPhone ? PHONE_TAKEN_MESSAGE : null);
 
   const handleContinue = async () => {
     if (saving) return;
@@ -86,11 +95,21 @@ export default function AddEmployeeScreen() {
     // A code texted in the last few minutes is still the one the employee
     // has: back to Add and on again opens Verify Phone without texting a
     // second code, which would make that one stop working.
+    //
+    // The owner's own number is refused before any code goes out; another
+    // shop's owner or employee, or another admin here, gets the code like a
+    // free number, and Verify Phone says whose login it moves.
     const sendOtpAndVerify = async (phone: string) => {
       if (!otpStillLive(otpSent, phone)) {
         const sent = await sendEmployeePhoneOtp(phone, mode === 'edit' ? editEmployeeId : null);
         if (!sent.success) {
+          if (sent.code === EMPLOYEE_ERROR_CODES.ownNumber) {
+            setPhoneTransfer(null);
+            setOwnPhone(phone);
+            return;
+          }
           if (sent.code === EMPLOYEE_ERROR_CODES.phoneTaken) {
+            setPhoneTransfer(null);
             setTakenPhone(phone);
             return;
           }
@@ -98,6 +117,7 @@ export default function AddEmployeeScreen() {
           return;
         }
         setOtpSent({ phone, sentAt: Date.now() });
+        setPhoneTransfer(sent.transfer ? { phone, transfer: sent.transfer } : null);
       }
       router.push('/dashboard/employees/verify-phone' as Href);
     };
@@ -127,6 +147,10 @@ export default function AddEmployeeScreen() {
         });
 
         if (!result.success) {
+          if (result.code === EMPLOYEE_ERROR_CODES.ownNumber) {
+            setErrors({ ...nextErrors, phone: OWN_NUMBER_MESSAGE });
+            return;
+          }
           if (result.code === EMPLOYEE_ERROR_CODES.phoneTaken) {
             setErrors({ ...nextErrors, phone: PHONE_TAKEN_MESSAGE });
             return;
@@ -157,22 +181,34 @@ export default function AddEmployeeScreen() {
       return;
     }
 
-    // A number that is already anyone's login — an owner's, an admin's or
-    // another employee's — can never be saved, so it is refused here, before
-    // the owner sets an MPIN for it.
+    // A number that can never be saved — the owner's own, an employee of
+    // this shop already, a super admin's — is refused here, before the owner
+    // sets an MPIN for it. Another shop's owner or employee, or another admin
+    // of this shop, goes on to the OTP: the create moves that login here.
     setSaving(true);
     try {
       const phone = normalizeIndianPhone(draft.phone);
       const check = await checkEmployeePhone(phone);
       if (!check.success) {
+        if (check.code === EMPLOYEE_ERROR_CODES.ownNumber) {
+          setOwnPhone(phone);
+          return;
+        }
         setFormError(check.error);
         return;
       }
       if (!check.available) {
-        setTakenPhone(phone);
+        setPhoneTransfer(null);
+        if (check.reason === EMPLOYEE_ERROR_CODES.ownNumber) {
+          setOwnPhone(phone);
+        } else {
+          setTakenPhone(phone);
+        }
         return;
       }
       setTakenPhone(null);
+      setOwnPhone(null);
+      setPhoneTransfer(check.transfer ? { phone, transfer: check.transfer } : null);
       // Proved a moment ago (back from Credentials, say): no second code.
       if (verifiedPhoneToken(phoneVerification, phone)) {
         router.push('/dashboard/employees/credentials' as Href);

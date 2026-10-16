@@ -1,7 +1,8 @@
 /**
  * The pieces of an employee's login that are plain logic: the phone number as
- * the server keys it, the 4-digit MPIN the owner sets for them, and the
- * message the owner shares with them once it is set.
+ * the server keys it, what it says about a number that is already someone's
+ * login, the 4-digit MPIN the owner sets for them, and the message the owner
+ * shares with them once it is set.
  *
  * No imports on purpose — node loads this file as-is (type stripping) for
  * utils/__tests__/employeeCredentials.test.mjs, so what is tested is what the
@@ -10,8 +11,51 @@
 
 export const EMPLOYEE_MPIN_LENGTH = 4;
 
-/** What the Add and Permissions screens say when the number is anyone's login. */
+/**
+ * What the Add and Permissions screens say when the number cannot be taken:
+ * an employee of this shop already, or a super admin's login.
+ */
 export const PHONE_TAKEN_MESSAGE = 'This number is already registered';
+
+/** Under the phone field when the owner types their own login's number. */
+export const OWN_NUMBER_MESSAGE = "You can't add your own number as an employee.";
+
+/**
+ * A number that is someone's login, but one the server moves on the add (or
+ * the number change) once the employee proves it by OTP: the owner login of
+ * another shop, another admin of this shop, or another shop's employee.
+ */
+export interface EmployeePhoneTransfer {
+  kind: 'owner' | 'employee';
+  /** The login is in the owner's own shop (another admin of it). */
+  sameShop: boolean;
+}
+
+/** The server's `transfer` field, or null when the number moves no one. */
+export function readPhoneTransfer(raw: unknown): EmployeePhoneTransfer | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const { kind, sameShop } = raw as Record<string, unknown>;
+  if (kind !== 'owner' && kind !== 'employee') return null;
+  return { kind, sameShop: sameShop === true };
+}
+
+/**
+ * The line Verify Phone shows above the OTP boxes, so the owner knows whose
+ * login the code hands over before it is typed. Null when there is nothing
+ * to say (a free number, or an answer the server never gives).
+ */
+export function phoneTransferNotice(transfer: EmployeePhoneTransfer | null): string | null {
+  if (!transfer) return null;
+  if (transfer.kind === 'owner') {
+    return transfer.sameShop
+      ? 'This number is an admin of your shop. Once verified, it becomes an employee instead.'
+      : "This number is the owner login of another shop. Once verified, it becomes your employee. That shop's records stay saved.";
+  }
+  // Employees of this shop are refused, not moved.
+  return transfer.sameShop
+    ? null
+    : 'This number is an employee of another shop. Once verified, they move to your shop.';
+}
 
 export const MPIN_REQUIRED_MESSAGE = 'Enter a 4-digit MPIN';
 export const MPIN_MISMATCH_MESSAGE = "MPINs don't match";
