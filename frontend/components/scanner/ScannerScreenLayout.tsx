@@ -33,6 +33,37 @@ const ACTION_ICON_STROKE_WIDTH = 2;
  *  fill="none" is set on every shape explicitly — react-native-svg defaults
  *  shapes to black fill and does NOT reliably inherit fill from the parent
  *  <Svg>, so relying on the root fill renders dark blobs on Android. */
+/** One colour between two #rrggbb colours, `t` of the way from `from` to `to`. */
+function mixHex(from: string, to: string, t: number): string {
+  const channel = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+  const part = (i: number) =>
+    Math.round(channel(from, i) + (channel(to, i) - channel(from, i)) * t)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${part(0)}${part(1)}${part(2)}`;
+}
+
+const PILL_GRADIENT_STEPS = 40;
+
+/**
+ * The owner's design: the Click pill runs light red to deep red, left to
+ * right. Drawn as narrow solid strips, not an SVG: over the camera surface an
+ * SVG fill let the live preview show through the pill, and plain views
+ * cannot. At 40 steps the bands are a shade apart, too close to see.
+ */
+function PillGradient({ from, to }: { from: string; to: string }) {
+  return (
+    <View style={[StyleSheet.absoluteFill, styles.pillGradient]} pointerEvents="none">
+      {Array.from({ length: PILL_GRADIENT_STEPS }, (_, i) => (
+        <View
+          key={i}
+          style={{ flex: 1, backgroundColor: mixHex(from, to, i / (PILL_GRADIENT_STEPS - 1)) }}
+        />
+      ))}
+    </View>
+  );
+}
+
 function CapScanIcon({ color = '#FFFFFF' }: { color?: string }) {
   return (
     <Svg width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} viewBox="0 0 24 24" fill="none">
@@ -406,6 +437,7 @@ export function ScannerScreenLayout({
                         shutterBusy && styles.actionButtonHeld,
                       ]}
                     >
+                      <PillGradient from={Colors.brandLight} to={Colors.brandDeep} />
                       <CapScanIcon color={Colors.white} />
                       <Text style={styles.scanLabel}>{shutterLabel}</Text>
                     </View>
@@ -428,6 +460,7 @@ export function ScannerScreenLayout({
                           calculateDisabled && styles.actionButtonHeld,
                         ]}
                       >
+                        <PillGradient from={Colors.brandLight} to={Colors.brandDeep} />
                         <Text style={styles.scanLabel}>
                           {calculateDisabled ? 'Adjusting tag…' : 'Calculate directly'}
                         </Text>
@@ -509,7 +542,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: Colors.white,
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: 'bold',
     letterSpacing: 0.14,
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 1 },
@@ -609,17 +642,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  // Flat red, not the gradient the rest of the app uses: this pill sits over
-  // the camera surface, and an SVG fill there let the live preview show
-  // through it. A plain background cannot.
+  // The red under the strip gradient (PillGradient), which the strips cover;
+  // clipped to the pill's rounded ends.
   actionButtonSolid: {
     backgroundColor: Colors.primary,
+    overflow: 'hidden',
     elevation: 8,
+  },
+  pillGradient: {
+    flexDirection: 'row',
   },
   scanLabel: {
     color: Colors.white,
     fontSize: 17,
-    fontWeight: '800',
+    // 'bold' (Typeface.BOLD), not '800': the phone's system font has no 800
+    // and drew it medium.
+    fontWeight: 'bold',
   },
   uploadButton: {
     backgroundColor: Colors.background,
@@ -630,6 +668,6 @@ const styles = StyleSheet.create({
   uploadLabel: {
     color: Colors.textPrimary,
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: 'bold',
   },
 });
