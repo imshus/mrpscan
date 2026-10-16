@@ -10,6 +10,7 @@ import type {
   ScanResultData,
 } from '@/types/scanner';
 import { DEFAULT_LABOUR_CHARGE_UNIT, DEFAULT_LABOUR_WEIGHT_BASIS } from '@/constants/labour';
+import { DEFAULT_WASTAGE_WEIGHT_BASIS } from '@/constants/wastage';
 
 export const JEWELLERY_TYPES = ['Gold', 'Diamond'] as const;
 
@@ -42,6 +43,7 @@ export const DEFAULT_SCAN_ITEM: ScanItemData = {
   labourChargeAmount: '',
   labourChargeUnit: DEFAULT_LABOUR_CHARGE_UNIT,
   labourWeightBasis: DEFAULT_LABOUR_WEIGHT_BASIS,
+  wastageWeightBasis: DEFAULT_WASTAGE_WEIGHT_BASIS,
   calculationRate: 'rtgs',
   otherChargesAmount: '',
   otherChargesItems: [],

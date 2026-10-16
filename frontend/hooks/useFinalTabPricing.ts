@@ -104,6 +104,8 @@ function buildPricingStateKey(pricing: FinalTabPricingResult): string {
     wastagePercent: pricing.wastagePercent,
     wastageAmount: pricing.wastageAmount,
     wastageWeightGrams: pricing.wastageWeightGrams,
+    wastageWeightBasis: pricing.wastageWeightBasis,
+    wastageRatePerGram: pricing.wastageRatePerGram,
     otherChargesAmount: pricing.otherChargesAmount,
     ultimateMrp: pricing.ultimateMrp,
     stoneRows: pricing.stoneRows,
@@ -151,10 +153,12 @@ export function useFinalTabPricing({
         colorstoneWeight: scanData.colorstoneWeight,
         colorstoneRate: scanData.colorstoneRate,
         // Wastage is priced from these: a typed percent, a picked wastage
-        // code (its percent), and the item the server looks the wastage up
-        // by. Left out, an edit to any of them never re-priced the card.
+        // code (its percent), the weight the percent is taken of, and the
+        // item the server looks the wastage up by. Left out, an edit to any
+        // of them never re-priced the card.
         wastagePercent: scanData.wastagePercent,
         wastageCode: scanData.wastageCode,
+        wastageWeightBasis: scanData.wastageWeightBasis,
         itemCode: scanData.itemCode,
         sku: scanData.sku,
       },
@@ -191,6 +195,7 @@ export function useFinalTabPricing({
       scanData.colorstoneRate,
       scanData.wastagePercent,
       scanData.wastageCode,
+      scanData.wastageWeightBasis,
       scanData.itemCode,
       scanData.sku,
       tagIdentifiers,
@@ -322,6 +327,11 @@ export function useFinalTabPricing({
         );
         const backendLabourAmount = res.breakdown.labourAmount;
         const backendWastageAmount = Number(res.breakdown.wastageAmount) || 0;
+        // The rate the wastage grams were priced at, which the invoice's
+        // wastage line bills at. A server before pricing rules 3 sends none
+        // (it priced them at the 24K rate) and the invoice falls back to that.
+        const wastageRatePerGram = Number(res.breakdown.wastageRatePerGram);
+        const wastageWeightBasis = res.breakdown.wastageWeightBasis;
         const backendOtherCharges = res.breakdown.otherCharges;
         const finalTotal = res.finalMRP;
 
@@ -373,6 +383,14 @@ export function useFinalTabPricing({
           wastageCode: res.breakdown.wastageCode || '',
           wastagePercent: Number(res.breakdown.wastagePercent) || 0,
           wastageWeightGrams: Number(res.breakdown.wastageWeightGrams) || 0,
+          wastageWeightBasis:
+            wastageWeightBasis === 'gross' || wastageWeightBasis === 'net'
+              ? wastageWeightBasis
+              : undefined,
+          wastageRatePerGram:
+            Number.isFinite(wastageRatePerGram) && wastageRatePerGram > 0
+              ? wastageRatePerGram
+              : undefined,
           wastageAmount: backendWastageAmount,
           wastageDisplay:
             backendWastageAmount > 0 ? formatIndianCurrency(backendWastageAmount) : '—',

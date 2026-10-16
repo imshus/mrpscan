@@ -11,6 +11,7 @@ import {
   computeInvoiceTax,
   isIntraStateSupplier,
   sumLineAmounts,
+  wastageLineRatePerGram,
 } from '@/utils/moneyMath';
 import { amountInWords } from '@/utils/numberToWords';
 import { parseNumericValue, parseWeightValue, resolveScannedKarat } from '@/utils/formulaUtils';
@@ -114,9 +115,11 @@ export function useInvoiceComputation(
           listRate: Math.max(0, parseNumericValue(stone.rate)),
         })),
         labourAmount: pricing.labourAmount,
+        // The wastage grams at the rate the server priced them at (the
+        // Current Gold Rate per gram), so the line bills the MRP's wastage.
         wastage: {
           grams: pricing.wastageWeightGrams ?? 0,
-          ratePerGram: pricing.goldRatePerGram,
+          ratePerGram: wastageLineRatePerGram(pricing),
           percent: pricing.wastagePercent ?? 0,
           amount: pricing.wastageAmount ?? 0,
         },

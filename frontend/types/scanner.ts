@@ -1,4 +1,5 @@
 import type { LabourChargeUnit, LabourWeightBasis } from '@/constants/labour';
+import type { WastageWeightBasis } from '@/constants/wastage';
 
 export type JewelleryType = 'Diamond' | 'Gold';
 
@@ -200,6 +201,8 @@ export interface ScanItemData {
   wastagePercent?: string;
   /** The Masters → Wastage code picked for this scan; its percent fills wastagePercent. */
   wastageCode?: string;
+  /** The weight the wastage percent is taken of; net unless picked on the Wastage tile. */
+  wastageWeightBasis: WastageWeightBasis;
   calculationRate: 'rtgs' | 'cash';
   otherChargesAmount: string;
   otherChargesItems: OtherChargeItem[];
@@ -336,6 +339,8 @@ export interface CalculateMrpPayload {
   tagIdentifiers?: string[];
   /** Overrides the item's own wastage, for a piece that is an exception. */
   wastagePercent?: number;
+  /** The weight the wastage percent is taken of (pricing rules 3; the server's default is net). */
+  wastageWeightBasis?: WastageWeightBasis;
   /** `unit`: the weight's unit, 'ct' or 'g' (5 ct a gram). */
   diamonds: Array<{ weight: number; rate: number; discountPercent?: number; unit?: 'g' | 'ct' }>;
   colorstones: Array<{ weight: number; rate: number; unit?: 'g' | 'ct' }>;
@@ -353,7 +358,16 @@ export interface CalculateMrpResponse {
     /** Blank when the item carries no wastage, so the tile stays empty. */
     wastageCode?: string;
     wastagePercent?: number;
+    /** The weight the percent was taken of; absent from a server before pricing rules 3. */
+    wastageWeightBasis?: WastageWeightBasis;
+    /** The weight × the percent: the grams the invoice's wastage line bills. */
     wastageWeightGrams?: number;
+    /**
+     * The rate per gram the wastage grams were priced at: the Gold tile's
+     * Current Gold Rate per gram (the 24K rate × the purity). Absent from a
+     * server before pricing rules 3, which priced them at the 24K rate.
+     */
+    wastageRatePerGram?: number;
     wastageAmount?: number;
     otherCharges: number;
     subtotal?: number;

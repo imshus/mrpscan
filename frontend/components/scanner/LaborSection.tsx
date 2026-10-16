@@ -74,8 +74,9 @@ function rateFieldFor(unit: LabourChargeUnit): { label: string; prefix?: string 
  * Weight Used opens as the same popup as Gold Rate and Wastage: it floats
  * over the card under the field. It used to open inside the card and push
  * Labour Amount down, leaving an empty gap beside Labour Rate while open.
+ * The Wastage tile's Weight Used is this same control.
  */
-function WeightDropdown({
+export function WeightDropdown({
   value,
   onChange,
 }: {

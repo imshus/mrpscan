@@ -52,9 +52,11 @@ const LABOUR_TEXTS = [
   'NIL', '', '  ', '-500', 'LBR-850', 'Wt.5.43',
 ];
 
-test('the header this build sends names rules 2', () => {
+test('the header this build sends names rules 3', () => {
+  // Rules 3: wastage at the Current Gold Rate on the tile's Weight Used, and
+  // the rate it was priced at comes back for the invoice's wastage line.
   assert.equal(PRICING_RULES_HEADER, 'X-Pricing-Rules');
-  assert.equal(PRICING_RULES, '2');
+  assert.equal(PRICING_RULES, '3');
 });
 
 test('a tag\'s labour: "12%" is a percent of the gold, "MC 850" Rs 850/g, a bare figure up to 100 or "NIL" none', () => {
@@ -119,7 +121,13 @@ test('the labour box is what the server prices the analysis with', { skip: !serv
         const app = fromTag
           ? { labourChargeAmount: String(fromTag.amount), labourChargeUnit: fromTag.unit, labourWeightBasis: 'net' }
           : prefillLabour(item, shop) ?? { labourWeightBasis: 'net' };
-        const serverFields = server.appLabourFields({ tagLabour: tag, itemRow: item, labourDoc: shop, rules: 2 });
+        // The rules this build sends: the analysis is priced by them.
+        const serverFields = server.appLabourFields({
+          tagLabour: tag,
+          itemRow: item,
+          labourDoc: shop,
+          rules: Number(PRICING_RULES),
+        });
         assert.deepEqual(app, serverFields, JSON.stringify({ shop, item, tag }));
       }
     }

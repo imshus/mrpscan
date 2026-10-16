@@ -24,8 +24,9 @@ import type {
   StoneEntry,
   StructuredScanData,
 } from '@/types/scanner';
+import { DEFAULT_WASTAGE_WEIGHT_BASIS } from '@/constants/wastage';
 import { resolveScannedKarat } from '@/utils/formulaUtils';
-import { formatIndianCurrency } from '@/utils/scanPriceCalculation';
+import { formatIndianCurrency, formatWeightGrams } from '@/utils/scanPriceCalculation';
 import { OtherChargesSection } from '@/components/scanner/OtherChargesSection';
 
 interface ScannerFinalTabProps {
@@ -376,6 +377,16 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
           onFieldChange?.('wastageCode', code);
           onFieldChange?.('wastagePercent', percent === null ? '' : String(percent));
         }}
+        // The review screen shows the scan's choice; the results view the
+        // weight the server priced with (a price before pricing rules 3
+        // carries none, and was on the net weight).
+        weightBasis={
+          editable
+            ? scanData.wastageWeightBasis || DEFAULT_WASTAGE_WEIGHT_BASIS
+            : pricing.wastageWeightBasis || DEFAULT_WASTAGE_WEIGHT_BASIS
+        }
+        onWeightBasisChange={(basis) => onFieldChange?.('wastageWeightBasis', basis)}
+        weightDisplay={formatWeightGrams(pricing.wastageWeightGrams ?? 0)}
       />
 
       {editable ? (

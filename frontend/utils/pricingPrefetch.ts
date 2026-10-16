@@ -62,6 +62,9 @@ export function derivePricingInput(
     ...(scanData.wastagePercent?.trim()
       ? { wastagePercent: figure(scanData.wastagePercent) }
       : {}),
+    // Always one of the two: the server refuses anything else, and a scan
+    // made before the tile had the choice is on the net weight.
+    wastageWeightBasis: scanData.wastageWeightBasis === 'gross' ? 'gross' : 'net',
     // Each stone's unit as printed: a weight in grams is priced as 5 ct a
     // gram, as the server prices the reading; without it the card priced
     // "0.40 g" as 0.40 ct, a fifth of the analysis's price.
@@ -103,6 +106,10 @@ export interface PrefetchedPricing {
 const prefetched = new Map<string, PrefetchEntry>();
 const MAX_ENTRIES = 3;
 
+/**
+ * The whole payload, every field: a price made for one input (the wastage
+ * on the net weight, say) is never handed to a request for another (gross).
+ */
 function payloadKeyFor(payload: CalculateMrpPayload): string {
   return JSON.stringify(payload);
 }

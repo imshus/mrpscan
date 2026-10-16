@@ -7,7 +7,13 @@ import {
   MetalTile,
   MetalValueBox,
 } from '@/components/scanner/ReviewCardKit';
+import { WeightDropdown } from '@/components/scanner/LaborSection';
 import { SearchableSelectDropdown } from '@/components/scanner/SearchableSelectDropdown';
+import {
+  DEFAULT_WASTAGE_WEIGHT_BASIS,
+  WASTAGE_WEIGHT_OPTIONS,
+  type WastageWeightBasis,
+} from '@/constants/wastage';
 import { fetchWastageCodes, type WastageCode } from '@/utils/wastageCodeApi';
 
 interface WastageSectionProps {
@@ -29,6 +35,14 @@ interface WastageSectionProps {
   selectedCode?: string;
   /** A code was picked from the list: its percent fills the Wastage % box. */
   onCodeChange?: (code: string, percent: number | null) => void;
+  /**
+   * The weight the percent is taken of: on the review screen the scan's own
+   * choice, on the results view the one the server priced with.
+   */
+  weightBasis?: WastageWeightBasis;
+  onWeightBasisChange?: (basis: WastageWeightBasis) => void;
+  /** The grams the wastage charges (weight × percent), as the invoice bills them. */
+  weightDisplay?: string;
 }
 
 // The shop's wastage codes, fetched once per app session and shared by every
@@ -61,10 +75,12 @@ export function invalidateWastageCodes(): void {
  * The wastage tile (mockup `.wastage-tile`), a card of its own under Labour.
  *
  * Wastage is the metal the making consumes, charged as gold: a percentage of
- * the net weight at the 24K rate. The Wastage Code is a dropdown of the
- * shop's Masters → Wastage list, and picking one fills the Wastage % with
- * that code's figure; the box still takes a correction for a piece that is
- * an exception. Without a list the code reads as before, from the item.
+ * the net weight — or the gross, picked under Weight Used as on Labour — at
+ * the Current Gold Rate the Gold tile shows (the 24K rate × the purity), so
+ * 8% of 10 g of 22K is 0.8 g at the 22K rate. The Wastage Code is a dropdown
+ * of the shop's Masters → Wastage list, and picking one fills the Wastage %
+ * with that code's figure; the box still takes a correction for a piece that
+ * is an exception. Without a list the code reads as before, from the item.
  *
  * On the read-only results view an item with no wastage set shows no tile at
  * all: a row of zeroes there would read as "this piece has no wastage" when
@@ -79,6 +95,9 @@ export function WastageSection({
   onPercentChange,
   selectedCode,
   onCodeChange,
+  weightBasis = DEFAULT_WASTAGE_WEIGHT_BASIS,
+  onWeightBasisChange,
+  weightDisplay,
 }: WastageSectionProps) {
   const [codes, setCodes] = useState<WastageCode[]>(cachedCodes ?? []);
 
@@ -108,6 +127,8 @@ export function WastageSection({
         : '';
 
   const shownCode = selectedCode || code || '—';
+  const weightLabel =
+    WASTAGE_WEIGHT_OPTIONS.find((option) => option.value === weightBasis)?.label ?? '—';
 
   return (
     <MetalTile title="Wastage" tone="wastage">
@@ -142,6 +163,17 @@ export function WastageSection({
         ) : (
           <MetalValueBox label="Wastage %" value={percent ? `${percent}%` : '—'} />
         )}
+        {editable ? (
+          <MetalFieldSlot label="Weight Used">
+            <WeightDropdown
+              value={weightBasis}
+              onChange={(basis) => onWeightBasisChange?.(basis)}
+            />
+          </MetalFieldSlot>
+        ) : (
+          <MetalValueBox label="Weight Used" value={weightLabel} />
+        )}
+        <MetalValueBox label="Wastage Weight" value={weightDisplay || '—'} />
         <MetalValueBox label="Wastage Amount" value={amountDisplay || '—'} amount fullWidth />
       </MetalGrid>
     </MetalTile>

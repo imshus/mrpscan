@@ -42,6 +42,7 @@ import {
   serverSeesDiscount,
   sumLineAmounts,
   toPaise,
+  wastageLineRatePerGram,
 } from '../moneyMath.ts';
 
 /** The server's invoice arithmetic, when the backend checkout is beside this app. */
@@ -77,6 +78,17 @@ const stoneAmount = (carats, rate, discountPercent = 0) => {
 };
 const goldAmount = (netWt, purityPercent, ratePer10g) =>
   netWt * (purityPercent / 100) * (ratePer10g / 10);
+/**
+ * The server's wastage from pricing rules 3: the weight picked on the
+ * Wastage tile (gross falls back to net) × the percent, at the Current Gold
+ * Rate per gram — the 24K rate × the purity.
+ */
+const wastageRules3 = ({ netWt, grossWt = 0, basis = 'net', percent, purityPercent, ratePer10g }) => {
+  const weight = basis === 'gross' && grossWt > 0 ? grossWt : netWt;
+  const grams = weight * (percent / 100);
+  const ratePerGram = (ratePer10g / 10) * (purityPercent / 100);
+  return { grams, ratePerGram, amount: grams * ratePerGram };
+};
 
 /** An invoice input with nothing on it but what a case sets. */
 const invoice = (overrides) => ({
@@ -155,7 +167,7 @@ test('invoice: a wastage line makes the subtotal the MRP the card showed', () =>
   assert.equal(wastage.description, 'Wastage (in grams)');
   assert.equal(wastage.qty, 0.5);
   assert.equal(wastage.qtyUnit, 'g');
-  assert.equal(wastage.price, 12500); // the 24K rate per gram
+  assert.equal(wastage.price, 12500); // the rate per gram the wastage was priced at
   assert.equal(wastage.amount, 6250);
   assert.equal(wastage.note, '5%');
 
@@ -179,6 +191,113 @@ test('invoice: wastage grams unknown (an older wishlist item) come from amount �
   );
   assert.equal(rows.find((row) => row.key === 'wastage').qty, 0.5);
   assert.equal(sumLineAmounts(rows), 100000);
+});
+
+test('invoice: wastage bills at the Current Gold Rate per gram it was priced at', () => {
+  // 22K (91.6%), RTGS ₹1,25,000/10 g: the Gold tile's Current Gold Rate is
+  // ₹1,14,500/10 g, ₹11,450 a gram. 10 g net, 10.6 g gross, wastage 8% on
+  // the gross weight: 0.848 g × ₹11,450 = ₹9,709.60 in the MRP.
+  const wastage = wastageRules3({
+    netWt: 10, grossWt: 10.6, basis: 'gross', percent: 8, purityPercent: 91.6, ratePer10g: 125000,
+  });
+  // The pricing the card holds: the gold line's 24K rate per gram, and the
+  // rate the server says the wastage grams were priced at.
+  const pricing = { goldRatePerGram: 12500, wastageRatePerGram: wastage.ratePerGram };
+  assert.equal(wastageLineRatePerGram(pricing), wastage.ratePerGram);
+
+  const gold = goldAmount(10, 91.6, 125000);
+  const mrp = gold + 5000 + wastage.amount;
+  const rows = buildInvoiceLines(
+    invoice({
+      karatNote: '22K',
+      netWtGrams: 10,
+      goldAmount: gold,
+      labourAmount: 5000,
+      wastage: {
+        grams: wastage.grams,
+        ratePerGram: wastageLineRatePerGram(pricing),
+        percent: 8,
+        amount: wastage.amount,
+      },
+      mrp,
+    }),
+  );
+  const line = rows.find((row) => row.key === 'wastage');
+  assert.equal(line.qty, 0.848);
+  assert.equal(line.price, 11450); // not the 24K ₹12,500, which bills ₹10,600
+  assert.equal(line.amount, 9710);
+  assert.equal(line.note, '8%');
+  assert.equal(sumLineAmounts(rows), roundHalfUp(mrp));
+  assert.equal(sumLineAmounts(rows), 129210);
+});
+
+test('invoice: a price with no wastage rate (a server before rules 3, an older wishlist item) bills the 24K rate', () => {
+  // Those prices charged the wastage at the 24K rate per gram, the gold
+  // line's goldRatePerGram, so that is still what their invoice prints.
+  assert.equal(wastageLineRatePerGram({ goldRatePerGram: 12500 }), 12500);
+  assert.equal(wastageLineRatePerGram({ goldRatePerGram: 12500, wastageRatePerGram: undefined }), 12500);
+  assert.equal(wastageLineRatePerGram({ goldRatePerGram: 12500, wastageRatePerGram: 0 }), 12500);
+  assert.equal(wastageLineRatePerGram({ goldRatePerGram: 12500, wastageRatePerGram: Number.NaN }), 12500);
+  assert.equal(wastageLineRatePerGram({}), 0);
+
+  // 10 g net at 5%, rules 2: 0.5 g × ₹12,500.
+  const rows = buildInvoiceLines(
+    invoice({
+      netWtGrams: 10,
+      goldAmount: goldAmount(10, 75, 125000),
+      wastage: {
+        grams: 0.5,
+        ratePerGram: wastageLineRatePerGram({ goldRatePerGram: 12500 }),
+        percent: 5,
+        amount: 0.5 * 12500,
+      },
+      mrp: 93750 + 6250,
+    }),
+  );
+  const line = rows.find((row) => row.key === 'wastage');
+  assert.equal(line.price, 12500);
+  assert.equal(line.amount, 6250);
+});
+
+test('invoice: wastage at the Current Gold Rate foots on net or gross, with no discount read into it', () => {
+  const rnd = seeded(20261016);
+  const purities = [58.5, 75, 91.6, 99.5];
+  for (let i = 0; i < 3000; i += 1) {
+    const netWt = roundHalfUp(0.5 + rnd() * 40, 3);
+    const grossWt = rnd() < 0.8 ? roundHalfUp(netWt + rnd() * 3, 3) : 0;
+    const basis = rnd() < 0.5 ? 'gross' : 'net';
+    const percent = 1 + Math.floor(rnd() * 15);
+    const purityPercent = purities[Math.floor(rnd() * purities.length)];
+    const ratePer10g = Math.round(100000 + rnd() * 60000);
+    const wastage = wastageRules3({ netWt, grossWt, basis, percent, purityPercent, ratePer10g });
+    const gold = goldAmount(netWt, purityPercent, ratePer10g);
+    const labour = netWt * Math.round(100 + rnd() * 900);
+    const mrp = gold + labour + wastage.amount;
+    const rows = buildInvoiceLines(
+      invoice({
+        netWtGrams: netWt,
+        goldAmount: gold,
+        labourAmount: labour,
+        wastage: { grams: wastage.grams, ratePerGram: wastage.ratePerGram, percent, amount: wastage.amount },
+        mrp,
+      }),
+    );
+    const piece = `piece ${i} (${netWt} g net, ${grossWt} g gross, ${basis}, ${percent}%, ${purityPercent}%)`;
+    assert.equal(sumLineAmounts(rows), roundHalfUp(mrp), `${piece}: lines add up to the MRP`);
+    const line = rows.find((row) => row.key === 'wastage');
+    assert.equal(line.qty, roundHalfUp(wastage.grams, 3), `${piece}: grams to 3 places`);
+    assert.equal(roundHalfUp(line.qty * line.price), line.amount, `${piece}: wastage foots`);
+    assert.equal(serverSeesDiscount(line.qty, line.price, line.amount), false, `${piece}: no discount`);
+    if (serverMath) {
+      const figures = serverMath.computeInvoiceFigures({
+        lineItems: toRequestItems(rows),
+        gstRate: 3,
+        intraState: true,
+      });
+      const served = figures.lines.find((entry) => /^Wastage/.test(entry.item.description));
+      assert.equal(served.discountPaise, 0, `${piece}: the server registers no discount`);
+    }
+  }
 });
 
 test('invoice: lines are rounded once, so they add up to the rounded MRP', () => {

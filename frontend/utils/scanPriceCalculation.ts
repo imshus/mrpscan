@@ -4,6 +4,7 @@ import {
   type LabourChargeUnit,
   type LabourWeightBasis,
 } from '@/constants/labour';
+import type { WastageWeightBasis } from '@/constants/wastage';
 import type { GoldRate } from '@/types/rates';
 import type { ScanItemData, StoneEntry } from '@/types/scanner';
 import {
@@ -92,8 +93,17 @@ export interface FinalTabPricingResult {
    */
   wastageCode?: string;
   wastagePercent?: number;
-  /** The grams of metal the wastage charges, at the 24K rate per gram. */
+  /** The weight the percent was taken of, as the server used it (absent before pricing rules 3). */
+  wastageWeightBasis?: WastageWeightBasis;
+  /** The grams of metal the wastage charges: that weight × the percent. */
   wastageWeightGrams?: number;
+  /**
+   * The rate per gram those grams were priced at — the Current Gold Rate
+   * per gram (the 24K rate × the purity) — which the invoice's wastage line
+   * bills at. Absent from a server before pricing rules 3, and on a
+   * wishlist item saved before it; those were priced at goldRatePerGram.
+   */
+  wastageRatePerGram?: number;
   wastageAmount?: number;
   wastageDisplay?: string;
   otherChargesAmount: number;

@@ -176,7 +176,10 @@ export interface InvoiceLinesInput {
     listRate?: number;
   }>;
   labourAmount: number;
-  /** Wastage: grams of metal at the 24K rate per gram, as the server priced it. */
+  /**
+   * Wastage: grams of metal at the rate per gram the server priced them at
+   * (wastageLineRatePerGram), so grams × rate is the wastage in the MRP.
+   */
   wastage: { grams: number; ratePerGram: number; percent: number; amount: number };
   otherCharges: {
     items: readonly InvoiceOtherCharge[];
@@ -199,8 +202,9 @@ interface DraftLine {
   /** 'unit': price per gram/carat; 'lump': the amount is the price. */
   kind: 'unit' | 'lump';
   /**
-   * The rate the line is quoted at (wastage: the 24K rate per gram; a stone:
-   * its rate per carat). Printed when Qty × it rounds to the billed amount.
+   * The rate the line is quoted at (wastage: the rate per gram it was priced
+   * at; a stone: its rate per carat). Printed when Qty × it rounds to the
+   * billed amount.
    */
   listPrice?: number;
   /** A stone sold below its list rate: the list rate prints beside a discount. */
@@ -264,11 +268,28 @@ function linePrice(draft: DraftLine, billed: number): number {
 }
 
 /**
+ * The rate per gram the invoice's wastage line bills at: the rate the server
+ * priced the wastage grams at — from pricing rules 3 the Gold tile's Current
+ * Gold Rate per gram (the 24K rate × the purity) — so grams × price is the
+ * wastage the MRP carries. A price from a server before rules 3, or a
+ * wishlist item saved before then, carries no such rate: its wastage was
+ * priced at the 24K rate per gram (goldRatePerGram), which then bills it.
+ */
+export function wastageLineRatePerGram(pricing: {
+  wastageRatePerGram?: number;
+  goldRatePerGram?: number;
+}): number {
+  const positive = (value: number | undefined) =>
+    typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+  return positive(pricing.wastageRatePerGram) || positive(pricing.goldRatePerGram);
+}
+
+/**
  * The invoice's lines, in the card's order — gold, stones, labour, wastage,
  * other charges — with whole-rupee amounts that add up to the MRP the card
  * showed, rounded once. Wastage is its own line, as gold: the grams wasted,
- * priced at the 24K rate per gram. Without it the bill came to less than the
- * MRP quoted by the whole wastage amount.
+ * priced at the rate per gram the server priced them at. Without it the bill
+ * came to less than the MRP quoted by the whole wastage amount.
  *
  * Each per-unit line prints a quantity to 3 places and a price such that
  * Qty × Price rounds to its Amount — the quoted rate whenever it does — so
@@ -345,9 +366,9 @@ export function buildInvoiceLines(input: InvoiceLinesInput): InvoiceLineItemRow[
       qtyUnit: 'g',
       exact: input.wastage.amount,
       kind: 'unit',
-      // The 24K rate per gram prints when the printed grams at it round to
-      // the amount billed; otherwise a price that does, so the line foots
-      // and the server never reads a discount into it.
+      // The rate the grams were priced at prints when the printed grams at
+      // it round to the amount billed; otherwise a price that does, so the
+      // line foots and the server never reads a discount into it.
       listPrice: ratePerGram > 0 ? ratePerGram : undefined,
     });
   }

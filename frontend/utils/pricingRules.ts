@@ -9,13 +9,17 @@
  */
 
 /**
- * Sent on every request (apiClient). From this build the server finds the
+ * Sent on every request (apiClient). From rules 2 the server finds the
  * Masters item by the start of the tag number and charges its wastage and
- * labour, and reads each stone's unit and percent labour; builds without
- * the header are priced by the rules their invoices bill.
+ * labour, and reads each stone's unit and percent labour. From rules 3 it
+ * prices wastage at the Current Gold Rate (the 24K rate × the purity) on
+ * the weight the Wastage tile picks, and says the rate it used, which the
+ * invoice's wastage line bills at; rules 2 builds still get the 24K rate on
+ * the net weight their invoices print. Builds without the header are priced
+ * by the rules their invoices bill.
  */
 export const PRICING_RULES_HEADER = 'X-Pricing-Rules';
-export const PRICING_RULES = '2';
+export const PRICING_RULES = '3';
 
 /** A labour charge's unit: rupees per gram, per 10 g, or a percent of the gold value. */
 export type PricingLabourUnit = 'Per Gram' | 'Per 10 Gram' | 'Percent';
