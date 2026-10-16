@@ -17,6 +17,7 @@ import { scopedKey } from '@/utils/userScopedStorage';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
+import { EmployeeWelcomePopup } from '@/components/dashboard/EmployeeWelcomePopup';
 import { fetchBusinessProfile } from '@/utils/businessProfileApi';
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner';
 import { GradientView } from '@/components/ui/GradientView';
@@ -377,6 +378,7 @@ export default function DashboardScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       {/* The header stays put; only the market data scrolls beneath it. */}
       <DashboardHeader />
+      <EmployeeWelcomePopup />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
