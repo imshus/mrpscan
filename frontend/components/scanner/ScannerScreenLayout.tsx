@@ -209,11 +209,10 @@ export function ScannerScreenLayout({
   const frameTop = Math.round(rootSize.height / 2 - frame.height * SCANNER_FRAME_VERTICAL_BIAS);
   const frameRight = frameLeft + frame.width;
   const frameBottom = frameTop + frame.height;
-  // The owner's design: corner brackets in proportion to the frame, the
-  // gallery / discard button inside its lower right corner, and a Click pill
-  // the frame's width and about a third of its height.
+  // The owner's design: corner brackets in proportion to the frame and the
+  // gallery / discard button inside its lower right corner. The pills keep
+  // their earlier 240 x 48 (the owner's call), centred under the frame.
   const cornerSize = Math.round(Math.min(44, Math.max(26, frame.width * 0.11)));
-  const actionHeight = Math.round(Math.min(84, Math.max(56, frame.height * 0.36)));
 
   // Percentage-sized SVGs don't reliably track content-driven heights on
   // Android, so the top fade is drawn at the bar's measured pixel size.
@@ -415,13 +414,12 @@ export function ScannerScreenLayout({
                   onPress={onShutterPress}
                   disabled={shutterBusy}
                   accessibilityState={{ busy: shutterBusy, disabled: shutterBusy }}
-                  style={[styles.actionSlot, { width: frame.width }]}
+                  style={styles.actionSlot}
                 >
                   {shutterTone === 'secondary' ? (
                     <View
                       style={[
                         styles.actionButton,
-                        { height: actionHeight },
                         styles.uploadButton,
                         shutterBusy && styles.actionButtonHeld,
                       ]}
@@ -432,7 +430,6 @@ export function ScannerScreenLayout({
                     <View
                       style={[
                         styles.actionButton,
-                        { height: actionHeight },
                         styles.actionButtonSolid,
                         shutterBusy && styles.actionButtonHeld,
                       ]}
@@ -450,12 +447,11 @@ export function ScannerScreenLayout({
                     <Pressable
                       onPress={onCalculatePress}
                       disabled={calculateDisabled}
-                      style={[styles.actionSlot, { width: frame.width }]}
+                      style={styles.actionSlot}
                     >
                       <View
                         style={[
                           styles.actionButton,
-                          { height: actionHeight },
                           styles.actionButtonSolid,
                           calculateDisabled && styles.actionButtonHeld,
                         ]}
@@ -634,8 +630,11 @@ const styles = StyleSheet.create({
   actionButtonHeld: {
     opacity: 0.45,
   },
-  actionSlot: {},
+  actionSlot: {
+    width: 240,
+  },
   actionButton: {
+    height: 48,
     borderRadius: 999,
     flexDirection: 'row',
     alignItems: 'center',
@@ -654,7 +653,7 @@ const styles = StyleSheet.create({
   },
   scanLabel: {
     color: Colors.white,
-    fontSize: 17,
+    fontSize: 13.1,
     // 'bold' (Typeface.BOLD), not '800': the phone's system font has no 800
     // and drew it medium.
     fontWeight: 'bold',
@@ -667,7 +666,7 @@ const styles = StyleSheet.create({
   },
   uploadLabel: {
     color: Colors.textPrimary,
-    fontSize: 17,
+    fontSize: 13.1,
     fontWeight: 'bold',
   },
 });
