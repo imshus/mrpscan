@@ -47,7 +47,7 @@ interface AuthState {
   savedPhone: string;
   savedEmployeePhone: string;
   registration: Partial<RegistrationData>;
-  /** When this session was signed in (ms). It ends at the next 12:00 AM. */
+  /** When this session was signed in (ms). Sessions no longer end at midnight. */
   sessionStartedAt: number | null;
   _hasHydrated: boolean;
   setAuthenticated: (value: boolean) => void;

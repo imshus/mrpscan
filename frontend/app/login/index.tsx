@@ -48,7 +48,7 @@ function formatCountdown(seconds: number): string {
  * folds away, so the number and code stay in view.
  *
  * A phone that has signed in before skips the code, at the shop's asking:
- * after signing out (or the midnight sign-out) it greets the shop with the
+ * after signing out it greets the shop with the
  * number it knows, masked, and "Use another number", and asks for the MPIN
  * alone, as Log In always has. "Use another number" drops that number, and
  * a new one goes through the mockup's steps above. Coming back from Forgot
