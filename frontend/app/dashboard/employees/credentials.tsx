@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { EmployeeInfoCard } from '@/components/employees/EmployeeInfoCard';
@@ -10,11 +9,9 @@ import { EmployeeScreenHeader } from '@/components/employees/EmployeeScreenHeade
 import { GradientView } from '@/components/ui/GradientView';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import { MpinInput, type MpinInputHandle } from '@/components/ui/MpinInput';
-import { ShareSheet } from '@/components/ui/ShareSheet';
 import { Colors, Gradients, Spacing } from '@/constants/theme';
 import { useEmployeeDraftStore } from '@/store/employeeDraftStore';
 import {
-  buildEmployeeLoginShareMessage,
   formatPhoneForDisplay,
   isTenDigitPhone,
   validateMpinPair,
@@ -23,26 +20,11 @@ import {
 
 const NO_ERRORS: MpinPairErrors = { mpin: null, confirm: null };
 
-/** The mockup's share glyph (#empCredShareBtn), stroked in the pill's red. */
-function ShareGlyph() {
-  return (
-    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" accessible={false}>
-      <Path
-        d="M20.5 12a8.5 8.5 0 1 1-4.1-7.3M20.5 3.5 17 7l1-4Z"
-        stroke={Colors.brandDeep}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
-
 /**
  * Employee Credentials (mockup #screenEmpCredentials), between Add New
  * Employee and Set Permissions: the owner sets the 4-digit MPIN the new
- * employee signs in with — phone, OTP, then this MPIN — and can share it
- * with them straight away.
+ * employee signs in with — phone, OTP, then this MPIN. (The Share button
+ * was removed at the owner's asking, 16 Oct 2026.)
  *
  * The digits live only in the in-memory draft (never on disk): coming back
  * here from Set Permissions finds them still filled in, and the create on
@@ -56,7 +38,6 @@ export default function EmployeeCredentialsScreen() {
   const setCredentials = useEmployeeDraftStore((s) => s.setCredentials);
 
   const [errors, setErrors] = useState<MpinPairErrors>(NO_ERRORS);
-  const [shareOpen, setShareOpen] = useState(false);
   const confirmRef = useRef<MpinInputHandle>(null);
 
   const validate = () => {
@@ -69,11 +50,6 @@ export default function EmployeeCredentialsScreen() {
     const next = validateMpinPair(mpin, confirmMpin);
     setErrors(next);
     return !next.mpin && !next.confirm;
-  };
-
-  const handleShare = () => {
-    if (!validate()) return;
-    setShareOpen(true);
   };
 
   const handleContinue = () => {
@@ -94,7 +70,7 @@ export default function EmployeeCredentialsScreen() {
       >
         <Text style={styles.note}>
           Create a 4-digit login MPIN for this employee. They sign in with their phone number, an
-          OTP and this MPIN — share it with them once it is set.
+          OTP and this MPIN.
         </Text>
 
         <EmployeeInfoCard
@@ -132,17 +108,6 @@ export default function EmployeeCredentialsScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={handleShare}
-          style={styles.shareBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Share login details"
-        >
-          <ShareGlyph />
-          <Text style={styles.shareText}>Share</Text>
-        </TouchableOpacity>
-
         <TouchableOpacity activeOpacity={0.9} onPress={handleContinue}>
           <GradientView colors={Gradients.brand} borderRadius={999} style={styles.continueBtn}>
             <Text style={styles.continueText}>Continue</Text>
@@ -151,12 +116,6 @@ export default function EmployeeCredentialsScreen() {
       </KeyboardAwareScrollView>
 
       <BottomNav />
-
-      <ShareSheet
-        visible={shareOpen}
-        message={buildEmployeeLoginShareMessage(phone, mpin)}
-        onClose={() => setShareOpen(false)}
-      />
     </SafeAreaView>
   );
 }
@@ -202,24 +161,6 @@ const styles = StyleSheet.create({
   cardBody: {
     padding: 16,
     gap: 16,
-  },
-  // .emp-cred-share-btn: full-width 50px pill, bg-alt with a border, red label.
-  shareBtn: {
-    height: 50,
-    borderRadius: 999,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: Colors.backgroundAlt,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 14,
-  },
-  shareText: {
-    fontSize: 13.8,
-    fontWeight: '700',
-    color: Colors.brandDeep,
   },
   continueBtn: {
     height: Spacing.buttonHeight,

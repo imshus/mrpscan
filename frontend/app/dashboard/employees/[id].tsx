@@ -120,9 +120,7 @@ export default function EmployeeDetailScreen() {
           title="EMPLOYEE DETAILS"
           rows={[
             { label: 'Name', value: employee.fullName },
-            { label: 'Designation', value: employee.designation },
             { label: 'Phone No.', value: formatPhoneForDisplay(employee.phone) },
-            { label: 'Email', value: employee.email || '—' },
           ]}
         />
 

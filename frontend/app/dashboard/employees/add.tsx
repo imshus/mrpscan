@@ -22,7 +22,7 @@ import { useEmployeeDraftStore } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { checkEmployeePhone, EMPLOYEE_ERROR_CODES, updateEmployeeApi } from '@/utils/employeeApi';
 import { normalizeIndianPhone, PHONE_TAKEN_MESSAGE } from '@/utils/employeeCredentials';
-import { validateEmail, validatePhone } from '@/utils/validation';
+import { validatePhone } from '@/utils/validation';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 
@@ -53,8 +53,6 @@ export default function AddEmployeeScreen() {
     const nextErrors = {
       fullName: !draft.fullName.trim() ? 'Full name is required' : null,
       phone: validatePhone(draft.phone),
-      designation: !draft.designation.trim() ? 'Designation is required' : null,
-      email: draft.email.trim() ? validateEmail(draft.email) : null,
     };
     setErrors(nextErrors);
     if (Object.values(nextErrors).some(Boolean)) return;
@@ -159,28 +157,6 @@ export default function AddEmployeeScreen() {
               style={[styles.input, phoneError ? styles.inputError : null]}
             />
             {phoneError ? <Text style={styles.error}>{phoneError}</Text> : null}
-
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              value={draft.email}
-              onChangeText={(text) => updateDraft({ email: text })}
-              accessibilityLabel="Email"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              style={[styles.input, errors.email ? styles.inputError : null]}
-            />
-            {errors.email ? <Text style={styles.error}>{errors.email}</Text> : null}
-
-            <Text style={styles.label}>
-              Position / Designation<Text style={styles.required}>*</Text>
-            </Text>
-            <TextInput
-              value={draft.designation}
-              onChangeText={(text) => updateDraft({ designation: text })}
-              accessibilityLabel="Position or Designation"
-              style={[styles.input, errors.designation ? styles.inputError : null]}
-            />
-            {errors.designation ? <Text style={styles.error}>{errors.designation}</Text> : null}
             </View>
           </View>
 

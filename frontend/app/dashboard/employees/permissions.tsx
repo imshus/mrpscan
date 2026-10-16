@@ -163,7 +163,9 @@ export default function EmployeePermissionsScreen() {
         name: draft.fullName,
         phone: draft.phone,
         email: draft.email,
-        designation: draft.designation,
+        // Add no longer asks for a designation; the server still requires
+        // one when an employee is created, and the roster reads "Employee".
+        designation: draft.designation.trim() || 'Employee',
         mpin: credentials.mpin,
         confirmMpin: credentials.confirmMpin,
         permissions,
