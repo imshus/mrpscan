@@ -41,8 +41,6 @@ interface WastageSectionProps {
    */
   weightBasis?: WastageWeightBasis;
   onWeightBasisChange?: (basis: WastageWeightBasis) => void;
-  /** The grams the wastage charges (weight × percent), as the invoice bills them. */
-  weightDisplay?: string;
 }
 
 // The shop's wastage codes, fetched once per app session and shared by every
@@ -97,7 +95,6 @@ export function WastageSection({
   onCodeChange,
   weightBasis = DEFAULT_WASTAGE_WEIGHT_BASIS,
   onWeightBasisChange,
-  weightDisplay,
 }: WastageSectionProps) {
   const [codes, setCodes] = useState<WastageCode[]>(cachedCodes ?? []);
 
@@ -173,7 +170,6 @@ export function WastageSection({
         ) : (
           <MetalValueBox label="Weight Used" value={weightLabel} />
         )}
-        <MetalValueBox label="Wastage Weight" value={weightDisplay || '—'} />
         <MetalValueBox label="Wastage Amount" value={amountDisplay || '—'} amount fullWidth />
       </MetalGrid>
     </MetalTile>

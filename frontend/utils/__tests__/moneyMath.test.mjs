@@ -231,6 +231,44 @@ test('invoice: wastage bills at the Current Gold Rate per gram it was priced at'
   assert.equal(sumLineAmounts(rows), 129210);
 });
 
+test('invoice: wastage grams past 3 places print the Current Gold Rate only once the server prices the printed grams', () => {
+  // 22K (91.6%), RTGS ₹1,25,000/10 g: ₹11,450 a gram. 10.456 g net at 8% is
+  // 0.83648 g, but the invoice prints and registers grams to 3 places.
+  const rate = (125000 / 10) * (91.6 / 100);
+  const gold = goldAmount(10.456, 91.6, 125000);
+  const lineFor = (grams) => {
+    const amount = grams * rate;
+    const rows = buildInvoiceLines(
+      invoice({
+        karatNote: '22K',
+        netWtGrams: 10.456,
+        goldAmount: gold,
+        labourAmount: 5000,
+        wastage: { grams, ratePerGram: rate, percent: 8, amount },
+        mrp: gold + 5000 + amount,
+      }),
+    );
+    return rows.find((row) => row.key === 'wastage');
+  };
+
+  // Grams priced as printed (0.836 g, ₹9,572.20): the line is the shop's
+  // own figure, 0.836 g × ₹11,450.
+  const printed = lineFor(roundHalfUp(10.456 * 0.08, 3));
+  assert.equal(printed.qty, 0.836);
+  assert.equal(printed.price, 11450);
+  assert.equal(printed.amount, 9572);
+
+  // The exact grams (₹9,577.70 in the MRP): 0.836 g × ₹11,450 cannot make
+  // ₹9,578, so the line prints the price that does. It still foots and no
+  // discount is read into it; only the server can make it print ₹11,450.
+  const exact = lineFor(10.456 * 0.08);
+  assert.equal(exact.qty, 0.836);
+  assert.equal(exact.amount, 9578);
+  assert.equal(exact.price, 11456.57);
+  assert.equal(roundHalfUp(exact.qty * exact.price), exact.amount);
+  assert.equal(serverSeesDiscount(exact.qty, exact.price, exact.amount), false);
+});
+
 test('invoice: a price with no wastage rate (a server before rules 3, an older wishlist item) bills the 24K rate', () => {
   // Those prices charged the wastage at the 24K rate per gram, the gold
   // line's goldRatePerGram, so that is still what their invoice prints.

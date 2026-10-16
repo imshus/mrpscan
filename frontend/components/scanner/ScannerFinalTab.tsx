@@ -26,7 +26,7 @@ import type {
 } from '@/types/scanner';
 import { DEFAULT_WASTAGE_WEIGHT_BASIS } from '@/constants/wastage';
 import { resolveScannedKarat } from '@/utils/formulaUtils';
-import { formatIndianCurrency, formatWeightGrams } from '@/utils/scanPriceCalculation';
+import { formatIndianCurrency } from '@/utils/scanPriceCalculation';
 import { OtherChargesSection } from '@/components/scanner/OtherChargesSection';
 
 interface ScannerFinalTabProps {
@@ -386,7 +386,6 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
             : pricing.wastageWeightBasis || DEFAULT_WASTAGE_WEIGHT_BASIS
         }
         onWeightBasisChange={(basis) => onFieldChange?.('wastageWeightBasis', basis)}
-        weightDisplay={formatWeightGrams(pricing.wastageWeightGrams ?? 0)}
       />
 
       {editable ? (
