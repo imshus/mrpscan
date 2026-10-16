@@ -33,6 +33,17 @@ export interface EmployeePhoneVerification {
 /** A little under the server's 30 minutes, so a token is never sent as it lapses. */
 const VERIFICATION_TTL_MS = 25 * 60 * 1000;
 
+/**
+ * The last OTP texted, so going back to Add and on again does not text a
+ * second code (which would make the one the employee is reading out stop
+ * working). A little under the code's 10-minute life.
+ */
+export interface EmployeeOtpSent {
+  phone: string;
+  sentAt: number;
+}
+const OTP_REUSE_MS = 9 * 60 * 1000;
+
 interface EmployeeDraftState {
   mode: 'add' | 'edit';
   editEmployeeId: string | null;
@@ -45,6 +56,7 @@ interface EmployeeDraftState {
    */
   takenPhone: string | null;
   phoneVerification: EmployeePhoneVerification | null;
+  otpSent: EmployeeOtpSent | null;
   setMode: (mode: 'add' | 'edit', employeeId?: string | null) => void;
   updateDraft: (data: Partial<EmployeeDraft>) => void;
   togglePermission: (key: EmployeePermissionKey) => void;
@@ -52,6 +64,7 @@ interface EmployeeDraftState {
   setCredentials: (data: Partial<EmployeeCredentialsDraft>) => void;
   setTakenPhone: (phone: string | null) => void;
   setPhoneVerification: (verification: EmployeePhoneVerification | null) => void;
+  setOtpSent: (sent: EmployeeOtpSent | null) => void;
   resetDraft: () => void;
 }
 
@@ -73,6 +86,7 @@ export const useEmployeeDraftStore = create<EmployeeDraftState>()((set) => ({
   credentials: { ...emptyCredentials },
   takenPhone: null,
   phoneVerification: null,
+  otpSent: null,
   // Editing someone never carries a half-set MPIN, or a number proved for a
   // new hire, along.
   setMode: (mode, employeeId = null) =>
@@ -84,6 +98,7 @@ export const useEmployeeDraftStore = create<EmployeeDraftState>()((set) => ({
             credentials: { ...emptyCredentials },
             takenPhone: null,
             phoneVerification: null,
+            otpSent: null,
           }
         : { mode, editEmployeeId: employeeId },
     ),
@@ -104,6 +119,7 @@ export const useEmployeeDraftStore = create<EmployeeDraftState>()((set) => ({
     set((state) => ({ credentials: { ...state.credentials, ...data } })),
   setTakenPhone: (phone) => set({ takenPhone: phone }),
   setPhoneVerification: (verification) => set({ phoneVerification: verification }),
+  setOtpSent: (sent) => set({ otpSent: sent }),
   resetDraft: () =>
     set({
       mode: 'add',
@@ -112,6 +128,7 @@ export const useEmployeeDraftStore = create<EmployeeDraftState>()((set) => ({
       credentials: { ...emptyCredentials },
       takenPhone: null,
       phoneVerification: null,
+      otpSent: null,
     }),
 }));
 
@@ -129,6 +146,15 @@ export function verifiedPhoneToken(
   if (verification.phone !== normalizeIndianPhone(phone)) return null;
   if (now - verification.verifiedAt > VERIFICATION_TTL_MS) return null;
   return verification.token;
+}
+
+/** Whether a code texted to `phone` is recent enough to still be the one in use. */
+export function otpStillLive(
+  sent: EmployeeOtpSent | null,
+  phone: string,
+  now: number = Date.now(),
+): boolean {
+  return !!sent && sent.phone === normalizeIndianPhone(phone) && now - sent.sentAt < OTP_REUSE_MS;
 }
 
 /**

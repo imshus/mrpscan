@@ -10,10 +10,11 @@ import { GradientView } from '@/components/ui/GradientView';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import { OtpInput } from '@/components/ui/OtpInput';
 import { Colors, Gradients, Spacing } from '@/constants/theme';
-import { useEmployeeDraftStore } from '@/store/employeeDraftStore';
+import { useEmployeeDraftStore, verifiedPhoneToken } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import {
   EMPLOYEE_ERROR_CODES,
+  fetchEmployees,
   sendEmployeePhoneOtp,
   updateEmployeeApi,
   verifyEmployeePhoneOtp,
@@ -25,8 +26,11 @@ import {
   PHONE_TAKEN_MESSAGE,
 } from '@/utils/employeeCredentials';
 
-/** Add New Employee has just sent the first code; another may follow after this. */
-const FIRST_RESEND_SECONDS = 30;
+/** Another code may be asked for this long after the last one was texted. */
+const RESEND_AFTER_SECONDS = 30;
+
+const secondsUntilResend = (sentAt: number | undefined): number =>
+  sentAt ? Math.max(0, RESEND_AFTER_SECONDS - Math.floor((Date.now() - sentAt) / 1000)) : 0;
 
 /**
  * Verify Phone, at the owner's asking: the employee's own SIM proves the
@@ -43,18 +47,36 @@ export default function VerifyEmployeePhoneScreen() {
   const draft = useEmployeeDraftStore((s) => s.draft);
   const mode = useEmployeeDraftStore((s) => s.mode);
   const editEmployeeId = useEmployeeDraftStore((s) => s.editEmployeeId);
+  const phoneVerification = useEmployeeDraftStore((s) => s.phoneVerification);
   const setPhoneVerification = useEmployeeDraftStore((s) => s.setPhoneVerification);
+  const otpSent = useEmployeeDraftStore((s) => s.otpSent);
+  const setOtpSent = useEmployeeDraftStore((s) => s.setOtpSent);
   const setTakenPhone = useEmployeeDraftStore((s) => s.setTakenPhone);
   const updateEmployee = useEmployeeStore((s) => s.updateEmployee);
+  const setEmployees = useEmployeeStore((s) => s.setEmployees);
 
   const [otp, setOtp] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(FIRST_RESEND_SECONDS);
+  // Counts on from when Add texted the code, so coming back here does not
+  // restart the wait.
+  const [secondsLeft, setSecondsLeft] = useState(() => secondsUntilResend(otpSent?.sentAt));
   const busy = useRef(false);
+  // A check still running when the owner taps back must not move them on
+  // from wherever they went.
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
 
   const phone = normalizeIndianPhone(draft.phone);
+  // Editing: a number already proved (the save after the check failed) is
+  // saved with that proof; the code itself works only once.
+  const heldToken = mode === 'edit' ? verifiedPhoneToken(phoneVerification, phone) : null;
 
   // The draft can be gone (an account switch resets it): no number to prove.
   useEffect(() => {
@@ -69,7 +91,7 @@ export default function VerifyEmployeePhoneScreen() {
 
   const handleVerify = async () => {
     if (busy.current) return;
-    if (otp.length !== 6) {
+    if (!heldToken && otp.length !== 6) {
       setError('Enter the 6-digit OTP sent to the employee.');
       return;
     }
@@ -77,12 +99,17 @@ export default function VerifyEmployeePhoneScreen() {
     setVerifying(true);
     setError(null);
     try {
-      const result = await verifyEmployeePhoneOtp(phone, otp);
-      if (!result.success) {
-        setError(result.error);
-        return;
+      let token = heldToken;
+      if (!token) {
+        const result = await verifyEmployeePhoneOtp(phone, otp);
+        if (!result.success) {
+          if (alive.current) setError(result.error);
+          return;
+        }
+        token = result.token;
+        setPhoneVerification({ phone, token, verifiedAt: Date.now() });
       }
-      setPhoneVerification({ phone, token: result.token, verifiedAt: Date.now() });
+      if (!alive.current) return;
 
       if (mode === 'edit' && editEmployeeId) {
         const saved = await updateEmployeeApi(editEmployeeId, {
@@ -90,14 +117,27 @@ export default function VerifyEmployeePhoneScreen() {
           phone: draft.phone,
           email: draft.email,
           designation: draft.designation,
-          phoneVerificationToken: result.token,
+          phoneVerificationToken: token,
         });
+        if (!alive.current) return;
         if (!saved.success) {
           if (saved.code === EMPLOYEE_ERROR_CODES.phoneTaken) {
             // Back on Edit, the number is marked under the field.
             setTakenPhone(phone);
             router.back();
             return;
+          }
+          // A save that timed out may still have landed: look before saying
+          // it failed.
+          const list = await fetchEmployees();
+          if (!alive.current) return;
+          if (list.success && list.data) {
+            setEmployees(list.data);
+            const now = list.data.find((e) => e.id === editEmployeeId);
+            if (now && normalizeIndianPhone(now.phone) === phone) {
+              router.dismissTo(`/dashboard/employees/${editEmployeeId}` as Href);
+              return;
+            }
           }
           setError(saved.error ?? 'Failed to update employee details');
           return;
@@ -117,7 +157,7 @@ export default function VerifyEmployeePhoneScreen() {
       router.replace('/dashboard/employees/credentials' as Href);
     } finally {
       busy.current = false;
-      setVerifying(false);
+      if (alive.current) setVerifying(false);
     }
   };
 
@@ -126,11 +166,12 @@ export default function VerifyEmployeePhoneScreen() {
     setResending(true);
     setError(null);
     try {
-      const result = await sendEmployeePhoneOtp(phone);
+      const result = await sendEmployeePhoneOtp(phone, mode === 'edit' ? editEmployeeId : null);
       if (!result.success) {
         setError(result.code === EMPLOYEE_ERROR_CODES.phoneTaken ? PHONE_TAKEN_MESSAGE : result.error);
         return;
       }
+      setOtpSent({ phone, sentAt: Date.now() });
       setOtp('');
       setSecondsLeft(result.resendAfterSeconds);
     } finally {

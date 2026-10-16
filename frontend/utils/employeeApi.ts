@@ -261,12 +261,14 @@ export async function checkEmployeePhone(
  */
 export async function sendEmployeePhoneOtp(
   phone: string,
+  /** The employee whose number is changing; absent when adding someone. */
+  employeeId?: string | null,
 ): Promise<{ success: true; resendAfterSeconds: number } | EmployeeApiFailure> {
   const fallback = 'Could not send the OTP. Please try again.';
   try {
     const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/employees/phone-otp', {
       method: 'POST',
-      body: { phone: normalizeIndianPhone(phone) },
+      body: { phone: normalizeIndianPhone(phone), ...(employeeId ? { employeeId } : {}) },
     });
     const unwrapped = unwrapEnvelope(response);
     if (!isSuccessfulResponse(response, unwrapped)) {

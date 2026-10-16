@@ -339,6 +339,19 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
             }
             return parsed;
           }
+          // The retry's own refusal is the one to report: the first 401's
+          // body ("Token is invalid or expired") hid the real code, so a
+          // wrong OTP read as a sign-in problem.
+          const retryClone = response.clone();
+          try {
+            errorBody = await response.json();
+          } catch {
+            try {
+              errorBody = await retryClone.text();
+            } catch {
+              errorBody = null;
+            }
+          }
         } catch (error) {
           if ((error as Error)?.name === 'AbortError') {
             if (externalSignal?.aborted) {

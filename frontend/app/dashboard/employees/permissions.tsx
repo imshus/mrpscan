@@ -129,21 +129,19 @@ export default function EmployeePermissionsScreen() {
     if (mode === 'edit' && editEmployeeId) {
       setSaving(true);
       try {
-        const result = await updateEmployeeApi(editEmployeeId, {
-          name: draft.fullName,
-          phone: draft.phone,
-          email: draft.email,
-          designation: draft.designation,
-          permissions: permissions,
-        });
-        
+        // Permissions only: the details were not edited here, and a number
+        // from a roster loaded before someone changed it elsewhere would read
+        // to the server as a new, unproved number.
+        const result = await updateEmployeeApi(editEmployeeId, { permissions });
+
         if (!result.success) {
           setFormError(result.error ?? 'Failed to update employee.');
           return;
         }
 
         updateEmployee(editEmployeeId, { permissions: { ...permissions } });
-        router.replace(`/dashboard/employees/${editEmployeeId}` as Href);
+        // Back to their page, not a second copy of it on top.
+        router.dismissTo(`/dashboard/employees/${editEmployeeId}` as Href);
       } finally {
         setSaving(false);
       }
