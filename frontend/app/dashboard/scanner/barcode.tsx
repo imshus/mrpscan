@@ -46,6 +46,11 @@ type ConfirmedCapture = {
  * effort, eight seconds abandoned answers that were seconds from landing.
  */
 const AUTO_FRAME_TIMEOUT_MS = 15000;
+/**
+ * A camera photo is already framed and good to read, and Calculate waits
+ * while the finder works: past this the framed photo simply stays.
+ */
+const CAMERA_FRAME_TIMEOUT_MS = 4000;
 
 /**
  * How long Calculate waits for a finder still running on either side: not
@@ -314,6 +319,7 @@ export default function BarcodeScannerScreen() {
     fullUri: string,
     upright?: UprightImage | null,
     detection?: Promise<string> | null,
+    timeoutMs: number = AUTO_FRAME_TIMEOUT_MS,
   ) => {
     const side = capture.side;
     const token = captureTokenRef.current;
@@ -336,7 +342,7 @@ export default function BarcodeScannerScreen() {
         // A camera capture's small copy has been in the making since the
         // shutter; a gallery photo's is made here.
         const smallUri = await (detection ?? detectionCopy(fullUri, upright ?? undefined));
-        const box = await withTimeout(detectTagArea(smallUri), AUTO_FRAME_TIMEOUT_MS);
+        const box = await withTimeout(detectTagArea(smallUri), timeoutMs);
         if (!box || token !== captureTokenRef.current) return;
         const photo = await uprightPromise;
         if (!photo) return;
@@ -398,12 +404,19 @@ export default function BarcodeScannerScreen() {
 
       // The side is held now, while its cut to the frame is still running:
       // the screen moves on at once, and the thumbnail, upload and Calculate
-      // each wait for the cut themselves. The framed photo is what the shop
-      // lined up, and it is what goes up: no finder runs behind a camera
-      // capture, at the shop's asking. The finder still cuts a gallery photo
-      // to its tag, since nobody framed it.
+      // each wait for the cut themselves. Then the finder cuts the framed
+      // photo to the tag itself, as it does a gallery photo (at the owner's
+      // asking, 16 Oct 2026; it had been off since 3f5229b): a tight crop
+      // reads better, and a small one is enlarged 2x on the server before
+      // the read. It looks only inside what the shop framed, and a tag it
+      // cannot place, or a slow answer, leaves the framed photo as it is.
       const held = flow.confirm(ticket.side, 'camera', capture.framed, ticket);
-      if (held) ensureScanSession();
+      if (held) {
+        ensureScanSession();
+        capture.framed
+          .then((framedUri) => refineSide(held, framedUri, null, null, CAMERA_FRAME_TIMEOUT_MS))
+          .catch(() => undefined);
+      }
       // Discarded while the camera answered: nobody waits on this cut.
       else capture.framed.catch(() => undefined);
     } finally {
