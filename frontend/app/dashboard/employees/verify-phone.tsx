@@ -61,6 +61,7 @@ export default function VerifyEmployeePhoneScreen() {
   const setOwnPhone = useEmployeeDraftStore((s) => s.setOwnPhone);
   const phoneTransfer = useEmployeeDraftStore((s) => s.phoneTransfer);
   const setPhoneTransfer = useEmployeeDraftStore((s) => s.setPhoneTransfer);
+  const clearPhoneTransferFor = useEmployeeDraftStore((s) => s.clearPhoneTransferFor);
   const updateEmployee = useEmployeeStore((s) => s.updateEmployee);
   const setEmployees = useEmployeeStore((s) => s.setEmployees);
 
@@ -86,7 +87,8 @@ export default function VerifyEmployeePhoneScreen() {
   // Editing: a number already proved (the save after the check failed) is
   // saved with that proof; the code itself works only once.
   const heldToken = mode === 'edit' ? verifiedPhoneToken(phoneVerification, phone) : null;
-  const transferNotice = phoneTransferNotice(transferForPhone(phoneTransfer, phone));
+  const transfer = transferForPhone(phoneTransfer, phone);
+  const transferNotice = phoneTransferNotice(transfer);
 
   // The draft can be gone (an account switch resets it): no number to prove.
   useEffect(() => {
@@ -128,6 +130,7 @@ export default function VerifyEmployeePhoneScreen() {
           email: draft.email,
           designation: draft.designation,
           phoneVerificationToken: token,
+          confirmTransfer: !!transfer,
         });
         if (!alive.current) return;
         if (!saved.success) {
@@ -183,13 +186,22 @@ export default function VerifyEmployeePhoneScreen() {
     try {
       const result = await sendEmployeePhoneOtp(phone, mode === 'edit' ? editEmployeeId : null);
       if (!result.success) {
-        setError(
-          result.code === EMPLOYEE_ERROR_CODES.ownNumber
-            ? OWN_NUMBER_MESSAGE
-            : result.code === EMPLOYEE_ERROR_CODES.phoneTaken
-              ? PHONE_TAKEN_MESSAGE
-              : result.error,
-        );
+        if (
+          result.code === EMPLOYEE_ERROR_CODES.ownNumber ||
+          result.code === EMPLOYEE_ERROR_CODES.phoneTaken
+        ) {
+          // The number cannot be taken now: the line saying whose login it
+          // moves goes, Add marks the field, and Continue there asks the
+          // server again rather than reopening this screen on the old code.
+          const own = result.code === EMPLOYEE_ERROR_CODES.ownNumber;
+          clearPhoneTransferFor(phone);
+          if (own) setOwnPhone(phone);
+          else setTakenPhone(phone);
+          setOtpSent(null);
+          setError(own ? OWN_NUMBER_MESSAGE : PHONE_TAKEN_MESSAGE);
+          return;
+        }
+        setError(result.error);
         return;
       }
       setOtpSent({ phone, sentAt: Date.now() });

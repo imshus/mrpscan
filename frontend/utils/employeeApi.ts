@@ -349,6 +349,11 @@ export async function verifyEmployeePhoneOtp(
  * this shop, has that login moved here by this call. Nothing is written when
  * the number cannot be taken: that comes back as `code` OWN_NUMBER or
  * PHONE_ALREADY_REGISTERED.
+ *
+ * `confirmTransfer` says the owner was shown whose login the number moves
+ * (Verify Phone's line). Builds before this one never send it, so a server
+ * that asks for it moves no one for an app that never said so; a server
+ * that does not ask drops it.
  */
 export async function createEmployeeWithMpin(payload: {
   name: string;
@@ -360,6 +365,8 @@ export async function createEmployeeWithMpin(payload: {
   permissions: EmployeePermissions;
   /** From verifyEmployeePhoneOtp, for this phone. */
   phoneVerificationToken?: string;
+  /** The owner was shown that this number's login moves here. */
+  confirmTransfer?: boolean;
 }): Promise<{ success: true; employee: Employee } | EmployeeApiFailure> {
   const fallback = 'Failed to create employee.';
   try {
@@ -375,6 +382,7 @@ export async function createEmployeeWithMpin(payload: {
         confirmMpin: payload.confirmMpin,
         permissions: mapDraftPermissionsToApi(payload.permissions),
         ...(payload.phoneVerificationToken ? { phoneVerificationToken: payload.phoneVerificationToken } : {}),
+        ...(payload.confirmTransfer ? { confirmTransfer: true } : {}),
       },
     });
     const unwrapped = unwrapEnvelope(response);
@@ -453,6 +461,8 @@ export async function updateEmployeeApi(
     isActive?: boolean;
     /** Needed only when `phone` is a new number: the token for that number. */
     phoneVerificationToken?: string;
+    /** The owner was shown that the new number's login moves here (as createEmployeeWithMpin). */
+    confirmTransfer?: boolean;
   }
 ): Promise<{ success: boolean; error?: string; code?: string }> {
   const fallback = 'Failed to update employee.';
@@ -465,6 +475,7 @@ export async function updateEmployeeApi(
     if (payload.permissions) body.permissions = mapDraftPermissionsToApi(payload.permissions);
     if (typeof payload.isActive === 'boolean') body.isActive = payload.isActive;
     if (payload.phoneVerificationToken) body.phoneVerificationToken = payload.phoneVerificationToken;
+    if (payload.confirmTransfer) body.confirmTransfer = true;
 
     const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(`/employees/${id}`, {
       method: 'PUT',

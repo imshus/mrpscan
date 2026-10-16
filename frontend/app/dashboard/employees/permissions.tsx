@@ -19,7 +19,7 @@ import { GradientView } from '@/components/ui/GradientView';
 import { MatrixCheckboxRow } from '@/components/settings/MatrixCheckboxRow';
 import { GOLD_MATRIX_SECTIONS } from '@/constants/dashboardMatrices';
 import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
-import { useEmployeeDraftStore, verifiedPhoneToken } from '@/store/employeeDraftStore';
+import { transferForPhone, useEmployeeDraftStore, verifiedPhoneToken } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import type { EmployeePermissionKey } from '@/types/employee';
 import {
@@ -82,6 +82,7 @@ export default function EmployeePermissionsScreen() {
   const resetDraft = useEmployeeDraftStore((s) => s.resetDraft);
   const phoneVerification = useEmployeeDraftStore((s) => s.phoneVerification);
   const setPhoneVerification = useEmployeeDraftStore((s) => s.setPhoneVerification);
+  const phoneTransfer = useEmployeeDraftStore((s) => s.phoneTransfer);
   const updateEmployee = useEmployeeStore((s) => s.updateEmployee);
   const setEmployees = useEmployeeStore((s) => s.setEmployees);
 
@@ -191,6 +192,7 @@ export default function EmployeePermissionsScreen() {
         confirmMpin: credentials.confirmMpin,
         permissions,
         phoneVerificationToken,
+        confirmTransfer: !!transferForPhone(phoneTransfer, draft.phone),
       });
 
       if (!result.success) {

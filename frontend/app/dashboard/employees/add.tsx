@@ -18,7 +18,12 @@ import { BottomNav } from '@/components/dashboard/BottomNav';
 import { EmployeeScreenHeader } from '@/components/employees/EmployeeScreenHeader';
 import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
-import { otpStillLive, useEmployeeDraftStore, verifiedPhoneToken } from '@/store/employeeDraftStore';
+import {
+  otpStillLive,
+  transferForPhone,
+  useEmployeeDraftStore,
+  verifiedPhoneToken,
+} from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import {
   checkEmployeePhone,
@@ -56,7 +61,9 @@ export default function AddEmployeeScreen() {
   const setTakenPhone = useEmployeeDraftStore((s) => s.setTakenPhone);
   const ownPhone = useEmployeeDraftStore((s) => s.ownPhone);
   const setOwnPhone = useEmployeeDraftStore((s) => s.setOwnPhone);
+  const phoneTransfer = useEmployeeDraftStore((s) => s.phoneTransfer);
   const setPhoneTransfer = useEmployeeDraftStore((s) => s.setPhoneTransfer);
+  const clearPhoneTransferFor = useEmployeeDraftStore((s) => s.clearPhoneTransferFor);
   const phoneVerification = useEmployeeDraftStore((s) => s.phoneVerification);
   const otpSent = useEmployeeDraftStore((s) => s.otpSent);
   const setOtpSent = useEmployeeDraftStore((s) => s.setOtpSent);
@@ -104,12 +111,12 @@ export default function AddEmployeeScreen() {
         const sent = await sendEmployeePhoneOtp(phone, mode === 'edit' ? editEmployeeId : null);
         if (!sent.success) {
           if (sent.code === EMPLOYEE_ERROR_CODES.ownNumber) {
-            setPhoneTransfer(null);
+            clearPhoneTransferFor(phone);
             setOwnPhone(phone);
             return;
           }
           if (sent.code === EMPLOYEE_ERROR_CODES.phoneTaken) {
-            setPhoneTransfer(null);
+            clearPhoneTransferFor(phone);
             setTakenPhone(phone);
             return;
           }
@@ -144,15 +151,18 @@ export default function AddEmployeeScreen() {
           email: draft.email,
           designation: draft.designation,
           ...(token ? { phoneVerificationToken: token } : {}),
+          confirmTransfer: !!transferForPhone(phoneTransfer, phone),
         });
 
         if (!result.success) {
+          // Marked by number, as the other refusals are: the message goes
+          // once the number in the field is changed.
           if (result.code === EMPLOYEE_ERROR_CODES.ownNumber) {
-            setErrors({ ...nextErrors, phone: OWN_NUMBER_MESSAGE });
+            setOwnPhone(phone);
             return;
           }
           if (result.code === EMPLOYEE_ERROR_CODES.phoneTaken) {
-            setErrors({ ...nextErrors, phone: PHONE_TAKEN_MESSAGE });
+            setTakenPhone(phone);
             return;
           }
           if (result.code === EMPLOYEE_ERROR_CODES.phoneNotVerified) {
@@ -190,15 +200,12 @@ export default function AddEmployeeScreen() {
       const phone = normalizeIndianPhone(draft.phone);
       const check = await checkEmployeePhone(phone);
       if (!check.success) {
-        if (check.code === EMPLOYEE_ERROR_CODES.ownNumber) {
-          setOwnPhone(phone);
-          return;
-        }
         setFormError(check.error);
         return;
       }
+      // The owner's own number comes back as `reason`, not as an error.
       if (!check.available) {
-        setPhoneTransfer(null);
+        clearPhoneTransferFor(phone);
         if (check.reason === EMPLOYEE_ERROR_CODES.ownNumber) {
           setOwnPhone(phone);
         } else {

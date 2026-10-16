@@ -83,6 +83,12 @@ interface EmployeeDraftState {
   setTakenPhone: (phone: string | null) => void;
   setOwnPhone: (phone: string | null) => void;
   setPhoneTransfer: (transfer: EmployeePhoneTransferFor | null) => void;
+  /**
+   * The server refused `phone`: what was said of that number goes. What was
+   * said of another number stays with it — its code may still be live, and
+   * Verify Phone opens on it again without asking the server.
+   */
+  clearPhoneTransferFor: (phone: string) => void;
   setPhoneVerification: (verification: EmployeePhoneVerification | null) => void;
   setOtpSent: (sent: EmployeeOtpSent | null) => void;
   resetDraft: () => void;
@@ -144,6 +150,8 @@ export const useEmployeeDraftStore = create<EmployeeDraftState>()((set) => ({
   setTakenPhone: (phone) => set({ takenPhone: phone }),
   setOwnPhone: (phone) => set({ ownPhone: phone }),
   setPhoneTransfer: (transfer) => set({ phoneTransfer: transfer }),
+  clearPhoneTransferFor: (phone) =>
+    set((state) => (transferForPhone(state.phoneTransfer, phone) ? { phoneTransfer: null } : {})),
   setPhoneVerification: (verification) => set({ phoneVerification: verification }),
   setOtpSent: (sent) => set({ otpSent: sent }),
   resetDraft: () =>
