@@ -15,11 +15,10 @@ import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-nativ
 
 import { Colors } from '@/constants/theme';
 import {
-  SCANNER_FRAME_HEIGHT,
+  scannerFrameSize,
+  SCANNER_FRAME_VERTICAL_BIAS,
   SCANNER_THUMB_HEIGHT,
   SCANNER_THUMB_WIDTH,
-  SCANNER_FRAME_VERTICAL_BIAS,
-  SCANNER_FRAME_WIDTH,
 } from '@/constants/scannerFrame';
 import { TagCameraPreview, type TagCameraPreviewRef } from './TagCameraPreview';
 
@@ -172,15 +171,18 @@ export function ScannerScreenLayout({
     setRootSize((prev) => (prev.width === w && prev.height === h ? prev : { width: w, height: h }));
   };
 
-  const frameLeft = Math.round((rootSize.width - SCANNER_FRAME_WIDTH) / 2);
-  const frameTop = Math.round(rootSize.height / 2 - SCANNER_FRAME_HEIGHT * SCANNER_FRAME_VERTICAL_BIAS);
-  const frameRight = frameLeft + SCANNER_FRAME_WIDTH;
-  const frameBottom = frameTop + SCANNER_FRAME_HEIGHT;
-  // The side button (44 wide, 14 from the edge) sits beside the frame's
-  // lower corner where there is room; on a narrower phone the larger frame
-  // reaches under it, so it moves above the frame's right end instead.
-  const sideButtonTop =
-    rootSize.width - 14 - 44 >= frameRight + 8 ? frameBottom - 46 : Math.max(frameTop - 52, 64);
+  // The frame spans the screen but for a narrow margin (scannerFrame.ts);
+  // TagCameraPreview cuts the photo to this same box.
+  const frame = scannerFrameSize(rootSize.width);
+  const frameLeft = Math.round((rootSize.width - frame.width) / 2);
+  const frameTop = Math.round(rootSize.height / 2 - frame.height * SCANNER_FRAME_VERTICAL_BIAS);
+  const frameRight = frameLeft + frame.width;
+  const frameBottom = frameTop + frame.height;
+  // The owner's design: corner brackets in proportion to the frame, the
+  // gallery / discard button inside its lower right corner, and a Click pill
+  // the frame's width and about a third of its height.
+  const cornerSize = Math.round(Math.min(44, Math.max(26, frame.width * 0.11)));
+  const actionHeight = Math.round(Math.min(84, Math.max(56, frame.height * 0.36)));
 
   // Percentage-sized SVGs don't reliably track content-driven heights on
   // Android, so the top fade is drawn at the bar's measured pixel size.
@@ -220,8 +222,8 @@ export function ScannerScreenLayout({
           {photoLayer({
             x: frameLeft,
             y: frameTop,
-            width: SCANNER_FRAME_WIDTH,
-            height: SCANNER_FRAME_HEIGHT,
+            width: frame.width,
+            height: frame.height,
           })}
         </View>
       ) : null}
@@ -247,7 +249,7 @@ export function ScannerScreenLayout({
             intensity={38}
             tint="dark"
             experimentalBlurMethod="dimezisBlurView"
-            style={[styles.mask, { top: frameTop, left: 0, width: frameLeft, height: SCANNER_FRAME_HEIGHT }]}
+            style={[styles.mask, { top: frameTop, left: 0, width: frameLeft, height: frame.height }]}
           />
           <BlurView
             intensity={38}
@@ -255,7 +257,7 @@ export function ScannerScreenLayout({
             experimentalBlurMethod="dimezisBlurView"
             style={[
               styles.mask,
-              { top: frameTop, left: frameRight, width: Math.max(0, rootSize.width - frameRight), height: SCANNER_FRAME_HEIGHT },
+              { top: frameTop, left: frameRight, width: Math.max(0, rootSize.width - frameRight), height: frame.height },
             ]}
           />
         </View>
@@ -326,15 +328,23 @@ export function ScannerScreenLayout({
 
       {headerContent ? <View style={styles.headerContent}>{headerContent}</View> : null}
 
-      {cameraPermissionGranted || photoLayer ? (
+      {/* Drawn once the screen is measured: the frame's size and place come
+          from its width and height. */}
+      {(cameraPermissionGranted || photoLayer) && rootSize.width > 0 ? (
         <>
           {/* Mockup .cap-frame + .cap-corner brackets */}
-          <View style={styles.frame} pointerEvents={frameInteractive ? 'box-none' : 'none'}>
+          <View
+            style={[
+              styles.frame,
+              { left: frameLeft, top: frameTop, width: frame.width, height: frame.height },
+            ]}
+            pointerEvents={frameInteractive ? 'box-none' : 'none'}
+          >
             <View style={styles.frameClip}>{children}</View>
-            <View style={[styles.corner, styles.cornerTL]} />
-            <View style={[styles.corner, styles.cornerTR]} />
-            <View style={[styles.corner, styles.cornerBR]} />
-            <View style={[styles.corner, styles.cornerBL]} />
+            <View style={[styles.corner, { width: cornerSize, height: cornerSize }, styles.cornerTL]} />
+            <View style={[styles.corner, { width: cornerSize, height: cornerSize }, styles.cornerTR]} />
+            <View style={[styles.corner, { width: cornerSize, height: cornerSize }, styles.cornerBR]} />
+            <View style={[styles.corner, { width: cornerSize, height: cornerSize }, styles.cornerBL]} />
           </View>
 
           {/* Mockup .cap-controls — Click / Upload Image pills.
@@ -357,7 +367,8 @@ export function ScannerScreenLayout({
                   style={[
                     styles.sideButton,
                     onDeletePress ? styles.sideButtonDanger : styles.sideButtonLight,
-                    { top: sideButtonTop },
+                    // Inside the frame's lower right corner (the owner's design).
+                    { top: frameBottom - 44 - 12, left: frameRight - 44 - 12 },
                   ]}
                 >
                   {onDeletePress ? (
@@ -373,12 +384,13 @@ export function ScannerScreenLayout({
                   onPress={onShutterPress}
                   disabled={shutterBusy}
                   accessibilityState={{ busy: shutterBusy, disabled: shutterBusy }}
-                  style={styles.actionSlot}
+                  style={[styles.actionSlot, { width: frame.width }]}
                 >
                   {shutterTone === 'secondary' ? (
                     <View
                       style={[
                         styles.actionButton,
+                        { height: actionHeight },
                         styles.uploadButton,
                         shutterBusy && styles.actionButtonHeld,
                       ]}
@@ -389,6 +401,7 @@ export function ScannerScreenLayout({
                     <View
                       style={[
                         styles.actionButton,
+                        { height: actionHeight },
                         styles.actionButtonSolid,
                         shutterBusy && styles.actionButtonHeld,
                       ]}
@@ -405,11 +418,12 @@ export function ScannerScreenLayout({
                     <Pressable
                       onPress={onCalculatePress}
                       disabled={calculateDisabled}
-                      style={styles.actionSlot}
+                      style={[styles.actionSlot, { width: frame.width }]}
                     >
                       <View
                         style={[
                           styles.actionButton,
+                          { height: actionHeight },
                           styles.actionButtonSolid,
                           calculateDisabled && styles.actionButtonHeld,
                         ]}
@@ -494,8 +508,8 @@ const styles = StyleSheet.create({
     zIndex: 25,
     textAlign: 'center',
     color: Colors.white,
-    fontSize: 13.6,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '800',
     letterSpacing: 0.14,
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 1 },
@@ -511,14 +525,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   frame: {
+    // Placed and sized inline from the measured screen (scannerFrameSize):
+    // centred, with its top at height/2 - 0.6 x its height, as the mockup's
+    // translate(-50%, -60%).
     position: 'absolute',
-    top: '50%',
-    left: '50%',
-    width: SCANNER_FRAME_WIDTH,
-    height: SCANNER_FRAME_HEIGHT,
-    // Mockup: transform: translate(-50%, -60%)
-    marginLeft: -SCANNER_FRAME_WIDTH / 2,
-    marginTop: -SCANNER_FRAME_HEIGHT * SCANNER_FRAME_VERTICAL_BIAS,
   },
   frameClip: {
     ...StyleSheet.absoluteFillObject,
@@ -527,8 +537,6 @@ const styles = StyleSheet.create({
   },
   corner: {
     position: 'absolute',
-    width: 26,
-    height: 26,
     borderColor: Colors.brand,
   },
   cornerTL: { top: 0, left: 0, borderLeftWidth: 3, borderTopWidth: 3, borderTopLeftRadius: 6 },
@@ -559,8 +567,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   sideButton: {
+    // Placed inline, inside the frame's lower right corner.
     position: 'absolute',
-    right: 14,
     width: 44,
     height: 44,
     alignItems: 'center',
@@ -593,11 +601,8 @@ const styles = StyleSheet.create({
   actionButtonHeld: {
     opacity: 0.45,
   },
-  actionSlot: {
-    width: SCANNER_FRAME_WIDTH,
-  },
+  actionSlot: {},
   actionButton: {
-    height: 48,
     borderRadius: 999,
     flexDirection: 'row',
     alignItems: 'center',
@@ -613,8 +618,8 @@ const styles = StyleSheet.create({
   },
   scanLabel: {
     color: Colors.white,
-    fontSize: 13.1,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
   },
   uploadButton: {
     backgroundColor: Colors.background,
@@ -624,7 +629,7 @@ const styles = StyleSheet.create({
   },
   uploadLabel: {
     color: Colors.textPrimary,
-    fontSize: 13.1,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
   },
 });

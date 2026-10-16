@@ -18,11 +18,7 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
-import {
-  SCANNER_FRAME_HEIGHT,
-  SCANNER_FRAME_VERTICAL_BIAS,
-  SCANNER_FRAME_WIDTH,
-} from '@/constants/scannerFrame';
+import { scannerFrameSize, SCANNER_FRAME_VERTICAL_BIAS } from '@/constants/scannerFrame';
 import type { UprightImage } from '@/utils/tagCrop';
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -36,9 +32,9 @@ const QUARTER_TURNS = new Set([5, 6, 7, 8]);
  * CameraView fills the preview with a centre-crop of the sensor image, so the
  * mapping from view coordinates to photo pixels is the "cover" transform:
  * scale by max(viewW/photoW, viewH/photoH) and re-centre. The frame overlay is
- * positioned by ScannerScreenLayout as a SCANNER_FRAME_WIDTH x
- * SCANNER_FRAME_HEIGHT box, centred horizontally and sitting at
- * height/2 - SCANNER_FRAME_HEIGHT * 0.6, so we can recompute it here from the
+ * positioned by ScannerScreenLayout as a scannerFrameSize(width) box,
+ * centred horizontally and sitting at height/2 - its height * 0.6, so we can
+ * recompute it here from the
  * measured preview size.
  *
  * Returns the original uri untouched if anything is unknown, so a capture can
@@ -125,20 +121,21 @@ async function cropToFrame(
   const offsetX = (source.width * scale - viewSize.width) / 2;
   const offsetY = (source.height * scale - viewSize.height) / 2;
 
-  const frameLeft = (viewSize.width - SCANNER_FRAME_WIDTH) / 2;
-  const frameTop = viewSize.height / 2 - SCANNER_FRAME_HEIGHT * SCANNER_FRAME_VERTICAL_BIAS;
+  // The frame as ScannerScreenLayout draws it on this same width.
+  const frame = scannerFrameSize(viewSize.width);
+  const frameLeft = Math.round((viewSize.width - frame.width) / 2);
+  const frameTop = Math.round(viewSize.height / 2 - frame.height * SCANNER_FRAME_VERTICAL_BIAS);
 
   const originX = clamp(Math.round((frameLeft + offsetX) / scale), 0, source.width - 1);
   const originY = clamp(Math.round((frameTop + offsetY) / scale), 0, source.height - 1);
-  const width = clamp(Math.round(SCANNER_FRAME_WIDTH / scale), 1, source.width - originX);
-  const height = clamp(Math.round(SCANNER_FRAME_HEIGHT / scale), 1, source.height - originY);
+  const width = clamp(Math.round(frame.width / scale), 1, source.width - originX);
+  const height = clamp(Math.round(frame.height / scale), 1, source.height - originY);
 
   // A rectangle that no longer has the frame's shape was cut short by an edge,
   // which means the mapping did not describe this photo. Better a whole photo
   // than a slice of one.
   const framePlausible =
-    Math.abs(width / height - SCANNER_FRAME_WIDTH / SCANNER_FRAME_HEIGHT) <
-    (SCANNER_FRAME_WIDTH / SCANNER_FRAME_HEIGHT) * 0.15;
+    Math.abs(width / height - frame.width / frame.height) < (frame.width / frame.height) * 0.15;
   if (!framePlausible) {
     console.warn('Framed region does not fit this photo; sending the whole photo.', {
       photo: `${source.width}x${source.height}`,
