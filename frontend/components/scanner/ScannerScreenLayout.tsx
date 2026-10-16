@@ -16,6 +16,8 @@ import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-nativ
 import { Colors } from '@/constants/theme';
 import {
   SCANNER_FRAME_HEIGHT,
+  SCANNER_THUMB_HEIGHT,
+  SCANNER_THUMB_WIDTH,
   SCANNER_FRAME_VERTICAL_BIAS,
   SCANNER_FRAME_WIDTH,
 } from '@/constants/scannerFrame';
@@ -174,6 +176,11 @@ export function ScannerScreenLayout({
   const frameTop = Math.round(rootSize.height / 2 - SCANNER_FRAME_HEIGHT * SCANNER_FRAME_VERTICAL_BIAS);
   const frameRight = frameLeft + SCANNER_FRAME_WIDTH;
   const frameBottom = frameTop + SCANNER_FRAME_HEIGHT;
+  // The side button (44 wide, 14 from the edge) sits beside the frame's
+  // lower corner where there is room; on a narrower phone the larger frame
+  // reaches under it, so it moves above the frame's right end instead.
+  const sideButtonTop =
+    rootSize.width - 14 - 44 >= frameRight + 8 ? frameBottom - 46 : Math.max(frameTop - 52, 64);
 
   // Percentage-sized SVGs don't reliably track content-driven heights on
   // Android, so the top fade is drawn at the bar's measured pixel size.
@@ -298,7 +305,7 @@ export function ScannerScreenLayout({
             // The same size as the capture frame, sitting above the
             // instruction; clamped so a short screen cannot push it under
             // the top bar.
-            { top: Math.max(Math.max(frameTop - 36, 70) - (SCANNER_FRAME_HEIGHT + 16), 64) },
+            { top: Math.max(Math.max(frameTop - 36, 70) - (SCANNER_THUMB_HEIGHT + 16), 64) },
           ]}
           pointerEvents="none"
         >
@@ -350,7 +357,7 @@ export function ScannerScreenLayout({
                   style={[
                     styles.sideButton,
                     onDeletePress ? styles.sideButtonDanger : styles.sideButtonLight,
-                    { top: frameBottom - 46 },
+                    { top: sideButtonTop },
                   ]}
                 >
                   {onDeletePress ? (
@@ -457,10 +464,10 @@ const styles = StyleSheet.create({
     zIndex: 4,
   },
   capturedThumb: {
-    // The captured side at the size it was framed at — the scan area's own
-    // width and height — so what is in hand can actually be read.
-    width: SCANNER_FRAME_WIDTH,
-    height: SCANNER_FRAME_HEIGHT,
+    // The captured side, large enough that what is in hand can be read; the
+    // frame's own shape, at the mockup's size (see scannerFrame.ts).
+    width: SCANNER_THUMB_WIDTH,
+    height: SCANNER_THUMB_HEIGHT,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.35)',
