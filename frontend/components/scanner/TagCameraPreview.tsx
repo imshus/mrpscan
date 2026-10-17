@@ -16,15 +16,102 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import {
+  ImageManipulator,
+  manipulateAsync,
+  SaveFormat,
+  type ImageManipulatorContext,
+  type ImageRef,
+} from 'expo-image-manipulator';
 
 import { scannerFrameSize, SCANNER_FRAME_VERTICAL_BIAS } from '@/constants/scannerFrame';
+import { decodeJpegBase64 } from '@/utils/jpegPixels';
+import {
+  findPaperBox,
+  paperCropRect,
+  paperFinderWidths,
+  type PixelCrop,
+} from '@/utils/paperCrop';
 import type { UprightImage } from '@/utils/tagCrop';
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 /** EXIF orientations that turn the stored pixels a quarter, swapping width and height. */
 const QUARTER_TURNS = new Set([5, 6, 7, 8]);
+
+/** How every cut that goes up is saved: the frame's, and the paper's inside it. */
+const CUT_SAVE = { compress: 0.92, format: SaveFormat.JPEG };
+
+/** One render of `source` (a file or a decoded image) through `edit`. */
+async function renderImage(
+  source: string | ImageRef,
+  edit: (context: ImageManipulatorContext) => void,
+): Promise<ImageRef> {
+  const context = ImageManipulator.manipulate(source);
+  try {
+    edit(context);
+    return await context.renderAsync();
+  } finally {
+    context.release();
+  }
+}
+
+/**
+ * The paper tag inside the framed photo, cut out of it: the white tag with
+ * the figures, without the fingers and the counter around it (the owner's
+ * asking). Found on the phone (utils/paperCrop.ts) in a small copy of the
+ * frame, and cut from the full-size frame already in memory, so no file is
+ * read back. Null when there is no paper to cut to — nothing printed in the
+ * frame, the tag already filling it, a paper that cannot be told from what
+ * it lies on — or when anything fails: the framed photo then stands.
+ */
+async function cutToPaper(framed: ImageRef): Promise<string | null> {
+  try {
+    const steps = paperFinderWidths(framed.width);
+    if (!steps.length) return null;
+    const small = await renderImage(framed, (context) => {
+      for (const width of steps) context.resize({ width });
+    });
+    let copy: { base64?: string };
+    try {
+      // Full quality: at this size a JPEG block is as wide as a line of print.
+      copy = await small.saveAsync({ base64: true, compress: 1, format: SaveFormat.JPEG });
+    } finally {
+      small.release();
+    }
+    if (!copy.base64) return null;
+
+    const pixels = decodeJpegBase64(copy.base64);
+    const box = findPaperBox(pixels.data, pixels.width, pixels.height);
+    const rect = box ? paperCropRect(box, framed.width, framed.height) : null;
+    if (!rect) return null;
+
+    const paper = await renderImage(framed, (context) => context.crop(rect));
+    try {
+      const saved = await paper.saveAsync(CUT_SAVE);
+      return saved.uri || null;
+    } finally {
+      paper.release();
+    }
+  } catch (error) {
+    console.warn('Could not cut the photo to the paper tag; keeping the frame:', error);
+    return null;
+  }
+}
+
+/**
+ * Cuts the frame out of the upright photo, and on down to the paper tag in it
+ * when there is one. The frame's own cut is saved while the paper is looked
+ * for, so a frame with no paper to cut to is ready as soon as it ever was.
+ */
+async function cutFrameAndPaper(uri: string, rect: PixelCrop): Promise<string> {
+  const framed = await renderImage(uri, (context) => context.crop(rect));
+  const saved = framed.saveAsync(CUT_SAVE);
+  const paper = cutToPaper(framed);
+  // Let go of the decoded frame once both are done with it.
+  void Promise.allSettled([saved, paper]).then(() => framed.release());
+  return (await paper) ?? (await saved).uri;
+}
 
 /**
  * Crops a captured photo down to the region the user framed on screen.
@@ -35,7 +122,8 @@ const QUARTER_TURNS = new Set([5, 6, 7, 8]);
  * positioned by ScannerScreenLayout as a scannerFrameSize(width) box,
  * centred horizontally and sitting at height/2 - its height * 0.6, so we can
  * recompute it here from the
- * measured preview size.
+ * measured preview size. Inside the frame the cut goes on down to the paper
+ * tag when one is found (cutFrameAndPaper); otherwise it is the frame.
  *
  * Returns the original uri untouched if anything is unknown, so a capture can
  * never be lost to a bad crop.
@@ -146,12 +234,8 @@ async function cropToFrame(
   }
 
   try {
-    const result = await manipulateAsync(
-      source.uri,
-      [{ crop: { originX, originY, width, height } }],
-      { compress: 0.92, format: SaveFormat.JPEG },
-    );
-    return { uri: result.uri, upright: source };
+    const uri = await cutFrameAndPaper(source.uri, { originX, originY, width, height });
+    return { uri, upright: source };
   } catch (error) {
     console.warn('Failed to crop capture to the scan frame, using full photo:', error);
     return { uri: source.uri, upright: source };
@@ -162,9 +246,10 @@ async function cropToFrame(
  * One press of the shutter, handed back the moment the camera has the photo.
  *
  * `full` is the whole photo as the camera wrote it. `framed` is that photo
- * cut to the on-screen frame — what the shop lined up, and what goes up — and
- * it is still being cut when the press answers: the side is held at once and
- * the cut lands behind it. Everything that needs the framed file awaits it.
+ * cut to the on-screen frame — what the shop lined up — and on down to the
+ * paper tag inside it when one is found; that is what goes up. It is still
+ * being cut when the press answers: the side is held at once and the cut
+ * lands behind it. Everything that needs the framed file awaits it.
  */
 export type TagCapture = {
   full: string;
@@ -220,9 +305,10 @@ export const TagCameraPreview = forwardRef<TagCameraPreviewRef, TagCameraPreview
       const orientation = Number(photo.exif?.Orientation) || undefined;
 
       // The press answers now, with the cut to the frame still running: the
-      // shop is already lining up the next side while it lands. No finder
-      // runs behind a camera capture (the shop's asking), so the capture is
-      // the framed photo alone.
+      // shop is already lining up the next side while it lands. The server's
+      // finder does not run behind a camera capture (the shop's asking); the
+      // cut goes from the frame to the paper tag on the phone, in this same
+      // step, for either side.
       const framed = cropToFrame(photo.uri, photo.width, photo.height, orientation, viewSize).then(
         (cropped) => cropped.uri,
       );

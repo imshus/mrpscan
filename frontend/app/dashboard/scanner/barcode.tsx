@@ -399,8 +399,9 @@ export default function BarcodeScannerScreen() {
       // The side is held now, while its cut to the frame is still running:
       // the screen moves on at once, and the thumbnail, upload and Calculate
       // each wait for the cut themselves. The framed photo is what the shop
-      // lined up, and it is what goes up: no finder runs behind a camera
-      // capture, at the shop's asking. The finder still cuts a gallery photo
+      // lined up, and it goes up cut on down to the paper tag inside it, on
+      // the phone (TagCameraPreview): the server's finder does not run behind
+      // a camera capture, at the shop's asking. It still cuts a gallery photo
       // to its tag, since nobody framed it.
       const held = flow.confirm(ticket.side, 'camera', capture.framed, ticket);
       if (held) ensureScanSession();
