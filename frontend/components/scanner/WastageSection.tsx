@@ -167,6 +167,16 @@ export function WastageSection({
           <MetalValueBox label="Wastage Code" value={shownCode} />
         )}
         {editable ? (
+          <MetalFieldSlot label="Weight Used">
+            <WeightDropdown
+              value={weightBasis}
+              onChange={(basis) => onWeightBasisChange?.(basis)}
+            />
+          </MetalFieldSlot>
+        ) : (
+          <MetalValueBox label="Weight Used" value={weightLabel} />
+        )}
+        {editable ? (
           <MetalInput
             label="Wastage %"
             value={percentText}
@@ -178,22 +188,13 @@ export function WastageSection({
             onBlur={() => {
               if (percentOverride !== undefined && !/\d/.test(percentOverride)) onPercentReset?.();
             }}
+            suffix="%"
             keyboardType="decimal-pad"
           />
         ) : (
           <MetalValueBox label="Wastage %" value={percent ? `${percent}%` : '—'} />
         )}
-        {editable ? (
-          <MetalFieldSlot label="Weight Used">
-            <WeightDropdown
-              value={weightBasis}
-              onChange={(basis) => onWeightBasisChange?.(basis)}
-            />
-          </MetalFieldSlot>
-        ) : (
-          <MetalValueBox label="Weight Used" value={weightLabel} />
-        )}
-        {/* Beside Weight Used, two to a row (the owner's ask). */}
+        {/* The mockup's order: Code | Weight Used, then % | Amount. */}
         <MetalValueBox label="Wastage Amount" value={amountDisplay || '—'} amount />
       </MetalGrid>
     </MetalTile>

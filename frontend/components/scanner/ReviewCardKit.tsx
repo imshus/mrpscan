@@ -182,6 +182,8 @@ export function MetalGrid({ children }: { children: ReactNode }) {
 interface MetalFieldSlotProps {
   label: string;
   fullWidth?: boolean;
+  /** .amount-field span: an amount's label, dark and extra-bold. */
+  strongLabel?: boolean;
   /** Retained for callers that provide confidence metadata; no visual marker is shown. */
   attention?: boolean;
   children: ReactNode;
@@ -191,11 +193,12 @@ interface MetalFieldSlotProps {
 export function MetalFieldSlot({
   label,
   fullWidth = false,
+  strongLabel = false,
   children,
 }: MetalFieldSlotProps) {
   return (
     <View style={[styles.metalField, fullWidth && styles.metalFieldFull]}>
-      <Text style={styles.metalFieldLabel}>{label}</Text>
+      <Text style={[styles.metalFieldLabel, strongLabel && styles.metalFieldLabelStrong]}>{label}</Text>
       {children}
     </View>
   );
@@ -211,6 +214,8 @@ interface MetalInputProps {
   amount?: boolean;
   /** .input-icon prefix (e.g. ₹). */
   prefix?: string;
+  /** The same, after the figure (e.g. %). */
+  suffix?: string;
   fullWidth?: boolean;
   /** Retained for callers that provide confidence metadata; no visual marker is shown. */
   attention?: boolean;
@@ -234,6 +239,7 @@ export function MetalInput({
   keyboardType,
   amount = false,
   prefix,
+  suffix,
   fullWidth,
   invalid = false,
   onFocus,
@@ -257,19 +263,20 @@ export function MetalInput({
       onFocus={onFocus}
       onBlur={onBlur}
       style={[
-        prefix ? styles.inputIconInput : styles.metalInput,
-        !prefix && amount && styles.metalInputAmount,
-        !prefix && invalid && styles.metalInputInvalid,
+        prefix || suffix ? styles.inputIconInput : styles.metalInput,
+        !prefix && !suffix && amount && styles.metalInputAmount,
+        !prefix && !suffix && invalid && styles.metalInputInvalid,
       ]}
     />
   );
 
   return (
-    <MetalFieldSlot label={label} fullWidth={fullWidth}>
-      {prefix ? (
+    <MetalFieldSlot label={label} fullWidth={fullWidth} strongLabel={amount}>
+      {prefix || suffix ? (
         <View style={[styles.inputIcon, invalid && styles.metalInputInvalid]}>
-          <Text style={styles.inputIconPrefix}>{prefix}</Text>
+          {prefix ? <Text style={styles.inputIconPrefix}>{prefix}</Text> : null}
           {input}
+          {suffix ? <Text style={styles.inputIconPrefix}>{suffix}</Text> : null}
         </View>
       ) : (
         input
@@ -288,7 +295,7 @@ interface MetalValueBoxProps {
 /** Read-only display styled like a .metal-field input. */
 export function MetalValueBox({ label, value, amount = false, fullWidth }: MetalValueBoxProps) {
   return (
-    <MetalFieldSlot label={label} fullWidth={fullWidth}>
+    <MetalFieldSlot label={label} fullWidth={fullWidth} strongLabel={amount}>
       <View style={[styles.metalInputBox, amount && styles.metalInputBoxAmount]}>
         <Text
           style={[styles.metalInputBoxText, amount && styles.metalInputAmountText]}
@@ -532,6 +539,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.textMuted,
     marginBottom: 4,
+  },
+  metalFieldLabelStrong: {
+    color: Colors.textPrimary,
+    fontWeight: '800',
   },
   metalInputInvalid: {
     borderColor: Colors.dangerText,
