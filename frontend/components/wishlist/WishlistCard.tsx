@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Check, Trash2 } from 'lucide-react-native';
+import { Check } from 'lucide-react-native';
 
 import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Gradients } from '@/constants/theme';
@@ -14,30 +14,24 @@ function formatWishlistAmount(amount: number) {
 interface WishlistCardProps {
   item: WishlistItem;
   onPress: () => void;
-  onDelete: () => void;
-  /** Ticked for the cart. */
+  /** Ticked, for the cart or the bin. */
   selected?: boolean;
   /** Ticks or unticks it; without it the card has no tick circle. */
   onToggleSelect?: () => void;
 }
 
 /**
- * Wishlist row per the mockup: the tick circle that puts it in the cart, the
- * piece's name (with its tag code when it has one) against how long ago it
- * was saved, then the red price pill carrying the rate it was calculated at,
- * and the delete disc. Tapping anywhere but the circle opens the item.
+ * Wishlist row as the mockup's slim card has it, all on one line: the tick
+ * circle, the piece's name over how long ago it was saved, and the red price
+ * pill. Removing goes through the ticks and the bin in the title row, so the
+ * card has no delete of its own. Tapping anywhere but the circle opens the
+ * item.
  */
-export function WishlistCard({
-  item,
-  onPress,
-  onDelete,
-  selected = false,
-  onToggleSelect,
-}: WishlistCardProps) {
-  const title =
-    item.title && item.tagCode && item.title !== item.tagCode
-      ? `${item.title} · ${item.tagCode}`
-      : item.title || item.tagCode || 'Saved item';
+export function WishlistCard({ item, onPress, selected = false, onToggleSelect }: WishlistCardProps) {
+  const title = item.title || item.tagCode || 'Saved item';
+  const age = formatWishlistAge(item.scanTimestamp || item.addedAt);
+  // An employee's save, seen by the owner, still says whose it was.
+  const sub = item.savedBy ? `${age} · Saved by ${item.savedBy}` : age;
 
   return (
     // Styles are plain objects on purpose: NativeWind's css-interop drops the
@@ -67,64 +61,40 @@ export function WishlistCard({
       ) : null}
 
       <View style={styles.body}>
-        <View style={styles.titleRow}>
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={styles.age}>{formatWishlistAge(item.scanTimestamp || item.addedAt)}</Text>
-        </View>
-
-        {item.savedBy ? <Text style={styles.savedBy}>Saved by {item.savedBy}</Text> : null}
-
-        <View style={styles.bottomRow}>
-          <View style={styles.pricePill}>
-            <Text style={styles.priceText}>{formatWishlistAmount(item.totalMrp)}</Text>
-            <Text style={styles.priceCaption}>
-              {item.calculationRate === 'cash' ? 'Cash Rate' : 'RTGS Rate'}
-            </Text>
-          </View>
-
-          <Pressable
-            onPress={(event) => {
-              // Without this the row's own onPress also fires and opens the item.
-              event.stopPropagation();
-              onDelete();
-            }}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel={`Delete ${title}`}
-            style={styles.deleteBtn}
-          >
-            <Trash2 size={16} color={Colors.brandDeep} />
-          </Pressable>
-        </View>
+        <Text style={styles.title} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text style={styles.age} numberOfLines={1}>
+          {sub}
+        </Text>
       </View>
+
+      {/* .wl-price-pill: the red gradient pill, the price alone. */}
+      <GradientView colors={Gradients.brand} forceGradient borderRadius={999} style={styles.pricePill}>
+        <Text style={styles.priceText}>{formatWishlistAmount(item.totalMrp)}</Text>
+      </GradientView>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  // .wl-card (slim): 10 12 padding, 12 gap, radius 14, 10 between cards.
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     backgroundColor: Colors.white,
-    borderRadius: 18,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
   },
   // .wl-card.selected: the deep red border on a faint red ground.
   cardSelected: {
     borderColor: Colors.brandDeep,
     backgroundColor: '#FFF8F6',
-  },
-  body: {
-    flex: 1,
-    minWidth: 0,
-    gap: 8,
   },
   checkOff: {
     width: 22,
@@ -140,56 +110,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  title: {
+  body: {
     flex: 1,
-    fontSize: 14.5,
+    minWidth: 0,
+    gap: 1,
+  },
+  // .wl-card-title: 0.88rem, 800.
+  title: {
+    fontSize: 14,
     fontWeight: '800',
     color: Colors.textPrimary,
   },
+  // .wl-card-time: 0.68rem, 600, dim.
   age: {
     fontSize: 11,
     fontWeight: '600',
     color: Colors.textMuted,
   },
-  savedBy: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: -4,
-  },
-  bottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+  // .wl-price-pill: 6 13 padding; b at 0.82rem, 700.
   pricePill: {
-    backgroundColor: Colors.brandDeep,
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    flexShrink: 0,
+    paddingHorizontal: 13,
     paddingVertical: 6,
-    alignItems: 'center',
   },
   priceText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: Colors.white,
-  },
-  priceCaption: {
-    fontSize: 8.5,
+    fontSize: 13,
     fontWeight: '700',
-    letterSpacing: 0.3,
-    color: 'rgba(255,255,255,0.85)',
-  },
-  deleteBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: Colors.dangerBg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    color: Colors.white,
   },
 });

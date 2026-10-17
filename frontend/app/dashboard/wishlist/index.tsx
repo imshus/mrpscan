@@ -17,7 +17,6 @@ export default function WishlistScreen() {
   const items = useWishlistStore((s) => s.items);
   const isLoading = useWishlistStore((s) => s.isLoading);
   const removeItem = useWishlistStore((s) => s.removeItem);
-  const clearAll = useWishlistStore((s) => s.clearAll);
   const syncFromApi = useWishlistStore((s) => s.syncFromApi);
   const setCartItems = useCartStore((s) => s.setItems);
 
@@ -49,38 +48,37 @@ export default function WishlistScreen() {
     router.push('/dashboard/cart' as Href);
   };
 
-  // Deletes straight away: a wishlist entry is cheap to re-add, so a
-  // confirmation on every bin tap cost more than the mistake it prevented.
-  const handleDeleteItem = async (id: string) => {
-    try {
-      await removeItem(id);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to delete item.';
-      Alert.alert('Error', msg);
-    }
-  };
-
-  const handleClearWishlist = () => {
-    if (items.length === 0) return;
-
+  // The bin removes the ticked items, after one confirmation (mockup
+  // wlBinBtn). Ticks on the ones that went clear; a failed one stays ticked.
+  const handleDeleteSelected = () => {
+    const ids = selectedIds;
+    if (ids.length === 0) return;
     Alert.alert(
-      'Clear Wishlist',
-      'Are you sure you want to remove all items from your wishlist?',
+      'Remove from Wishlist',
+      ids.length === 1
+        ? 'Remove this item from your wishlist?'
+        : `Remove ${ids.length} items from your wishlist?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Clear All',
+          text: 'Remove',
           style: 'destructive',
           onPress: async () => {
-            try {
-              await clearAll();
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : 'Failed to clear wishlist.';
-              Alert.alert('Error', msg);
+            const failed: string[] = [];
+            let lastError = '';
+            for (const id of ids) {
+              try {
+                await removeItem(id);
+              } catch (err) {
+                failed.push(id);
+                lastError = err instanceof Error ? err.message : 'Failed to delete item.';
+              }
             }
+            setSelected(new Set(failed));
+            if (failed.length > 0) Alert.alert('Error', lastError);
           },
         },
-      ]
+      ],
     );
   };
 
@@ -95,8 +93,8 @@ export default function WishlistScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <BackgroundPattern />
       <WishlistScreenHeader
-        onClearWishlist={handleClearWishlist}
         selectedCount={selectedIds.length}
+        onDeleteSelected={handleDeleteSelected}
         onAddToCart={handleAddToCart}
       />
 
@@ -123,7 +121,6 @@ export default function WishlistScreen() {
               key={item.id}
               item={item}
               onPress={() => handleOpenItem(item.id)}
-              onDelete={() => handleDeleteItem(item.id)}
               selected={selected.has(item.id)}
               onToggleSelect={() => toggleSelected(item.id)}
             />
