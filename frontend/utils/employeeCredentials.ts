@@ -49,7 +49,7 @@ export function phoneTransferNotice(transfer: EmployeePhoneTransfer | null): str
   if (transfer.kind === 'owner') {
     return transfer.sameShop
       ? 'Admin of your shop. Verify to make them an employee.'
-      : 'Owner of another shop. Verify to make them your employee.';
+      : 'Already registered user. Verify to make them your employee.';
   }
   // Employees of this shop are refused, not moved.
   return transfer.sameShop

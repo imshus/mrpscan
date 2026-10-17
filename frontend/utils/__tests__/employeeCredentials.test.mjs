@@ -80,7 +80,7 @@ test('transfer: read from the server only when it names an owner or an employee'
 test('transfer: Verify Phone says whose login the code hands over', () => {
   assert.equal(
     phoneTransferNotice({ kind: 'owner', sameShop: false }),
-    'Owner of another shop. Verify to make them your employee.',
+    'Already registered user. Verify to make them your employee.',
   );
   assert.equal(
     phoneTransferNotice({ kind: 'owner', sameShop: true }),
