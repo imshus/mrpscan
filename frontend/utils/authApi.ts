@@ -2,6 +2,8 @@ import { apiRequest, ApiError } from '@/utils/apiClient';
 import { unwrapApiData } from '@/utils/apiResponse';
 import type { BusinessLoginResponse } from '@/types/auth';
 import { normalizeGstNumber } from '@/utils/validation';
+import { MPIN_TOO_MANY_ATTEMPTS_MESSAGE, readServerRefusal } from '@/utils/mpinChange';
+import { friendlyServerMessage } from '@/utils/serverMessages';
 
 type ApiEnvelope<T extends Record<string, unknown>> = T & {
   success?: boolean;
@@ -985,6 +987,67 @@ export async function changeUserPassword(currentPassword: string, newPassword: s
     return {
       success: false,
       error: error instanceof ApiError ? error.message : 'Failed to change password.',
+    };
+  }
+}
+
+export type ChangeMpinResult =
+  | { success: true }
+  | { success: false; code: string | null; error: string; status?: number };
+
+/**
+ * POST /auth/change-mpin — the signed-in login's own MPIN, owner or
+ * employee, from MPIN Manager. The server checks the current one, keeps the
+ * readable copy Forgot MPIN shows in step, and counts wrong tries.
+ *
+ * A refusal comes back with its code (MPIN_INCORRECT, MPIN_MISMATCH,
+ * MPIN_INVALID, MPIN_SAME) so the screen can put it under the right field.
+ * Too many wrong tries is a JSON 429 with MPIN_ATTEMPTS_EXCEEDED and its
+ * sentence; a plain-text 429 (a proxy's) is read as the sentence itself.
+ */
+export async function changeMpin(
+  currentMpin: string,
+  newMpin: string,
+  confirmMpin: string,
+): Promise<ChangeMpinResult> {
+  try {
+    const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/change-mpin', {
+      method: 'POST',
+      body: { currentMpin, newMpin, confirmMpin },
+    });
+    const unwrapped = unwrapEnvelope(response);
+    if (!isSuccessfulResponse(response, unwrapped)) {
+      return {
+        success: false,
+        code: readString(response as Record<string, unknown>, ['error']) ?? null,
+        error: resolveApiMessage(response, unwrapped, 'Could not update the MPIN.'),
+      };
+    }
+    return { success: true };
+  } catch (error) {
+    if (!(error instanceof ApiError)) {
+      return { success: false, code: null, error: 'Could not update the MPIN.' };
+    }
+    const body = error.body;
+    const refusal = readServerRefusal(body);
+    if (error.status === 429) {
+      const plain = typeof body === 'string' && body.trim() && !body.includes('<') ? body.trim() : '';
+      return {
+        success: false,
+        code: refusal.code,
+        status: 429,
+        error: plain || refusal.message || MPIN_TOO_MANY_ATTEMPTS_MESSAGE,
+      };
+    }
+    return {
+      success: false,
+      code: refusal.code,
+      status: error.status,
+      // A refusal the server wrote out is shown as written: friendlyServerMessage
+      // reads every 404 as an endpoint this server lacks, which would turn
+      // USER_NOT_FOUND ("This account could not be found.") into "not
+      // available on the server yet".
+      error: (refusal.code && refusal.message) || friendlyServerMessage(error, 'Could not update the MPIN.'),
     };
   }
 }

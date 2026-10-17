@@ -39,8 +39,12 @@ const tenDigits = (value: string) => value.replace(/\D/g, '').slice(0, 10);
  * An account whose MPIN was set before that copy existed has nothing to show,
  * and only there does the screen fall back to choosing a new one — sealed as
  * it is saved, so the next visit shows it.
+ *
+ * Settings → MPIN Manager opens the same screen while signed in
+ * (app/dashboard/forgot-mpin.tsx), and there the last button goes back to
+ * MPIN Manager instead of to Log In, as the mockup's openForgotMpinFrom does.
  */
-export default function ForgotMpinScreen() {
+export default function ForgotMpinScreen({ returnTo = 'login' }: { returnTo?: 'login' | 'mpin-manager' }) {
   const router = useRouter();
   const params = useLocalSearchParams<{ phone?: string }>();
 
@@ -222,9 +226,13 @@ export default function ForgotMpinScreen() {
                   handed them anyway, so the copy is for everywhere else —
                   a note, a message, the next phone. */}
               <AuthPrimaryButton
-                title="Copy and Back to Log In"
+                title={returnTo === 'mpin-manager' ? 'Copy and Back to MPIN Manager' : 'Copy and Back to Log In'}
                 onPress={() => {
                   void Clipboard.setStringAsync(savedMpin);
+                  if (returnTo === 'mpin-manager') {
+                    router.back();
+                    return;
+                  }
                   router.replace({
                     pathname: '/login',
                     params: { phone, mpin: savedMpin },

@@ -15,9 +15,11 @@ import { getBusinessProfile, formatProfileValue } from '@/utils/businessProfile'
 const ICON_ACCENTS: Record<string, { bg: string; color: string }> = {
   masters: { bg: Colors.diamondBg, color: Colors.diamond },
   employee: { bg: Colors.metalGoldBg, color: Colors.metalGold },
+  history: { bg: Colors.metalGoldBg, color: Colors.metalGold },
   subscription: { bg: Colors.dangerBg, color: Colors.brandDeep },
   invite: { bg: Colors.metalGoldBg, color: Colors.metalGold },
   contact: { bg: Colors.diamondBg, color: Colors.diamond },
+  faqs: { bg: Colors.metalGoldBg, color: Colors.metalGold },
 };
 
 const ICON_SIZE = 16;

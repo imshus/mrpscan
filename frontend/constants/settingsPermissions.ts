@@ -7,8 +7,11 @@ import type { SettingsPermissionKey } from '@/types/employee';
  */
 export const OWNER_ONLY_SETTINGS_IDS = new Set(['matrices', 'subscription', 'employee']);
 
-/** Always visible to employees in settings. */
-export const EMPLOYEE_ALWAYS_SETTINGS_IDS = new Set(['password', 'invite', 'contact', 'logout']);
+/**
+ * Always visible to employees in settings. MPIN Manager changes their own
+ * login's MPIN and History lists their own scans, wishlist and invoices.
+ */
+export const EMPLOYEE_ALWAYS_SETTINGS_IDS = new Set(['mpin', 'history', 'invite', 'contact', 'logout']);
 
 /** Optional settings items the owner can grant per employee. */
 export const SETTINGS_PERMISSION_MAP: Partial<Record<string, SettingsPermissionKey>> = {
