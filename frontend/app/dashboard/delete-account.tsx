@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Trash2 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,7 +19,6 @@ import { useAuthStore } from '@/store/authStore';
 import { deleteAccount, sendAccountDeleteOtp } from '@/utils/accountApi';
 import {
   ACCOUNT_DELETE_OTP_LENGTH,
-  DELETE_CONFIRM_WORD,
   accountDeletionNote,
   canConfirmAccountDeletion,
   otpSentLine,
@@ -48,8 +47,8 @@ function forgetDeletedLogin(): void {
 /**
  * Delete Account, from the tile above Logout in Settings. Owners and
  * employees alike delete only their own login: a 6-digit OTP goes by SMS to
- * the account's own phone and the server checks it, and the person types
- * DELETE as well. An owner's shop — invoices, scans, credits, licence and
+ * the account's own phone and the server checks it (the typed DELETE was
+ * dropped at the owner's asking). An owner's shop — invoices, scans, credits, licence and
  * employees — stays on the server untouched.
  *
  * Done, the screen says "Account deleted" for a moment and signs out to Log In.
@@ -65,7 +64,6 @@ export default function DeleteAccountScreen() {
   const [sending, setSending] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [otp, setOtp] = useState('');
-  const [typed, setTyped] = useState('');
   // A refused code (or a failed send) is said in the OTP card; anything
   // else just above the button.
   const [otpError, setOtpError] = useState<string | null>(null);
@@ -98,8 +96,8 @@ export default function DeleteAccountScreen() {
   }, [secondsLeft]);
 
   // Google's one-tap SMS read, as on Log In: it only fills the boxes — the
-  // delete still waits for DELETE and the button. Not while a delete is
-  // checking the code already in them.
+  // delete still waits for the button. Not while a delete is checking the
+  // code already in them.
   useAndroidOtpAutofill({
     enabled: sentLine !== null && !deleted,
     otpLength: ACCOUNT_DELETE_OTP_LENGTH,
@@ -115,7 +113,7 @@ export default function DeleteAccountScreen() {
 
   // Neither while a code is being sent: the new one replaces the code being
   // checked and empties the boxes.
-  const canDelete = canConfirmAccountDeletion(otp, typed) && !sending && !deleting && !deleted;
+  const canDelete = canConfirmAccountDeletion(otp) && !sending && !deleting && !deleted;
 
   const handleSendOtp = async () => {
     // Nor a new code while a delete is checking the last one.
@@ -141,7 +139,7 @@ export default function DeleteAccountScreen() {
   };
 
   const handleDelete = async () => {
-    if (deleteBusy.current || deleted || !canConfirmAccountDeletion(otp, typed)) return;
+    if (deleteBusy.current || deleted || !canConfirmAccountDeletion(otp)) return;
     deleteBusy.current = true;
     setDeleting(true);
     setOtpError(null);
@@ -249,32 +247,6 @@ export default function DeleteAccountScreen() {
                   </Pressable>
                 </>
               )}
-            </View>
-          </View>
-
-          <View style={styles.formCard}>
-            <View style={styles.cardHead}>
-              <Text style={styles.cardHeadText}>CONFIRM</Text>
-            </View>
-            <View style={styles.cardBody}>
-              <Text style={styles.label}>Type {DELETE_CONFIRM_WORD} to confirm</Text>
-              <TextInput
-                value={typed}
-                onChangeText={(next) => {
-                  setTyped(next);
-                  setError(null);
-                }}
-                editable={!deleted}
-                placeholder={DELETE_CONFIRM_WORD}
-                placeholderTextColor={Colors.placeholder}
-                accessibilityLabel={`Type ${DELETE_CONFIRM_WORD} to confirm`}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                spellCheck={false}
-                autoComplete="off"
-                importantForAutofill="no"
-                style={styles.input}
-              />
             </View>
           </View>
 
@@ -416,23 +388,6 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '600',
     color: Colors.textMuted,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.input,
-    backgroundColor: Colors.background,
-    paddingHorizontal: Spacing.md,
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 1,
-    color: Colors.textPrimary,
   },
   errorBox: {
     backgroundColor: '#FFF5F5',

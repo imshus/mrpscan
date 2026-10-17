@@ -61,18 +61,15 @@ const {
 } = await import('@/utils/accountDeletion');
 const { getVisibleSettingsMenuItems } = await import('@/utils/settingsAccess');
 
-test('enable rule: six digits and DELETE, exactly', () => {
+test('enable rule: the whole six-digit code, nothing typed besides', () => {
+  // The word the server asks for is still sent, not typed.
   assert.equal(DELETE_CONFIRM_WORD, 'DELETE');
-  assert.equal(canConfirmAccountDeletion('123456', 'DELETE'), true);
+  assert.equal(canConfirmAccountDeletion('123456'), true);
 
-  assert.equal(canConfirmAccountDeletion('12345', 'DELETE'), false);
-  assert.equal(canConfirmAccountDeletion('1234567', 'DELETE'), false);
-  assert.equal(canConfirmAccountDeletion('12345a', 'DELETE'), false);
-  assert.equal(canConfirmAccountDeletion('', 'DELETE'), false);
-
-  for (const typed of ['delete', 'Delete', 'DELETE ', ' DELETE', 'DELET', 'DELETED', '']) {
-    assert.equal(canConfirmAccountDeletion('123456', typed), false, JSON.stringify(typed));
-  }
+  assert.equal(canConfirmAccountDeletion('12345'), false);
+  assert.equal(canConfirmAccountDeletion('1234567'), false);
+  assert.equal(canConfirmAccountDeletion('12345a'), false);
+  assert.equal(canConfirmAccountDeletion(''), false);
 });
 
 test('note: an owner is told the shop stays, an employee only about the login', () => {

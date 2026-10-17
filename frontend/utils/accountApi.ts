@@ -101,7 +101,8 @@ export async function sendAccountDeleteOtp(): Promise<
 
 /**
  * Deletes the signed-in person's own login, with the code from
- * sendAccountDeleteOtp and the typed confirmation. Only the login goes: the
+ * sendAccountDeleteOtp; the confirmation word the server asks for is sent
+ * as it stands (the screen no longer has it typed). Only the login goes: the
  * shop's records stay on the server.
  */
 export async function deleteAccount(otp: string): Promise<{ success: true } | AccountApiFailure> {

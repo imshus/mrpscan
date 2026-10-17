@@ -17,11 +17,11 @@ export const ACCOUNT_DELETE_OTP_LENGTH = 6;
 export const ACCOUNT_DELETE_RESEND_SECONDS = 30;
 
 /**
- * The delete button works only with the whole code and the word as written:
- * "delete", "Delete" or "DELETE " are not it.
+ * The delete button works only with the whole code. The owner dropped the
+ * typed DELETE; the app still sends the word the server asks for.
  */
-export function canConfirmAccountDeletion(otp: string, typed: string): boolean {
-  return new RegExp(`^\\d{${ACCOUNT_DELETE_OTP_LENGTH}}$`).test(otp) && typed === DELETE_CONFIRM_WORD;
+export function canConfirmAccountDeletion(otp: string): boolean {
+  return new RegExp(`^\\d{${ACCOUNT_DELETE_OTP_LENGTH}}$`).test(otp);
 }
 
 /**
