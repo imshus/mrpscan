@@ -46,6 +46,8 @@ interface SearchableSelectDropdownProps {
    * as RTGS / Cash, where a search box and a full sheet are overkill.
    */
   anchored?: boolean;
+  /** Rows the anchored list shows before it scrolls. */
+  maxVisibleRows?: number;
 }
 
 type AnchorRect = { x: number; y: number; width: number; height: number };
@@ -61,6 +63,7 @@ export function SearchableSelectDropdown({
   allowClear = false,
   compact = false,
   anchored = false,
+  maxVisibleRows = 6,
 }: SearchableSelectDropdownProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -111,8 +114,11 @@ export function SearchableSelectDropdown({
 
   const anchoredGeometry = () => {
     if (!anchor) return null;
-    // Rows plus the 1px border top and bottom.
-    const listHeight = Math.min(options.length, 6) * ANCHORED_ROW_HEIGHT + 2;
+    // Rows plus the 1px border top and bottom, never taller than the screen.
+    const listHeight = Math.min(
+      Math.min(options.length, maxVisibleRows) * ANCHORED_ROW_HEIGHT + 2,
+      height - 24,
+    );
     const fieldTop = anchor.y;
     const below = fieldTop + anchor.height + 4;
     // Flip above the field when there is not enough room underneath.
