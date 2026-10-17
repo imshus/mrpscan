@@ -49,6 +49,7 @@ export default function DashboardLayout() {
       <Stack.Screen name="inventory" options={{ headerShown: false }} />
       <Stack.Screen name="employees" options={{ headerShown: false }} />
       <Stack.Screen name="password-manager" />
+      <Stack.Screen name="delete-account" />
       <Stack.Screen name="purity-control" />
       <Stack.Screen name="subscription-manager" />
       <Stack.Screen name="purchase-license" />

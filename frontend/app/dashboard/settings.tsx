@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { ChevronLeft, LogOut } from 'lucide-react-native';
+import { ChevronLeft, LogOut, Trash2 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
@@ -84,6 +84,25 @@ export default function SettingsScreen() {
                     <LogOut size={ICON_SIZE} color={Colors.brandDeep} />
                   </View>
                   <Text style={styles.logoutTitle}>{item.title}</Text>
+                </TouchableOpacity>
+              );
+            }
+
+            // Logout's tile, made unmistakably destructive: a solid red disc
+            // and a red edge. It only opens Delete Account, which asks for an
+            // OTP and the typed word before anything is removed.
+            if (item.isDeleteAccount) {
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  onPress={() => router.push(item.route as Href)}
+                  activeOpacity={0.9}
+                  style={[styles.menuCard, styles.deleteCard]}
+                >
+                  <View style={styles.deleteIconWrap}>
+                    <Trash2 size={ICON_SIZE} color={Colors.white} />
+                  </View>
+                  <Text style={styles.deleteTitle}>{item.title}</Text>
                 </TouchableOpacity>
               );
             }
@@ -194,6 +213,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  deleteCard: {
+    borderColor: '#F5C6C2',
+  },
+  deleteIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.brand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   menuTextWrap: {
     flex: 1,
   },
@@ -208,5 +238,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: Colors.brandDeep,
+  },
+  deleteTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.brand,
   },
 });

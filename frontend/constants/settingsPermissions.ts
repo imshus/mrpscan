@@ -8,7 +8,7 @@ import type { SettingsPermissionKey } from '@/types/employee';
 export const OWNER_ONLY_SETTINGS_IDS = new Set(['matrices', 'subscription', 'employee']);
 
 /** Always visible to employees in settings. */
-export const EMPLOYEE_ALWAYS_SETTINGS_IDS = new Set(['password', 'invite', 'contact', 'logout']);
+export const EMPLOYEE_ALWAYS_SETTINGS_IDS = new Set(['password', 'invite', 'contact', 'delete-account', 'logout']);
 
 /** Optional settings items the owner can grant per employee. */
 export const SETTINGS_PERMISSION_MAP: Partial<Record<string, SettingsPermissionKey>> = {

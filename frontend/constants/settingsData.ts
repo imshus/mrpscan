@@ -11,6 +11,7 @@ import {
   Lock,
   LogOut,
   Sigma,
+  Trash2,
   TrendingUp,
   Type,
   UserPlus,
@@ -23,6 +24,8 @@ export interface SettingsMenuItem {
   icon: LucideIcon;
   route?: string;
   isLogout?: boolean;
+  /** Drawn like Logout, in red, just above it. */
+  isDeleteAccount?: boolean;
 }
 
 export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
@@ -76,6 +79,15 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     title: 'FAQs',
     icon: HelpCircle,
     route: '/dashboard/faqs',
+  },
+  // Just above Logout, for owners and employees alike: only the person's own
+  // login goes, the shop's records stay (app/dashboard/delete-account.tsx).
+  {
+    id: 'delete-account',
+    title: 'Delete Account',
+    icon: Trash2,
+    route: '/dashboard/delete-account',
+    isDeleteAccount: true,
   },
   {
     id: 'logout',
