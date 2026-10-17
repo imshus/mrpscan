@@ -34,6 +34,23 @@ export interface GenerateInvoicePayload {
   terms_and_conditions: string;
   /** Token reserved for the preview, so the PDF prints that same QR. */
   public_token?: string;
+  /**
+   * A cart's invoice: how many pieces it bills and which. Left out for a
+   * single scan, which the server counts as one piece. The server still works
+   * every figure out from line_items; these say what the lines are of.
+   */
+  piece_count?: number;
+  pieces?: InvoicePiecePayload[];
+}
+
+/** One billed piece of a cart's invoice. */
+export interface InvoicePiecePayload {
+  wishlist_item_id?: string;
+  scan_id?: string;
+  item_name: string;
+  tag_code: string;
+  /** What the piece bills: the sum of its own lines. */
+  mrp: number;
 }
 
 export interface GenerateInvoiceResponse {

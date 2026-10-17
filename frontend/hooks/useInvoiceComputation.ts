@@ -5,16 +5,16 @@ import { useInvoiceStore } from '@/store/invoiceStore';
 import { useScannerStore } from '@/store/scannerStore';
 import { getBusinessProfile } from '@/utils/businessProfile';
 import { type InvoiceLineItemRow } from '@/utils/invoiceCalculation';
+import { invoiceLinesInputFromPricing } from '@/utils/invoiceLines';
 import {
   buildInvoiceLines,
   computeGrandTotal,
   computeInvoiceTax,
   isIntraStateSupplier,
   sumLineAmounts,
-  wastageLineRatePerGram,
 } from '@/utils/moneyMath';
 import { amountInWords } from '@/utils/numberToWords';
-import { parseNumericValue, parseWeightValue, resolveScannedKarat } from '@/utils/formulaUtils';
+import { resolveScannedKarat } from '@/utils/formulaUtils';
 import { type FinalTabPricingResult } from '@/utils/scanPriceCalculation';
 
 /** Zero pricing, used only if the invoice is opened without a preview behind it. */
@@ -68,10 +68,16 @@ export interface InvoiceComputation {
  * taxed on its own, CGST + SGST for a Delhi (07) supplier, IGST otherwise.
  * `supplierGstin` is the shop's GSTIN as the server holds it, when the caller
  * has it; the signed-in profile's otherwise.
+ *
+ * `lineItems`, when given, are the invoice's lines already built — a cart's
+ * pieces, each with its own lines (utils/cartInvoice.buildCartInvoice) — and
+ * the scan's preview pricing is not read at all. The totals and GST are then
+ * worked out on those lines exactly as on a single scan's.
  */
 export function useInvoiceComputation(
-  options: { supplierGstin?: string | null } = {},
+  options: { supplierGstin?: string | null; lineItems?: InvoiceLineItemRow[] } = {},
 ): InvoiceComputation {
+  const givenLines = options.lineItems;
   const registration = useAuthStore((state) => state.registration);
   const supplierGstin =
     options.supplierGstin?.trim() || getBusinessProfile(registration).gstNumber;
@@ -96,42 +102,20 @@ export function useInvoiceComputation(
   const otherChargeItems = previewOtherCharges?.items ?? scanData.otherChargesItems ?? [];
   const otherChargeRemarks = previewOtherCharges?.remarks ?? scanData.otherChargesRemarks;
 
-  const lineItemRows = useMemo(
+  // The scan's lines, read from its pricing the way a cart reads each of its
+  // pieces (utils/invoiceLines), so one piece bills the same alone or in a cart.
+  const scanLineItemRows = useMemo(
     () =>
-      buildInvoiceLines({
-        karatNote: pricing.selectedKarat || selectedKarat,
-        netWtGrams: pricing.netWtGrams,
-        goldAmount: pricing.goldBasePrice,
-        // Stone lines come wholly from the preview's own rows — description,
-        // carats and amount together. Zipping them against a fresh read of
-        // the scan let the two lists disagree in length.
-        stones: pricing.stoneRows.map((stone) => ({
-          stoneType: stone.stoneType,
-          quality: stone.quality,
-          carats: parseWeightValue(stone.weight),
-          amount: stone.amount,
-          // The rate per carat the row showed: a discounted stone prints it,
-          // with the discount beside it, rather than a net rate.
-          listRate: Math.max(0, parseNumericValue(stone.rate)),
-        })),
-        labourAmount: pricing.labourAmount,
-        // The wastage grams at the rate the server priced them at (the
-        // Current Gold Rate per gram), so the line bills the MRP's wastage.
-        wastage: {
-          grams: pricing.wastageWeightGrams ?? 0,
-          ratePerGram: wastageLineRatePerGram(pricing),
-          percent: pricing.wastagePercent ?? 0,
-          amount: pricing.wastageAmount ?? 0,
-        },
-        otherCharges: {
-          items: otherChargeItems,
-          remarks: otherChargeRemarks,
-          total: pricing.otherChargesAmount,
-        },
-        mrp: pricing.ultimateMrp,
-      }),
+      buildInvoiceLines(
+        invoiceLinesInputFromPricing(pricing, {
+          karatFallback: selectedKarat,
+          otherChargeItems,
+          otherChargeRemarks,
+        }),
+      ),
     [pricing, selectedKarat, otherChargeItems, otherChargeRemarks],
   );
+  const lineItemRows = givenLines ?? scanLineItemRows;
 
   // The subtotal is the sum of the printed lines, which is the MRP the card
   // showed, rounded.
@@ -153,6 +137,8 @@ export function useInvoiceComputation(
     gstAmount,
     grandTotal,
     grandTotalWords,
-    ratesLoaded: pricing.ultimateMrp > 0,
+    // A cart's pieces were priced when they were saved; there is nothing
+    // left to load once it has lines.
+    ratesLoaded: givenLines ? givenLines.length > 0 : pricing.ultimateMrp > 0,
   };
 }

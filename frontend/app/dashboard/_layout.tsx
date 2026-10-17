@@ -58,6 +58,7 @@ export default function DashboardLayout() {
       <Stack.Screen name="credit-history" />
       <Stack.Screen name="scanner" options={{ headerShown: false }} />
       <Stack.Screen name="wishlist/index" options={{ headerShown: false }} />
+      <Stack.Screen name="cart" />
     </Stack>
   );
 }

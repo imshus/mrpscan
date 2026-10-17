@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { ChevronDown } from 'lucide-react-native';
+import { useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
@@ -66,10 +67,11 @@ async function loadSectionRows(key: SectionKey): Promise<HistoryRow[]> {
  * row is opened, not before. The owner sees the shop's; an employee their
  * own (the server scopes all three).
  *
- * Rows are not tappable: the app has no screen that shows a past invoice or
- * a past scan on its own.
+ * A checkout row opens its cart, read-only (app/dashboard/cart.tsx). Scan
+ * and wishlist rows are not tappable.
  */
 export default function HistoryScreen() {
+  const router = useRouter();
   const [open, setOpen] = useState<Record<SectionKey, boolean>>({
     scans: false,
     wishlist: false,
@@ -134,7 +136,15 @@ export default function HistoryScreen() {
     return (
       <ScrollView style={styles.list} nestedScrollEnabled showsVerticalScrollIndicator={false}>
         {section.rows.map((row, index) => (
-          <View key={row.key || String(index)} style={styles.entry}>
+          // A checkout row's key is its invoice's id (GET /invoices sends _id).
+          <Pressable
+            key={row.key || String(index)}
+            style={styles.entry}
+            disabled={key !== 'checkout' || !row.key}
+            onPress={() =>
+              router.push({ pathname: '/dashboard/cart', params: { invoiceId: row.key } } as Href)
+            }
+          >
             <View style={styles.entryMain}>
               <Text style={styles.entryTitle}>{row.title}</Text>
               {row.sub ? <Text style={styles.entrySub}>{row.sub}</Text> : null}
@@ -142,7 +152,7 @@ export default function HistoryScreen() {
             <Text style={styles.entryPrice} numberOfLines={1}>
               {row.price}
             </Text>
-          </View>
+          </Pressable>
         ))}
       </ScrollView>
     );

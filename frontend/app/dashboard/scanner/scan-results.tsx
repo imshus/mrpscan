@@ -27,7 +27,7 @@ import { parseStoneArraysFromStructuredData } from '@/utils/stoneSequenceUtils';
 export default function ScanResultsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ fromWishlist?: string; wishlistId?: string }>();
+  const params = useLocalSearchParams<{ fromWishlist?: string; wishlistId?: string; from?: string }>();
   const scanData = useScannerStore((s) => s.scanData);
   const selectedType = useScannerStore((s) => s.selectedType);
   const structuredData = useScannerStore((s) => s.structuredData);
@@ -115,6 +115,11 @@ export default function ScanResultsScreen() {
   };
 
   const handleBack = () => {
+    // Opened from a cart row: back is that cart, still holding its tags.
+    if (isFromWishlist && params.from === 'cart' && router.canGoBack()) {
+      router.back();
+      return;
+    }
     if (isFromWishlist) {
       router.push('/dashboard/wishlist' as Href);
       return;

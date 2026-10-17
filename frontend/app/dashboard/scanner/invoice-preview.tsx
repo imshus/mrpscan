@@ -6,11 +6,16 @@ import { InvoiceGenerationBilling } from '@/components/scanner/InvoiceGeneration
 import { PrimaryGreenButton } from '@/components/scanner/PrimaryGreenButton';
 import { ScanScreenWrapper } from '@/components/scanner/ScanScreenWrapper';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
+import { CART_INVOICE_SOURCE, useCartInvoice } from '@/hooks/useCartInvoice';
 import { useInvoiceComputation } from '@/hooks/useInvoiceComputation';
+import type { InvoiceLineItemRow } from '@/utils/invoiceCalculation';
 import { MessagePopup } from '@/components/settings/MessagePopup';
 import { useInvoiceStore } from '@/store/invoiceStore';
 import { useScannerStore } from '@/store/scannerStore';
 import { parseStoneArraysFromStructuredData } from '@/utils/stoneSequenceUtils';
+
+/** A cart with nothing checked out bills no lines (one array, so memos hold). */
+const NO_LINES: InvoiceLineItemRow[] = [];
 
 export default function InvoicePreviewScreen() {
   const router = useRouter();
@@ -22,10 +27,16 @@ export default function InvoicePreviewScreen() {
   const customer = useInvoiceStore((state) => state.customer);
   const [eInvoiceNote, setEInvoiceNote] = useState<string | null>(null);
 
+  // Opened from the cart's Generate Invoice: the cart's pieces are billed,
+  // not the scanner's last scan.
+  const { isCart, invoice: cartInvoice } = useCartInvoice();
+
   // One source of truth for the figures: the same hook the preview sheet and
   // the generated PDF read, so this screen can never guard on a total the
   // invoice would not print.
-  const { grandTotal } = useInvoiceComputation();
+  const { grandTotal } = useInvoiceComputation({
+    lineItems: isCart ? (cartInvoice?.rows ?? NO_LINES) : undefined,
+  });
 
   const { diamonds, colorstones } = useMemo(
     () => parseStoneArraysFromStructuredData(structuredData, scanData),
@@ -44,6 +55,10 @@ export default function InvoicePreviewScreen() {
       Alert.alert('Missing Info', 'Please enter the customer phone number before generating.');
       return false;
     }
+    if (isCart && !cartInvoice) {
+      Alert.alert('Cart is empty', 'Select tags in Wishlist and tap Add to cart, then generate the invoice.');
+      return false;
+    }
     // Gold rates load asynchronously; previewing a zero-value invoice helps no one.
     if (grandTotal <= 0) {
       Alert.alert(
@@ -57,6 +72,14 @@ export default function InvoicePreviewScreen() {
 
   const handleGenerateInvoice = () => {
     if (!validateBasics()) return;
+    if (isCart) {
+      // The preview bills the same cart.
+      router.push({
+        pathname: '/dashboard/scanner/invoice-sheet',
+        params: { source: CART_INVOICE_SOURCE },
+      } as Href);
+      return;
+    }
     router.push('/dashboard/scanner/invoice-sheet' as Href);
   };
 
