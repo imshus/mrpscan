@@ -4,7 +4,6 @@ import type { MatrixKey } from '@/constants/dashboardMatrices';
 import { useGoldRateFigures } from '@/hooks/useGoldRateFigures';
 import { useSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useGetGoldRatesQuery } from '@/store/goldRatesApi';
-import { useMatricesStore } from '@/store/matricesStore';
 import type { GoldRate } from '@/types/rates';
 import { karatFigure } from '@/utils/goldRateFigures';
 import { formatKaratLabel } from '@/utils/goldRateUtils';
@@ -28,24 +27,25 @@ const byCarat = (a: GoldRate, b: GoldRate) => {
 };
 
 /**
- * The gold rates Home shows, as one list for the rate dropdown on the review
- * screen (the owner's request): MCX, the Retail and RTGS rates, then each
- * karat's rate. The same figures as Home (useGoldRateFigures on the same
- * response), so the two never disagree, and only what this person may see
- * there: an employee's price-visibility permissions, else the shop's
- * Dashboard Settings. Empty until the rates have answered.
+ * Every gold rate, as one list for the rate dropdown on the review screen
+ * (the owner's request): MCX, the 24K Retail and RTGS rates, then each
+ * karat's Retail and RTGS. The same figures as Home (useGoldRateFigures on
+ * the same response), so the two never disagree. All of them, not only the
+ * rows switched on in Dashboard Settings (the owner asked for every rate
+ * here); an employee still sees only what their price-visibility permissions
+ * allow. Empty until the rates have answered.
  */
 export function useGoldRateTicker(): TickerRate[] {
   const { data: gold } = useGetGoldRatesQuery();
   const { figures } = useGoldRateFigures(gold);
   const { employee, userRole } = useSettingsAccess();
-  const globalMatrixValues = useMatricesStore((s) => s.values);
-  const matrix = userRole === 'employee' && employee ? employee.permissions : globalMatrixValues;
+  const permissions = userRole === 'employee' && employee ? employee.permissions : null;
 
   return useMemo(() => {
     if (!figures) return [];
+    const allowed = (key: string) => permissions === null || permissions[key as MatrixKey] === true;
     const items: TickerRate[] = [];
-    if (matrix['24k_mcx' as MatrixKey] === true) {
+    if (allowed('24k_mcx')) {
       if (figures.mcxFinal !== null) items.push({ key: 'mcx', label: 'MCX 24K', value: figures.mcxFinal });
       if (figures.retailFinal !== null) {
         items.push({ key: 'retail', label: 'Retail 24K', value: figures.retailFinal });
@@ -60,14 +60,14 @@ export function useGoldRateTicker(): TickerRate[] {
     for (const rate of rows) {
       const prefix = rate.carat.replace('Kt', 'k').toLowerCase();
       const karat = formatKaratLabel(rate.carat);
-      if (matrix[`${prefix}_cash` as MatrixKey] && figures.retailFinal !== null) {
+      if (allowed(`${prefix}_cash`) && figures.retailFinal !== null) {
         items.push({
           key: `${prefix}-retail`,
           label: `${karat} Retail`,
           value: karatFigure(figures.retailFinal, rate.purity),
         });
       }
-      if (matrix[`${prefix}_rtgs` as MatrixKey] && figures.rtgsSelected !== null) {
+      if (allowed(`${prefix}_rtgs`) && figures.rtgsSelected !== null) {
         items.push({
           key: `${prefix}-rtgs`,
           label: `${karat} RTGS`,
@@ -76,5 +76,5 @@ export function useGoldRateTicker(): TickerRate[] {
       }
     }
     return items;
-  }, [figures, gold, matrix]);
+  }, [figures, gold, permissions]);
 }

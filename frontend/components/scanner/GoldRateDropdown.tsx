@@ -11,8 +11,9 @@ let rememberedKey: string | null = null;
  * The shop's gold rates on the review card, in a dropdown between the back
  * and rescan buttons (the owner's choice over a scrolling strip): the box
  * shows one rate, the list holds them all — MCX, Retail, RTGS and every
- * karat per 10 g, the figures Home shows and only those this person may see
- * there. The same anchored list as the card's Gold Rate and Weight Used.
+ * karat's Retail and RTGS per 10 g, the figures Home shows, whatever
+ * Dashboard Settings has switched on. The same anchored list as the card's
+ * Gold Rate and Weight Used.
  */
 export function GoldRateDropdown() {
   const rates = useGoldRateTicker();
@@ -37,6 +38,8 @@ export function GoldRateDropdown() {
       <SearchableSelectDropdown
         compact
         anchored
+        // The whole list at once (13 rates at most), rather than six and a scroll.
+        maxVisibleRows={options.length}
         value={value}
         options={options}
         onChange={(key) => {
