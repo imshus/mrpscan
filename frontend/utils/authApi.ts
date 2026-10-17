@@ -2,7 +2,7 @@ import { apiRequest, ApiError } from '@/utils/apiClient';
 import { unwrapApiData } from '@/utils/apiResponse';
 import type { BusinessLoginResponse } from '@/types/auth';
 import { normalizeGstNumber } from '@/utils/validation';
-import { MPIN_TOO_MANY_ATTEMPTS_MESSAGE } from '@/utils/mpinChange';
+import { MPIN_TOO_MANY_ATTEMPTS_MESSAGE, readServerRefusal } from '@/utils/mpinChange';
 import { friendlyServerMessage } from '@/utils/serverMessages';
 
 type ApiEnvelope<T extends Record<string, unknown>> = T & {
@@ -1002,7 +1002,8 @@ export type ChangeMpinResult =
  *
  * A refusal comes back with its code (MPIN_INCORRECT, MPIN_MISMATCH,
  * MPIN_INVALID, MPIN_SAME) so the screen can put it under the right field.
- * Too many wrong tries is a 429 whose body is the sentence itself, not JSON.
+ * Too many wrong tries is a JSON 429 with MPIN_ATTEMPTS_EXCEEDED and its
+ * sentence; a plain-text 429 (a proxy's) is read as the sentence itself.
  */
 export async function changeMpin(
   currentMpin: string,
@@ -1028,25 +1029,25 @@ export async function changeMpin(
       return { success: false, code: null, error: 'Could not update the MPIN.' };
     }
     const body = error.body;
+    const refusal = readServerRefusal(body);
     if (error.status === 429) {
       const plain = typeof body === 'string' && body.trim() && !body.includes('<') ? body.trim() : '';
-      const json = body && typeof body === 'object' ? readString(body as Record<string, unknown>, ['message']) : undefined;
       return {
         success: false,
-        code: 'TOO_MANY_ATTEMPTS',
+        code: refusal.code,
         status: 429,
-        error: plain || json || MPIN_TOO_MANY_ATTEMPTS_MESSAGE,
+        error: plain || refusal.message || MPIN_TOO_MANY_ATTEMPTS_MESSAGE,
       };
     }
-    const code =
-      body && typeof body === 'object'
-        ? readString(body as Record<string, unknown>, ['error'])
-        : undefined;
     return {
       success: false,
-      code: code && /^[A-Z][A-Z0-9_]+$/.test(code) ? code : null,
+      code: refusal.code,
       status: error.status,
-      error: friendlyServerMessage(error, 'Could not update the MPIN.'),
+      // A refusal the server wrote out is shown as written: friendlyServerMessage
+      // reads every 404 as an endpoint this server lacks, which would turn
+      // USER_NOT_FOUND ("This account could not be found.") into "not
+      // available on the server yet".
+      error: (refusal.code && refusal.message) || friendlyServerMessage(error, 'Could not update the MPIN.'),
     };
   }
 }

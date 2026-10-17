@@ -15,15 +15,17 @@ import { BottomNav } from '@/components/dashboard/BottomNav';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Spacing } from '@/constants/theme';
-import { apiFetchCheckoutHistory, apiFetchScanHistory } from '@/utils/historyApi';
+import { apiFetchScanHistory } from '@/utils/historyApi';
 import {
   HISTORY_EMPTY_MESSAGE,
+  HISTORY_LIST_LIMIT,
   checkoutHistoryRow,
   historyRows,
   scanHistoryRow,
   wishlistHistoryRow,
   type HistoryRow,
 } from '@/utils/historyFormat';
+import { apiFetchInvoices } from '@/utils/invoiceApi';
 import { friendlyServerMessage } from '@/utils/serverMessages';
 import { currentScopeGeneration } from '@/utils/userScopedStorage';
 import { apiFetchWishlist } from '@/utils/wishlistApi';
@@ -53,7 +55,7 @@ async function loadSectionRows(key: SectionKey): Promise<HistoryRow[]> {
     case 'wishlist':
       return historyRows(await apiFetchWishlist(), (item) => wishlistHistoryRow(item, now));
     case 'checkout':
-      return historyRows(await apiFetchCheckoutHistory(), (item) => checkoutHistoryRow(item, now));
+      return historyRows(await apiFetchInvoices(HISTORY_LIST_LIMIT), (item) => checkoutHistoryRow(item, now));
   }
 }
 

@@ -19,6 +19,7 @@ const ICON_ACCENTS: Record<string, { bg: string; color: string }> = {
   subscription: { bg: Colors.dangerBg, color: Colors.brandDeep },
   invite: { bg: Colors.metalGoldBg, color: Colors.metalGold },
   contact: { bg: Colors.diamondBg, color: Colors.diamond },
+  faqs: { bg: Colors.metalGoldBg, color: Colors.metalGold },
 };
 
 const ICON_SIZE = 16;

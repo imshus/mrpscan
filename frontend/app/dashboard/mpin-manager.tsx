@@ -13,6 +13,7 @@ import { Colors, Gradients, Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { changeMpin } from '@/utils/authApi';
 import {
+  MPIN_EMPLOYEE_FORGOT_MESSAGE,
   NO_MPIN_CHANGE_ERRORS,
   hasMpinChangeError,
   mpinChangeErrorField,
@@ -27,11 +28,14 @@ import { currentScopeGeneration } from '@/utils/userScopedStorage';
  * login changes its own four digits — the owner's, or an employee's own.
  * Current, New and Confirm, each with its eye; the first thing wrong is said
  * under its own field. "Forgot MPIN?" opens the same recovery Log In has and
- * comes back here. The digits live in this screen's state only.
+ * comes back here; an employee is told to ask their owner instead, as the
+ * server refuses that recovery to an employee's login. The digits live in
+ * this screen's state only.
  */
 export default function MpinManagerScreen() {
   const router = useRouter();
   const savedPhone = useAuthStore((s) => s.savedPhone);
+  const userRole = useAuthStore((s) => s.userRole);
 
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -48,6 +52,16 @@ export default function MpinManagerScreen() {
   const clearErrors = () => {
     setErrors(NO_MPIN_CHANGE_ERRORS);
     setFormError(null);
+  };
+
+  const handleForgot = () => {
+    // The link stays for everyone, as in the design, but for an employee the
+    // phone + code flow could only end in the server's refusal.
+    if (userRole === 'employee') {
+      Alert.alert('Forgot MPIN?', MPIN_EMPLOYEE_FORGOT_MESSAGE);
+      return;
+    }
+    router.push({ pathname: '/dashboard/forgot-mpin', params: { phone: savedPhone } } as unknown as Href);
   };
 
   const handleSubmit = async () => {
@@ -109,13 +123,7 @@ export default function MpinManagerScreen() {
               error={errors.current}
               maskedIcon="eye-off"
             />
-            <Pressable
-              onPress={() =>
-                router.push({ pathname: '/dashboard/forgot-mpin', params: { phone: savedPhone } } as unknown as Href)
-              }
-              hitSlop={8}
-              style={styles.forgotLink}
-            >
+            <Pressable onPress={handleForgot} hitSlop={8} style={styles.forgotLink}>
               <Text style={styles.forgotLinkText}>Forgot MPIN?</Text>
             </Pressable>
             <MpinInput
