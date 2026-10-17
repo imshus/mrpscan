@@ -114,3 +114,18 @@ test('a price prefetched on the gross weight matches only the gross request', ()
   assert.equal(takePrefetchedPricing('scan-gross', payloadFor(scan())), null);
   assert.ok(takePrefetchedPricing('scan-gross', payloadFor(scan({ wastageWeightBasis: 'gross' }))));
 });
+
+test('Wastage %: only a typed figure is sent; an empty box or a lone dot keeps the item\'s', () => {
+  assert.equal(payloadFor(scan({ wastagePercent: '8.5' })).wastagePercent, 8.5);
+  assert.equal(payloadFor(scan({ wastagePercent: '.5' })).wastagePercent, 0.5);
+  assert.equal(payloadFor(scan({ wastagePercent: '0' })).wastagePercent, 0);
+  for (const blank of ['', ' ', '.', undefined]) {
+    assert.equal('wastagePercent' in payloadFor(scan({ wastagePercent: blank })), false, JSON.stringify(blank));
+  }
+});
+
+test('the Wastage Code picked on the card is sent, trimmed; none picked sends none', () => {
+  assert.equal(payloadFor(scan({ wastageCode: ' W10 ' })).wastageCode, 'W10');
+  assert.equal('wastageCode' in payloadFor(scan({ wastageCode: '' })), false);
+  assert.equal('wastageCode' in payloadFor(scan({ wastageCode: undefined })), false);
+});

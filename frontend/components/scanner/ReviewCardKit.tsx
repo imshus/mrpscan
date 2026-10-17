@@ -222,6 +222,8 @@ interface MetalInputProps {
   invalid?: boolean;
   onFocus?: ComponentProps<typeof TextInput>['onFocus'];
   onBlur?: ComponentProps<typeof TextInput>['onBlur'];
+  /** Shown faint while the box is empty: the figure that applies then. */
+  placeholder?: string;
 }
 
 export function MetalInput({
@@ -236,10 +238,13 @@ export function MetalInput({
   invalid = false,
   onFocus,
   onBlur,
+  placeholder,
 }: MetalInputProps) {
   const input = (
     <TextInput
       value={value}
+      placeholder={placeholder}
+      placeholderTextColor={Colors.placeholder}
       onChangeText={onChangeText}
       accessibilityLabel={label}
       editable={editable}

@@ -57,11 +57,15 @@ export function derivePricingInput(
     // Every identifier on the tag, so a Masters -> Wastage code printed
     // beside the item number is found as well.
     tagIdentifiers: useScannerStore.getState().tagIdentifiers,
-    // Sent only when typed: an empty box means "the item's own figure", and
-    // sending 0 instead would wipe wastage off the price.
-    ...(scanData.wastagePercent?.trim()
+    // Sent only when a figure is typed: an empty box (or a lone '.' on the
+    // way to '.5') means "the item's own figure", and sending 0 instead
+    // would wipe wastage off the price.
+    ...(/\d/.test(scanData.wastagePercent ?? '')
       ? { wastagePercent: figure(scanData.wastagePercent) }
       : {}),
+    // The Masters -> Wastage code picked on the card, which the server then
+    // prices (when no % is typed) and records, ahead of the tag's own.
+    ...(scanData.wastageCode?.trim() ? { wastageCode: scanData.wastageCode.trim() } : {}),
     // Always one of the two: the server refuses anything else, and a scan
     // made before the tile had the choice is on the net weight.
     wastageWeightBasis: scanData.wastageWeightBasis === 'gross' ? 'gross' : 'net',

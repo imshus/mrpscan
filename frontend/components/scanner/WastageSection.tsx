@@ -14,6 +14,8 @@ import {
   WASTAGE_WEIGHT_OPTIONS,
   type WastageWeightBasis,
 } from '@/constants/wastage';
+import { registerScopeResetCallback } from '@/utils/userScopedStorage';
+import { cleanWastagePercent } from '@/utils/wastageInput';
 import { fetchWastageCodes, type WastageCode } from '@/utils/wastageCodeApi';
 
 interface WastageSectionProps {
@@ -31,6 +33,8 @@ interface WastageSectionProps {
   /** What the shop typed this scan; empty means the item's figure applies. */
   percentOverride?: string;
   onPercentChange?: (text: string) => void;
+  /** A box left empty: back to the priced percent (the item's or the code's). */
+  onPercentReset?: () => void;
   /** The Masters → Wastage code picked for this scan, if any. */
   selectedCode?: string;
   /** A code was picked from the list: its percent fills the Wastage % box. */
@@ -43,23 +47,29 @@ interface WastageSectionProps {
   onWeightBasisChange?: (basis: WastageWeightBasis) => void;
 }
 
-// The shop's wastage codes, fetched once per app session and shared by every
-// scan: the list changes on the Masters screen, not between scans.
+// The shop's wastage codes, fetched once per account and shared by every
+// scan: the list changes on the Masters screen, not between scans. Another
+// account on the same phone has its own list, and a request still out when
+// the account changes (or Masters saves) must not refill the cache.
 let cachedCodes: WastageCode[] | null = null;
 let pendingCodes: Promise<WastageCode[]> | null = null;
+let generation = 0;
 
 function loadWastageCodes(): Promise<WastageCode[]> {
   if (cachedCodes) return Promise.resolve(cachedCodes);
   if (!pendingCodes) {
-    pendingCodes = fetchWastageCodes()
+    const issuedAt = generation;
+    const request = fetchWastageCodes()
       .then((rows) => {
+        if (issuedAt !== generation) return [];
         cachedCodes = rows;
         return rows;
       })
       .catch(() => [])
       .finally(() => {
-        pendingCodes = null;
+        if (pendingCodes === request) pendingCodes = null;
       });
+    pendingCodes = request;
   }
   return pendingCodes;
 }
@@ -67,7 +77,12 @@ function loadWastageCodes(): Promise<WastageCode[]> {
 /** Drops the cached list, so the next scan reads the Masters list afresh. */
 export function invalidateWastageCodes(): void {
   cachedCodes = null;
+  pendingCodes = null;
+  generation += 1;
 }
+
+registerScopeResetCallback(invalidateWastageCodes);
+
 
 /**
  * The wastage tile (mockup `.wastage-tile`), a card of its own under Labour.
@@ -91,6 +106,7 @@ export function WastageSection({
   editable = false,
   percentOverride,
   onPercentChange,
+  onPercentReset,
   selectedCode,
   onCodeChange,
   weightBasis = DEFAULT_WASTAGE_WEIGHT_BASIS,
@@ -116,12 +132,12 @@ export function WastageSection({
 
   if (!editable && (!percent || percent <= 0)) return null;
 
-  const percentText =
-    percentOverride !== undefined && percentOverride !== ''
-      ? percentOverride
-      : percent && percent > 0
-        ? String(percent)
-        : '';
+  // The box shows what was typed, even nothing: it used to fall back to the
+  // priced percent the moment it was emptied, so the next digit was added to
+  // the old figure (8 became 87). Until something is typed it shows the
+  // priced percent; emptied, that figure is the hint and applies again.
+  const pricedText = percent && percent > 0 ? String(percent) : '';
+  const percentText = percentOverride !== undefined ? percentOverride : pricedText;
 
   const shownCode = selectedCode || code || '—';
   const weightLabel =
@@ -154,7 +170,14 @@ export function WastageSection({
           <MetalInput
             label="Wastage %"
             value={percentText}
-            onChangeText={(text) => onPercentChange?.(text.replace(/[^0-9.]/g, ''))}
+            placeholder={pricedText}
+            onChangeText={(text) => {
+              const next = cleanWastagePercent(text);
+              if (next !== null) onPercentChange?.(next);
+            }}
+            onBlur={() => {
+              if (percentOverride !== undefined && !/\d/.test(percentOverride)) onPercentReset?.();
+            }}
             keyboardType="decimal-pad"
           />
         ) : (

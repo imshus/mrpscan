@@ -339,6 +339,8 @@ export interface CalculateMrpPayload {
   tagIdentifiers?: string[];
   /** Overrides the item's own wastage, for a piece that is an exception. */
   wastagePercent?: number;
+  /** A Masters -> Wastage code picked on the card: used ahead of the tag's own. */
+  wastageCode?: string;
   /** The weight the wastage percent is taken of (pricing rules 3; the server's default is net). */
   wastageWeightBasis?: WastageWeightBasis;
   /** `unit`: the weight's unit, 'ct' or 'g' (5 ct a gram). */

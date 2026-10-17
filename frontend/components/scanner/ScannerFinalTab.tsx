@@ -372,10 +372,14 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
         editable={editable}
         percentOverride={scanData.wastagePercent}
         onPercentChange={(text) => onFieldChange?.('wastagePercent', text)}
+        // Left empty: nothing typed, so the item's or the code's figure shows
+        // in the box again (and is what the server prices).
+        onPercentReset={() => onFieldChange?.('wastagePercent', undefined)}
         selectedCode={scanData.wastageCode}
         onCodeChange={(code, percent) => {
           onFieldChange?.('wastageCode', code);
-          onFieldChange?.('wastagePercent', percent === null ? '' : String(percent));
+          // A code without a percent leaves the box to the priced figure.
+          onFieldChange?.('wastagePercent', percent === null ? undefined : String(percent));
         }}
         // The review screen shows the scan's choice; the results view the
         // weight the server priced with (a price before pricing rules 3
