@@ -52,6 +52,7 @@ export default function DashboardLayout() {
       <Stack.Screen name="mpin-manager" />
       <Stack.Screen name="forgot-mpin" />
       <Stack.Screen name="history" />
+      <Stack.Screen name="delete-account" />
       <Stack.Screen name="purity-control" />
       <Stack.Screen name="subscription-manager" />
       <Stack.Screen name="purchase-license" />
