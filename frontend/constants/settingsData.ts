@@ -9,7 +9,6 @@ import {
   HelpCircle,
   IdCard,
   LayoutGrid,
-  Lock,
   LogOut,
   Sigma,
   Trash2,
@@ -50,15 +49,6 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     title: 'Employee Manager',
     icon: UserPlus,
     route: '/dashboard/employees',
-  },
-  // MPIN Manager took Password Manager's place, as the mockup's menu has it.
-  // The password screen is still at /dashboard/password-manager, only no
-  // longer listed.
-  {
-    id: 'mpin',
-    title: 'MPIN Manager',
-    icon: Lock,
-    route: '/dashboard/mpin-manager',
   },
   {
     id: 'history',

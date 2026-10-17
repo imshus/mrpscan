@@ -77,7 +77,7 @@ export default function InvoicePreviewScreen() {
       router.push({
         pathname: '/dashboard/scanner/invoice-sheet',
         params: { source: CART_INVOICE_SOURCE },
-      } as Href);
+      } as unknown as Href);
       return;
     }
     router.push('/dashboard/scanner/invoice-sheet' as Href);
