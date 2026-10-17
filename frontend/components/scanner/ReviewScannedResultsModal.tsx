@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, Vibration, View } from 'react-native';
+
+import { REFUSAL_BUZZ } from '@/constants/haptics';
 import Animated from 'react-native-reanimated';
 
 import { ScannerFinalTab } from '@/components/scanner/ScannerFinalTab';
@@ -22,7 +24,6 @@ import type { ScanItemData, StoneEntry, StructuredScanData } from '@/types/scann
  * phone and not on the shop's: red boxes with nothing in the hand, which
  * read as "no vibration" for the packet code and the labour rate.
  */
-const REFUSAL_BUZZ = [0, 110, 70, 110];
 import { resolveItemIdentity } from '@/utils/itemIdentity';
 import { DIAMOND_SHAPE_OPTIONS, type StoneSelectOption } from '@/constants/stoneRateOptions';
 import { fetchDiamondRates, fetchGoldRates } from '@/utils/ratesApi';
