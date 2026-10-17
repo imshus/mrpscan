@@ -14,9 +14,11 @@ import { OtpInput } from '@/components/ui/OtpInput';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
+import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { useAuthStore } from '@/store/authStore';
 import { deleteAccount, sendAccountDeleteOtp } from '@/utils/accountApi';
 import {
+  ACCOUNT_DELETE_OTP_LENGTH,
   DELETE_CONFIRM_WORD,
   accountDeletionNote,
   canConfirmAccountDeletion,
@@ -28,18 +30,19 @@ import { REMEMBERED_PHONE_KEY } from '@/utils/clearAppState';
 const SIGN_OUT_DELAY_MS = 1500;
 
 /**
- * Ends this phone's session for a login the server has just removed: the
- * same sign-out as the Logout tile, and the number is forgotten too, so Log
- * In no longer greets the person with a login that is gone and asks for its
- * MPIN. The shop's records on this phone stay under their own keys, as they
- * do after any sign-out (utils/userScopedStorage.ts).
+ * Forgets on this phone a login the server has just removed, so Log In no
+ * longer greets the person with a login that is gone and asks for its MPIN.
+ * Done the moment the server says yes, not after "Account deleted": an app
+ * swiped away in that moment must still have forgotten it. The sign-out
+ * itself (the Logout tile's) waits, since it leaves this screen at once.
+ * The shop's records on this phone stay under their own keys, as they do
+ * after any sign-out (utils/userScopedStorage.ts).
  */
-function endDeletedSession(): void {
+function forgetDeletedLogin(): void {
   const auth = useAuthStore.getState();
   auth.setSavedCredentials('');
   auth.setSavedEmployeePhone('');
   AsyncStorage.removeItem(REMEMBERED_PHONE_KEY).catch(() => {});
-  auth.logout();
 }
 
 /**
@@ -82,7 +85,7 @@ export default function DeleteAccountScreen() {
       if (signOutTimer.current) {
         clearTimeout(signOutTimer.current);
         signOutTimer.current = null;
-        endDeletedSession();
+        useAuthStore.getState().logout();
       }
     },
     [],
@@ -94,10 +97,29 @@ export default function DeleteAccountScreen() {
     return () => clearTimeout(id);
   }, [secondsLeft]);
 
-  const canDelete = canConfirmAccountDeletion(otp, typed) && !deleting && !deleted;
+  // Google's one-tap SMS read, as on Log In: it only fills the boxes — the
+  // delete still waits for DELETE and the button. Not while a delete is
+  // checking the code already in them.
+  useAndroidOtpAutofill({
+    enabled: sentLine !== null && !deleted,
+    otpLength: ACCOUNT_DELETE_OTP_LENGTH,
+    onCodeDetected: (detected) => {
+      if (deleteBusy.current) return;
+      setOtp(detected);
+      setOtpError(null);
+    },
+    onDetectionError: () => {
+      // Typing and the clipboard fill remain.
+    },
+  });
+
+  // Neither while a code is being sent: the new one replaces the code being
+  // checked and empties the boxes.
+  const canDelete = canConfirmAccountDeletion(otp, typed) && !sending && !deleting && !deleted;
 
   const handleSendOtp = async () => {
-    if (sendBusy.current || secondsLeft > 0 || deleted) return;
+    // Nor a new code while a delete is checking the last one.
+    if (sendBusy.current || deleteBusy.current || secondsLeft > 0 || deleted) return;
     sendBusy.current = true;
     setSending(true);
     setOtpError(null);
@@ -129,14 +151,15 @@ export default function DeleteAccountScreen() {
       const result = await deleteAccount(otp);
       if (result.success) {
         done = true;
+        forgetDeletedLogin();
         if (!alive.current) {
-          endDeletedSession();
+          useAuthStore.getState().logout();
           return;
         }
         setDeleted(true);
         signOutTimer.current = setTimeout(() => {
           signOutTimer.current = null;
-          endDeletedSession();
+          useAuthStore.getState().logout();
           router.replace('/login');
         }, SIGN_OUT_DELAY_MS);
         return;
@@ -212,14 +235,14 @@ export default function DeleteAccountScreen() {
                   />
                   <Pressable
                     onPress={handleSendOtp}
-                    disabled={secondsLeft > 0 || sending || deleted}
+                    disabled={secondsLeft > 0 || sending || deleting || deleted}
                     accessibilityRole="button"
                     style={styles.resendBtn}
                   >
                     {sending ? (
                       <ActivityIndicator color={Colors.brandDeep} />
                     ) : (
-                      <Text style={secondsLeft > 0 ? styles.resendWaiting : styles.resendText}>
+                      <Text style={secondsLeft > 0 || deleting ? styles.resendWaiting : styles.resendText}>
                         {secondsLeft > 0 ? `Resend OTP in ${secondsLeft}s` : 'Resend OTP'}
                       </Text>
                     )}

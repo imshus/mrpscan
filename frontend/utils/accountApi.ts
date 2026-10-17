@@ -1,6 +1,7 @@
 import { apiRequest, ApiError } from '@/utils/apiClient';
 import { unwrapApiData } from '@/utils/apiResponse';
 import {
+  ACCOUNT_DELETE_NO_ANSWER,
   ACCOUNT_DELETE_RESEND_SECONDS,
   DELETE_CONFIRM_WORD,
   accountDeletionFailureMessage,
@@ -40,6 +41,9 @@ function readMessage(body: Record<string, unknown>): string | undefined {
 
 function toFailure(error: unknown, fallback: string): AccountApiFailure {
   if (error instanceof ApiError) {
+    // No answer at all (no signal, a timeout): apiClient's text for that is
+    // written for developers — the server's address, EXPO_PUBLIC_API_URL.
+    if (error.status === undefined) return { success: false, error: ACCOUNT_DELETE_NO_ANSWER };
     const code = readErrorCode(error.body);
     return {
       success: false,

@@ -2,8 +2,9 @@
  * Pins the plain logic behind Delete Account (utils/accountDeletion.ts): the
  * button works only with all six digits and DELETE exactly as written, what
  * the screen tells an owner and an employee, and the server's refusals in
- * words — OTP_NOT_FOUND arrives as a 404 and must not read as "the server
- * does not have this yet".
+ * words — the code decides before the status, so OTP_NOT_FOUND never reads
+ * as "the server does not have this yet", and a 5xx never shows the
+ * server's internal text.
  *
  * And the Settings menu itself (utils/settingsAccess.ts): the Delete Account
  * tile sits just above Logout for an owner, a super admin and an employee
@@ -95,22 +96,42 @@ test('refusals: known codes in words, before the status', () => {
   const fallback = 'Could not delete the account. Please try again.';
   const say = (failure) => accountDeletionFailureMessage(failure, fallback);
 
-  // The error handler answers OTP_NOT_FOUND with a 404.
+  // These routes answer OTP_NOT_FOUND with a 400 ...
+  assert.equal(say({ code: 'OTP_NOT_FOUND', status: 400, message: 'Send an OTP to your phone first.' }), 'Send an OTP first, then enter it here.');
+  // ... and the general error handler with a 404, which is still not "no route".
   assert.equal(say({ code: 'OTP_NOT_FOUND', status: 404, message: 'No OTP found' }), 'Send an OTP first, then enter it here.');
   assert.match(say({ code: 'OTP_INVALID', status: 400 }), /not correct/);
   assert.match(say({ code: 'OTP_EXPIRED', status: 400 }), /expired/);
   assert.match(say({ code: 'OTP_ALREADY_USED', status: 400 }), /already used/);
   assert.match(say({ code: 'CONFIRMATION_REQUIRED', status: 400 }), /Type DELETE/);
   assert.match(say({ code: 'OTP_SEND_FAILED', status: 502 }), /Couldn't send the OTP/);
-  assert.match(say({ code: 'RATE_LIMIT_EXCEEDED', status: 429 }), /Too many attempts/);
 });
 
-test('refusals: a codeless 404 is an older server; prose passes; a bare code falls back', () => {
+test("refusals: a rate limit says the server's own wait", () => {
+  const fallback = 'Could not send the OTP. Please try again.';
+  const say = (failure) => accountDeletionFailureMessage(failure, fallback);
+
+  assert.equal(
+    say({ code: 'RATE_LIMIT_EXCEEDED', status: 429, message: 'Too many codes were sent. Please try again in an hour.' }),
+    'Too many codes were sent. Please try again in an hour.',
+  );
+  assert.equal(
+    say({ code: 'RATE_LIMIT_EXCEEDED', status: 429, message: 'Too many attempts. Please try again in an hour.' }),
+    'Too many attempts. Please try again in an hour.',
+  );
+});
+
+test('refusals: a codeless 404 is an older server; prose passes; a 5xx or a bare code falls back', () => {
   const fallback = 'Could not delete the account. Please try again.';
   const say = (failure) => accountDeletionFailureMessage(failure, fallback);
 
   assert.match(say({ status: 404, message: 'Route not found' }), /not available on the server yet/);
-  assert.equal(say({ status: 500, message: 'Something broke on our side.' }), 'Something broke on our side.');
+  assert.equal(say({ status: 409, message: 'This account has no phone number to send an OTP to.' }), 'This account has no phone number to send an OTP to.');
+  // The global error handler hands err.message on as it is.
+  assert.equal(say({ status: 500, message: 'disk full' }), fallback);
+  assert.equal(say({ status: 500, message: 'E11000 duplicate key error collection: pratham.released_logins' }), fallback);
+  assert.equal(say({ code: 'OTP_DB_SAVE_FAILED', status: 500, message: 'Failed to persist OTP request.' }), fallback);
+  assert.equal(say({ status: 503, message: 'Something broke on our side.' }), fallback);
   assert.equal(say({ code: 'SOME_NEW_CODE', status: 400, message: 'SOME_NEW_CODE' }), fallback);
   assert.equal(say({ message: '' }), fallback);
   assert.equal(say({}), fallback);
