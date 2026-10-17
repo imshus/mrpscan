@@ -10,6 +10,7 @@ import { GradientView } from '@/components/ui/GradientView';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import { OtpInput } from '@/components/ui/OtpInput';
 import { Colors, Gradients, Spacing } from '@/constants/theme';
+import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { transferForPhone, useEmployeeDraftStore, verifiedPhoneToken } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import {
@@ -100,6 +101,21 @@ export default function VerifyEmployeePhoneScreen() {
     const id = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
     return () => clearTimeout(id);
   }, [secondsLeft]);
+
+  // Google's one-tap SMS read, as on Log In (the owner's ask). It can only
+  // catch a code that lands on this phone, i.e. when the employee's SIM is
+  // in it; otherwise the owner types what the employee reads out. It only
+  // fills the boxes: Verify still checks them. Off while a code is being
+  // resent, so listening starts again for the new SMS.
+  useAndroidOtpAutofill({
+    enabled: !heldToken && !resending,
+    otpLength: 6,
+    onCodeDetected: (detected) => {
+      if (busy.current) return;
+      setOtp(detected);
+      setError(null);
+    },
+  });
 
   const handleVerify = async () => {
     if (busy.current) return;
