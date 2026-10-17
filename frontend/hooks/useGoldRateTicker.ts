@@ -28,7 +28,7 @@ const byCarat = (a: GoldRate, b: GoldRate) => {
 };
 
 /**
- * The gold rates Home shows, as one list for the rate ticker on the review
+ * The gold rates Home shows, as one list for the rate dropdown on the review
  * screen (the owner's request): MCX, the Retail and RTGS rates, then each
  * karat's rate. The same figures as Home (useGoldRateFigures on the same
  * response), so the two never disagree, and only what this person may see
