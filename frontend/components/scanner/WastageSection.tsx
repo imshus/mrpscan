@@ -170,7 +170,8 @@ export function WastageSection({
         ) : (
           <MetalValueBox label="Weight Used" value={weightLabel} />
         )}
-        <MetalValueBox label="Wastage Amount" value={amountDisplay || '—'} amount fullWidth />
+        {/* Beside Weight Used, two to a row (the owner's ask). */}
+        <MetalValueBox label="Wastage Amount" value={amountDisplay || '—'} amount />
       </MetalGrid>
     </MetalTile>
   );
