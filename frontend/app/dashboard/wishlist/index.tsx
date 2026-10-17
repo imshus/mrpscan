@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +8,9 @@ import { BottomNav } from '@/components/dashboard/BottomNav';
 import { WishlistCard } from '@/components/wishlist/WishlistCard';
 import { WishlistScreenHeader } from '@/components/wishlist/WishlistScreenHeader';
 import { Colors, Spacing } from '@/constants/theme';
+import { useCartStore } from '@/store/cartStore';
 import { useWishlistStore } from '@/store/wishlistStore';
+import { selectionInListOrder } from '@/utils/cartInvoice';
 
 export default function WishlistScreen() {
   const router = useRouter();
@@ -17,11 +19,35 @@ export default function WishlistScreen() {
   const removeItem = useWishlistStore((s) => s.removeItem);
   const clearAll = useWishlistStore((s) => s.clearAll);
   const syncFromApi = useWishlistStore((s) => s.syncFromApi);
+  const setCartItems = useCartStore((s) => s.setItems);
+
+  // The items ticked for the cart. Read against the list as it stands, so a
+  // tick on an item deleted or synced away since simply drops out.
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const selectedIds = useMemo(() => selectionInListOrder(items, selected), [items, selected]);
 
   // Fetch latest from backend each time the screen mounts
   useEffect(() => {
     syncFromApi();
   }, [syncFromApi]);
+
+  const toggleSelected = (id: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Add to cart: the ticked items, in the wishlist's order, become the cart,
+  // and the ticks clear (mockup wlCartBtn).
+  const handleAddToCart = () => {
+    if (selectedIds.length === 0) return;
+    setCartItems(selectedIds);
+    setSelected(new Set());
+    router.push('/dashboard/cart' as Href);
+  };
 
   // Deletes straight away: a wishlist entry is cheap to re-add, so a
   // confirmation on every bin tap cost more than the mistake it prevented.
@@ -68,7 +94,11 @@ export default function WishlistScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <BackgroundPattern />
-      <WishlistScreenHeader onClearWishlist={handleClearWishlist} />
+      <WishlistScreenHeader
+        onClearWishlist={handleClearWishlist}
+        selectedCount={selectedIds.length}
+        onAddToCart={handleAddToCart}
+      />
 
       {isLoading ? (
         <View style={styles.loadingWrap}>
@@ -94,6 +124,8 @@ export default function WishlistScreen() {
               item={item}
               onPress={() => handleOpenItem(item.id)}
               onDelete={() => handleDeleteItem(item.id)}
+              selected={selected.has(item.id)}
+              onToggleSelect={() => toggleSelected(item.id)}
             />
           ))}
         </ScrollView>

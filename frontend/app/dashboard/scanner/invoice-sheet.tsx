@@ -24,8 +24,10 @@ import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useInvoiceStore } from '@/store/invoiceStore';
 import { useScannerStore } from '@/store/scannerStore';
+import { useCartInvoice } from '@/hooks/useCartInvoice';
 import { useInvoiceComputation } from '@/hooks/useInvoiceComputation';
 import { getBusinessProfile } from '@/utils/businessProfile';
+import type { InvoiceLineItemRow } from '@/utils/invoiceCalculation';
 import { formatItemIdentity, resolveItemIdentity } from '@/utils/itemIdentity';
 import { HSN_JEWELLERY } from '@/components/invoice/InvoiceSheet';
 import { fetchBusinessProfile, type BusinessProfileResponse } from '@/utils/businessProfileApi';
@@ -52,6 +54,9 @@ const DEFAULT_TERMS = [
 ];
 
 const ZOOM_STEPS = [0.85, 1, 1.15, 1.3];
+
+/** A cart with nothing checked out bills no lines (one array, so memos hold). */
+const NO_LINES: InvoiceLineItemRow[] = [];
 
 function todayStamp(): string {
   return new Date()
@@ -101,6 +106,10 @@ export default function InvoiceSheetScreen() {
   const placeOfSupply = useInvoiceStore((state) => state.placeOfSupply);
   const transport = useInvoiceStore((state) => state.transport);
 
+  // Opened from the cart: one invoice for all its pieces, each with its own
+  // lines. Opened from a scan result: that scan, exactly as before.
+  const { isCart, invoice: cartInvoice } = useCartInvoice();
+
   const {
     lineItemRows,
     subtotal,
@@ -112,6 +121,7 @@ export default function InvoiceSheetScreen() {
   } = useInvoiceComputation({
     // The GSTIN the server taxes by (CGST + SGST for 07), once fetched.
     supplierGstin: business?.gstNumber,
+    lineItems: isCart ? (cartInvoice?.rows ?? NO_LINES) : undefined,
   });
 
   useEffect(() => {
@@ -133,10 +143,12 @@ export default function InvoiceSheetScreen() {
     };
   }, []);
 
-  // The scanned piece, so the invoice says which item it bills for.
+  // The scanned piece, so the invoice says which item it bills for. A cart's
+  // lines name their own pieces already, and the scanner's last scan is none
+  // of them.
   const itemLabel = useMemo(
-    () => formatItemIdentity(resolveItemIdentity(scanData)),
-    [scanData],
+    () => (isCart ? '' : formatItemIdentity(resolveItemIdentity(scanData))),
+    [isCart, scanData],
   );
 
 
@@ -169,6 +181,11 @@ export default function InvoiceSheetScreen() {
       amount_in_words: grandTotalWords,
       terms_and_conditions: '',
       public_token: reservedQr?.publicToken,
+      // A cart says how many pieces it bills and which; a single scan sends
+      // neither, as it always has.
+      ...(cartInvoice
+        ? { piece_count: cartInvoice.pieces.length, pieces: cartInvoice.pieces }
+        : {}),
     }),
     [
       customer,
@@ -182,6 +199,7 @@ export default function InvoiceSheetScreen() {
       grandTotal,
       grandTotalWords,
       reservedQr,
+      cartInvoice,
     ],
   );
 
@@ -206,6 +224,10 @@ export default function InvoiceSheetScreen() {
   };
 
   const guardTotals = (): boolean => {
+    if (isCart && !cartInvoice) {
+      Alert.alert('Cart is empty', 'Select tags in Wishlist and tap Add to cart, then generate the invoice.');
+      return false;
+    }
     if (grandTotal <= 0) {
       Alert.alert(
         'Rates not ready',
