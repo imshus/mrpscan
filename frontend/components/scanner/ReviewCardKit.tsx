@@ -43,11 +43,13 @@ interface CardHeaderProps {
   onBack?: () => void;
   /** Optional control rendered at the right end of the title row. */
   accessory?: ReactNode;
+  /** Optional strip filling the row between the back button and the accessory. */
+  center?: ReactNode;
   /** Rendered below the title row (the MRP amount card). */
   children?: ReactNode;
 }
 
-export function CardHeader({ title, onBack, accessory, children }: CardHeaderProps) {
+export function CardHeader({ title, onBack, accessory, center, children }: CardHeaderProps) {
   return (
     <View style={styles.stickyHead}>
       <View style={styles.stickyTop}>
@@ -61,6 +63,7 @@ export function CardHeader({ title, onBack, accessory, children }: CardHeaderPro
           </Pressable>
         ) : null}
         {title ? <Text style={styles.stickyTitle}>{title}</Text> : null}
+        {center ?? null}
         {/* Pushed to the trailing edge so it sits top-right whether or not
             this header carries a title. */}
         {accessory ? <View style={styles.headAccessory}>{accessory}</View> : null}

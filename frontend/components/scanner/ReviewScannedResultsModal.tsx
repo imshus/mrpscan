@@ -9,6 +9,7 @@ import {
   FloatingCard,
   PillButton,
 } from '@/components/scanner/ReviewCardKit';
+import { GoldRateTicker } from '@/components/scanner/GoldRateTicker';
 import { ChevronDown, RefreshCw } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 import { ItemCodePicker } from '@/components/scanner/ItemCodePicker';
@@ -520,6 +521,9 @@ export function ReviewScannedResultsModal({
     <FloatingCard>
       <CardHeader
         onBack={onBack}
+        // The shop's gold rates scrolling between back and rescan (the
+        // owner's request).
+        center={<GoldRateTicker />}
         accessory={
           <Pressable
             onPress={onReScan}
