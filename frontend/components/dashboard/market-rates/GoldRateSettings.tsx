@@ -351,11 +351,6 @@ export function GoldRateSettingsPanel({
   const savingRef = useRef(false);
   const saveAgainRef = useRef(false);
   const [editTick, setEditTick] = useState(0);
-  // The bhaw the RTGS and Cash boxes were filled with. The live feed moves
-  // it about once a second; the shop's typing is read against the figure
-  // the box showed, not against wherever the feed has moved since, or a
-  // save carried an adjustment of a few rupees nobody typed.
-  const [filledBhaw, setFilledBhaw] = useState({ rtgs: 0, cash: 0 });
   // Which boxes the shop typed in since the form was last filled. Only
   // those are saved: a box nobody touched never writes its figure back.
   const touchedRef = useRef<Record<TypedField, boolean>>({ ...UNTOUCHED });
@@ -370,12 +365,13 @@ export function GoldRateSettingsPanel({
     const mcx = toSafeNumber(mcxChange, 0);
     const rtgs = toSafeNumber(rtgsChange, 0);
     const cash = toSafeNumber(cashChange, 0);
-    const bhawRtgsNow = toSafeNumber(bhawRtgs, 0);
-    const bhawCashNow = toSafeNumber(bhawCash, 0);
     const mcxForm = getSignAndAmount(mcx);
-    // Shown as "bhaw already applied + this shop's own adjustment".
-    const rtgsForm = getSignAndAmount(rtgs + bhawRtgsNow);
-    const cashForm = getSignAndAmount(cash + bhawCashNow);
+    // The shop's own adjustment only. The house bhaw (JMD Patil's +2,100,
+    // say) is already in the rate and named on the card ("Includes ...");
+    // put in the box as well, it read as the shop's own change (the owner's
+    // call, 17 Oct 2026). What is saved has always been the own change.
+    const rtgsForm = getSignAndAmount(rtgs);
+    const cashForm = getSignAndAmount(cash);
 
     setMcxSign(mcxForm.sign);
     setMcxAmount(mcxForm.amount);
@@ -383,22 +379,17 @@ export function GoldRateSettingsPanel({
     setRtgsAmount(rtgsForm.amount);
     setCashSign(cashForm.sign);
     setCashAmount(cashForm.amount);
-    setFilledBhaw((current) =>
-      current.rtgs === bhawRtgsNow && current.cash === bhawCashNow
-        ? current
-        : { rtgs: bhawRtgsNow, cash: bhawCashNow },
-    );
     const tax = toSafeNumber(rtgsTaxPercent, 0);
     setTaxPercent(String(tax));
     setVariant(rtgsVariant);
     savedRef.current = { mcx, rtgs, cash, tax, variant: rtgsVariant };
     touchedRef.current = { ...UNTOUCHED };
-  }, [visible, mcxChange, rtgsChange, cashChange, bhawRtgs, bhawCash, rtgsTaxPercent, rtgsVariant]);
+  }, [visible, mcxChange, rtgsChange, cashChange, rtgsTaxPercent, rtgsVariant]);
 
   /**
-   * The provider bhaw is already inside the current RTGS/Cash rate, so the
-   * Change By box shows it rather than adding it a second time: typing a
-   * different figure moves the rate by the difference alone.
+   * The provider bhaw is already inside the current RTGS/Cash rate; the card
+   * names it under its title and the Change By box holds the shop's own
+   * adjustment alone.
    */
   const bhawIn = (value?: number) => toSafeNumber(value, 0);
   const bhawNote = (value?: number, live = true) => {
@@ -414,14 +405,8 @@ export function GoldRateSettingsPanel({
   };
 
   const mcxDraftChange = useMemo(() => signedValue(mcxSign, mcxAmount), [mcxSign, mcxAmount]);
-  const rtgsDraftChange = useMemo(
-    () => signedValue(rtgsSign, rtgsAmount) - filledBhaw.rtgs,
-    [rtgsSign, rtgsAmount, filledBhaw.rtgs],
-  );
-  const cashDraftChange = useMemo(
-    () => signedValue(cashSign, cashAmount) - filledBhaw.cash,
-    [cashSign, cashAmount, filledBhaw.cash],
-  );
+  const rtgsDraftChange = useMemo(() => signedValue(rtgsSign, rtgsAmount), [rtgsSign, rtgsAmount]);
+  const cashDraftChange = useMemo(() => signedValue(cashSign, cashAmount), [cashSign, cashAmount]);
   const taxDraft = useMemo(() => {
     const parsed = Number.parseFloat(taxPercent);
     return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : 0;
