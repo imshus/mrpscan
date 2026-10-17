@@ -48,13 +48,13 @@ export function phoneTransferNotice(transfer: EmployeePhoneTransfer | null): str
   if (!transfer) return null;
   if (transfer.kind === 'owner') {
     return transfer.sameShop
-      ? 'This number is an admin of your shop. Once verified, it becomes an employee instead.'
-      : "This number is the owner login of another shop. Once verified, it becomes your employee. That shop's records stay saved.";
+      ? 'Admin of your shop. Verify to make them an employee.'
+      : 'Owner of another shop. Verify to make them your employee.';
   }
   // Employees of this shop are refused, not moved.
   return transfer.sameShop
     ? null
-    : 'This number is an employee of another shop. Once verified, they move to your shop.';
+    : 'Employee of another shop. Verify to move them to your shop.';
 }
 
 export const MPIN_REQUIRED_MESSAGE = 'Enter a 4-digit MPIN';

@@ -80,15 +80,15 @@ test('transfer: read from the server only when it names an owner or an employee'
 test('transfer: Verify Phone says whose login the code hands over', () => {
   assert.equal(
     phoneTransferNotice({ kind: 'owner', sameShop: false }),
-    "This number is the owner login of another shop. Once verified, it becomes your employee. That shop's records stay saved.",
+    'Owner of another shop. Verify to make them your employee.',
   );
   assert.equal(
     phoneTransferNotice({ kind: 'owner', sameShop: true }),
-    'This number is an admin of your shop. Once verified, it becomes an employee instead.',
+    'Admin of your shop. Verify to make them an employee.',
   );
   assert.equal(
     phoneTransferNotice({ kind: 'employee', sameShop: false }),
-    'This number is an employee of another shop. Once verified, they move to your shop.',
+    'Employee of another shop. Verify to move them to your shop.',
   );
   // This shop's employees are refused, never moved; a free number says nothing.
   assert.equal(phoneTransferNotice({ kind: 'employee', sameShop: true }), null);
