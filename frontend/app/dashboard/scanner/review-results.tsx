@@ -325,6 +325,8 @@ export default function ReviewResultsScreen() {
         colorstones,
         pricing: livePricing,
         scanTimestamp: new Date().toISOString(),
+        // So its Wishlist history line, and a cart that bills it, name the scan.
+        scanId: useScannerStore.getState().scanId,
       });
       await addWishlistItem(item);
       setHasAddedToWishlist(true);

@@ -80,10 +80,11 @@ export function useHistoryList<T>(
         if (run !== runRef.current || generation !== currentScopeGeneration()) return;
         if (isRequestAbortedError(error)) return;
         const message = friendlyServerMessage(error, LOAD_ERROR);
-        // A refresh that fails keeps the rows already shown, with the reason above them.
+        // A refresh that fails keeps the rows already shown, with the reason
+        // above them. A next page it superseded was dropped: its spinner goes.
         setState((prev) =>
           mode === 'refresh' && prev.phase === 'ready'
-            ? { ...prev, refreshing: false, error: message }
+            ? { ...prev, refreshing: false, loadingMore: false, error: message }
             : { ...INITIAL, phase: 'error', error: message },
         );
       } finally {

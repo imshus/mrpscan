@@ -114,3 +114,23 @@ test('pages: every readable entry of a page, none shown twice', () => {
   const many = Array.from({ length: 45 }, (_, i) => ({ id: `w${i}` }));
   assert.equal(appendHistoryPage([], many, wishlistPageRow, NOW).length, 45);
 });
+
+test('server answers: each list row opens what its page fetches', async () => {
+  const { readFileSync } = await import('node:fs');
+  const server = JSON.parse(readFileSync(new URL('./fixtures/historyServer.json', import.meta.url), 'utf8'));
+  const scans = server.scanList.items.map((item) => scanPageRow(item, NOW));
+  assert.deepEqual(
+    scans.map((row) => [row.id, row.title, row.price]),
+    [
+      ['scan-fx-unpriced', '22K Diamond Jewellery', '—'],
+      ['scan-fx-read', 'Gold Necklace', '₹ 1,40,780'],
+      ['scan-fx-priced', 'Gold Necklace', '₹ 1,49,790'],
+    ],
+  );
+  assert.equal(server.scanList.nextCursor, null);
+  const [wishlist] = server.wishlistList.items.map((item) => wishlistPageRow(item, NOW));
+  // Opens GET /history/wishlist/:id, the history line's own id.
+  assert.equal(wishlist.id, server.wishlistEntry.id);
+  assert.equal(wishlist.title, 'Gold Necklace');
+  assert.equal(wishlist.price, '₹ 1,49,790');
+});

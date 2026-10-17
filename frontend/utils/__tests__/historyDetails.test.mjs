@@ -5,6 +5,8 @@
  * the app's own wishlist snapshot) read into the review card's tiles and the
  * MRP breakdown, showing only what was recorded: no tile for a part the
  * piece does not have, a dash for a tag that was read and never priced.
+ * The scan and wishlist answers are real server responses
+ * (fixtures/historyServer.json), so the field names are the server's own.
  *
  * The app's own file is loaded, not a mirror, through node's type stripping
  * with a resolve hook for the '@/' alias and extensionless imports.
@@ -13,7 +15,7 @@
  */
 
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { registerHooks } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
@@ -36,6 +38,7 @@ registerHooks({
 });
 
 const { scanDetailView, wishlistDetailView, UNPRICED_NOTE } = await import('@/utils/historyDetails');
+const { buildWishlistItem, wishlistAddPayload } = await import('@/utils/wishlistUtils');
 
 // 17 Oct 2026, 10:30 am local.
 const NOW = new Date(2026, 9, 17, 10, 30);
@@ -51,178 +54,171 @@ const tilesOf = (view) =>
   );
 const linesOf = (view) => view.breakdown.map((line) => `${line.label}: ${line.value}${line.amount ? ' *' : ''}`);
 
-const PRICED_SCAN = {
-  scanId: 's1',
-  itemName: '18K Diamond Necklace',
-  tagCode: 'TAG-10432',
-  finalMRP: 143025,
-  status: 'priced',
-  createdAt: at(17, 8, 59),
-  updatedAt: at(17, 9, 1),
-  details: {
-    jewelleryType: 'DIAMOND',
-    grossWeight: { value: '10.300', confidence: 92 },
-    netWeight: '9.800',
-    karat: '18',
-    purity: '75',
-    serialNumber: 'SR-77',
-    itemCode: 'NK01',
-    packetCode: 'PK-9',
-    diamonds: [{ weight: '0.25', unit: 'ct', pieces: '12', shape: 'Round', quality: 'VVS', color: 'EF', clarity: 'VVS1', rate: '45000' }],
-    colorstones: [{ weight: '0.5', unit: 'g', rate: '2000' }],
-    labour: 'MC 850',
-  },
-  pricing: {
-    grossWt: 10.25,
-    netWt: 9.8,
-    purityKarat: '18K',
-    calculationMode: 'rtgs',
-    labourWeightBasis: 'net',
-    diamonds: [{ weight: 0.25, rate: 45000, discountPercent: 10, unit: 'ct' }],
-    colorstones: [{ weight: 0.5, rate: 2000, unit: 'g' }],
-    manualLabour: { amount: 850, unit: 'Per Gram' },
-    otherCharges: 500,
-    effectivePurityPercent: 75,
-    purityAdjustedGoldRatePerGram: 11250,
-    breakdown: {
-      pureWeight: 7.35,
-      goldRateApplied: 15000,
-      goldAmount: 110250,
-      diamondAmount: 10125,
-      colorstoneAmount: 5000,
-      labourAmount: 8330,
-      labourChargeType: 'MANUAL',
-      wastageCode: 'WS-08',
-      wastagePercent: 8,
-      wastageWeightBasis: 'net',
-      wastageWeightGrams: 0.784,
-      wastageRatePerGram: 11250,
-      wastageAmount: 8820,
-      otherCharges: 500,
-      subtotal: 143025,
-      netWeightUsed: 9.8,
-      netWeightEstimated: false,
-    },
-    diamondLineItems: [{ index: 1, weight: 0.25, rate: 45000, discountPercent: 10, amount: 10125 }],
-    colorstoneLineItems: [{ index: 1, weight: 2.5, rate: 2000, amount: 5000 }],
-    finalMRP: 143025,
-    finalMRPRounded: 143025,
-  },
-};
+/**
+ * Real answers, captured from the backend's own controllers and services
+ * (POST /scans/:scanId/analyze, /calculate, POST /wishlist, then GET
+ * /history/*) over an in-memory MongoDB with the model's reading and the
+ * live rate stood in for: a diamond necklace read off its tag, priced by the
+ * card (cash, labour 850 a gram, 8% wastage on the gross weight, Rs 500 other
+ * charges); the same tag only read, at the price the analysis worked out;
+ * one read with no live rate; and the priced one as the app saved it to the
+ * wishlist (utils/wishlistUtils buildWishlistItem + wishlistAddPayload).
+ */
+const SERVER = JSON.parse(readFileSync(path.join(ROOT, 'utils', '__tests__', 'fixtures', 'historyServer.json'), 'utf8'));
 
-test('priced scan: header, MRP, every tile as priced, the breakdown', () => {
-  const view = scanDetailView(PRICED_SCAN, NOW);
-  assert.equal(view.title, '18K Diamond Necklace');
-  assert.equal(view.tagCode, 'TAG-10432');
-  assert.equal(view.when, 'Scanned Today, 8:59 am');
-  assert.equal(view.mrp, '₹ 1,43,025');
+test('fixture: the server shape the parser reads', () => {
+  const { details, pricing } = SERVER.pricedScan;
+  for (const key of ['jewelleryType', 'grossWeight', 'netWeight', 'karat', 'purity', 'serialNumber', 'itemCode',
+    'packetCode', 'diamonds', 'colorstones', 'labour', 'wastage', 'otherCharges']) {
+    assert.ok(key in details, `details.${key}`);
+  }
+  assert.deepEqual(Object.keys(pricing).sort(), ['breakdown', 'inputs', 'rules']);
+  for (const key of ['grossWt', 'netWt', 'purityKarat', 'calculationMode', 'diamonds', 'colorstones',
+    'labourChargeAmount', 'labourChargeUnit', 'labourWeightBasis']) {
+    assert.ok(key in pricing.inputs, `pricing.inputs.${key}`);
+  }
+  for (const key of ['goldAmount', 'pureWeight', 'goldRateApplied', 'effectivePurityPercent',
+    'purityAdjustedGoldRatePerGram', 'diamondAmount', 'colorstoneAmount', 'diamondLineItems', 'colorstoneLineItems',
+    'labourRate', 'labourUnit', 'labourWeightBasis', 'labourAmount', 'wastageCode', 'wastagePercent',
+    'wastageWeightBasis', 'wastageWeightGrams', 'wastageRatePerGram', 'wastageAmount', 'otherCharges', 'subtotal',
+    'netWeightUsed', 'netWeightEstimated', 'finalMRP', 'finalMRPRounded']) {
+    assert.ok(key in pricing.breakdown, `pricing.breakdown.${key}`);
+  }
+  assert.equal(SERVER.wishlistEntry.scanId, SERVER.pricedScan.scanId, 'the wishlist line names its scan');
+  assert.equal(SERVER.wishlistEntry.snapshot.scanId, SERVER.pricedScan.scanId, 'and so does the item it saved');
+});
+
+test('priced scan (server answer): every tile as priced, the breakdown, the MRP', () => {
+  const view = scanDetailView(SERVER.pricedScan, NOW);
+  assert.equal(view.title, 'Gold Necklace');
+  assert.equal(view.tagCode, 'NK10432');
+  assert.match(view.when, /^Scanned /);
+  assert.equal(view.mrp, '₹ 1,49,790');
   assert.equal(view.note, '');
   assert.deepEqual(tilesOf(view), {
-    'tag Tag (plain)': ['Jewellery Type: Diamond', 'Serial No.: SR-77', 'Item Code: NK01', 'Packet Code: PK-9'],
+    'tag Tag (plain)': ['Jewellery Type: Diamond', 'Serial No.: NK10432', 'Item Code: NK', 'Packet Code: PK-77'],
     'gold Gold (gold)': [
-      // What was priced, not what was read: 10.25 g, not the tag's 10.300.
-      'Gross Weight: 10.25 g',
-      'Net Weight: 9.8 g',
-      'Karat: 18K',
-      'Purity: 75%',
-      'Pure Weight: 7.35 g',
-      'Gold Rate: RTGS',
-      'Current Gold Rate: ₹1,12,500 /10gm',
-      'Gold Amount: ₹1,10,250 *',
+      'Gross Weight: 10.5 g',
+      'Net Weight: 10 g',
+      'Karat: 22K',
+      'Purity: 91.6%',
+      'Pure Weight: 9.16 g',
+      // Priced in cash: the review card calls it Retail.
+      'Gold Rate: Retail',
+      'Current Gold Rate: ₹1,18,164 /10gm',
+      'Gold Amount: ₹1,18,164 *',
     ],
     'diamond-0 Diamond 1 (diamond)': [
       'Weight: 0.25 ct',
       'Pieces: 12',
-      'Shape: Round',
-      'Quality: VVS',
+      'Shape: RD',
+      'Quality: VVS-EF',
       'Colour: EF',
-      'Clarity: VVS1',
-      'Diamond Rate: ₹45,000 /ct',
-      'Discount: 10%',
-      'Diamond Amount: ₹10,125 *',
+      'Clarity: VVS',
+      'Packet Code: P1',
+      'Diamond Rate: ₹50,000 /ct',
+      'Diamond Amount: ₹12,500 *',
     ],
-    'colorstone-0 Colorstone 1 (plain)': ['Weight: 0.5 g', 'CS Rate: ₹2,000 /ct', 'CS Amount: ₹5,000 *'],
-    'labour Labour Charge (labour)': ['Labour Rate: ₹850', 'Weight Used: Net wt', 'Labour Amount: ₹8,330 *'],
+    'colorstone-0 Colorstone 1 (plain)': [
+      'Stone: Ruby',
+      'Weight: 0.1 ct',
+      'Pieces: 3',
+      'Colour: RED',
+      'Clarity: SI',
+      'CS Rate: ₹2,000 /ct',
+      'CS Amount: ₹200 *',
+    ],
+    'labour Labour Charge (labour)': ['Labour Rate: ₹850', 'Weight Used: Net wt', 'Labour Amount: ₹8,500 *'],
     'wastage Wastage (wastage)': [
-      'Wastage Code: WS-08',
       'Wastage %: 8%',
-      'Weight Used: Net wt',
-      'Wastage Weight: 0.784 g',
-      'Wastage Rate: ₹11,250 /g',
-      'Wastage Amount: ₹8,820 *',
+      'Weight Used: Gross wt',
+      'Wastage Weight: 0.84 g',
+      'Wastage Rate: ₹11,816 /g',
+      'Wastage Amount: ₹9,926 *',
     ],
     'other Other Charges (plain)': ['Other Charges Total: ₹500 *'],
   });
   // The subtotal is the MRP itself here, so it is not a line of its own.
   assert.deepEqual(linesOf(view), [
-    'Gold Amount: ₹1,10,250',
-    'Diamond Amount: ₹10,125',
-    'Colorstone Amount: ₹5,000',
-    'Labour Amount: ₹8,330',
-    'Wastage Amount: ₹8,820',
+    'Gold Amount: ₹1,18,164',
+    'Diamond Amount: ₹12,500',
+    'Colorstone Amount: ₹200',
+    'Labour Amount: ₹8,500',
+    'Wastage Amount: ₹9,926',
     'Other Charges: ₹500',
-    'Final MRP: ₹1,43,025 *',
+    'Final MRP: ₹1,49,790 *',
   ]);
 });
 
-test('scan read and never priced: a dash, the note, only what the tag said', () => {
-  const view = scanDetailView(
-    {
-      scanId: 's2',
-      itemName: '',
-      tagCode: 'TAG-1',
-      finalMRP: null,
-      status: 'read',
-      createdAt: at(16, 7, 24),
-      details: {
-        grossWeight: { value: '6.750', confidence: 90 },
-        netWeight: '',
-        karat: '22k',
-        purity: '916',
-        labour: { value: 'MC 850', confidence: 70 },
-        diamonds: [],
-        otherChargesItems: [{ name: 'Hallmark', amount: 45 }, { name: 'Box', amount: 0 }],
-      },
-      pricing: null,
-    },
-    NOW,
-  );
-  assert.equal(view.title, 'Tag scan');
-  assert.equal(view.when, 'Scanned Yesterday, 7:24 am');
+test('scan only read (server answer): the price the analysis made, and what the tag said', () => {
+  const view = scanDetailView(SERVER.readScan, NOW);
+  assert.equal(SERVER.readScan.status, 'read');
+  assert.equal(SERVER.readScan.pricing, null);
+  // The price its list row shows, not a dash.
+  assert.equal(view.mrp, '₹ 1,40,780');
+  assert.equal(view.note, '');
+  assert.deepEqual(linesOf(view), []);
+  const tiles = tilesOf(view);
+  // A fineness past 100 is shown as printed.
+  assert.deepEqual(tiles['gold Gold (gold)'], ['Gross Weight: 10.5 g', 'Net Weight: 10 g', 'Karat: 22K', 'Purity: 916']);
+  assert.deepEqual(tiles['diamond-0 Diamond 1 (diamond)'], [
+    'Weight: 0.25 ct',
+    'Pieces: 12',
+    'Shape: RD',
+    'Quality: VVS-EF',
+    'Colour: EF',
+    'Clarity: VVS',
+    'Packet Code: P1',
+    'Diamond Rate: ₹50,000 /ct',
+  ]);
+  assert.deepEqual(tiles['labour Labour Charge (labour)'], ['Labour (on tag): LBR 850']);
+  assert.deepEqual(tiles['wastage Wastage (wastage)'], ['Wastage %: 8%']);
+  assert.deepEqual(tiles['other Other Charges (plain)'], ['Other Charges (on tag): 500']);
+});
+
+test('scan read with no live rate (server answer): a dash and the note', () => {
+  const view = scanDetailView(SERVER.unpricedScan, NOW);
+  assert.equal(view.title, '22K Diamond Jewellery');
+  assert.equal(view.tagCode, 'ZZ-9');
   assert.equal(view.mrp, '—');
   assert.equal(view.note, UNPRICED_NOTE);
   assert.deepEqual(view.breakdown, []);
-  assert.deepEqual(tilesOf(view), {
-    // A fineness past 100 is shown as printed.
-    'gold Gold (gold)': ['Gross Weight: 6.75 g', 'Karat: 22K', 'Purity: 916'],
-    'labour Labour Charge (labour)': ['Labour (on tag): MC 850'],
-    'other Other Charges (plain)': ['Hallmark: ₹45'],
-  });
+  // No Masters item matched: no Item Code.
+  assert.deepEqual(tilesOf(view)['tag Tag (plain)'], ['Jewellery Type: Diamond', 'Serial No.: ZZ-9', 'Packet Code: PK-77']);
 });
 
 test('scan: a net weight worked out from the gross says so; a percent labour reads as one', () => {
+  const { pricing } = SERVER.pricedScan;
   const view = scanDetailView(
     {
-      scanId: 's3',
-      finalMRP: 5000,
-      status: 'priced',
+      ...SERVER.pricedScan,
       pricing: {
-        grossWt: 6.75,
-        netWt: 0,
-        labourRatePerUnit: 12,
-        labourUnit: 'Percent',
-        breakdown: { netWeightUsed: 6.6, netWeightEstimated: true, goldAmount: 4464.29, labourAmount: 535.71, wastageAmount: 0, wastagePercent: 0 },
-        finalMRPRounded: 5000,
+        ...pricing,
+        inputs: { ...pricing.inputs, netWt: 0, labourChargeAmount: 12, labourChargeUnit: 'Percent' },
+        breakdown: { ...pricing.breakdown, netWeightUsed: 10.36, netWeightEstimated: true, labourRate: 12, labourUnit: 'Percent' },
       },
     },
     NOW,
   );
   const tiles = tilesOf(view);
-  assert.deepEqual(tiles['gold Gold (gold)'], ['Gross Weight: 6.75 g', 'Net Weight (est.): 6.6 g', 'Gold Amount: ₹4,464 *']);
-  assert.deepEqual(tiles['labour Labour Charge (labour)'], ['Labour (% of gold): 12%', 'Labour Amount: ₹536 *']);
-  // No wastage on the piece: no tile at all, and no line in the breakdown.
+  assert.equal(tiles['gold Gold (gold)'][1], 'Net Weight (est.): 10.36 g');
+  assert.equal(tiles['labour Labour Charge (labour)'][0], 'Labour (% of gold): 12%');
+});
+
+test('scan: no wastage on the piece is no tile and no line', () => {
+  const { pricing } = SERVER.pricedScan;
+  const view = scanDetailView(
+    {
+      ...SERVER.pricedScan,
+      pricing: {
+        ...pricing,
+        breakdown: { ...pricing.breakdown, wastagePercent: 0, wastageWeightGrams: 0, wastageAmount: 0 },
+      },
+    },
+    NOW,
+  );
   assert.equal(view.tiles.some((tile) => tile.key === 'wastage'), false);
-  assert.deepEqual(linesOf(view), ['Gold Amount: ₹4,464', 'Labour Amount: ₹536', 'Final MRP: ₹5,000 *']);
+  assert.equal(linesOf(view).some((line) => line.startsWith('Wastage')), false);
 });
 
 test('scan: junk is no view; an entry with nothing recorded is its header alone', () => {
@@ -362,6 +358,67 @@ test('wishlist add: a diamond takes its amount from the priced stone rows', () =
     'Diamond Amount: ₹5,000 *',
   ]);
   assert.deepEqual(linesOf(view), ['Diamond Amount: ₹5,000', 'Final MRP: ₹30,000 *']);
+});
+
+test('wishlist add (server answer): the snapshot the app saved, in the same tiles as its scan', () => {
+  const view = wishlistDetailView(SERVER.wishlistEntry, NOW);
+  const scan = scanDetailView(SERVER.pricedScan, NOW);
+  assert.equal(view.title, 'Gold Necklace');
+  assert.equal(view.tagCode, 'NK10432');
+  assert.match(view.when, /^Added /);
+  assert.equal(view.mrp, scan.mrp);
+  assert.deepEqual(linesOf(view), linesOf(scan));
+  const tiles = tilesOf(view);
+  const scanTiles = tilesOf(scan);
+  for (const key of ['gold Gold (gold)', 'diamond-0 Diamond 1 (diamond)', 'labour Labour Charge (labour)',
+    'wastage Wastage (wastage)']) {
+    assert.deepEqual(tiles[key], scanTiles[key], key);
+  }
+  // The card's Item Code is the tag's whole number (processing.tsx); the
+  // scan line's is the Masters item it matched.
+  assert.deepEqual(tiles['tag Tag (plain)'], [
+    'Jewellery Type: Diamond',
+    'Serial No.: NK10432',
+    'Item Code: NK10432',
+    'Packet Code: PK-77',
+  ]);
+  // The card's own charge list is kept with the item; the scan line has only its total.
+  assert.deepEqual(tiles['other Other Charges (plain)'], ['Hallmark: ₹500', 'Other Charges Total: ₹500 *']);
+});
+
+test('wishlist add: the POST body names the scan and the catalogue name; an old item names neither', () => {
+  const body = wishlistAddPayload(
+    buildWishlistItem({
+      scanData: SERVER.wishlistEntry.snapshot.scanData,
+      structuredData: {},
+      selectedType: 'Diamond',
+      diamonds: [],
+      colorstones: [],
+      pricing: SERVER.wishlistEntry.snapshot.pricing,
+      scanTimestamp: '2026-10-17T05:00:00.000Z',
+      scanId: ' scan-fx-priced ',
+    }),
+  );
+  assert.equal(body.scanId, 'scan-fx-priced');
+  assert.equal(body.snapshot.scanId, 'scan-fx-priced', 'kept on the wishlist item, in its snapshot');
+  assert.equal(body.itemName, 'Gold Necklace');
+  assert.deepEqual(
+    Object.keys(body).sort(),
+    ['calculationRate', 'itemId', 'itemName', 'priceBadge', 'scanId', 'scanTimestamp', 'snapshot', 'tagCode', 'title', 'totalMrp'],
+  );
+
+  const old = wishlistAddPayload({
+    id: 'wl-old',
+    title: 'Gold',
+    tagCode: 'R-1',
+    priceBadge: '₹ 1',
+    totalMrp: 1,
+    addedAt: '',
+    scanTimestamp: '',
+    snapshot: { scanData: { itemName: '' } },
+  });
+  assert.equal('scanId' in old, false);
+  assert.equal('itemName' in old, false);
 });
 
 test('wishlist add: no snapshot is the header and the MRP alone; junk is no view', () => {

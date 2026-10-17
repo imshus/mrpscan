@@ -186,6 +186,8 @@ function basisText(value: unknown): string | null {
 /* ==================== the facts both answers are read into ==================== */
 
 interface StoneFacts {
+  /** A colour stone's kind as the tag named it ("Ruby"). */
+  type: string | null;
   weight: string | null;
   pieces: string | null;
   shape: string | null;
@@ -230,6 +232,8 @@ interface TagFacts {
   wastageRatePerGram: number | null;
   wastageAmount: number | null;
   otherCharges: ChargeFacts[];
+  /** Other charges as the tag printed them, for a tag that was never priced. */
+  otherChargesOnTag: string | null;
   otherChargesTotal: number | null;
   diamondAmount: number | null;
   colorstoneAmount: number | null;
@@ -260,6 +264,7 @@ function stoneFacts(read: Bag[], priced: Bag[], lines: Bag[]): StoneFacts[] {
     const l = lines[i];
     const described = [r, p];
     rows.push({
+      type: pick(described, ['type'], nonEmpty),
       weight:
         stoneWeight(p) ?? stoneWeight(r) ?? (l ? stoneWeight({ weight: l.weight, unit: 'ct' }) : null),
       pieces: pick(described, ['pieces'], nonEmpty),
@@ -322,6 +327,7 @@ function stoneTiles(kind: 'diamond' | 'colorstone', stones: StoneFacts[]): (Deta
   const diamond = kind === 'diamond';
   return stones.map((stone, index) =>
     tile(`${kind}-${index}`, `${diamond ? 'Diamond' : 'Colorstone'} ${index + 1}`, diamond ? 'diamond' : 'plain', [
+      field('Stone', diamond ? null : stone.type),
       field('Weight', stone.weight),
       field('Pieces', stone.pieces),
       field('Shape', stone.shape),
@@ -387,6 +393,7 @@ function buildView(
       : null,
     tile('other', 'Other Charges', 'plain', [
       ...facts.otherCharges.map((charge) => field(charge.name, rupees(charge.amount))),
+      field('Other Charges (on tag)', facts.otherChargesOnTag),
       field('Other Charges Total', rupees(facts.otherChargesTotal), true),
     ]),
   ].filter((entry): entry is DetailTile => entry !== null);
@@ -420,93 +427,108 @@ function buildView(
 /* ==================== the two answers ==================== */
 
 /**
- * A past scan, GET /history/scans/:scanId → { item }: `details` is what was
- * read off the tag, `pricing` (null for a scan only read) the inputs it was
- * priced on and the price's breakdown, flat or under `breakdown`.
+ * A past scan, GET /history/scans/:scanId → { item } (backend
+ * scanHistory.service getScan; utils/__tests__/fixtures/historyServer.json
+ * holds real answers):
+ *   - `details`, what the analysis read off the tag (readingDetailsOf), each
+ *     field the text the reader returned: jewelleryType ("DIAMOND"),
+ *     grossWeight, netWeight, karat, purity, serialNumber, itemCode (the
+ *     Masters item it matched), packetCode, diamonds / colorstones (weight,
+ *     unit, pieces, shape, quality, color, clarity, rate, packetCode; a
+ *     colour stone's type too), and labour, wastage and otherCharges as
+ *     printed ("LBR 850");
+ *   - `pricing` (pricingRecordOf; null until the card asked for a price):
+ *     `inputs`, the card's request as read (grossWt, netWt, purityKarat,
+ *     calculationMode, diamonds, colorstones, labourChargeAmount / Unit,
+ *     labourWeightBasis, wastagePercent, otherCharges, ...), and
+ *     `breakdown`, the answer's breakdown with the rate, purity, stone lines
+ *     and labour it applied.
+ * A line still at status 'read' may carry the price the analysis worked out
+ * (`finalMRP`) without `pricing`: it shows that price and the reading.
  */
 export function scanDetailView(raw: unknown, now: Date = new Date()): TagDetailView | null {
   const item = asRecord(raw);
   if (!item) return null;
   const details = asRecord(item.details);
   const pricing = asRecord(item.pricing);
+  const inputs = asRecord(pricing?.inputs);
   const breakdown = asRecord(pricing?.breakdown);
-  const priced = [pricing, breakdown];
-  const everything = [pricing, breakdown, details];
+  const priced = pricing !== null;
 
-  const purity = pick(everything, ['effectivePurityPercent', 'customPurityPercent'], positive);
-  const ratePerGram24k = pick(priced, ['goldRateApplied', 'selected24kGoldRatePerGram'], positive);
-  const adjustedPerGram = pick(priced, ['purityAdjustedGoldRatePerGram'], positive);
-  const netEstimated = breakdown?.netWeightEstimated === true || pricing?.netWeightEstimated === true;
-  const finalMrp =
-    pick(priced, ['finalMRPRounded', 'finalMRP'], num) ?? num(item.finalMRP);
+  const purity = pick([breakdown], ['effectivePurityPercent'], positive);
+  const ratePerGram24k = pick([breakdown], ['goldRateApplied'], positive);
+  const adjustedPerGram = pick([breakdown], ['purityAdjustedGoldRatePerGram'], positive);
+  const netEstimated = breakdown?.netWeightEstimated === true;
+  // The line's own price is the one its list row shows.
+  const finalMrp = num(item.finalMRP) ?? pick([breakdown], ['finalMRPRounded', 'finalMRP'], num);
 
-  // The figure it was priced on, else the one the tag printed: { amount,
-  // unit } or the tag's own words ("MC 850").
-  const manualLabour = asRecord(pricing?.manualLabour);
-  const tagLabour = unwrap(details?.labour);
-  const labour =
-    (manualLabour ? labourField(manualLabour.amount, manualLabour.unit) : null) ??
-    labourField(pricing?.labourRatePerUnit, pricing?.labourUnit) ??
-    labourField(details?.labourChargeAmount, details?.labourChargeUnit) ??
-    (asRecord(tagLabour)
-      ? labourField(asRecord(tagLabour)?.amount, asRecord(tagLabour)?.unit)
-      : labourField(tagLabour, null));
+  // Priced: the labour the price charged (the card's figure, else the
+  // item's, else the shop's), else the figure the card sent. Only read: the
+  // tag's own words ("LBR 850").
+  const labour = priced
+    ? labourField(breakdown?.labourRate, breakdown?.labourUnit) ??
+      labourField(inputs?.labourChargeAmount, inputs?.labourChargeUnit)
+    : labourField(details?.labour, null);
 
   const facts: TagFacts = {
-    jewelleryType: pick([details, pricing], ['jewelleryType'], typeText),
-    serialNumber: pick([details], ['serialNumber', 'sku'], nonEmpty),
-    itemCode: pick([details, pricing], ['itemCode', 'itemNumber'], nonEmpty),
+    jewelleryType: pick([details, inputs], ['jewelleryType'], typeText),
+    serialNumber: pick([details], ['serialNumber'], nonEmpty),
+    itemCode: pick([details], ['itemCode'], nonEmpty),
     packetCode: pick([details], ['packetCode'], nonEmpty),
-    grossWeight: pick([pricing, details], ['grossWt', 'grossWeight'], grams),
+    // What was priced before what was read: the card may have corrected it.
+    grossWeight: pick([inputs], ['grossWt'], grams) ?? pick([details], ['grossWeight'], grams),
     netWeight: netEstimated
-      ? pick([breakdown, pricing], ['netWeightUsed'], grams)
-      : pick(everything, ['netWt', 'netWeightUsed', 'netWeight'], grams),
+      ? pick([breakdown], ['netWeightUsed'], grams)
+      : pick([inputs], ['netWt'], grams) ??
+        pick([breakdown], ['netWeightUsed'], grams) ??
+        pick([details], ['netWeight'], grams),
     netEstimated,
-    karat: pick([pricing, details], ['purityKarat', 'selectedKarat', 'karat'], karatText),
-    purity: purity !== null ? percentText(purity) : pick([details], ['purity', 'tunch'], percentText),
-    pureWeight: pick([breakdown, pricing], ['pureWeight'], grams),
-    rateMode: pick([pricing], ['calculationMode'], rateModeText),
+    karat: pick([inputs], ['purityKarat'], karatText) ?? pick([details], ['karat'], karatText),
+    purity: purity !== null ? percentText(purity) : pick([details], ['purity'], percentText),
+    pureWeight: pick([breakdown], ['pureWeight'], grams),
+    rateMode: pick([inputs], ['calculationMode'], rateModeText),
     currentGoldRatePer10g: adjustedPerGram !== null ? adjustedPerGram * 10 : currentGoldRate(ratePerGram24k, purity),
-    goldAmount: pick(priced, ['goldAmount'], num),
+    goldAmount: pick([breakdown], ['goldAmount'], num),
     diamonds: stoneFacts(
       asList(details?.diamonds),
-      asList(pricing?.diamonds),
-      asList(pricing?.diamondLineItems ?? breakdown?.diamondLineItems),
+      asList(inputs?.diamonds),
+      asList(breakdown?.diamondLineItems),
     ),
     colorstones: stoneFacts(
-      asList(details?.colorstones ?? details?.colourStones ?? details?.colorStones),
-      asList(pricing?.colorstones),
-      asList(pricing?.colorstoneLineItems ?? breakdown?.colorstoneLineItems),
+      asList(details?.colorstones),
+      asList(inputs?.colorstones),
+      asList(breakdown?.colorstoneLineItems),
     ),
     labour,
-    labourBasis: pick([pricing, details], ['labourWeightBasis'], basisText),
-    labourAmount: pick(priced, ['labourAmount'], num),
-    wastageCode: pick(everything, ['wastageCode'], nonEmpty),
-    wastagePercent: pick(everything, ['wastagePercent', 'wastage'], percentText),
-    wastageBasis: pick(priced, ['wastageWeightBasis'], basisText),
-    wastageWeight: pick(priced, ['wastageWeightGrams'], grams),
-    wastageRatePerGram: pick(priced, ['wastageRatePerGram'], positive),
-    wastageAmount: pick(priced, ['wastageAmount'], positive),
-    otherCharges: chargeFacts(
-      asList(details?.otherChargesItems ?? pricing?.otherChargesItems ?? details?.otherCharges),
-    ),
-    otherChargesTotal: pick(priced, ['otherChargesAmount', 'otherCharges'], positive),
-    diamondAmount: pick(priced, ['diamondAmount'], positive),
-    colorstoneAmount: pick(priced, ['colorstoneAmount'], positive),
-    subtotal: pick(priced, ['subtotal'], num),
+    labourBasis: pick([breakdown, inputs], ['labourWeightBasis'], basisText),
+    labourAmount: pick([breakdown], ['labourAmount'], num),
+    wastageCode: pick([breakdown], ['wastageCode'], nonEmpty),
+    wastagePercent: priced
+      ? pick([breakdown], ['wastagePercent'], percentText)
+      : pick([details], ['wastage'], percentText),
+    wastageBasis: pick([breakdown], ['wastageWeightBasis'], basisText),
+    wastageWeight: pick([breakdown], ['wastageWeightGrams'], grams),
+    wastageRatePerGram: pick([breakdown], ['wastageRatePerGram'], positive),
+    wastageAmount: pick([breakdown], ['wastageAmount'], positive),
+    // The server keeps the charges' total, not the named list.
+    otherCharges: [],
+    otherChargesOnTag: priced ? null : pick([details], ['otherCharges'], nonEmpty),
+    otherChargesTotal: pick([breakdown], ['otherCharges'], positive),
+    diamondAmount: pick([breakdown], ['diamondAmount'], positive),
+    colorstoneAmount: pick([breakdown], ['colorstoneAmount'], positive),
+    subtotal: pick([breakdown], ['subtotal'], num),
     finalMrp,
   };
 
   const when = formatHistoryWhen(item.createdAt, now);
-  const unpriced = text(item.status).toLowerCase() === 'read' || finalMrp === null;
   return buildView(
     {
       title: text(item.itemName) || 'Tag scan',
       tagCode: text(item.tagCode),
       when: when ? `Scanned ${when}` : '',
-      note: unpriced ? UNPRICED_NOTE : '',
+      note: finalMrp === null ? UNPRICED_NOTE : '',
     },
-    unpriced ? { ...facts, finalMrp: null } : facts,
+    facts,
   );
 }
 
@@ -568,6 +590,7 @@ export function wishlistDetailView(raw: unknown, now: Date = new Date()): TagDet
     wastageRatePerGram: pick([pricing], ['wastageRatePerGram'], positive),
     wastageAmount: pick([pricing], ['wastageAmount'], positive),
     otherCharges: chargeFacts(asList(scan?.otherChargesItems)),
+    otherChargesOnTag: null,
     otherChargesTotal: pick([pricing], ['otherChargesAmount'], positive),
     diamondAmount: pick([pricing], ['diamondAmount'], positive),
     colorstoneAmount: pick([pricing], ['colorstoneAmount'], positive),

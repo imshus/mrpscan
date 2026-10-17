@@ -14,8 +14,10 @@
  *
  * The app's own files are loaded, not a mirror, through node's type
  * stripping with a resolve hook for the '@/' alias. Where the backend
- * checkout sits beside this app, the server's own invoiceMath.js is run on
- * the cart's lines too; without it those cases are skipped.
+ * checkout sits beside this app (or MRPSCAN_BACKEND_DIR names one), the
+ * server's own invoiceMath.js and invoicePieces.js are run on the request the
+ * cart builds too: its totals and its pieces, as POST /invoices/generate
+ * checks them; without them those cases are skipped.
  *
  * Run with:  node --test utils/__tests__/cartInvoice.test.mjs
  */
@@ -51,19 +53,32 @@ const {
   cartPieceLabel,
   formatCartPrice,
   isBillablePiece,
+  MAX_CART_PIECES,
   readCheckoutDetail,
   resolveCart,
   selectionInListOrder,
 } = await import('@/utils/cartInvoice');
 const { invoiceLinesInputFromPricing } = await import('@/utils/invoiceLines');
-const { buildInvoiceLines, roundHalfUp, sumLineAmounts } = await import('@/utils/moneyMath');
+const {
+  buildInvoiceLines,
+  computeGrandTotal,
+  computeInvoiceTax,
+  roundHalfUp,
+  sumLineAmounts,
+} = await import('@/utils/moneyMath');
 
-/** The server's invoice arithmetic, when the backend checkout is beside this app. */
-const SERVER_INVOICE_MATH = path.resolve(ROOT, '..', '..', 'backend', 'src', 'services', 'invoiceMath.js');
-const serverMath = existsSync(SERVER_INVOICE_MATH)
-  ? createRequire(import.meta.url)(SERVER_INVOICE_MATH)
-  : null;
-const NO_SERVER = serverMath ? false : 'backend checkout not found beside the app';
+/** The backend checkout: MRPSCAN_BACKEND_DIR, else the one beside this app. */
+const BACKEND = process.env.MRPSCAN_BACKEND_DIR || path.resolve(ROOT, '..', '..', 'backend');
+const serverModule = (name) => {
+  const file = path.join(BACKEND, 'src', 'services', name);
+  return existsSync(file) ? createRequire(import.meta.url)(file) : null;
+};
+/** The server's invoice arithmetic and its cart rules, when the backend has them. */
+const serverMath = serverModule('invoiceMath.js');
+const serverPieces = serverModule('invoicePieces.js');
+const NO_SERVER = serverMath ? false : `backend checkout not found at ${BACKEND}`;
+const NO_SERVER_PIECES =
+  serverMath && serverPieces ? false : `backend at ${BACKEND} has no services/invoicePieces.js (a build before carts)`;
 
 // ---- Two saved tags, as the wishlist keeps them (snapshot.pricing is the
 // breakdown the result card showed when the tag was saved).
@@ -112,7 +127,7 @@ RING_PRICING.ultimateMrp =
   RING_PRICING.labourAmount +
   RING_PRICING.otherChargesAmount;
 
-const wishlistItem = (id, { title, tagCode, itemName, karat, pricing, charges = [], remarks = '' }) => ({
+const wishlistItem = (id, { title, tagCode, itemName, karat, pricing, charges = [], remarks = '', scanId }) => ({
   id,
   title,
   tagCode,
@@ -129,6 +144,7 @@ const wishlistItem = (id, { title, tagCode, itemName, karat, pricing, charges = 
     colorstones: [],
     pricing,
     ultimateMrp: pricing.ultimateMrp,
+    ...(scanId ? { scanId } : {}),
   },
 });
 
@@ -138,6 +154,7 @@ const NECKLACE = wishlistItem('wl-1', {
   itemName: '22K Gold Necklace',
   karat: '22K',
   pricing: NECKLACE_PRICING,
+  scanId: 'scan-10432',
 });
 const RING = wishlistItem('wl-2', {
   title: 'Diamond',
@@ -349,8 +366,16 @@ test('invoice: the subtotal is the MRPs, each rounded once; the pieces sent are 
   assert.equal(invoice.subtotal, sumLineAmounts(invoice.rows));
   assert.equal(invoice.subtotal, NECKLACE.totalMrp + RING.totalMrp);
   assert.equal(invoice.subtotal, cartGrandTotal([{ mrp: NECKLACE.totalMrp }, { mrp: RING.totalMrp }]));
+  // The necklace was saved with its scan, so its piece names it; the ring
+  // (saved before scans were kept) leaves scan_id out.
   assert.deepEqual(invoice.pieces, [
-    { wishlist_item_id: 'wl-1', item_name: '22K Gold Necklace', tag_code: 'TAG-10432', mrp: NECKLACE.totalMrp },
+    {
+      wishlist_item_id: 'wl-1',
+      scan_id: 'scan-10432',
+      item_name: '22K Gold Necklace',
+      tag_code: 'TAG-10432',
+      mrp: NECKLACE.totalMrp,
+    },
     { wishlist_item_id: 'wl-2', item_name: 'Diamond Ring', tag_code: 'PK-1042', mrp: RING.totalMrp },
   ]);
   assert.equal(
@@ -363,6 +388,18 @@ test('invoice: one piece alone bills what its single-item invoice bills', () => 
   const invoice = buildCartInvoice([cartPieceFromWishlistItem(RING)]);
   assert.equal(invoice.subtotal, sumLineAmounts(singleItemLines(RING)));
   assert.equal(invoice.pieces.length, 1);
+});
+
+test('piece: the scan it was saved from rides along; text the server caps at 200 is clipped', () => {
+  assert.equal(cartPieceFromWishlistItem(NECKLACE).scanId, 'scan-10432');
+  assert.equal(cartPieceFromWishlistItem(RING).scanId, '');
+  const long = cartPieceFromWishlistItem({
+    ...RING,
+    snapshot: { ...RING.snapshot, scanData: { ...RING.snapshot.scanData, itemName: 'N'.repeat(260) } },
+  });
+  const [piece] = buildCartInvoice([long]).pieces;
+  assert.equal(piece.item_name.length, 200);
+  assert.equal(MAX_CART_PIECES, 50);
 });
 
 test('label: number, name and code; a code that is the name is not repeated', () => {
@@ -397,6 +434,107 @@ test("server: the cart's lines come to its subtotal, and only the discounted dia
     // The request's own totals pass the server's check.
     serverMath.checkClientTotals({ subtotal: invoice.subtotal }, figures);
   }
+});
+
+/** A third tag: a plain 18K bangle, labour per gram, wastage, no stones. */
+const BANGLE_PRICING = {
+  selectedKarat: '18K',
+  netWtGrams: 12.347,
+  goldBasePrice: 12.347 * 0.75 * 13000,
+  goldRatePerGram: 13000,
+  stoneRows: [],
+  labourAmount: 12.347 * 777,
+  wastagePercent: 5,
+  wastageWeightGrams: 0.617,
+  wastageRatePerGram: 9750,
+  wastageAmount: 0.617 * 9750,
+  otherChargesAmount: 0,
+};
+BANGLE_PRICING.ultimateMrp =
+  BANGLE_PRICING.goldBasePrice + BANGLE_PRICING.labourAmount + BANGLE_PRICING.wastageAmount;
+const BANGLE = wishlistItem('wl-3', {
+  title: 'Gold',
+  tagCode: 'BG-77',
+  itemName: '',
+  karat: '18K',
+  pricing: BANGLE_PRICING,
+  scanId: 'scan-77',
+});
+
+/**
+ * The request invoice-sheet.tsx sends for a cart: its lines, the totals
+ * useInvoiceComputation works out on them, and the cart's pieces.
+ */
+const cartRequest = (invoice, intraState) => {
+  const subtotal = sumLineAmounts(invoice.rows);
+  const gst = computeInvoiceTax(invoice.rows.map((row) => row.amount), 3, intraState).gst;
+  return {
+    customer_name: 'Meera Shah',
+    line_items: toRequestItems(invoice.rows),
+    subtotal,
+    gst_rate: 3,
+    gst_amount: gst,
+    grand_total: computeGrandTotal(subtotal, gst),
+    piece_count: invoice.pieces.length,
+    pieces: invoice.pieces,
+  };
+};
+
+test(
+  "server: a 2- and a 3-piece cart's request passes the totals check and the pieces rules",
+  { skip: NO_SERVER_PIECES },
+  () => {
+    for (const ids of [['wl-1', 'wl-2'], ['wl-2', 'wl-3', 'wl-1']]) {
+      const invoice = buildCartInvoice(resolveCart(ids, [NECKLACE, RING, BANGLE]).pieces);
+      for (const intraState of [true, false]) {
+        const body = cartRequest(invoice, intraState);
+        const figures = serverMath.computeInvoiceFigures({ lineItems: body.line_items, gstRate: 3, intraState });
+        // Subtotal, GST and grand total, each as the server works it out.
+        serverMath.checkClientTotals(body, figures);
+        assert.equal(figures.subtotalPaise, Math.round(body.subtotal * 100));
+        assert.equal(figures.gstPaise, Math.round(body.gst_amount * 100));
+        assert.equal(figures.grandPaise, Math.round(body.grand_total * 100));
+
+        const { pieceCount, pieces } = serverPieces.invoicePiecesOf(body, body.line_items.length);
+        assert.equal(pieceCount, ids.length);
+        assert.deepEqual(
+          pieces.map((piece) => [piece.wishlistItemId, piece.scanId, piece.itemName, piece.tagCode, piece.mrp]),
+          invoice.pieces.map((piece) => [
+            piece.wishlist_item_id,
+            piece.scan_id ?? '',
+            piece.item_name,
+            piece.tag_code,
+            piece.mrp,
+          ]),
+        );
+      }
+    }
+    // The bangle has no catalogue name: it bills under its wishlist title.
+    assert.equal(cartPieceFromWishlistItem(BANGLE).name, 'Gold');
+  },
+);
+
+test('server: a single scan sends no pieces and counts as one', { skip: NO_SERVER_PIECES }, () => {
+  const rows = singleItemLines(RING);
+  const subtotal = sumLineAmounts(rows);
+  const gst = computeInvoiceTax(rows.map((row) => row.amount), 3, true).gst;
+  const body = {
+    customer_name: 'Meera Shah',
+    line_items: toRequestItems(rows),
+    subtotal,
+    gst_rate: 3,
+    gst_amount: gst,
+    grand_total: computeGrandTotal(subtotal, gst),
+  };
+  serverMath.checkClientTotals(
+    body,
+    serverMath.computeInvoiceFigures({ lineItems: body.line_items, gstRate: 3, intraState: true }),
+  );
+  assert.deepEqual(serverPieces.invoicePiecesOf(body, body.line_items.length), { pieceCount: 1, pieces: null });
+});
+
+test('server: the cart is capped where the server caps it', { skip: NO_SERVER_PIECES }, () => {
+  assert.equal(MAX_CART_PIECES, serverPieces.MAX_CART_PIECES);
 });
 
 test('checkout: GET /history/checkouts/:id read as sent', () => {

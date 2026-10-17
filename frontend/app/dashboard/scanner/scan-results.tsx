@@ -102,6 +102,8 @@ export default function ScanResultsScreen() {
         colorstones,
         pricing: livePricing,           // ← correct backend MRP
         scanTimestamp: new Date().toISOString(),
+        // So its Wishlist history line, and a cart that bills it, name the scan.
+        scanId: useScannerStore.getState().scanId,
       });
       await addWishlistItem(item);
       setHasAdded(true);

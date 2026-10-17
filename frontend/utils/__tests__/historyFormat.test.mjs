@@ -17,14 +17,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  HISTORY_LIST_LIMIT,
   checkoutHistoryRow,
   formatHistoryPrice,
   formatHistoryWhen,
   groupIndianDigits,
-  historyRows,
   scanHistoryRow,
-  wishlistHistoryRow,
 } from '../historyFormat.ts';
 
 // 17 Oct 2026, 10:30 am local.
@@ -100,14 +97,6 @@ test('tag scan row: item, "TAG · when", price', () => {
   assert.equal(scanHistoryRow('x', NOW), null);
 });
 
-test('wishlist row: title, "Added when", MRP', () => {
-  assert.deepEqual(
-    wishlistHistoryRow({ id: 'w1', title: '22K Gold Ring', totalMrp: 45210.5, addedAt: at(17, 7, 24).toISOString() }, NOW),
-    { key: 'w1', title: '22K Gold Ring', sub: 'Added Today, 7:24 am', price: '₹ 45,211' },
-  );
-  assert.equal(wishlistHistoryRow({ id: 'w2', title: 'Ring', totalMrp: 1, addedAt: '' }, NOW).sub, '');
-});
-
 test('checkout row: pieces when counted, else the invoice number; when; grand total', () => {
   assert.deepEqual(
     checkoutHistoryRow(
@@ -124,11 +113,4 @@ test('checkout row: pieces when counted, else the invoice number; when; grand to
   assert.equal(checkoutHistoryRow({ _id: 'i4', invoiceNumber: 'INV-1', pieceCount: 0, grandTotal: 5 }, NOW).title, 'Invoice INV-1');
   assert.equal(checkoutHistoryRow({ _id: 'i5', grandTotal: 5 }, NOW).title, 'Invoice');
   assert.equal(checkoutHistoryRow(undefined, NOW), null);
-});
-
-test('rows: unreadable entries dropped, at most the list limit', () => {
-  const many = Array.from({ length: HISTORY_LIST_LIMIT + 5 }, (_, i) => ({ scanId: `s${i}`, finalMRP: i }));
-  const rows = historyRows([null, ...many], (item) => scanHistoryRow(item, NOW));
-  assert.equal(rows.length, HISTORY_LIST_LIMIT);
-  assert.equal(rows[0].key, 's0');
 });

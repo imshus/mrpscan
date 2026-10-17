@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { WishlistItem } from '@/types/wishlist';
 import { registerUserScopedStore, userScopedStorage } from '@/utils/userScopedStorage';
+import { wishlistAddPayload } from '@/utils/wishlistUtils';
 import {
   apiAddToWishlist,
   apiClearWishlist,
@@ -33,16 +34,8 @@ export const useWishlistStore = create<WishlistState>()(
         // Optimistic update first so the UI is instant
         set((state) => ({ items: [item, ...state.items] }));
         try {
-          await apiAddToWishlist({
-            itemId: item.id,
-            title: item.title,
-            tagCode: item.tagCode,
-            totalMrp: item.totalMrp,
-            priceBadge: item.priceBadge,
-            calculationRate: item.calculationRate,
-            scanTimestamp: item.scanTimestamp,
-            snapshot: item.snapshot,
-          });
+          // With the scan it came from, so its Wishlist history line links back.
+          await apiAddToWishlist(wishlistAddPayload(item));
         } catch {
           // Roll back on failure
           set((state) => ({ items: state.items.filter((i) => i.id !== item.id) }));

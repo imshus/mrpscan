@@ -16,6 +16,7 @@ import {
   cartGrandTotal,
   formatCartPrice,
   isBillablePiece,
+  MAX_CART_PIECES,
   resolveCart,
   type CheckoutDetail,
 } from '@/utils/cartInvoice';
@@ -153,6 +154,15 @@ export default function CartScreen() {
 
   const handleGenerate = () => {
     if (pieces.length === 0) return;
+    // The server bills at most this many on one invoice, and would refuse
+    // the whole cart only once the customer's details are filled in.
+    if (pieces.length > MAX_CART_PIECES) {
+      Alert.alert(
+        'Too many tags',
+        `One invoice can bill up to ${MAX_CART_PIECES} tags; this cart has ${pieces.length}. Go back to Wishlist and add fewer to the cart.`,
+      );
+      return;
+    }
     // A piece without its saved breakdown is named, not billed at a guess:
     // the invoice either bills every tag in the cart or none.
     const blocked = pieces.filter((piece) => !isBillablePiece(piece));
@@ -269,7 +279,11 @@ export default function CartScreen() {
         ))
       ) : (
         <Text style={styles.noPieces}>
-          This invoice was made before the app kept the tags it billed.
+          {/* Checkout history lists every invoice: one billed straight from a
+              scan result counts one piece and keeps no cart. */}
+          {past.pieceCount === 1
+            ? 'This invoice billed one scanned tag straight from its result, not a cart.'
+            : 'This invoice was made before the app kept the tags it billed.'}
         </Text>
       );
     return renderCard(

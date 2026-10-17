@@ -14,6 +14,13 @@ export interface WishlistItemSnapshot {
   pureWtGrams: number;
   effectivePurityPercent: number;
   usedLaborPurityOverride: boolean;
+  /**
+   * The scan it was priced from, when the app knew it (absent on items saved
+   * before it was kept). The server's Wishlist model has no field of its own
+   * for it, so it lives in the snapshot, which is stored whole; Wishlist
+   * history and a cart's invoice pieces link back to the scan by it.
+   */
+  scanId?: string;
 }
 
 export interface WishlistItem {

@@ -51,7 +51,8 @@ export interface WishlistHistoryDetail extends WishlistHistoryEntry {
 export interface CheckoutHistoryEntry {
   id: string;
   invoiceNumber: string;
-  pieceCount: number;
+  /** Null on an invoice issued before the server counted pieces. */
+  pieceCount: number | null;
   pieces: { itemName: string; tagCode: string; mrp: number }[];
   grandTotal: number;
   createdAt: string;
@@ -108,15 +109,4 @@ export function apiFetchScanHistoryItem(scanId: string, signal?: AbortSignal): P
 /** GET /history/wishlist/:id */
 export function apiFetchWishlistHistoryItem(id: string, signal?: AbortSignal): Promise<WishlistHistoryDetail | null> {
   return fetchHistoryItem(`/history/wishlist/${encodeURIComponent(id)}`, signal);
-}
-
-/**
- * GET /history/scans — the tags priced at the counter, the latest price per
- * tag. The owner's list is the shop's; an employee's is their own.
- */
-export async function apiFetchScanHistory(limit: number = HISTORY_LIST_LIMIT): Promise<ScanHistoryEntry[]> {
-  const res = await apiRequest<{ success: boolean; data?: { items?: ScanHistoryEntry[] } }>(
-    `/history/scans?limit=${encodeURIComponent(String(limit))}`,
-  );
-  return Array.isArray(res.data?.items) ? res.data.items : [];
 }

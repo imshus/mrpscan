@@ -120,20 +120,6 @@ export function scanHistoryRow(raw: unknown, now: Date = new Date()): HistoryRow
   };
 }
 
-/** A wishlist entry: its name, "Added Today, 7:24 am", and its MRP. */
-export function wishlistHistoryRow(
-  item: { id: string; title: string; totalMrp: number; addedAt: string },
-  now: Date = new Date(),
-): HistoryRow {
-  const when = formatHistoryWhen(item.addedAt, now);
-  return {
-    key: item.id,
-    title: item.title || 'Wishlist item',
-    sub: when ? `Added ${when}` : '',
-    price: formatHistoryPrice(item.totalMrp),
-  };
-}
-
 /**
  * An invoice from GET /invoices: "Cart · 2 items" when the server says how
  * many pieces were billed, "Invoice INV-…" for one issued before it counted
@@ -157,20 +143,6 @@ export function checkoutHistoryRow(raw: unknown, now: Date = new Date()): Histor
     sub: formatHistoryWhen(invoice.createdAt, now),
     price: formatHistoryPrice(invoice.grandTotal),
   };
-}
-
-/** Rows from a list of raw entries, dropping any that cannot be read, at most HISTORY_LIST_LIMIT. */
-export function historyRows<T>(
-  items: readonly T[],
-  toRow: (item: T) => HistoryRow | null,
-): HistoryRow[] {
-  const rows: HistoryRow[] = [];
-  for (const item of items) {
-    if (rows.length >= HISTORY_LIST_LIMIT) break;
-    const row = toRow(item);
-    if (row) rows.push(row);
-  }
-  return rows;
 }
 
 /* ==================== History pages: one list, a page at a time ====================

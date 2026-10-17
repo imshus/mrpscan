@@ -29,6 +29,8 @@ export interface CartPiece {
   tagCode: string;
   /** The MRP as the wishlist card shows it: whole rupees, half-up. */
   mrp: number;
+  /** The scan it was priced from ('' when the item was saved without one). */
+  scanId: string;
   /** The figures its invoice lines are built from; null when it cannot be billed. */
   lines: InvoiceLinesInput | null;
   /** Why it cannot be billed, as the cart says it; null when it can. */
@@ -122,6 +124,7 @@ export function cartPieceFromWishlistItem(item: WishlistItem): CartPiece {
     name: cartPieceName(item),
     tagCode: item.tagCode?.trim() || '',
     mrp: roundHalfUp(finite(item.totalMrp) ? item.totalMrp : 0),
+    scanId: item.snapshot?.scanId?.trim() || '',
   };
   const read = readBreakdown(item);
   if ('problem' in read) return { ...base, lines: null, problem: read.problem };
@@ -175,9 +178,21 @@ export function cartGrandTotal(pieces: readonly { mrp: number }[]): number {
   return pieces.reduce((sum, piece) => sum + roundHalfUp(piece.mrp), 0);
 }
 
+/**
+ * How many pieces one invoice may bill: POST /invoices/generate refuses a
+ * cart of more (backend invoice.controller MAX_CART_PIECES).
+ */
+export const MAX_CART_PIECES = 50;
+
+/** The longest text the server takes in a piece's fields (MAX_PIECE_TEXT). */
+const MAX_PIECE_TEXT = 200;
+const clip = (value: string) => value.slice(0, MAX_PIECE_TEXT);
+
 /** One billed piece as POST /invoices/generate takes it in `pieces`. */
 export interface CartInvoicePiecePayload {
   wishlist_item_id: string;
+  /** The scan the piece was priced from; left out when unknown. */
+  scan_id?: string;
   item_name: string;
   tag_code: string;
   /** What the piece bills: the sum of its own lines (its MRP, rounded). */
@@ -221,9 +236,12 @@ export function buildCartInvoice(pieces: readonly BillableCartPiece[]): CartInvo
       rows.push({ ...row, key: `piece-${index}-${row.key}`, note });
     });
     payload.push({
-      wishlist_item_id: piece.id,
-      item_name: piece.name,
-      tag_code: piece.tagCode,
+      wishlist_item_id: clip(piece.id),
+      ...(piece.scanId ? { scan_id: clip(piece.scanId) } : {}),
+      // Text the server would refuse past 200 characters: the whole invoice
+      // with it, for a name it only lists.
+      item_name: clip(piece.name),
+      tag_code: clip(piece.tagCode),
       mrp: sumLineAmounts(own),
     });
   });

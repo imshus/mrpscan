@@ -22,11 +22,13 @@ import { BottomNav, BOTTOM_NAV_HEIGHT, getBottomNavBottom } from '@/components/d
 import { ScreenBackHeader } from '@/components/scanner/ScreenBackHeader';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
+import { useCartStore } from '@/store/cartStore';
 import { useInvoiceStore } from '@/store/invoiceStore';
 import { useScannerStore } from '@/store/scannerStore';
 import { useCartInvoice } from '@/hooks/useCartInvoice';
 import { useInvoiceComputation } from '@/hooks/useInvoiceComputation';
 import { getBusinessProfile } from '@/utils/businessProfile';
+import type { CartInvoice } from '@/utils/cartInvoice';
 import type { InvoiceLineItemRow } from '@/utils/invoiceCalculation';
 import { formatItemIdentity, resolveItemIdentity } from '@/utils/itemIdentity';
 import { HSN_JEWELLERY } from '@/components/invoice/InvoiceSheet';
@@ -108,7 +110,15 @@ export default function InvoiceSheetScreen() {
 
   // Opened from the cart: one invoice for all its pieces, each with its own
   // lines. Opened from a scan result: that scan, exactly as before.
-  const { isCart, invoice: cartInvoice } = useCartInvoice();
+  const { isCart, invoice: liveCartInvoice } = useCartInvoice();
+  // Once its invoice is generated the cart is emptied (the wishlist keeps
+  // its items), so going back and generating again cannot bill the same
+  // pieces twice. This screen keeps the cart it billed, for Share, Email and
+  // the rest, which reuse that one invoice. A ref, set before the cart is
+  // emptied, so no render in between sees an empty cart.
+  const billedCartRef = useRef<CartInvoice | null>(null);
+  const cartInvoice = billedCartRef.current ?? liveCartInvoice;
+  const clearCart = useCartStore((state) => state.clear);
 
   const {
     lineItemRows,
@@ -219,6 +229,10 @@ export default function InvoiceSheetScreen() {
   const generateOnce = async (): Promise<GenerateInvoiceResponse> => {
     if (generated) return generated;
     const result = await apiGenerateInvoice(invoicePayload);
+    if (isCart && cartInvoice) {
+      billedCartRef.current = cartInvoice;
+      clearCart();
+    }
     setGenerated(result);
     return result;
   };

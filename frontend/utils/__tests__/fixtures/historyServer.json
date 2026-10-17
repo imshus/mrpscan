@@ -1,0 +1,896 @@
+{
+  "pricedScan": {
+    "id": "6ad3227677684ae1e35e9baa",
+    "scanId": "scan-fx-priced",
+    "itemName": "Gold Necklace",
+    "tagCode": "NK10432",
+    "finalMRP": 149790,
+    "status": "priced",
+    "createdAt": "2026-10-17T07:23:34.686Z",
+    "updatedAt": "2026-10-17T07:23:34.723Z",
+    "details": {
+      "jewelleryType": "DIAMOND",
+      "grossWeight": "10.500",
+      "netWeight": "10.000",
+      "karat": "22K",
+      "purity": "916",
+      "serialNumber": "NK10432",
+      "itemCode": "NK",
+      "packetCode": "PK-77",
+      "tagIdentifiers": [
+        "NK10432"
+      ],
+      "diamonds": [
+        {
+          "weight": "0.25",
+          "unit": "ct",
+          "pieces": "12",
+          "shape": "RD",
+          "quality": "VVS-EF",
+          "color": "EF",
+          "clarity": "VVS",
+          "rate": "50000",
+          "packetCode": "P1"
+        }
+      ],
+      "colorstones": [
+        {
+          "type": "Ruby",
+          "weight": "0.10",
+          "unit": "ct",
+          "pieces": "3",
+          "shape": "",
+          "quality": "",
+          "color": "RED",
+          "clarity": "SI",
+          "rate": "2000",
+          "packetCode": ""
+        }
+      ],
+      "labour": "LBR 850",
+      "wastage": "8%",
+      "otherCharges": "500",
+      "rawText": "NK10432\nGR WT 10.500 NT WT 10.000\n22K 916\nLBR 850\nWST 8%\nHM 500"
+    },
+    "pricing": {
+      "inputs": {
+        "jewelleryType": "Diamond",
+        "grossWt": 10.5,
+        "netWt": 10,
+        "purityKarat": "22K",
+        "customPurityPercent": null,
+        "calculationMode": "cash",
+        "diamonds": [
+          {
+            "weight": 0.25,
+            "rate": 50000,
+            "discountPercent": 0,
+            "unit": "ct"
+          }
+        ],
+        "colorstones": [
+          {
+            "weight": 0.1,
+            "rate": 2000,
+            "unit": "ct"
+          }
+        ],
+        "labourChargeAmount": 850,
+        "labourChargeUnit": "Per Gram",
+        "labourWeightBasis": "net",
+        "wastagePercent": 8,
+        "wastageWeightBasis": "gross",
+        "otherCharges": 500,
+        "itemCode": "NK10432",
+        "tagIdentifiers": [
+          "NK10432"
+        ]
+      },
+      "breakdown": {
+        "diamondAmount": 12500,
+        "colorstoneAmount": 200,
+        "pureWeight": 9.16,
+        "goldRateApplied": 12900,
+        "goldAmount": 118164,
+        "labourAmount": 8500,
+        "labourChargeType": "AMOUNT_MANUAL",
+        "wastageCode": "",
+        "wastagePercent": 8,
+        "wastageWeightBasis": "gross",
+        "wastageWeightGrams": 0.84,
+        "wastageRatePerGram": 11816.4,
+        "wastageAmount": 9925.776,
+        "otherCharges": 500,
+        "subtotal": 149789.776,
+        "netWeightUsed": 10,
+        "netWeightEstimated": false,
+        "goldRatePer10g": 129000,
+        "effectivePurityPercent": 91.6,
+        "purityAdjustedGoldRatePerGram": 11816.4,
+        "diamondLineItems": [
+          {
+            "index": 1,
+            "weight": 0.25,
+            "rate": 50000,
+            "discountPercent": 0,
+            "amount": 12500
+          }
+        ],
+        "colorstoneLineItems": [
+          {
+            "index": 1,
+            "weight": 0.1,
+            "rate": 2000,
+            "amount": 200
+          }
+        ],
+        "labourRate": 850,
+        "labourUnit": "Per Gram",
+        "labourWeightBasis": "net",
+        "finalMRP": 149789.776,
+        "finalMRPRounded": 149790
+      },
+      "rules": 3
+    }
+  },
+  "readScan": {
+    "id": "6ad3227677684ae1e35e9bab",
+    "scanId": "scan-fx-read",
+    "itemName": "Gold Necklace",
+    "tagCode": "NK10432",
+    "finalMRP": 140780,
+    "status": "read",
+    "createdAt": "2026-10-17T07:23:34.791Z",
+    "updatedAt": "2026-10-17T07:23:34.791Z",
+    "details": {
+      "jewelleryType": "DIAMOND",
+      "grossWeight": "10.500",
+      "netWeight": "10.000",
+      "karat": "22K",
+      "purity": "916",
+      "serialNumber": "NK10432",
+      "itemCode": "NK",
+      "packetCode": "PK-77",
+      "tagIdentifiers": [
+        "NK10432"
+      ],
+      "diamonds": [
+        {
+          "weight": "0.25",
+          "unit": "ct",
+          "pieces": "12",
+          "shape": "RD",
+          "quality": "VVS-EF",
+          "color": "EF",
+          "clarity": "VVS",
+          "rate": "50000",
+          "packetCode": "P1"
+        }
+      ],
+      "colorstones": [
+        {
+          "type": "Ruby",
+          "weight": "0.10",
+          "unit": "ct",
+          "pieces": "3",
+          "shape": "",
+          "quality": "",
+          "color": "RED",
+          "clarity": "SI",
+          "rate": "2000",
+          "packetCode": ""
+        }
+      ],
+      "labour": "LBR 850",
+      "wastage": "8%",
+      "otherCharges": "500",
+      "rawText": "NK10432\nGR WT 10.500 NT WT 10.000\n22K 916\nLBR 850\nWST 8%\nHM 500"
+    },
+    "pricing": null
+  },
+  "unpricedScan": {
+    "id": "6ad3227677684ae1e35e9bac",
+    "scanId": "scan-fx-unpriced",
+    "itemName": "22K Diamond Jewellery",
+    "tagCode": "ZZ-9",
+    "finalMRP": null,
+    "status": "read",
+    "createdAt": "2026-10-17T07:23:34.879Z",
+    "updatedAt": "2026-10-17T07:23:34.879Z",
+    "details": {
+      "jewelleryType": "DIAMOND",
+      "grossWeight": "10.500",
+      "netWeight": "10.000",
+      "karat": "22K",
+      "purity": "916",
+      "serialNumber": "ZZ-9",
+      "itemCode": "",
+      "packetCode": "PK-77",
+      "tagIdentifiers": [
+        "ZZ-9"
+      ],
+      "diamonds": [
+        {
+          "weight": "0.25",
+          "unit": "ct",
+          "pieces": "12",
+          "shape": "RD",
+          "quality": "VVS-EF",
+          "color": "EF",
+          "clarity": "VVS",
+          "rate": "50000",
+          "packetCode": "P1"
+        }
+      ],
+      "colorstones": [
+        {
+          "type": "Ruby",
+          "weight": "0.10",
+          "unit": "ct",
+          "pieces": "3",
+          "shape": "",
+          "quality": "",
+          "color": "RED",
+          "clarity": "SI",
+          "rate": "2000",
+          "packetCode": ""
+        }
+      ],
+      "labour": "LBR 850",
+      "wastage": "8%",
+      "otherCharges": "500",
+      "rawText": "ZZ-9\nGR WT 10.500 NT WT 10.000\n22K 916\nLBR 850\nWST 8%\nHM 500"
+    },
+    "pricing": null
+  },
+  "scanList": {
+    "items": [
+      {
+        "id": "6ad3227677684ae1e35e9bac",
+        "scanId": "scan-fx-unpriced",
+        "itemName": "22K Diamond Jewellery",
+        "tagCode": "ZZ-9",
+        "finalMRP": null,
+        "status": "read",
+        "createdAt": "2026-10-17T07:23:34.879Z"
+      },
+      {
+        "id": "6ad3227677684ae1e35e9bab",
+        "scanId": "scan-fx-read",
+        "itemName": "Gold Necklace",
+        "tagCode": "NK10432",
+        "finalMRP": 140780,
+        "status": "read",
+        "createdAt": "2026-10-17T07:23:34.791Z"
+      },
+      {
+        "id": "6ad3227677684ae1e35e9baa",
+        "scanId": "scan-fx-priced",
+        "itemName": "Gold Necklace",
+        "tagCode": "NK10432",
+        "finalMRP": 149790,
+        "status": "priced",
+        "createdAt": "2026-10-17T07:23:34.686Z"
+      }
+    ],
+    "nextCursor": null
+  },
+  "wishlistPost": {
+    "itemId": "wl-nk10432-fixture",
+    "title": "Diamond",
+    "tagCode": "NK10432",
+    "totalMrp": 149790,
+    "priceBadge": "₹ 1,49,790",
+    "calculationRate": "cash",
+    "scanTimestamp": "2026-10-17T05:00:00.000Z",
+    "snapshot": {
+      "scanData": {
+        "sku": "NK10432",
+        "itemName": "Gold Necklace",
+        "itemCode": "NK10432",
+        "category": "Diamond",
+        "grossWt": "10.500",
+        "netWt": "10.000",
+        "pureWt": "",
+        "tunch": "916",
+        "karat": "22K",
+        "customPurityPercent": "",
+        "goldRate": "",
+        "diamondWeight": "",
+        "diamondColor": "",
+        "diamondClarity": "",
+        "diamondQuality": "",
+        "diamondRate": "",
+        "diamondPieces": "",
+        "diamondShape": "",
+        "packetCode": "PK-77",
+        "colorstoneWeight": "",
+        "colorstoneColor": "",
+        "colorstoneClarity": "",
+        "colorstoneQuality": "",
+        "colorstoneRate": "",
+        "labourPurityPercent": "",
+        "labourChargeAmount": "850",
+        "labourChargeUnit": "Per Gram",
+        "labourWeightBasis": "net",
+        "wastageWeightBasis": "gross",
+        "calculationRate": "cash",
+        "otherChargesAmount": "",
+        "otherChargesItems": [
+          {
+            "id": "c1",
+            "name": "Hallmark",
+            "amount": 500
+          }
+        ],
+        "otherChargesRemarks": "",
+        "diamondAmount": "",
+        "clubDiamonds": false,
+        "clubColorstones": false,
+        "clubbedDiamondsBackup": "",
+        "clubbedColorstonesBackup": "",
+        "wastagePercent": "8"
+      },
+      "structuredData": {
+        "serialNumber": {
+          "value": "NK10432",
+          "confidence": 95
+        },
+        "packetCode": {
+          "value": "PK-77",
+          "confidence": 95
+        },
+        "grossWeight": {
+          "value": "10.500",
+          "confidence": 95
+        },
+        "netWeight": {
+          "value": "10.000",
+          "confidence": 95
+        },
+        "purity": {
+          "value": "916",
+          "confidence": 95
+        },
+        "karat": {
+          "value": "22K",
+          "confidence": 95
+        },
+        "labour": {
+          "value": "LBR 850",
+          "confidence": 95
+        },
+        "wastage": {
+          "value": "8%",
+          "confidence": 95
+        },
+        "otherCharges": {
+          "value": "500",
+          "confidence": 95
+        },
+        "diamonds": [
+          {
+            "shape": {
+              "value": "RD",
+              "confidence": 95
+            },
+            "packetCode": {
+              "value": "P1",
+              "confidence": 95
+            },
+            "weight": {
+              "value": "0.25",
+              "confidence": 95
+            },
+            "unit": {
+              "value": "ct",
+              "confidence": 95
+            },
+            "pieces": {
+              "value": "12",
+              "confidence": 95
+            },
+            "rate": {
+              "value": "50000",
+              "confidence": 95
+            },
+            "quality": {
+              "value": "VVS-EF",
+              "confidence": 95
+            },
+            "color": {
+              "value": "EF",
+              "confidence": 95
+            },
+            "clarity": {
+              "value": "VVS",
+              "confidence": 95
+            }
+          },
+          {
+            "shape": {
+              "value": "",
+              "confidence": 0
+            },
+            "packetCode": {
+              "value": "",
+              "confidence": 0
+            },
+            "weight": {
+              "value": "",
+              "confidence": 0
+            },
+            "unit": {
+              "value": "",
+              "confidence": 0
+            },
+            "pieces": {
+              "value": "",
+              "confidence": 0
+            },
+            "rate": {
+              "value": "",
+              "confidence": 0
+            },
+            "quality": {
+              "value": "",
+              "confidence": 0
+            },
+            "color": {
+              "value": "",
+              "confidence": 0
+            },
+            "clarity": {
+              "value": "",
+              "confidence": 0
+            }
+          }
+        ],
+        "colorstones": [
+          {
+            "type": {
+              "value": "Ruby",
+              "confidence": 95
+            },
+            "weight": {
+              "value": "0.10",
+              "confidence": 95
+            },
+            "unit": {
+              "value": "ct",
+              "confidence": 95
+            },
+            "pieces": {
+              "value": "3",
+              "confidence": 95
+            },
+            "rate": {
+              "value": "2000",
+              "confidence": 95
+            },
+            "quality": {
+              "value": "",
+              "confidence": 0
+            },
+            "color": {
+              "value": "RED",
+              "confidence": 95
+            },
+            "clarity": {
+              "value": "SI",
+              "confidence": 95
+            }
+          }
+        ]
+      },
+      "selectedType": "Diamond",
+      "diamonds": [
+        {
+          "stoneType": "diamond",
+          "weight": "0.25",
+          "unit": "ct",
+          "shape": "RD",
+          "packetCode": "P1",
+          "pieces": "12",
+          "color": "EF",
+          "clarity": "VVS",
+          "quality": "VVS-EF",
+          "rate": "50000",
+          "discountPercent": "0"
+        }
+      ],
+      "colorstones": [
+        {
+          "stoneType": "colorstone",
+          "weight": "0.10",
+          "unit": "ct",
+          "pieces": "3",
+          "color": "RED",
+          "clarity": "SI",
+          "quality": "",
+          "rate": "2000"
+        }
+      ],
+      "pricing": {
+        "grossWtDisplay": "10.500",
+        "netWtGrams": 10,
+        "netWtDisplay": "10 g",
+        "netWeightEstimated": false,
+        "selectedKarat": "22K",
+        "effectivePurityPercent": 91.60000000000001,
+        "puritySource": "karatMapping",
+        "pureWtGrams": 9.16,
+        "pureWtDisplay": "9.16 g",
+        "goldRatePerGram": 12900,
+        "goldBasePrice": 118164,
+        "goldBasePriceDisplay": "",
+        "stoneRows": [
+          {
+            "sequenceIndex": 0,
+            "displayTitle": "Diamond 1",
+            "stoneType": "diamond",
+            "rate": "₹50000/ct",
+            "quality": "VVS-EF",
+            "weight": "0.25 ct",
+            "amount": 12500,
+            "amountDisplay": "₹12,500"
+          },
+          {
+            "sequenceIndex": 1,
+            "displayTitle": "Colorstone 1",
+            "stoneType": "colorstone",
+            "rate": "₹2000/ct",
+            "quality": "—",
+            "weight": "0.1 ct",
+            "amount": 200,
+            "amountDisplay": "₹200"
+          }
+        ],
+        "totalStoneAmount": 12700,
+        "diamondAmount": 12500,
+        "colorstoneAmount": 200,
+        "labourInputMode": "perGram",
+        "usePercentageMode": false,
+        "useFixedAmountMode": false,
+        "labourAmount": 8500,
+        "labourDisplay": "",
+        "wastageCode": "",
+        "wastagePercent": 8,
+        "wastageWeightGrams": 0.84,
+        "wastageWeightBasis": "gross",
+        "wastageRatePerGram": 11816.4,
+        "wastageAmount": 9925.776,
+        "wastageDisplay": "",
+        "otherChargesAmount": 500,
+        "otherChargesDisplay": "",
+        "ultimateMrp": 149789.776,
+        "ultimateMrpDisplay": ""
+      },
+      "ultimateMrp": 149789.776,
+      "goldBasePrice": 118164,
+      "goldRatePerGram": 12900,
+      "pureWtGrams": 9.16,
+      "effectivePurityPercent": 91.6,
+      "usedLaborPurityOverride": false,
+      "scanId": "scan-fx-priced"
+    },
+    "scanId": "scan-fx-priced",
+    "itemName": "Gold Necklace"
+  },
+  "wishlistList": {
+    "items": [
+      {
+        "id": "6ad3227777684ae1e35e9bae",
+        "itemName": "Gold Necklace",
+        "tagCode": "NK10432",
+        "mrp": 149790,
+        "createdAt": "2026-10-17T07:23:35.590Z"
+      }
+    ],
+    "nextCursor": null
+  },
+  "wishlistEntry": {
+    "id": "6ad3227777684ae1e35e9bae",
+    "wishlistItemId": "wl-nk10432-fixture",
+    "scanId": "scan-fx-priced",
+    "itemName": "Gold Necklace",
+    "tagCode": "NK10432",
+    "mrp": 149790,
+    "title": "Diamond",
+    "priceBadge": "₹ 1,49,790",
+    "calculationRate": "cash",
+    "scanTimestamp": "2026-10-17T05:00:00.000Z",
+    "createdAt": "2026-10-17T07:23:35.590Z",
+    "snapshot": {
+      "scanData": {
+        "sku": "NK10432",
+        "itemName": "Gold Necklace",
+        "itemCode": "NK10432",
+        "category": "Diamond",
+        "grossWt": "10.500",
+        "netWt": "10.000",
+        "pureWt": "",
+        "tunch": "916",
+        "karat": "22K",
+        "customPurityPercent": "",
+        "goldRate": "",
+        "diamondWeight": "",
+        "diamondColor": "",
+        "diamondClarity": "",
+        "diamondQuality": "",
+        "diamondRate": "",
+        "diamondPieces": "",
+        "diamondShape": "",
+        "packetCode": "PK-77",
+        "colorstoneWeight": "",
+        "colorstoneColor": "",
+        "colorstoneClarity": "",
+        "colorstoneQuality": "",
+        "colorstoneRate": "",
+        "labourPurityPercent": "",
+        "labourChargeAmount": "850",
+        "labourChargeUnit": "Per Gram",
+        "labourWeightBasis": "net",
+        "wastageWeightBasis": "gross",
+        "calculationRate": "cash",
+        "otherChargesAmount": "",
+        "otherChargesItems": [
+          {
+            "id": "c1",
+            "name": "Hallmark",
+            "amount": 500
+          }
+        ],
+        "otherChargesRemarks": "",
+        "diamondAmount": "",
+        "clubDiamonds": false,
+        "clubColorstones": false,
+        "clubbedDiamondsBackup": "",
+        "clubbedColorstonesBackup": "",
+        "wastagePercent": "8"
+      },
+      "structuredData": {
+        "serialNumber": {
+          "value": "NK10432",
+          "confidence": 95
+        },
+        "packetCode": {
+          "value": "PK-77",
+          "confidence": 95
+        },
+        "grossWeight": {
+          "value": "10.500",
+          "confidence": 95
+        },
+        "netWeight": {
+          "value": "10.000",
+          "confidence": 95
+        },
+        "purity": {
+          "value": "916",
+          "confidence": 95
+        },
+        "karat": {
+          "value": "22K",
+          "confidence": 95
+        },
+        "labour": {
+          "value": "LBR 850",
+          "confidence": 95
+        },
+        "wastage": {
+          "value": "8%",
+          "confidence": 95
+        },
+        "otherCharges": {
+          "value": "500",
+          "confidence": 95
+        },
+        "diamonds": [
+          {
+            "shape": {
+              "value": "RD",
+              "confidence": 95
+            },
+            "packetCode": {
+              "value": "P1",
+              "confidence": 95
+            },
+            "weight": {
+              "value": "0.25",
+              "confidence": 95
+            },
+            "unit": {
+              "value": "ct",
+              "confidence": 95
+            },
+            "pieces": {
+              "value": "12",
+              "confidence": 95
+            },
+            "rate": {
+              "value": "50000",
+              "confidence": 95
+            },
+            "quality": {
+              "value": "VVS-EF",
+              "confidence": 95
+            },
+            "color": {
+              "value": "EF",
+              "confidence": 95
+            },
+            "clarity": {
+              "value": "VVS",
+              "confidence": 95
+            }
+          },
+          {
+            "shape": {
+              "value": "",
+              "confidence": 0
+            },
+            "packetCode": {
+              "value": "",
+              "confidence": 0
+            },
+            "weight": {
+              "value": "",
+              "confidence": 0
+            },
+            "unit": {
+              "value": "",
+              "confidence": 0
+            },
+            "pieces": {
+              "value": "",
+              "confidence": 0
+            },
+            "rate": {
+              "value": "",
+              "confidence": 0
+            },
+            "quality": {
+              "value": "",
+              "confidence": 0
+            },
+            "color": {
+              "value": "",
+              "confidence": 0
+            },
+            "clarity": {
+              "value": "",
+              "confidence": 0
+            }
+          }
+        ],
+        "colorstones": [
+          {
+            "type": {
+              "value": "Ruby",
+              "confidence": 95
+            },
+            "weight": {
+              "value": "0.10",
+              "confidence": 95
+            },
+            "unit": {
+              "value": "ct",
+              "confidence": 95
+            },
+            "pieces": {
+              "value": "3",
+              "confidence": 95
+            },
+            "rate": {
+              "value": "2000",
+              "confidence": 95
+            },
+            "quality": {
+              "value": "",
+              "confidence": 0
+            },
+            "color": {
+              "value": "RED",
+              "confidence": 95
+            },
+            "clarity": {
+              "value": "SI",
+              "confidence": 95
+            }
+          }
+        ]
+      },
+      "selectedType": "Diamond",
+      "diamonds": [
+        {
+          "stoneType": "diamond",
+          "weight": "0.25",
+          "unit": "ct",
+          "shape": "RD",
+          "packetCode": "P1",
+          "pieces": "12",
+          "color": "EF",
+          "clarity": "VVS",
+          "quality": "VVS-EF",
+          "rate": "50000",
+          "discountPercent": "0"
+        }
+      ],
+      "colorstones": [
+        {
+          "stoneType": "colorstone",
+          "weight": "0.10",
+          "unit": "ct",
+          "pieces": "3",
+          "color": "RED",
+          "clarity": "SI",
+          "quality": "",
+          "rate": "2000"
+        }
+      ],
+      "pricing": {
+        "grossWtDisplay": "10.500",
+        "netWtGrams": 10,
+        "netWtDisplay": "10 g",
+        "netWeightEstimated": false,
+        "selectedKarat": "22K",
+        "effectivePurityPercent": 91.60000000000001,
+        "puritySource": "karatMapping",
+        "pureWtGrams": 9.16,
+        "pureWtDisplay": "9.16 g",
+        "goldRatePerGram": 12900,
+        "goldBasePrice": 118164,
+        "goldBasePriceDisplay": "",
+        "stoneRows": [
+          {
+            "sequenceIndex": 0,
+            "displayTitle": "Diamond 1",
+            "stoneType": "diamond",
+            "rate": "₹50000/ct",
+            "quality": "VVS-EF",
+            "weight": "0.25 ct",
+            "amount": 12500,
+            "amountDisplay": "₹12,500"
+          },
+          {
+            "sequenceIndex": 1,
+            "displayTitle": "Colorstone 1",
+            "stoneType": "colorstone",
+            "rate": "₹2000/ct",
+            "quality": "—",
+            "weight": "0.1 ct",
+            "amount": 200,
+            "amountDisplay": "₹200"
+          }
+        ],
+        "totalStoneAmount": 12700,
+        "diamondAmount": 12500,
+        "colorstoneAmount": 200,
+        "labourInputMode": "perGram",
+        "usePercentageMode": false,
+        "useFixedAmountMode": false,
+        "labourAmount": 8500,
+        "labourDisplay": "",
+        "wastageCode": "",
+        "wastagePercent": 8,
+        "wastageWeightGrams": 0.84,
+        "wastageWeightBasis": "gross",
+        "wastageRatePerGram": 11816.4,
+        "wastageAmount": 9925.776,
+        "wastageDisplay": "",
+        "otherChargesAmount": 500,
+        "otherChargesDisplay": "",
+        "ultimateMrp": 149789.776,
+        "ultimateMrpDisplay": ""
+      },
+      "ultimateMrp": 149789.776,
+      "goldBasePrice": 118164,
+      "goldRatePerGram": 12900,
+      "pureWtGrams": 9.16,
+      "effectivePurityPercent": 91.6,
+      "usedLaborPurityOverride": false,
+      "scanId": "scan-fx-priced"
+    }
+  }
+}
