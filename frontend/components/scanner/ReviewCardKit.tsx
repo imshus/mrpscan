@@ -17,8 +17,9 @@ import { Colors, Gradients, Radius } from '@/constants/theme';
 /**
  * Presentational primitives for the Scanner Review / Final Result screens,
  * matching design-mockup styles.css lines 1295-1461 (floating card system,
- * metal tiles, amount tiles, footer buttons). Used ONLY by the review/final
- * screen tree — do not import from other areas.
+ * metal tiles, amount tiles, footer buttons). Used by the review/final screen
+ * tree, and by History's read-only tag details (components/history), which
+ * are meant to look like that card — do not import from other areas.
  */
 
 /** Splits a "₹58,685" display string into rupee sign + number for styling. */

@@ -69,15 +69,21 @@ export function groupIndianDigits(digits: string): string {
 }
 
 /**
- * "₹ 82,694": whole rupees, half-up, Indian grouping. The figure is snapped
- * to a millionth of a rupee first, so a float a hair under .50 still rounds
- * up as the price it stands for does. Missing or unreadable is "—".
+ * Whole rupees, half-up. The figure is snapped to a millionth of a rupee
+ * first, so a float a hair under .50 still rounds up as the price it stands
+ * for does. The tag details page (utils/historyDetails) rounds its tiles'
+ * figures with this too.
  */
+export function roundRupees(amount: number): number {
+  const snapped = Math.round(amount * 1e6) / 1e6;
+  return snapped < 0 ? -Math.round(-snapped) : Math.round(snapped);
+}
+
+/** "₹ 82,694": whole rupees (roundRupees), Indian grouping. Missing or unreadable is "—". */
 export function formatHistoryPrice(value: unknown): string {
   const amount = typeof value === 'string' && value.trim() ? Number(value) : value;
   if (typeof amount !== 'number' || !Number.isFinite(amount)) return '—';
-  const snapped = Math.round(amount * 1e6) / 1e6;
-  const rounded = snapped < 0 ? -Math.round(-snapped) : Math.round(snapped);
+  const rounded = roundRupees(amount);
   const sign = rounded < 0 ? '-' : '';
   return `₹ ${sign}${groupIndianDigits(String(Math.abs(rounded)))}`;
 }
@@ -163,6 +169,90 @@ export function historyRows<T>(
     if (rows.length >= HISTORY_LIST_LIMIT) break;
     const row = toRow(item);
     if (row) rows.push(row);
+  }
+  return rows;
+}
+
+/* ==================== History pages: one list, a page at a time ====================
+ *
+ * Settings → History's rows each open a page of their own (Tag scan history,
+ * Wishlist history, Checkout history), read from GET /history/scans,
+ * /history/wishlist and /history/checkouts a page at a time (utils/historyApi
+ * apiFetch*HistoryPage). Their rows look like the ones above and also carry
+ * what a tap opens.
+ */
+
+/** A row on a history page, with what tapping it opens; '' when the entry carries nothing to open. */
+export interface HistoryPageRow extends HistoryRow {
+  id: string;
+}
+
+/**
+ * A tag (GET /history/scans): as scanHistoryRow, opening its scan id. A tag
+ * read when scanning began and never priced (status 'read', finalMRP null)
+ * shows "—" for its price.
+ */
+export function scanPageRow(raw: unknown, now: Date = new Date()): HistoryPageRow | null {
+  const item = asRecord(raw);
+  const row = scanHistoryRow(raw, now);
+  if (!item || !row) return null;
+  return { ...row, key: readString(item, 'id') || row.key, id: readString(item, 'scanId') };
+}
+
+/** A wishlist add (GET /history/wishlist): its name, "Added Today, 7:24 am", and the MRP it was added at. */
+export function wishlistPageRow(raw: unknown, now: Date = new Date()): HistoryPageRow | null {
+  const item = asRecord(raw);
+  if (!item) return null;
+  const id = readString(item, 'id');
+  const when = formatHistoryWhen(item.createdAt, now);
+  return {
+    key: id || `${readString(item, 'tagCode')}-${readString(item, 'createdAt')}`,
+    id,
+    title: readString(item, 'itemName') || 'Wishlist item',
+    sub: when ? `Added ${when}` : '',
+    price: formatHistoryPrice(item.mrp),
+  };
+}
+
+/**
+ * A checkout (GET /history/checkouts): as checkoutHistoryRow — "Cart · 2
+ * items", counted from the pieces listed when pieceCount is missing —
+ * opening its invoice id.
+ */
+export function checkoutPageRow(raw: unknown, now: Date = new Date()): HistoryPageRow | null {
+  const invoice = asRecord(raw);
+  if (!invoice) return null;
+  const counted = Number(invoice.pieceCount);
+  const pieceCount =
+    Number.isInteger(counted) && counted > 0
+      ? counted
+      : Array.isArray(invoice.pieces)
+        ? invoice.pieces.length
+        : 0;
+  const row = checkoutHistoryRow({ ...invoice, pieceCount }, now);
+  if (!row) return null;
+  const id = readString(invoice, 'id');
+  return { ...row, key: id || row.key, id };
+}
+
+/**
+ * The next page under the rows already shown: every entry the page carries
+ * that can be read, and none shown already — an entry written while the list
+ * was open can push one from the end of a page onto the start of the next.
+ */
+export function appendHistoryPage(
+  shown: readonly HistoryPageRow[],
+  items: readonly unknown[],
+  toRow: (item: unknown, now: Date) => HistoryPageRow | null,
+  now: Date = new Date(),
+): HistoryPageRow[] {
+  const seen = new Set(shown.map((row) => row.key));
+  const rows = [...shown];
+  for (const item of items) {
+    const row = toRow(item, now);
+    if (!row || seen.has(row.key)) continue;
+    seen.add(row.key);
+    rows.push(row);
   }
   return rows;
 }
