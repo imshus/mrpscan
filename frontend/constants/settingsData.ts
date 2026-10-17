@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react-native';
 import {
   ClipboardCheck,
+  Clock,
   Crown,
   FileText,
   Gift,
@@ -39,7 +40,7 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     route: '/dashboard/masters',
   },
   // 'rate-control' (Rate Control Panel) is intentionally not listed — the
-  // design-mockup settings menu has exactly six items. The route still exists
+  // design-mockup settings menu does not have it. The route still exists
   // at /dashboard/rate-control; re-add an entry here to surface it again.
   {
     id: 'employee',
@@ -47,15 +48,24 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     icon: UserPlus,
     route: '/dashboard/employees',
   },
+  // MPIN Manager took Password Manager's place, as the mockup's menu has it.
+  // The password screen is still at /dashboard/password-manager, only no
+  // longer listed.
   {
-    id: 'password',
-    title: 'Password Manager',
+    id: 'mpin',
+    title: 'MPIN Manager',
     icon: Lock,
-    route: '/dashboard/password-manager',
+    route: '/dashboard/mpin-manager',
+  },
+  {
+    id: 'history',
+    title: 'History',
+    icon: Clock,
+    route: '/dashboard/history',
   },
   {
     id: 'subscription',
-    title: 'Purchase/Accts/Credits',
+    title: 'Credits & Subscription',
     icon: Crown,
     route: '/dashboard/subscription-manager',
   },

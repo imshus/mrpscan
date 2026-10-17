@@ -2,6 +2,8 @@ import { apiRequest, ApiError } from '@/utils/apiClient';
 import { unwrapApiData } from '@/utils/apiResponse';
 import type { BusinessLoginResponse } from '@/types/auth';
 import { normalizeGstNumber } from '@/utils/validation';
+import { MPIN_TOO_MANY_ATTEMPTS_MESSAGE } from '@/utils/mpinChange';
+import { friendlyServerMessage } from '@/utils/serverMessages';
 
 type ApiEnvelope<T extends Record<string, unknown>> = T & {
   success?: boolean;
@@ -985,6 +987,66 @@ export async function changeUserPassword(currentPassword: string, newPassword: s
     return {
       success: false,
       error: error instanceof ApiError ? error.message : 'Failed to change password.',
+    };
+  }
+}
+
+export type ChangeMpinResult =
+  | { success: true }
+  | { success: false; code: string | null; error: string; status?: number };
+
+/**
+ * POST /auth/change-mpin — the signed-in login's own MPIN, owner or
+ * employee, from MPIN Manager. The server checks the current one, keeps the
+ * readable copy Forgot MPIN shows in step, and counts wrong tries.
+ *
+ * A refusal comes back with its code (MPIN_INCORRECT, MPIN_MISMATCH,
+ * MPIN_INVALID, MPIN_SAME) so the screen can put it under the right field.
+ * Too many wrong tries is a 429 whose body is the sentence itself, not JSON.
+ */
+export async function changeMpin(
+  currentMpin: string,
+  newMpin: string,
+  confirmMpin: string,
+): Promise<ChangeMpinResult> {
+  try {
+    const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/auth/change-mpin', {
+      method: 'POST',
+      body: { currentMpin, newMpin, confirmMpin },
+    });
+    const unwrapped = unwrapEnvelope(response);
+    if (!isSuccessfulResponse(response, unwrapped)) {
+      return {
+        success: false,
+        code: readString(response as Record<string, unknown>, ['error']) ?? null,
+        error: resolveApiMessage(response, unwrapped, 'Could not update the MPIN.'),
+      };
+    }
+    return { success: true };
+  } catch (error) {
+    if (!(error instanceof ApiError)) {
+      return { success: false, code: null, error: 'Could not update the MPIN.' };
+    }
+    const body = error.body;
+    if (error.status === 429) {
+      const plain = typeof body === 'string' && body.trim() && !body.includes('<') ? body.trim() : '';
+      const json = body && typeof body === 'object' ? readString(body as Record<string, unknown>, ['message']) : undefined;
+      return {
+        success: false,
+        code: 'TOO_MANY_ATTEMPTS',
+        status: 429,
+        error: plain || json || MPIN_TOO_MANY_ATTEMPTS_MESSAGE,
+      };
+    }
+    const code =
+      body && typeof body === 'object'
+        ? readString(body as Record<string, unknown>, ['error'])
+        : undefined;
+    return {
+      success: false,
+      code: code && /^[A-Z][A-Z0-9_]+$/.test(code) ? code : null,
+      status: error.status,
+      error: friendlyServerMessage(error, 'Could not update the MPIN.'),
     };
   }
 }
