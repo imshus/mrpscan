@@ -118,7 +118,7 @@ export default function InvoiceSheetScreen() {
   // emptied, so no render in between sees an empty cart.
   const billedCartRef = useRef<CartInvoice | null>(null);
   const cartInvoice = billedCartRef.current ?? liveCartInvoice;
-  const clearCart = useCartStore((state) => state.clear);
+  const endCheckout = useCartStore((state) => state.endCheckout);
 
   const {
     lineItemRows,
@@ -228,10 +228,13 @@ export default function InvoiceSheetScreen() {
 
   const generateOnce = async (): Promise<GenerateInvoiceResponse> => {
     if (generated) return generated;
+    // The checkout this invoice bills, as it stands now: the answer may come
+    // after another has been started, and must end this one, not that.
+    const { checkout: pieces, singleItem, itemIds: cartIds } = useCartStore.getState();
     const result = await apiGenerateInvoice(invoicePayload);
     if (isCart && cartInvoice) {
       billedCartRef.current = cartInvoice;
-      clearCart();
+      endCheckout({ pieces, singleItem, cartIds });
     }
     setGenerated(result);
     return result;

@@ -582,3 +582,40 @@ test('checkout: unreadable pieces dropped, missing figures null, no record null'
   assert.equal(readCheckoutDetail([]), null);
   assert.equal(readCheckoutDetail('x'), null);
 });
+
+test('an invoice ends only the checkout it billed, and empties only the cart it billed', async () => {
+  const { endCheckoutState } = await import('@/utils/cartInvoice');
+  const cart = ['a', 'b'];
+  const cartPieces = [{ id: 'a' }, { id: 'b' }];
+  const onePiece = [{ id: 'c' }];
+
+  // A cart billed: the cart empties, its checkout ends.
+  assert.deepEqual(
+    endCheckoutState({ itemIds: cart, checkout: cartPieces }, { pieces: cartPieces, singleItem: false, cartIds: cart }),
+    { itemIds: [], checkout: null, singleItem: false },
+  );
+  // One item billed alone: the cart keeps its tags, the checkout ends.
+  assert.deepEqual(
+    endCheckoutState({ itemIds: cart, checkout: onePiece }, { pieces: onePiece, singleItem: true, cartIds: cart }),
+    { checkout: null, singleItem: false },
+  );
+  // A cart's answer lands after one item's checkout was started: the billed
+  // cart still empties, the open checkout stays.
+  assert.deepEqual(
+    endCheckoutState({ itemIds: cart, checkout: onePiece }, { pieces: cartPieces, singleItem: false, cartIds: cart }),
+    { itemIds: [] },
+  );
+  // One item's answer lands after a new cart was built and checked out:
+  // nothing of the new cart changes.
+  const newCart = ['b', 'c'];
+  const newPieces = [{ id: 'b' }, { id: 'c' }];
+  assert.deepEqual(
+    endCheckoutState({ itemIds: newCart, checkout: newPieces }, { pieces: onePiece, singleItem: true, cartIds: cart }),
+    {},
+  );
+  // A cart's answer lands after another cart was built: that one stays.
+  assert.deepEqual(
+    endCheckoutState({ itemIds: newCart, checkout: newPieces }, { pieces: cartPieces, singleItem: false, cartIds: cart }),
+    {},
+  );
+});

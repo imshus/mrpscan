@@ -17,8 +17,11 @@ import { MOCK_SCAN_RESULT } from '@/constants/scannerData';
 import { isDemoScanMode } from '@/constants/scanMode';
 import { Colors } from '@/constants/theme';
 import { useFinalTabPricing } from '@/hooks/useFinalTabPricing';
+import { CART_INVOICE_SOURCE } from '@/hooks/useCartInvoice';
+import { useCartStore } from '@/store/cartStore';
 import { useScannerStore } from '@/store/scannerStore';
 import { useWishlistStore } from '@/store/wishlistStore';
+import { cartPieceFromWishlistItem, isBillablePiece } from '@/utils/cartInvoice';
 import { resolveScannedKarat } from '@/utils/formulaUtils';
 import { buildWishlistItem, buildTagCode } from '@/utils/wishlistUtils';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
@@ -116,6 +119,26 @@ export default function ScanResultsScreen() {
     }
   };
 
+  // A wishlist item is billed as a one-tag checkout, so its invoice keeps the
+  // tag it billed and lands in Checkout history (the owner's ask), with the
+  // same lines it would bill alone. A scan straight from the scanner bills as
+  // it always has.
+  const startCheckout = useCartStore((s) => s.startCheckout);
+  const handleGenerateInvoice = () => {
+    const piece = isFromWishlist && wishlistItem ? cartPieceFromWishlistItem(wishlistItem) : null;
+    // An item saved without its breakdown still bills from this screen's
+    // figures, as it did before; it only stays out of Checkout history.
+    if (!piece || !isBillablePiece(piece)) {
+      router.push('/dashboard/scanner/invoice-preview');
+      return;
+    }
+    startCheckout([piece], { singleItem: true });
+    router.push({
+      pathname: '/dashboard/scanner/invoice-preview',
+      params: { source: CART_INVOICE_SOURCE },
+    } as unknown as Href);
+  };
+
   const handleBack = () => {
     // Opened from a cart row: back is that cart, still holding its tags.
     if (isFromWishlist && params.from === 'cart' && router.canGoBack()) {
@@ -199,7 +222,7 @@ export default function ScanResultsScreen() {
                 <PillButton
                   variant="brand"
                   title="Generate Invoice"
-                  onPress={() => router.push('/dashboard/scanner/invoice-preview')}
+                  onPress={handleGenerateInvoice}
                   disabled={Boolean(activePricing.pricingError)}
                   style={styles.footerBtn}
                 />

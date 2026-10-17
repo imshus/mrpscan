@@ -317,3 +317,30 @@ export function readCheckoutDetail(raw: unknown): CheckoutDetail | null {
     customerName: readText(item, 'customerName'),
   };
 }
+
+/** What one invoice billed, taken when its request went out. */
+export interface BilledCheckout {
+  pieces: readonly BillableCartPiece[] | null;
+  singleItem: boolean;
+  /** The cart's ids then; a cart built since is another array. */
+  cartIds: readonly string[];
+}
+
+/**
+ * The cart store's change once an invoice is generated (cartStore
+ * endCheckout). A cart's invoice empties that cart unless another has been
+ * built since; one item billed alone leaves the cart as it was. Only the
+ * checkout it billed ends, by identity: one started while its request was
+ * out stays open.
+ */
+export function endCheckoutState(
+  state: { itemIds: readonly string[]; checkout: readonly BillableCartPiece[] | null },
+  billed: BilledCheckout,
+): { itemIds?: string[]; checkout?: null; singleItem?: false } {
+  return {
+    ...(!billed.singleItem && state.itemIds === billed.cartIds ? { itemIds: [] } : {}),
+    ...(billed.pieces !== null && state.checkout === billed.pieces
+      ? { checkout: null, singleItem: false as const }
+      : {}),
+  };
+}
