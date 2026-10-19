@@ -76,6 +76,21 @@ export interface GoldRateFigures {
 export const RTGS_RATE2_DEFAULT_TAX_PERCENT = 0;
 
 /**
+ * The board the figures stand on: once the server has named the house it
+ * prices on, that house's live board alone — or none while the live stream
+ * does not carry it, so each side shows a dash rather than another house's
+ * rates. The phone's own house stands in only until the server has named one.
+ */
+export function serverHouseVendor(
+  serverKey: string | null | undefined,
+  vendors: readonly BhawVendor[],
+  phoneVendor: BhawVendor | null,
+): BhawVendor | null {
+  if (!serverKey) return phoneVendor;
+  return vendors.find((v) => v.source === serverKey) ?? null;
+}
+
+/**
  * The base off the server's response and the live boards. The house is the
  * one the server priced on (bhawSource), whichever house this phone last
  * tapped; the phone's own choice stands in only until the server has
@@ -88,7 +103,7 @@ export function goldRateBase(
   phoneVendor: BhawVendor | null,
 ): GoldRateBase {
   const serverKey = gold.bhawSource?.key;
-  const vendor = (serverKey ? vendors.find((v) => v.source === serverKey) : null) ?? phoneVendor;
+  const vendor = serverHouseVendor(serverKey, vendors, phoneVendor);
   // Each bhaw side stands on its own: a house that quotes RTGS but not cash
   // (Shri Sai today) prices RTGS off its own board and shows no Retail. The
   // house's own MCX line is used whenever it has one; the server's base

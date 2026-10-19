@@ -2,7 +2,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 
 import { Colors, Radius } from '@/constants/theme';
-import { formatBhaw, hasLiveBhaw, type BhawVendor } from '@/utils/bhawApi';
+import { formatBhaw, type BhawVendor } from '@/utils/bhawApi';
+import { bullionCardNote } from '@/utils/bullionNames';
 
 interface BullionHouseCardProps {
   name: string;
@@ -43,11 +44,12 @@ const rupees = (value: number | null): string =>
  */
 export function BullionHouseCard({ name, vendor, selected, onSelect }: BullionHouseCardProps) {
   const updated = updatedAtLabel(vendor?.updatedAt ?? '');
-  // A house prices gold once it has published both bhaw sides. One that
-  // has not can still be followed, at the shop's asking — it is named on
-  // Gold Rate Settings and Home as the house followed — and its card says
-  // that no rate stands on it yet.
-  const pricing = hasLiveBhaw(vendor);
+  // Every house can be followed, at the shop's asking. Each bhaw side stands
+  // on its own: a side the house has published is priced off its board, one
+  // it has not on the stored change — and the card says which, side by side
+  // (an RTGS-only house used to read "Not pricing yet" while scans priced
+  // its RTGS).
+  const note = bullionCardNote(vendor);
 
   return (
     <Pressable
@@ -60,9 +62,7 @@ export function BullionHouseCard({ name, vendor, selected, onSelect }: BullionHo
         <View style={styles.headText}>
           <Text style={styles.name}>{name}</Text>
           {updated ? <Text style={styles.updated}>Updated {updated}</Text> : null}
-          {!pricing ? (
-            <Text style={styles.quietNote}>Not pricing yet — bhaw not published</Text>
-          ) : null}
+          {note ? <Text style={styles.quietNote}>{note}</Text> : null}
         </View>
         <View style={[styles.tick, selected && styles.tickOn]}>
           {selected ? <Check size={13} color={Colors.white} strokeWidth={3} /> : null}

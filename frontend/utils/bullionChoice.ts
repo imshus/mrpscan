@@ -1,0 +1,112 @@
+/**
+ * Choose a Bullion: where the tick sits while saves are on their way.
+ *
+ * The phone follows a tapped house at once and the server records it behind
+ * (POST /settings/bullion). The screen's own GET, a tap's save and a later
+ * tap's save can answer in any order; these decide what each answer does
+ * to the tick, so the tick ends on the house the server prices on:
+ *
+ *   - a GET that answers after a tap is older than the tap: it never moves
+ *     the tick back;
+ *   - a save's answer moves the tick to the house the server saved;
+ *   - a failed latest tap goes back to the last house the server confirmed
+ *     (its GET, or any save it answered), not to the house shown before
+ *     that tap, which may itself have been an unsaved tap.
+ *
+ * No imports on purpose: node loads this file as-is (type stripping) for
+ * utils/__tests__/bullionChoice.test.mjs.
+ */
+
+export interface BullionChoice {
+  /** The house the server last confirmed (its GET, or a save); '' until it has. */
+  confirmed: string;
+  /** Which answer confirmed it: 0 the GET, n the nth tap's save. */
+  confirmedBy: number;
+  /** Taps on this screen so far; the latest is the one whose answer counts. */
+  taps: number;
+  /** The latest tap's save has answered, and failed. */
+  latestFailed: boolean;
+  /** The house the phone showed before the first tap: the way back while nothing is confirmed. */
+  beforeTaps: string;
+}
+
+export function initialBullionChoice(): BullionChoice {
+  return { confirmed: '', confirmedBy: 0, taps: 0, latestFailed: false, beforeTaps: '' };
+}
+
+/**
+ * The screen's GET answered with `selected`. `follow` is the house the tick
+ * goes to, or null to leave it: once a tap has been made the GET is older
+ * than it, unless that tap failed with no save confirmed since.
+ */
+export function choiceOnLoaded(
+  choice: BullionChoice,
+  selected: string,
+): { choice: BullionChoice; follow: string | null } {
+  if (!selected || choice.confirmedBy > 0) return { choice, follow: null };
+  const next = { ...choice, confirmed: selected };
+  return { choice: next, follow: choice.taps === 0 || choice.latestFailed ? selected : null };
+}
+
+/** A tap, with the phone showing `showing` just before it. */
+export function choiceOnTap(
+  choice: BullionChoice,
+  showing: string,
+): { choice: BullionChoice; attempt: number } {
+  const attempt = choice.taps + 1;
+  return {
+    choice: {
+      ...choice,
+      taps: attempt,
+      latestFailed: false,
+      beforeTaps: choice.taps === 0 ? showing : choice.beforeTaps,
+    },
+    attempt,
+  };
+}
+
+/**
+ * Save `attempt` answered: the server now prices on `selected`. `follow` is
+ * the house the tick goes to — the latest tap's own answer, or an earlier
+ * one landing after the latest failed — else null (a later tap is still on
+ * its way and settles the tick itself).
+ */
+export function choiceOnSaved(
+  choice: BullionChoice,
+  attempt: number,
+  selected: string,
+): { choice: BullionChoice; follow: string | null } {
+  // An older save's late answer: a newer one has already been confirmed.
+  if (!selected || attempt < choice.confirmedBy) return { choice, follow: null };
+  const next = { ...choice, confirmed: selected, confirmedBy: attempt };
+  const follow = attempt === choice.taps || choice.latestFailed ? selected : null;
+  return { choice: next, follow };
+}
+
+/**
+ * Save `attempt` failed. `revertTo` is the house the tick goes back to — the
+ * last one the server confirmed, else the one shown before the first tap —
+ * or null when a later tap is on its way (its answer settles things).
+ */
+export function choiceOnFailed(
+  choice: BullionChoice,
+  attempt: number,
+): { choice: BullionChoice; revertTo: string | null } {
+  if (attempt !== choice.taps) return { choice, revertTo: null };
+  return {
+    choice: { ...choice, latestFailed: true },
+    revertTo: choice.confirmed || choice.beforeTaps,
+  };
+}
+
+/**
+ * The save's body for a tap on `key`. The shop's requested names go only
+ * once the list has loaded: unknown, they are left out and the server keeps
+ * the ones it has (an empty list would have wiped them).
+ */
+export function bullionSaveBody(
+  key: string,
+  requestedNames: readonly string[] | null | undefined,
+): { selected: string; requestedNames?: string[] } {
+  return requestedNames ? { selected: key, requestedNames: [...requestedNames] } : { selected: key };
+}

@@ -64,3 +64,21 @@ export function isHouseOnList(
     requestedNames.some((requested) => houseNameKey(requested) === wanted)
   );
 }
+
+/**
+ * The line under a house's name on Choose a Bullion: how a scan is priced on
+ * it, side by side, or null when both sides are the house's own. A side the
+ * house has not published is priced on the stored change (the server's rule),
+ * so "Not pricing yet" was untrue of a house that publishes RTGS alone (SMD,
+ * Shree Ram, KP, Vijaylaxmi, Shri Sai): scans price its RTGS off its board.
+ */
+export function bullionCardNote(
+  vendor: { cashBhaw: number | null; rtgsBhaw: number | null } | null | undefined,
+): string | null {
+  const cash = vendor?.cashBhaw != null;
+  const rtgs = vendor?.rtgsBhaw != null;
+  if (cash && rtgs) return null;
+  if (rtgs) return 'RTGS live — Cash from the stored change';
+  if (cash) return 'Cash live — RTGS from the stored change';
+  return 'Bhaw not published — Cash and RTGS from the stored change';
+}
