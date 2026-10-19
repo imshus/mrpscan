@@ -27,6 +27,7 @@ import {
   updateBullionSources,
   type BullionSources,
 } from '@/utils/bullionApi';
+import { isHouseOnList } from '@/utils/bullionNames';
 import { updateDashboardMatrices } from '@/utils/matricesApi';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
@@ -113,7 +114,8 @@ export default function DashboardMatricesScreen() {
   const [draft, setDraft] = useState<DashboardMatrixValues>(() => normalizeMatrixValues(storedValues));
   // One menu at a time, so a long karat list never hides the field above it.
   const [openMenu, setOpenMenu] = useState<'bullion' | 'karat' | null>(null);
-  // The houses to choose from: the two on the live feed, plus the shop's own.
+  // The houses to choose from: every house on the live feed (the server's
+  // list, by key and feed name), plus the names the shop has asked for.
   const [bullion, setBullion] = useState<BullionSources | null>(null);
   // The live boards behind the cards. The stream connection is shared with
   // Home, so opening this screen opens no second connection; it is held
@@ -266,8 +268,11 @@ export default function DashboardMatricesScreen() {
    */
   const addBullion = async (name: string): Promise<string | null> => {
     if (!bullion) return 'The bullion houses are still loading.';
-    const known = [...bullion.houses.map((house) => house.label), ...bullion.requestedNames];
-    if (known.some((existing) => existing.toLowerCase() === name.toLowerCase())) {
+    // Every house on the feed is on the list already, whatever the case or
+    // spacing it is typed in ("smd bullion" is SMD Bullion): it is picked
+    // above, not asked for. The server reads names the same way.
+    const cards = vendors.map((vendor) => ({ key: String(vendor.source), label: vendor.name }));
+    if (isHouseOnList(name, [...bullion.houses, ...cards], bullion.requestedNames)) {
       return 'That bullion house is already on your list.';
     }
 

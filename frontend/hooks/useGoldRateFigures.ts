@@ -28,7 +28,12 @@ export interface GoldRateFiguresResult {
 export function useGoldRateFigures(gold: GoldRatesResponse | undefined): GoldRateFiguresResult {
   // Keeps the followed house hydrated and the live board stream open while
   // the calling screen is in focus.
-  const bhaw = useBhawRates({ mcxBaseRate: gold?.mcxLiveRate ?? 0 });
+  const bhaw = useBhawRates({
+    mcxBaseRate: gold?.mcxLiveRate ?? 0,
+    // The house the server prices on, once it has answered: what a phone
+    // that remembers no house follows (any house on the feed).
+    serverProvider: gold ? gold.bhawSource?.key || null : undefined,
+  });
   const vendors = useBhawStore((state) => state.vendors);
 
   const base = useMemo(

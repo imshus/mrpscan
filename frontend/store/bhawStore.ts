@@ -14,7 +14,11 @@ import {
   type BhawSnapshotEntry,
   type BhawVendor,
 } from '@/utils/bhawApi';
-import { registerScopeResetCallback, scopedKey } from '@/utils/userScopedStorage';
+import {
+  currentScopeGeneration,
+  registerScopeResetCallback,
+  scopedKey,
+} from '@/utils/userScopedStorage';
 import { calculateBhawRates, type BhawRates } from '@/utils/bhawCalculation';
 import { openEventStream } from '@/utils/sseClient';
 
@@ -23,8 +27,9 @@ import { openEventStream } from '@/utils/sseClient';
  *
  * Home, Gold Rate Settings and Dashboard Settings all read from here, so the
  * selected provider and the rates derived from it can never disagree between
- * screens. The selected provider itself is owned by the Dashboard Settings
- * toggle (matricesStore `bhaw_source_jmd`) and pushed in via setProvider.
+ * screens. The selected provider itself — any house on the feed, by its
+ * `source` key — is chosen on Dashboard Settings › Choose a Bullion (the
+ * server records it) and pushed in via setProvider.
  *
  * The boards come off the live stream (BHAW_LIVE_STREAM_URL) over ONE
  * connection shared by the screens that show rates: opened when the first
@@ -160,9 +165,15 @@ export const useBhawStore = create<BhawState>()((set, get) => ({
   },
 
   hydrateProvider: async () => {
+    const generation = currentScopeGeneration();
     try {
       const stored = await AsyncStorage.getItem(scopedKey(PROVIDER_KEY));
-      if (stored) set({ provider: stored });
+      // Any house key the feed carries. Only into an empty slot: a house
+      // picked while this read was on its way is newer than what it read,
+      // and another account's read must not land after the switch.
+      if (stored && !get().provider && generation === currentScopeGeneration()) {
+        set({ provider: stored });
+      }
     } catch {
       // The default provider is a working answer; a failed read is not news.
     }
@@ -414,7 +425,10 @@ registerScopeResetCallback(() => {
   useBhawStore.setState({ provider: '' });
 });
 
-/** Maps the Dashboard Settings toggle onto a provider key. */
+/**
+ * Maps the older two-house toggle onto a provider key. Only for a server
+ * that names no house: it cannot name any house but these two.
+ */
 export function providerFromToggle(useJmd: boolean): BhawProvider {
   return useJmd ? BHAW_PROVIDERS.JMD_PATIL : BHAW_PROVIDERS.MEGA_BULLION;
 }

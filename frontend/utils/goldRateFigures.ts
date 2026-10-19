@@ -1,5 +1,6 @@
 import type { GoldRatesResponse } from '@/types/rates';
 import { feedMcxSell, houseMcxSell, type BhawVendor } from '@/utils/bhawApi';
+import { houseNameFor } from '@/utils/bullionNames';
 import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
 import { roundHalfUp } from '@/utils/moneyMath';
 
@@ -74,17 +75,6 @@ export interface GoldRateFigures {
  */
 export const RTGS_RATE2_DEFAULT_TAX_PERCENT = 0;
 
-const HOUSE_NAMES: Record<string, string> = {
-  jmd_patil: 'JMD Patil',
-  mega_bullion: 'Mega Bullion',
-  shri_sai: 'Shri Sai Jewels',
-  shri_ganesh: 'Shri Ganesh Bullion',
-};
-
-export function houseNameFor(key: string, fallback?: string): string {
-  return HOUSE_NAMES[key] ?? fallback ?? key;
-}
-
 /**
  * The base off the server's response and the live boards. The house is the
  * one the server priced on (bhawSource), whichever house this phone last
@@ -113,6 +103,8 @@ export function goldRateBase(
       houseLine !== null ? Math.round(houseLine) : gold.taxSettings?.pricingMcxLiveRate ?? gold.mcxLiveRate,
     rtgsBhaw: rtgsLive && vendor ? (vendor.rtgsBhaw as number) : gold.supremeChanges?.rtgsChange ?? 0,
     cashBhaw: cashLive && vendor ? (vendor.cashBhaw as number) : gold.supremeChanges?.cashChange ?? 0,
+    // The feed's name for the house, any house on it: off the board, else as
+    // the server named it, else the known name.
     houseName: vendor?.name || houseNameFor(serverKey ?? '', gold.bhawSource?.name),
     cashLive,
     rtgsLive,

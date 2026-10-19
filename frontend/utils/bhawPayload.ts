@@ -33,7 +33,7 @@ export interface BhawRow {
 }
 
 export interface BhawVendor {
-  /** The house's key — one of BHAW_PROVIDERS in utils/bhawApi.ts. */
+  /** The house's key on the feed ('jmd_patil', 'smd_bullion', …): any house it carries. */
   source: string;
   name: string;
   /**

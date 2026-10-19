@@ -24,6 +24,11 @@ export const BHAW_LIVE_STREAM_URL =
 
 const BHAW_TIMEOUT_MS = 8_000;
 
+/**
+ * The houses the code names (the older toggle's two, and two more). Not the
+ * list a shop picks from: every house on the feed can be followed by its
+ * `source` key (Choose a Bullion lists the feed's own houses).
+ */
 export const BHAW_PROVIDERS = {
   JMD_PATIL: 'jmd_patil',
   MEGA_BULLION: 'mega_bullion',
