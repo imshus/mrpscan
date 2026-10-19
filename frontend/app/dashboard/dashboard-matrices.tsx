@@ -34,7 +34,11 @@ import {
   choiceOnSaved,
   choiceOnTap,
   initialBullionChoice,
+  initialBullionSaveQueue,
+  queueOnSettled,
+  queueOnTap,
   type BullionChoice,
+  type BullionSaveJob,
 } from '@/utils/bullionChoice';
 import { isHouseOnList } from '@/utils/bullionNames';
 import { updateDashboardMatrices } from '@/utils/matricesApi';
@@ -146,6 +150,8 @@ export default function DashboardMatricesScreen() {
   // the tap whose answer still counts (utils/bullionChoice). An earlier
   // tap's late answer, or the GET's, must not undo a later tap.
   const bullionChoice = useRef<BullionChoice>(initialBullionChoice());
+  // One save out at a time, in tap order (utils/bullionChoice queueOnTap).
+  const bullionSaves = useRef(initialBullionSaveQueue());
 
   // Saves of this screen still on their way to the server. While any is,
   // the store does not feed the draft: an earlier tap's answer landing
@@ -265,6 +271,13 @@ export default function DashboardMatricesScreen() {
     followHouse(key);
     setBullion((current) => (current ? { ...current, selected: key } : current));
 
+    const queued = queueOnTap(bullionSaves.current, { key, attempt });
+    bullionSaves.current = queued.queue;
+    if (queued.send) sendBullionSave(queued.send);
+  };
+
+  /** One tap's save; when it answers, the tap held behind it (if any) goes. */
+  const sendBullionSave = ({ key, attempt }: BullionSaveJob) => {
     // Before the list has loaded the shop's requested names are unknown: they
     // are left out, and the server keeps them.
     void updateBullionSources(bullionSaveBody(key, bullion?.requestedNames))
@@ -287,6 +300,11 @@ export default function DashboardMatricesScreen() {
         followHouse(revertTo);
         setBullion((current) => (current ? { ...current, selected: revertTo } : current));
         setPopup({ text: 'That change could not be saved. Please try again.', tone: 'error' });
+      })
+      .finally(() => {
+        const next = queueOnSettled(bullionSaves.current);
+        bullionSaves.current = next.queue;
+        if (next.send) sendBullionSave(next.send);
       });
   };
 

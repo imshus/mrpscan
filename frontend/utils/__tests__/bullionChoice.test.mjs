@@ -279,3 +279,28 @@ test('the card says how each side is priced: an RTGS-only house is not "Not pric
     assert.doesNotMatch(String(note(key)), /Not pricing yet/);
   }
 });
+
+test('saves go one at a time in tap order; only the latest held tap is sent next', async () => {
+  const { initialBullionSaveQueue, queueOnTap, queueOnSettled } = await import('../bullionChoice.ts');
+  let q = initialBullionSaveQueue();
+  // First tap goes at once.
+  let r = queueOnTap(q, { key: 'new_house', attempt: 1 });
+  assert.deepEqual(r.send, { key: 'new_house', attempt: 1 });
+  q = r.queue;
+  // Taps while it is out are held; a later one replaces an earlier one.
+  r = queueOnTap(q, { key: 'smd_bullion', attempt: 2 });
+  assert.equal(r.send, null);
+  q = r.queue;
+  r = queueOnTap(q, { key: 'kp_bullion', attempt: 3 });
+  assert.equal(r.send, null);
+  q = r.queue;
+  // The first answers: only the latest held tap goes, so the server ends on it.
+  r = queueOnSettled(q);
+  assert.deepEqual(r.send, { key: 'kp_bullion', attempt: 3 });
+  q = r.queue;
+  // It answers too: nothing left, the next tap goes at once again.
+  r = queueOnSettled(q);
+  assert.equal(r.send, null);
+  q = r.queue;
+  assert.deepEqual(queueOnTap(q, { key: 'jmd_patil', attempt: 4 }).send, { key: 'jmd_patil', attempt: 4 });
+});

@@ -110,3 +110,42 @@ export function bullionSaveBody(
 ): { selected: string; requestedNames?: string[] } {
   return requestedNames ? { selected: key, requestedNames: [...requestedNames] } : { selected: key };
 }
+
+/** A tap's save waiting to go: its house and its tap number. */
+export interface BullionSaveJob {
+  key: string;
+  attempt: number;
+}
+
+/**
+ * Saves go to the server one at a time, in tap order: a save for a house
+ * just added on the tracker is checked against the feed and answers slower,
+ * so a quicker save for a later tap could land first and the server would
+ * end on the older house while the tick showed the newer one. While a save
+ * is out only the latest tap waits; the taps it replaced are never sent.
+ */
+export interface BullionSaveQueue {
+  inFlight: boolean;
+  pending: BullionSaveJob | null;
+}
+
+export function initialBullionSaveQueue(): BullionSaveQueue {
+  return { inFlight: false, pending: null };
+}
+
+/** A tap's save: sent now when nothing is out, else held as the one to send next. */
+export function queueOnTap(
+  queue: BullionSaveQueue,
+  job: BullionSaveJob,
+): { queue: BullionSaveQueue; send: BullionSaveJob | null } {
+  if (!queue.inFlight) return { queue: { inFlight: true, pending: null }, send: job };
+  return { queue: { inFlight: true, pending: job }, send: null };
+}
+
+/** The save that was out has answered (either way): the held one goes next, if any. */
+export function queueOnSettled(
+  queue: BullionSaveQueue,
+): { queue: BullionSaveQueue; send: BullionSaveJob | null } {
+  if (queue.pending) return { queue: { inFlight: true, pending: null }, send: queue.pending };
+  return { queue: initialBullionSaveQueue(), send: null };
+}
