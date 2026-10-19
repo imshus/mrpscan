@@ -119,22 +119,32 @@ export interface PrefilledLabour {
 
 /**
  * What the card's labour box starts with when the tag prints no labour: the
- * Masters item's labour in its unit, else the shop's charge (AMOUNT per its
- * unit, PERCENTAGE as a percent of the gold value), on the weight the shop's
- * charge was saved against. Null: nothing to fill. The server works out the
- * analysis price from exactly this (pricingInputs appLabourFields).
+ * rate of the Masters -> Labour Code the server matched on the tag, in its
+ * unit; else the Masters item's labour in its unit; else the shop's charge
+ * (AMOUNT per its unit, PERCENTAGE as a percent of the gold value) - on the
+ * weight the shop's charge was saved against. Null: nothing to fill. The
+ * server works out the analysis price from the item's and the shop's the
+ * same way (pricingInputs appLabourFields), and its /calculate charges
+ * labour in this order too: a figure the card sends, then the labour code,
+ * then the item's, then the shop's.
  */
 export function prefillLabour(
   item: { labour?: number | null; labourUnit?: string | null } | null | undefined,
   shop: ShopLabour | null | undefined,
   currentBasis: 'net' | 'gross' = 'net',
+  /** The Masters -> Labour Code row the tag matched, when there is one. */
+  labourCode?: { rate?: number | null; unit?: string | null } | null,
 ): PrefilledLabour | null {
   const charge =
     shop && (shop.chargeType === 'AMOUNT' || shop.chargeType === 'PERCENTAGE') && Number.isFinite(shop.value)
       ? shop
       : null;
   const basis = charge ? (charge.weightBasis === 'net' ? 'net' : 'gross') : currentBasis;
-  const fromItem = itemLabourOf(item);
+  // A code's rate is read as an item's labour is: a figure in its unit, per
+  // gram when none was saved, no percent above 100.
+  const fromItem =
+    (labourCode ? itemLabourOf({ labour: labourCode.rate, labourUnit: labourCode.unit }) : null) ??
+    itemLabourOf(item);
   if (fromItem) {
     return {
       labourChargeAmount: String(fromItem.amount),

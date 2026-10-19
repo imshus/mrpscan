@@ -50,6 +50,11 @@ export interface AnalyzeScanResponse {
    * them. Empty from a server that does not send it yet.
    */
   tagIdentifiers?: string[];
+  /**
+   * The Masters -> Labour Code the server matched on the tag, when it names
+   * one ('' or absent: none); the analysis' price records it as well.
+   */
+  labourCode?: string;
   billing?: {
     billed: boolean;
     /** True while the server finalizes billing in the background (two-step scan). */
@@ -193,6 +198,11 @@ export interface ScanItemData {
   labourChargeAmount: string;
   labourChargeUnit: LabourChargeUnit;
   labourWeightBasis: LabourWeightBasis;
+  /**
+   * The Masters → Labour Code picked for this scan; picking it fills
+   * labourChargeAmount and labourChargeUnit with the code's rate and unit.
+   */
+  labourCode?: string;
   /**
    * A wastage % typed on the review screen for this scan alone. Empty means
    * the item master's own figure applies; the server treats a sent value as
@@ -341,6 +351,11 @@ export interface CalculateMrpPayload {
   wastagePercent?: number;
   /** A Masters -> Wastage code picked on the card: used ahead of the tag's own. */
   wastageCode?: string;
+  /**
+   * A Masters -> Labour Code picked on the card: found ahead of the tag's own.
+   * A labour figure sent alongside (labourChargeAmount) still beats its rate.
+   */
+  labourCode?: string;
   /** The weight the wastage percent is taken of (pricing rules 3; the server's default is net). */
   wastageWeightBasis?: WastageWeightBasis;
   /** `unit`: the weight's unit, 'ct' or 'g' (5 ct a gram). */
@@ -357,6 +372,8 @@ export interface CalculateMrpResponse {
     goldAmount: number;
     labourAmount: number;
     labourChargeType: string;
+    /** The Masters -> Labour Code picked or matched on the tag; blank when none. */
+    labourCode?: string;
     /** Blank when the item carries no wastage, so the tile stays empty. */
     wastageCode?: string;
     wastagePercent?: number;

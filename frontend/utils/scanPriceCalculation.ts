@@ -87,6 +87,11 @@ export interface FinalTabPricingResult {
   labourAmount: number;
   labourDisplay: string;
   /**
+   * The Masters → Labour Code the server priced with: the one picked on the
+   * card, else the one it matched on the tag. Blank when none.
+   */
+  labourCode?: string;
+  /**
    * Wastage, as the server priced it. Absent on the local estimate, which has
    * no item master to read the percentage from — so a screen showing it must
    * treat 0 and "not known yet" the same way, which is to show nothing.

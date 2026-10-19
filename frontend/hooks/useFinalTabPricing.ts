@@ -55,6 +55,7 @@ const defaultPricing: FinalTabPricingResult = {
   useFixedAmountMode: false,
   labourAmount: 0,
   labourDisplay: '—',
+  labourCode: '',
   wastageCode: '',
   wastagePercent: 0,
   wastageAmount: 0,
@@ -100,6 +101,7 @@ function buildPricingStateKey(pricing: FinalTabPricingResult): string {
     diamondAmount: pricing.diamondAmount,
     colorstoneAmount: pricing.colorstoneAmount,
     labourAmount: pricing.labourAmount,
+    labourCode: pricing.labourCode,
     wastageCode: pricing.wastageCode,
     wastagePercent: pricing.wastagePercent,
     wastageAmount: pricing.wastageAmount,
@@ -143,6 +145,9 @@ export function useFinalTabPricing({
         labourChargeUnit: scanData.labourChargeUnit,
         labourWeightBasis: scanData.labourWeightBasis,
         labourPurityPercent: scanData.labourPurityPercent,
+        // A Masters -> Labour Code picked on the card: the server records it
+        // ahead of the tag's own, so a pick has to price again like any field.
+        labourCode: scanData.labourCode,
         calculationRate: scanData.calculationRate,
         customPurityPercent: scanData.customPurityPercent,
         otherChargesAmount: scanData.otherChargesAmount,
@@ -184,6 +189,7 @@ export function useFinalTabPricing({
       scanData.labourChargeUnit,
       scanData.labourWeightBasis,
       scanData.labourPurityPercent,
+      scanData.labourCode,
       scanData.calculationRate,
       scanData.customPurityPercent,
       scanData.otherChargesAmount,
@@ -378,6 +384,9 @@ export function useFinalTabPricing({
           useFixedAmountMode: labour.mode === 'fixedAmount',
           labourAmount: backendLabourAmount,
           labourDisplay: formatIndianCurrency(backendLabourAmount),
+          // The Masters -> Labour Code priced with: the one picked, else the
+          // one the tag matched. The Labour Code box shows it.
+          labourCode: res.breakdown.labourCode || '',
           // Priced from the item's own wastage, which only the server can
           // read; an item without one sends nothing and the tile stays blank.
           wastageCode: res.breakdown.wastageCode || '',

@@ -175,3 +175,28 @@ test('the colour-stone row is the server\'s for every stone', { skip: !server &&
     assert.equal(findColorstoneRateMatch(rows, stone), server.findColorstoneRateMatch(rows, stone), JSON.stringify(stone));
   }
 });
+
+test('the labour box: a Labour Code the tag matched comes before the item\'s labour and the shop\'s', () => {
+  const amountShop = { chargeType: 'AMOUNT', value: 500, rupeesUnit: 'Per Gram', weightBasis: 'gross' };
+  const item = { labour: 700 };
+  // The code's rate in its unit, on the shop's basis as any prefill.
+  assert.deepEqual(prefillLabour(item, amountShop, 'net', { rate: 415, unit: 'Per Gram' }), {
+    labourChargeAmount: '415', labourChargeUnit: 'Per Gram', labourWeightBasis: 'gross',
+  });
+  assert.deepEqual(prefillLabour(null, null, 'net', { rate: 4500, unit: 'Per 10 Gram' }), {
+    labourChargeAmount: '4500', labourChargeUnit: 'Per 10 Gram', labourWeightBasis: 'net',
+  });
+  assert.deepEqual(prefillLabour(item, null, 'gross', { rate: 12, unit: 'Percent' }), {
+    labourChargeAmount: '12', labourChargeUnit: 'Percent', labourWeightBasis: 'gross',
+  });
+  // A code with no usable figure is passed over: the item's, else the shop's.
+  assert.deepEqual(prefillLabour(item, amountShop, 'net', { rate: null, unit: 'Per Gram' }), {
+    labourChargeAmount: '700', labourChargeUnit: 'Per Gram', labourWeightBasis: 'gross',
+  });
+  assert.deepEqual(prefillLabour(null, amountShop, 'net', { rate: 150, unit: 'Percent' }), {
+    labourChargeAmount: '500', labourChargeUnit: 'Per Gram', labourWeightBasis: 'gross',
+  });
+  // No code: exactly as before.
+  assert.deepEqual(prefillLabour(item, amountShop, 'net', null), prefillLabour(item, amountShop, 'net'));
+  assert.deepEqual(prefillLabour(item, amountShop, 'net', undefined), prefillLabour(item, amountShop, 'net'));
+});

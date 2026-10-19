@@ -428,3 +428,49 @@ test('wishlist add: no snapshot is the header and the MRP alone; junk is no view
   assert.deepEqual(view.breakdown, []);
   assert.equal(wishlistDetailView(undefined, NOW), null);
 });
+
+test('Labour Code: a scan shows the code its price recorded; a wishlist add the one it saved', () => {
+  const pricedWithCode = {
+    ...SERVER.pricedScan,
+    pricing: {
+      ...SERVER.pricedScan.pricing,
+      breakdown: { ...SERVER.pricedScan.pricing.breakdown, labourCode: 'LB-03' },
+    },
+  };
+  assert.deepEqual(tilesOf(scanDetailView(pricedWithCode, NOW))['labour Labour Charge (labour)'], [
+    'Labour Code: LB-03',
+    'Labour Rate: ₹850',
+    'Weight Used: Net wt',
+    'Labour Amount: ₹8,500 *',
+  ]);
+  // A blank code (none matched) shows no Labour Code line.
+  const blank = {
+    ...SERVER.pricedScan,
+    pricing: {
+      ...SERVER.pricedScan.pricing,
+      breakdown: { ...SERVER.pricedScan.pricing.breakdown, labourCode: '' },
+    },
+  };
+  assert.deepEqual(tilesOf(scanDetailView(blank, NOW))['labour Labour Charge (labour)'], [
+    'Labour Rate: ₹850',
+    'Weight Used: Net wt',
+    'Labour Amount: ₹8,500 *',
+  ]);
+
+  const saved = {
+    ...WISHLIST_ITEM,
+    snapshot: { ...WISHLIST_ITEM.snapshot, pricing: { ...WISHLIST_ITEM.snapshot.pricing, labourCode: 'LB-02' } },
+  };
+  assert.deepEqual(tilesOf(wishlistDetailView(saved, NOW))['labour Labour Charge (labour)'], [
+    'Labour Code: LB-02',
+    'Labour Rate: ₹650',
+    'Weight Used: Gross wt',
+    'Labour Amount: ₹2,925 *',
+  ]);
+  // Saved before the price named one: the code picked on the card.
+  const pickedOnly = {
+    ...WISHLIST_ITEM,
+    snapshot: { ...WISHLIST_ITEM.snapshot, scanData: { ...WISHLIST_ITEM.snapshot.scanData, labourCode: 'LB-04' } },
+  };
+  assert.equal(tilesOf(wishlistDetailView(pickedOnly, NOW))['labour Labour Charge (labour)'][0], 'Labour Code: LB-04');
+});

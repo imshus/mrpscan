@@ -49,6 +49,11 @@ export function derivePricingInput(
     labourChargeAmount: scanData.labourChargeAmount,
     labourChargeUnit: scanData.labourChargeUnit,
     labourWeightBasis: scanData.labourWeightBasis,
+    // The Masters -> Labour Code picked on the card, which the server records
+    // ahead of the tag's own. Picking it filled the labour figure above with
+    // the code's rate, and a figure sent beats the code's, so a rate changed
+    // by hand afterwards is what is charged.
+    ...(scanData.labourCode?.trim() ? { labourCode: scanData.labourCode.trim() } : {}),
     calculationMode: scanData.calculationRate,
     otherCharges: otherChargesTotal,
     // The wastage the shop charges is kept against the item code, so the

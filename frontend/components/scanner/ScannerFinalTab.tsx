@@ -213,12 +213,14 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
         labourChargeAmount: scanData.labourChargeAmount,
         labourChargeUnit: scanData.labourChargeUnit,
         labourWeightBasis: scanData.labourWeightBasis,
+        labourCode: scanData.labourCode,
       }),
     [
       scanData.labourPurityPercent,
       scanData.labourChargeAmount,
       scanData.labourChargeUnit,
       scanData.labourWeightBasis,
+      scanData.labourCode,
     ],
   );
 
@@ -235,6 +237,11 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
       }
       if (values.labourWeightBasis !== undefined) {
         onFieldChange?.('labourWeightBasis', values.labourWeightBasis);
+      }
+      // A Masters -> Labour Code picked on the tile: its rate and unit came
+      // in the same change, above.
+      if (values.labourCode !== undefined) {
+        onFieldChange?.('labourCode', values.labourCode);
       }
     },
     [onFieldChange],
@@ -348,6 +355,9 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
         <LaborSection
           values={laborValues}
           onChange={handleLaborChange}
+          // Only a Masters -> Labour Code the server priced with (picked, or
+          // matched on the tag); none reads as '—'.
+          code={pricing.labourCode || undefined}
           grossWeightGrams={scanData.grossWt}
           netWeightGrams={scanData.netWt}
           labourAmount={pricing.labourAmount}

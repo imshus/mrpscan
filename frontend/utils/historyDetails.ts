@@ -225,6 +225,8 @@ interface TagFacts {
   labour: DetailField | null;
   labourBasis: string | null;
   labourAmount: number | null;
+  /** The Masters -> Labour Code the price was made with (picked, or matched on the tag). */
+  labourCode: string | null;
   wastageCode: string | null;
   wastagePercent: string | null;
   wastageBasis: string | null;
@@ -348,7 +350,7 @@ function buildView(
 ): TagDetailView {
   // Weight Used on its own says nothing about a charge, so it never makes a
   // Labour or Wastage tile by itself.
-  const hasLabour = facts.labour !== null || facts.labourAmount !== null;
+  const hasLabour = facts.labour !== null || facts.labourAmount !== null || facts.labourCode !== null;
   const hasWastage =
     facts.wastageCode !== null || facts.wastagePercent !== null || facts.wastageAmount !== null;
 
@@ -376,6 +378,7 @@ function buildView(
     ...stoneTiles('colorstone', facts.colorstones),
     hasLabour
       ? tile('labour', 'Labour Charge', 'labour', [
+          field('Labour Code', facts.labourCode),
           facts.labour,
           field('Weight Used', facts.labourBasis),
           field('Labour Amount', rupees(facts.labourAmount), true),
@@ -502,6 +505,7 @@ export function scanDetailView(raw: unknown, now: Date = new Date()): TagDetailV
     labour,
     labourBasis: pick([breakdown, inputs], ['labourWeightBasis'], basisText),
     labourAmount: pick([breakdown], ['labourAmount'], num),
+    labourCode: pick([breakdown], ['labourCode'], nonEmpty),
     wastageCode: pick([breakdown], ['wastageCode'], nonEmpty),
     wastagePercent: priced
       ? pick([breakdown], ['wastagePercent'], percentText)
@@ -583,6 +587,7 @@ export function wishlistDetailView(raw: unknown, now: Date = new Date()): TagDet
     labour: labourField(scan?.labourChargeAmount, scan?.labourChargeUnit),
     labourBasis: pick([scan], ['labourWeightBasis'], basisText),
     labourAmount: pick([pricing], ['labourAmount'], num),
+    labourCode: pick([pricing, scan], ['labourCode'], nonEmpty),
     wastageCode: pick([pricing, scan], ['wastageCode'], nonEmpty),
     wastagePercent: pick([pricing, scan], ['wastagePercent'], percentText),
     wastageBasis: pick([pricing], ['wastageWeightBasis'], basisText),

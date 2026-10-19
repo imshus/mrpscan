@@ -28,6 +28,8 @@ import {
   seedServerPricingError,
 } from '@/utils/pricingPrefetch';
 import { prefillLabour } from '@/utils/pricingRules';
+import { loadLabourCodes } from '@/components/scanner/LaborSection';
+import { analysisLabourCode, findLabourCode } from '@/utils/labourCodes';
 import { applyStoneRateTables } from '@/utils/stoneSequenceUtils';
 import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
 import { findItemOnTag, loadItemCatalogue } from '@/utils/itemCatalogue';
@@ -273,6 +275,10 @@ export default function ProcessingScreen() {
       // These requests do not depend on the OCR result. Start them while the
       // tag is being analyzed so the preview does not wait for rate setup.
       const labourRatePromise = fetchLabourRate().catch(() => null);
+      // The shop's Masters -> Labour Code list (never rejects; a failed read
+      // is an empty list), so a code the tag matched can fill the labour box
+      // with its rate. It also warms the review card's Labour Code dropdown.
+      const labourCodesPromise = isDemoScanMode() ? Promise.resolve([]) : loadLabourCodes();
       // The shop's stone rate tables, so each stone starts with the rate its
       // row would look up (packet code first) and the card's first price is
       // the one the server worked out inside the analysis; without them the
@@ -365,10 +371,23 @@ export default function ProcessingScreen() {
       // the reading from the same choice, and charges whatever this box
       // holds; the shop's rate used to be filled in over the item's, so the
       // item's labour was never what the card or the invoice charged.
+      // A Masters -> Labour Code the server matched on the tag comes first:
+      // its rate, in its unit, as the server charges a code ahead of the
+      // item's and the shop's. Only the box is filled: the code itself is the
+      // server's to find again from the tag (and to show on Labour Code).
       if (!adjustedScanData.labourChargeAmount?.trim()) {
         // Errors are already swallowed at kickoff and keep scanned values.
         const labourRate = await labourRatePromise;
-        const prefill = prefillLabour(foundItem, labourRate, adjustedScanData.labourWeightBasis);
+        const matchedLabourCode = analysisLabourCode(result);
+        const labourCodeRow = matchedLabourCode
+          ? findLabourCode(await labourCodesPromise, matchedLabourCode)
+          : null;
+        const prefill = prefillLabour(
+          foundItem,
+          labourRate,
+          adjustedScanData.labourWeightBasis,
+          labourCodeRow,
+        );
         if (prefill) {
           adjustedScanData = { ...adjustedScanData, ...prefill, labourPurityPercent: '' };
         }

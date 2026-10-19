@@ -129,3 +129,26 @@ test('the Wastage Code picked on the card is sent, trimmed; none picked sends no
   assert.equal('wastageCode' in payloadFor(scan({ wastageCode: '' })), false);
   assert.equal('wastageCode' in payloadFor(scan({ wastageCode: undefined })), false);
 });
+
+test('the Labour Code picked on the card is sent, trimmed; none picked sends none', () => {
+  assert.equal(payloadFor(scan({ labourCode: ' LB-03 ' })).labourCode, 'LB-03');
+  assert.equal('labourCode' in payloadFor(scan({ labourCode: '' })), false);
+  assert.equal('labourCode' in payloadFor(scan({ labourCode: '  ' })), false);
+  assert.equal('labourCode' in payloadFor(scan({ labourCode: undefined })), false);
+  // Picking it filled the Labour Rate with the code's rate: both go, and the
+  // figure (which the server charges ahead of the code's) is the box's.
+  const picked = payloadFor(
+    scan({ labourCode: 'LB-03', labourChargeAmount: '415', labourChargeUnit: 'Per Gram' }),
+  );
+  assert.equal(picked.labourCode, 'LB-03');
+  assert.equal(picked.labourChargeAmount, '415');
+  assert.equal(picked.labourChargeUnit, 'Per Gram');
+});
+
+test('a price prefetched before a Labour Code was picked is not handed to the request after', () => {
+  globalThis.__calculateScanMrp = () => Promise.resolve({ breakdown: {}, finalMRP: 1 });
+
+  prefetchFirstPricing('scan-labour-code', derivePricingInput('Gold', scan(), {}, '22K'));
+  assert.equal(takePrefetchedPricing('scan-labour-code', payloadFor(scan({ labourCode: 'LB-03' }))), null);
+  assert.ok(takePrefetchedPricing('scan-labour-code', payloadFor(scan())));
+});
