@@ -52,7 +52,10 @@ export interface AnalyzeScanResponse {
   tagIdentifiers?: string[];
   /**
    * The Masters -> Labour Code the server matched on the tag, when it names
-   * one ('' or absent: none); the analysis' price records it as well.
+   * one ('' or absent: none); the analysis' price records it as well, but
+   * only this names it when the analysis could not price (pricing null).
+   * analyzeScan always carries it, trimmed ('' for none or a server that
+   * does not send it); the demo answer leaves it out.
    */
   labourCode?: string;
   billing?: {

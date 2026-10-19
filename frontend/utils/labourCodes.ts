@@ -1,9 +1,10 @@
 /**
  * Masters → Labour Code: a short code the shop uses for a kind of making and
  * the labour rate that goes with it (LB-03 → ₹415 a gram), the labour
- * counterpart of Masters → Wastage. Picking a code on the review card fills
- * its Labour Rate (and the unit the rate is in) and the server prices and
- * records it; a code printed on the tag is matched by the server.
+ * counterpart of Masters → Wastage. Every code has a rate. Picking a code on
+ * the review card fills its Labour Rate (and the unit the rate is in) and
+ * the server prices and records it; a code printed on the tag is matched by
+ * the server, and the card opens with its rate.
  *
  * No imports on purpose — node loads this file as-is (type stripping) for
  * utils/__tests__/labourCodes.test.mjs, so what is tested is what the app runs.
@@ -24,7 +25,10 @@ export const LABOUR_CODE_MAX_LENGTH = 20;
 export interface LabourCode {
   id: string;
   code: string;
-  /** Null only for a row the server answers without a figure: nothing to fill. */
+  /**
+   * Null only for a row the server kept from before a rate was required:
+   * nothing to fill, so the card does not offer it (usableLabourCodes).
+   */
   rate: number | null;
   unit: LabourCodeUnit;
 }
@@ -80,7 +84,9 @@ export function findLabourCode(
 /**
  * What picking a code puts in the Labour tile: its rate in the Labour Rate
  * box and the unit that rate is in. Null when the row has no usable figure
- * (none given, or a percent above 100): the box then keeps what it holds.
+ * (none given, or a percent above 100): such a code is never offered on the
+ * card (usableLabourCodes), so it is never recorded at a rate that is not
+ * its own.
  */
 export function labourFromCode(
   row: Pick<LabourCode, 'rate' | 'unit'> | null | undefined,
@@ -88,6 +94,18 @@ export function labourFromCode(
   if (!row || row.rate === null || !Number.isFinite(row.rate) || row.rate < 0) return null;
   if (row.unit === 'Percent' && row.rate > 100) return null;
   return { labourChargeAmount: String(row.rate), labourChargeUnit: row.unit };
+}
+
+/**
+ * The codes the review card's Labour Code dropdown offers: those with a
+ * usable rate (labourFromCode). A row kept from before a rate was required
+ * would fill nothing, leaving the box with another code's or the shop's
+ * rate to be recorded against it; left out, the box keeps the labour the
+ * card opened with (the item's, else the shop's) or the rate of the code
+ * actually picked.
+ */
+export function usableLabourCodes(codes: readonly LabourCode[] | null | undefined): LabourCode[] {
+  return (codes ?? []).filter((row) => labourFromCode(row) !== null);
 }
 
 /**
@@ -110,10 +128,9 @@ export function cleanLabourCodeRate(text: string): string {
 
 /**
  * Why a Masters line cannot be saved, or null when it can: a code is needed,
- * at most 20 characters. The rate may be left blank, as a Wastage % may (the
- * server keeps no figure, and picking the code then fills nothing); a rate
- * given is a number, never below zero, and a percent of the gold value is
- * at most 100.
+ * at most 20 characters, and a rate (the server refuses a code without one:
+ * picking it on the card would fill nothing). The rate is a number, never
+ * below zero, and a percent of the gold value is at most 100.
  */
 export function labourCodeLineError(code: string, rate: string, unit: LabourCodeUnit): string | null {
   const trimmedCode = code.trim();
@@ -122,7 +139,7 @@ export function labourCodeLineError(code: string, rate: string, unit: LabourCode
     return `A labour code is at most ${LABOUR_CODE_MAX_LENGTH} characters.`;
   }
   const trimmedRate = rate.trim();
-  if (!trimmedRate) return null;
+  if (!trimmedRate) return 'Enter the labour rate for this code.';
   const figure = Number(trimmedRate);
   if (!Number.isFinite(figure) || figure < 0) return 'The labour rate must be a number, 0 or more.';
   if (unit === 'Percent' && figure > 100) return 'A labour percentage must be between 0 and 100.';

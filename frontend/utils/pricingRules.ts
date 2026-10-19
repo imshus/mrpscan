@@ -15,11 +15,15 @@
  * prices wastage at the Current Gold Rate (the 24K rate × the purity) on
  * the weight the Wastage tile picks, and says the rate it used, which the
  * invoice's wastage line bills at; rules 2 builds still get the 24K rate on
- * the net weight their invoices print. Builds without the header are priced
- * by the rules their invoices bill.
+ * the net weight their invoices print. From rules 4 the analysis prices the
+ * labour this card opens with when the tag names a Masters -> Labour Code:
+ * the code's rate, ahead of the item's and the shop's labour (prefillLabour),
+ * a labour figure printed on the tag still first; rules 3 builds open with
+ * the item's or the shop's labour and keep that first price. Builds without
+ * the header are priced by the rules their invoices bill.
  */
 export const PRICING_RULES_HEADER = 'X-Pricing-Rules';
-export const PRICING_RULES = '3';
+export const PRICING_RULES = '4';
 
 /** A labour charge's unit: rupees per gram, per 10 g, or a percent of the gold value. */
 export type PricingLabourUnit = 'Per Gram' | 'Per 10 Gram' | 'Percent';
@@ -122,11 +126,14 @@ export interface PrefilledLabour {
  * rate of the Masters -> Labour Code the server matched on the tag, in its
  * unit; else the Masters item's labour in its unit; else the shop's charge
  * (AMOUNT per its unit, PERCENTAGE as a percent of the gold value) - on the
- * weight the shop's charge was saved against. Null: nothing to fill. The
- * server works out the analysis price from the item's and the shop's the
- * same way (pricingInputs appLabourFields), and its /calculate charges
- * labour in this order too: a figure the card sends, then the labour code,
- * then the item's, then the shop's.
+ * weight the shop's charge was saved against. Null: nothing to fill. A code
+ * without a usable rate (none saved, or a percent past 100) is passed over,
+ * so the box opens with the item's or the shop's labour, never another
+ * code's. The server works out the analysis price from the same choice
+ * (pricingInputs appLabourFields, the code's rate from rules 4, which this
+ * build sends), and its /calculate charges labour in this order too: a
+ * figure the card sends, then the labour code, then the item's, then the
+ * shop's.
  */
 export function prefillLabour(
   item: { labour?: number | null; labourUnit?: string | null } | null | undefined,

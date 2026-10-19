@@ -7,9 +7,11 @@
  *    unit Percent (it was filed as a labour purity nothing priced, and the
  *    shop's rate went in its place); "MC 850" is Rs 850 a gram; text with no
  *    number is no labour;
- *  - with no labour on the tag the box is filled with the Masters item's
- *    labour in its unit, else the shop's charge (a PERCENTAGE charge as a
- *    percent), on the weight the shop's charge was saved against;
+ *  - with no labour on the tag the box is filled with the rate of the
+ *    Masters -> Labour Code the tag names (rules 4, which this build sends;
+ *    a code without a rate is passed over), else the Masters item's labour
+ *    in its unit, else the shop's charge (a PERCENTAGE charge as a percent),
+ *    on the weight the shop's charge was saved against;
  *  - a stone weight printed in grams is priced as 5 ct a gram, and its unit
  *    is read off the reader's field or the weight's text;
  *  - a colour stone's rate row is its packet's, else its colour and
@@ -52,11 +54,13 @@ const LABOUR_TEXTS = [
   'NIL', '', '  ', '-500', 'LBR-850', 'Wt.5.43',
 ];
 
-test('the header this build sends names rules 3', () => {
+test('the header this build sends names rules 4', () => {
   // Rules 3: wastage at the Current Gold Rate on the tile's Weight Used, and
   // the rate it was priced at comes back for the invoice's wastage line.
+  // Rules 4: the analysis opens the labour at the rate of the Labour Code
+  // the tag names, as this card's labour box does (prefillLabour).
   assert.equal(PRICING_RULES_HEADER, 'X-Pricing-Rules');
-  assert.equal(PRICING_RULES, '3');
+  assert.equal(PRICING_RULES, '4');
 });
 
 test('a tag\'s labour: "12%" is a percent of the gold, "MC 850" Rs 850/g, a bare figure up to 100 or "NIL" none', () => {
@@ -199,4 +203,55 @@ test('the labour box: a Labour Code the tag matched comes before the item\'s lab
   // No code: exactly as before.
   assert.deepEqual(prefillLabour(item, amountShop, 'net', null), prefillLabour(item, amountShop, 'net'));
   assert.deepEqual(prefillLabour(item, amountShop, 'net', undefined), prefillLabour(item, amountShop, 'net'));
+});
+
+test('the labour box with a Labour Code on the tag is what the server prices the analysis with', { skip: !server && 'backend not beside the app' }, () => {
+  const shops = [
+    null,
+    { chargeType: 'NONE', value: 0 },
+    { chargeType: 'AMOUNT', value: 500, rupeesUnit: 'Per Gram', weightBasis: 'net' },
+    { chargeType: 'AMOUNT', value: 5000, rupeesUnit: 'Per 10 Gram', weightBasis: 'gross' },
+    { chargeType: 'PERCENTAGE', value: 8, weightBasis: 'gross' },
+  ];
+  const items = [null, { labour: null }, { labour: 700 }, { labour: 12, labourUnit: 'Percent' }];
+  // The row as the app reads it (toLabourCode: unit one of the three) and as
+  // the server holds it: the same code, rate and unit.
+  const codes = [
+    null,
+    { code: 'LB-02', rate: 380, unit: 'Per Gram' },
+    { code: 'LB-10', rate: 4200, unit: 'Per 10 Gram' },
+    { code: 'LP-12', rate: 12, unit: 'Percent' },
+    { code: 'LB-00', rate: 0, unit: 'Per Gram' },
+    // Kept from before a rate was required: passed over on both sides.
+    { code: 'LB-09', rate: null, unit: 'Per Gram' },
+  ];
+  for (const shop of shops) {
+    for (const item of items) {
+      for (const code of codes) {
+        for (const tag of ['', '12%', 'MC 850', '12', 'NIL']) {
+          const fromTag = parseTagLabour(tag);
+          const app = fromTag
+            ? { labourChargeAmount: String(fromTag.amount), labourChargeUnit: fromTag.unit, labourWeightBasis: 'net' }
+            : prefillLabour(item, shop, 'net', code) ?? { labourWeightBasis: 'net' };
+          const label = JSON.stringify({ shop, item, code, tag });
+          // This build's rules: the code the tag names opens the box on both sides.
+          assert.deepEqual(
+            app,
+            server.appLabourFields({ tagLabour: tag, itemRow: item, labourDoc: shop, labourCodeRow: code, rules: Number(PRICING_RULES) }),
+            label,
+          );
+          // Rules 3, the builds already in shops, open as they always did:
+          // the code the tag names is not read for the opening labour.
+          const before = fromTag
+            ? app
+            : prefillLabour(item, shop, 'net') ?? { labourWeightBasis: 'net' };
+          assert.deepEqual(
+            before,
+            server.appLabourFields({ tagLabour: tag, itemRow: item, labourDoc: shop, labourCodeRow: code, rules: 3 }),
+            `rules 3 ${label}`,
+          );
+        }
+      }
+    }
+  }
 });

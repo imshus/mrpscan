@@ -7,10 +7,12 @@
  *  - codes are matched as the server matches them, on letters and digits
  *    alone ("LB 03" is LB-03);
  *  - picking a code on the review card puts its rate in the Labour Rate box
- *    and its unit with it; a row with no usable figure fills nothing;
+ *    and its unit with it; a row with no usable figure fills nothing, and
+ *    the card does not offer it (so it is never recorded at another code's
+ *    or the shop's rate);
  *  - the code the analysis matched is its own field, else its price's;
- *  - a Masters line saves only with a code (at most 20 characters); a rate
- *    may be blank (no figure, as a Wastage %), and a percent rate is at most
+ *  - a Masters line saves only with a code (at most 20 characters) and a
+ *    rate (the server refuses a blank one), and a percent rate is at most
  *    100.
  *
  * Run with:  node --test utils/__tests__/labourCodes.test.mjs
@@ -30,6 +32,7 @@ import {
   labourCodeUnitOf,
   labourFromCode,
   toLabourCode,
+  usableLabourCodes,
 } from '../labourCodes.ts';
 
 test('a server row: id, code, rate as a number, unit one of the three', () => {
@@ -101,11 +104,29 @@ test('picking a code fills the Labour Rate with its rate, in its unit', () => {
     labourChargeAmount: '0',
     labourChargeUnit: 'Per Gram',
   });
-  // Nothing usable: the box keeps what it holds.
+  // Nothing usable: nothing to fill.
   assert.equal(labourFromCode({ rate: null, unit: 'Per Gram' }), null);
   assert.equal(labourFromCode({ rate: 120, unit: 'Percent' }), null);
   assert.equal(labourFromCode(null), null);
   assert.equal(labourFromCode(undefined), null);
+});
+
+test('the card offers only codes with a rate: one kept without a rate is never picked', () => {
+  const rows = [
+    toLabourCode({ id: '1', code: 'LB-01', rate: 415, unit: 'Per Gram' }),
+    // Kept from before Masters required a rate.
+    toLabourCode({ id: '2', code: 'LB-09', rate: null }),
+    toLabourCode({ id: '3', code: 'LB-00', rate: 0 }),
+    toLabourCode({ id: '4', code: 'LP-12', rate: 12, unit: 'Percent' }),
+  ];
+  assert.deepEqual(usableLabourCodes(rows).map((row) => row.code), ['LB-01', 'LB-00', 'LP-12']);
+  // Every code offered fills the box with a rate of its own.
+  for (const row of usableLabourCodes(rows)) assert.notEqual(labourFromCode(row), null, row.code);
+  // A percent past 100 (never saved, but read defensively) is not offered either.
+  assert.deepEqual(usableLabourCodes([{ id: '5', code: 'LP-X', rate: 120, unit: 'Percent' }]), []);
+  assert.deepEqual(usableLabourCodes([]), []);
+  assert.deepEqual(usableLabourCodes(null), []);
+  assert.deepEqual(usableLabourCodes(undefined), []);
 });
 
 test('the code the analysis matched: its own field, else the one its price recorded', () => {
@@ -131,9 +152,14 @@ test('a Masters line saves with a code and a rate; a percent rate is at most 100
   assert.match(labourCodeLineError('  ', '350', 'Per Gram'), /code/i);
   assert.match(labourCodeLineError('X'.repeat(LABOUR_CODE_MAX_LENGTH + 1), '350', 'Per Gram'), /20/);
   assert.equal(labourCodeLineError('X'.repeat(LABOUR_CODE_MAX_LENGTH), '350', 'Per Gram'), null);
-  // A blank rate saves, as a blank Wastage % does: the server keeps no figure.
-  assert.equal(labourCodeLineError('LB-01', '', 'Per Gram'), null);
-  assert.equal(labourCodeLineError('LB-01', '  ', 'Percent'), null);
+  // A code must have a rate: picking it on the card fills the Labour Rate
+  // box with it (the server refuses a blank one too).
+  assert.match(labourCodeLineError('LB-01', '', 'Per Gram'), /labour rate/i);
+  assert.match(labourCodeLineError('LB-01', '  ', 'Percent'), /labour rate/i);
+  assert.match(labourCodeLineError('LB-01', '', 'Per 10 Gram'), /labour rate/i);
+  // The code is asked for first.
+  assert.equal(labourCodeLineError('', '', 'Per Gram'), labourCodeLineError('', '350', 'Per Gram'));
+  assert.doesNotMatch(labourCodeLineError('', '', 'Per Gram'), /rate/i);
   assert.match(labourCodeLineError('LB-01', '.', 'Per Gram'), /rate/i);
   assert.match(labourCodeLineError('LB-P', '100.5', 'Percent'), /0 and 100/);
   assert.match(labourCodeLineError('LB-P', '150', 'Percent'), /0 and 100/);

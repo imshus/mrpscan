@@ -372,9 +372,12 @@ export default function ProcessingScreen() {
       // holds; the shop's rate used to be filled in over the item's, so the
       // item's labour was never what the card or the invoice charged.
       // A Masters -> Labour Code the server matched on the tag comes first:
-      // its rate, in its unit, as the server charges a code ahead of the
-      // item's and the shop's. Only the box is filled: the code itself is the
-      // server's to find again from the tag (and to show on Labour Code).
+      // its rate, in its unit, as the server opens the analysis' price with
+      // it (pricing rules 4) and charges a code ahead of the item's and the
+      // shop's; a code without a rate is passed over. The code is the
+      // analysis' own labourCode, kept even when it could not price. Only the
+      // box is filled: the code itself is the server's to find again from the
+      // tag (and to show on Labour Code).
       if (!adjustedScanData.labourChargeAmount?.trim()) {
         // Errors are already swallowed at kickoff and keep scanned values.
         const labourRate = await labourRatePromise;

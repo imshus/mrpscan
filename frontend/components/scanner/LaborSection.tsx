@@ -19,7 +19,7 @@ import {
 import type { ScanItemData } from '@/types/scanner';
 import { parseWeightValue } from '@/utils/formulaUtils';
 import { fetchLabourCodes, type LabourCode } from '@/utils/labourCodeApi';
-import { labourFromCode } from '@/utils/labourCodes';
+import { labourFromCode, usableLabourCodes } from '@/utils/labourCodes';
 import { roundHalfUp } from '@/utils/moneyMath';
 import { registerScopeResetCallback } from '@/utils/userScopedStorage';
 
@@ -207,7 +207,9 @@ export function FinalLabourAmountTile({
  * in), and the code goes with the request so the server records it. The box
  * still takes a correction for a piece that is an exception, and a figure
  * typed there is what is charged. With no list saved the code reads as the
- * one the server matched on the tag, else '—', as on Wastage.
+ * one the server matched on the tag, else '—', as on Wastage. A code kept
+ * without a rate (from before Masters required one) is not offered: picking
+ * it would fill nothing and record it at the box's other rate.
  */
 export const LaborSection = memo(function LaborSection({
   values,
@@ -234,9 +236,11 @@ export const LaborSection = memo(function LaborSection({
     };
   }, []);
 
+  // Only codes with a rate to fill the box with.
+  const usable = useMemo(() => usableLabourCodes(codes), [codes]);
   const options = useMemo(
-    () => codes.map((row) => ({ value: row.code, label: row.code })),
-    [codes],
+    () => usable.map((row) => ({ value: row.code, label: row.code })),
+    [usable],
   );
 
   const handleChargeChange = (text: string) => {
@@ -261,10 +265,12 @@ export const LaborSection = memo(function LaborSection({
                 value={shownCode}
                 options={options}
                 onChange={(value) => {
-                  const picked = codes.find((row) => row.code === value);
-                  // Its rate and unit fill the Labour Rate box; a code with
-                  // no usable figure leaves the box as it is.
-                  onChange({ labourCode: value, ...(labourFromCode(picked) ?? {}) });
+                  // Its rate and unit fill the Labour Rate box. A code with no
+                  // usable figure is never picked: it would be recorded at
+                  // whatever rate the box holds.
+                  const fill = labourFromCode(usable.find((row) => row.code === value));
+                  if (!fill) return;
+                  onChange({ labourCode: value, ...fill });
                 }}
                 containerClassName="w-full"
               />

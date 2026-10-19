@@ -219,6 +219,10 @@ function normalizeAnalyzeResponse(raw: AnalyzeScanResponse): AnalyzeScanResponse
     tagIdentifiers: Array.isArray(unwrapped.tagIdentifiers)
       ? unwrapped.tagIdentifiers.map((value: unknown) => String(value ?? '').trim()).filter(Boolean)
       : [],
+    // The Masters -> Labour Code the server matched on the tag. Kept on its
+    // own: when the analysis could not price (pricing null) it is the only
+    // place the code is named, and the card's labour box opens with its rate.
+    labourCode: typeof unwrapped.labourCode === 'string' ? unwrapped.labourCode.trim() : '',
     billing: unwrapped.billing,
     pricing:
       unwrapped.pricing && typeof unwrapped.pricing.finalMRP === 'number'

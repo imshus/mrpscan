@@ -21,8 +21,8 @@ export async function fetchLabourCodes(): Promise<LabourCode[]> {
 export async function saveLabourCode(payload: {
   id?: string;
   code: string;
-  /** Empty string clears the figure; the server stores null for it. */
-  rate?: string | number | null;
+  /** Required: the server refuses a blank rate (400 "Labour rate is required"). */
+  rate: string | number;
   unit: LabourCodeUnit;
 }): Promise<LabourCode | null> {
   const response = await apiRequest<Record<string, unknown>>('/labour-codes', {
@@ -30,7 +30,7 @@ export async function saveLabourCode(payload: {
     body: {
       ...(payload.id ? { id: payload.id } : {}),
       code: payload.code,
-      rate: payload.rate ?? '',
+      rate: payload.rate,
       unit: payload.unit,
     },
   });
