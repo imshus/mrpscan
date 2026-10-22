@@ -32,6 +32,7 @@ import { loadLabourCodes } from '@/components/scanner/LaborSection';
 import { analysisLabourCode, findLabourCode } from '@/utils/labourCodes';
 import { applyStoneRateTables } from '@/utils/stoneSequenceUtils';
 import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
+import { PROC_CAPTION_FROM, PROC_CAPTIONS, procCaptionIndex } from '@/utils/processingRing';
 import { findItemOnTag, loadItemCatalogue } from '@/utils/itemCatalogue';
 import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
 import {
@@ -41,9 +42,9 @@ import {
   fetchLabourRate,
 } from '@/utils/ratesApi';
 
-// The counter climbs toward 99 at a six-second pace, showing every digit
-// through five labelled sections of twenty digits each, pinned to the wall
-// clock: the digit due at any moment comes from elapsed time, so a busy JS
+// The counter climbs toward 99 at a six-second pace, filling the ring digit
+// by digit through the four messages its caption rolls through, pinned to the
+// wall clock: the digit due at any moment comes from elapsed time, so a busy JS
 // thread can delay a frame but never stretch the count — it catches up a
 // couple of digits per frame instead. Everything happens behind the count:
 // upload, the reading, and the first MRP calculation. The hand-off to the
@@ -63,21 +64,23 @@ const SPRINT_MS = 200;
 /** How long to wait for the first price after the reading before opening the card regardless. */
 const PRICE_WAIT_CAP_MS = 4000;
 
-/** The five sections of the counter; a digit belongs to the last one it reached. */
-const SECTIONS = [
-  { from: 0, stage: ScanStage.Uploading, message: 'Uploading Tags...' },
-  { from: 20, stage: ScanStage.AIProcessing, message: 'Reading the Tag...' },
-  { from: 40, stage: ScanStage.AIProcessing, message: 'Analysing Details...' },
-  { from: 60, stage: ScanStage.PreparingResults, message: 'Calculating Price...' },
-  { from: 80, stage: ScanStage.PreparingResults, message: 'Loading Scanned Results...' },
+/**
+ * The sections of the counter, one per caption the ring's pill shows
+ * (utils/processingRing): a digit belongs to the last one it reached.
+ */
+const SECTION_STAGES = [
+  ScanStage.Uploading,
+  ScanStage.AIProcessing,
+  ScanStage.PreparingResults,
+  ScanStage.PreparingResults,
 ] as const;
+const SECTIONS = PROC_CAPTIONS.map((message, i) => ({
+  from: PROC_CAPTION_FROM[i],
+  stage: SECTION_STAGES[i],
+  message,
+}));
 
-const sectionFor = (digit: number) => {
-  for (let i = SECTIONS.length - 1; i >= 0; i -= 1) {
-    if (digit >= SECTIONS[i].from) return SECTIONS[i];
-  }
-  return SECTIONS[0];
-};
+const sectionFor = (digit: number) => SECTIONS[procCaptionIndex(digit)];
 
 export default function ProcessingScreen() {
   const router = useRouter();
@@ -208,7 +211,7 @@ export default function ProcessingScreen() {
     // The counter: the digit due now comes from elapsed wall-clock time, and
     // each frame advances at most a couple of digits toward it — so the count
     // is visible digit by digit even when uploads keep the JS thread busy.
-    // Section labels switch every twenty digits. Once the reading and its
+    // The caption rolls on at 25, 55 and 85. Once the reading and its
     // price are in hand the count runs out to 100 over SPRINT_MS, and the
     // review card opens on the last digit.
     if (tickerRef.current) clearInterval(tickerRef.current);
@@ -553,11 +556,7 @@ export default function ProcessingScreen() {
         <Rect x="0" y="0" width="100%" height="100%" fill="url(#procBg)" />
       </Svg>
       <SafeAreaView style={styles.center}>
-        <UnifiedScanLoader
-          progress={scanLoading.progress}
-          stage={scanLoading.stage}
-          message={scanLoading.message}
-        />
+        <UnifiedScanLoader progress={scanLoading.progress} />
       </SafeAreaView>
     </View>
   );
