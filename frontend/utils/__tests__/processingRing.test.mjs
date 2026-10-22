@@ -92,13 +92,13 @@ test('the count waits at 100 until the work is done, then the card opens', () =>
   }
 });
 
-test('work done before the count runs the rest out faster, digit by digit', () => {
-  assert.equal(PROC_FINISH_SPEEDUP, 4);
-  // Ready at 0.8 s (40): four times the pace from there, 100 at 1.1 s.
+test('work done before the count does not hurry it: an even 0.5 s a quarter', () => {
+  assert.equal(PROC_FINISH_SPEEDUP, 1);
+  // Ready at 0.8 s (40): the count keeps its pace, 100 at 2 s.
   assert.equal(procPercentAt(800, 800), 40);
-  assert.equal(procPercentAt(900, 800), 60);
-  assert.equal(procPercentAt(1099, 800), 99);
-  assert.equal(procPercentAt(1100, 800), 100);
+  assert.equal(procPercentAt(900, 800), 45);
+  assert.equal(procPercentAt(1999, 800), 99);
+  assert.equal(procPercentAt(2000, 800), 100);
   // Never behind the even count, never a jump of more than the faster pace.
   let previous = 0;
   for (let ms = 0; ms <= 2000; ms += 1) {
@@ -107,9 +107,9 @@ test('work done before the count runs the rest out faster, digit by digit', () =
     assert.ok(value >= previous && value - previous <= 1, `step at ${ms} ms`);
     previous = value;
   }
-  // Already done when the screen opens: 100 at half a second.
-  assert.equal(procPercentAt(499, 0), 99);
-  assert.equal(procPercentAt(500, 0), 100);
+  // Already done when the screen opens: still the full even count.
+  assert.equal(procPercentAt(500, 0), 25);
+  assert.equal(procPercentAt(2000, 0), 100);
 });
 
 /** When a 16 ms ticker opens the card for work that is done at `readyAt`. */
@@ -121,8 +121,8 @@ function leavesAt(readyAt) {
   return null;
 }
 
-test('the card opens on 100: early work at 1.1 s, work at 2 s at 2 s, slow work when it lands', () => {
-  assert.ok(Math.abs(leavesAt(800) - 1100) <= 16, `ready 0.8 s: ${leavesAt(800)}`);
+test('the card opens on 100: early work at 2 s, work at 2 s at 2 s, slow work when it lands', () => {
+  assert.ok(Math.abs(leavesAt(800) - 2000) <= 16, `ready 0.8 s: ${leavesAt(800)}`);
   assert.ok(Math.abs(leavesAt(2000) - 2000) <= 16, `ready 2 s: ${leavesAt(2000)}`);
   assert.ok(Math.abs(leavesAt(6000) - 6000) <= 16, `ready 6 s: ${leavesAt(6000)}`);
 });

@@ -12,14 +12,17 @@
 // The count (owner, 22 Oct 2026): 0 → 25 → 50 → 75 → 100, half a second a
 // quarter, evenly, so 100 at two seconds. It waits at 100 until the reading
 // and its price are in hand, and the review card opens then. Work done
-// before the count is runs the rest of the count out faster, digit by
-// digit, and the card opens on 100.
+// before the count still lets it run evenly to 100 (the owner's 0.5 s a
+// quarter), and the card opens on 100.
 // ---------------------------------------------------------------------------
 
 /** 0 to 100 at an even pace: 25 every half second. */
 export const PROC_COUNT_MS = 2000;
-/** How much faster the count runs out once the work is done before it. */
-export const PROC_FINISH_SPEEDUP = 4;
+/**
+ * How much faster the count runs out once the work is done before it: 1, an
+ * even 0.5 s a quarter whatever the work does (the owner's ask).
+ */
+export const PROC_FINISH_SPEEDUP = 1;
 
 /**
  * The percent due `elapsedMs` into the scan: an even count that reaches 100
