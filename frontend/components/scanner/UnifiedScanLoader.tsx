@@ -156,8 +156,8 @@ const RingPulse = memo(function RingPulse() {
 });
 
 /**
- * The red arc (`.proc-arc`), dash offset easing to each new digit over
- * 120 ms linear, and its glow underneath. A progress that goes back (a new
+ * The red arc (`.proc-arc`), dash offset gliding to each new quarter over
+ * PROC_ARC_TRANSITION_MS, easing out, and its glow underneath. A progress that goes back (a new
  * run on the same screen) jumps there, as the mockup resets without the
  * transition.
  */
@@ -174,7 +174,7 @@ function RingArc({ progress }: { progress: number }) {
     } else {
       offset.value = withTiming(target, {
         duration: PROC_ARC_TRANSITION_MS,
-        easing: Easing.linear,
+        easing: Easing.out(Easing.cubic),
       });
     }
     lastProgress.current = progress;

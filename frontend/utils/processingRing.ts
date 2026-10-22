@@ -10,7 +10,8 @@
 
 // ---------------------------------------------------------------------------
 // The count (owner, 22 Oct 2026): 0 → 25 → 50 → 75 → 100, half a second a
-// quarter, evenly, so 100 at two seconds. It waits at 100 until the reading
+// quarter, evenly, so 100 at two seconds — in those five steps only, never
+// counting the digits in between (the owner's ask, 24 Oct). It waits at 100 until the reading
 // and its price are in hand, and the review card opens then. Work done
 // before the count still lets it run evenly to 100 (the owner's 0.5 s a
 // quarter), and the card opens on 100.
@@ -18,6 +19,8 @@
 
 /** 0 to 100 at an even pace: 25 every half second. */
 export const PROC_COUNT_MS = 2000;
+/** The count moves a quarter at a time. */
+export const PROC_STEP = 25;
 /**
  * How much faster the count runs out once the work is done before it: 1, an
  * even 0.5 s a quarter whatever the work does (the owner's ask).
@@ -25,8 +28,8 @@ export const PROC_COUNT_MS = 2000;
 export const PROC_FINISH_SPEEDUP = 1;
 
 /**
- * The percent due `elapsedMs` into the scan: an even count that reaches 100
- * at PROC_COUNT_MS and holds there. `readyAtMs` is when the reading with its
+ * The percent due `elapsedMs` into the scan: 0, 25, 50, 75, then 100 at
+ * PROC_COUNT_MS, held there; a step lands on its half second, never before. `readyAtMs` is when the reading with its
  * price was in hand (null while it is not): from then on, the count's clock
  * runs PROC_FINISH_SPEEDUP times faster.
  */
@@ -37,7 +40,8 @@ export function procPercentAt(elapsedMs: number, readyAtMs: number | null = null
     const from = Math.max(0, readyAtMs);
     clock = from + PROC_FINISH_SPEEDUP * (elapsedMs - from);
   }
-  return Math.min(100, Math.floor((clock * 100) / PROC_COUNT_MS));
+  const steps = Math.floor((clock * 100) / (PROC_COUNT_MS * PROC_STEP));
+  return Math.min(100, steps * PROC_STEP);
 }
 
 /** The review card opens on 100 and only with the work done: until then the count waits at 100. */
@@ -65,8 +69,11 @@ export const PROC_RING_RADIUS = 40;
 export const PROC_RING_STROKE = 3.5;
 /** The arc's stroke-dasharray, and its dash offset at 0% (2π × 40). */
 export const PROC_RING_CIRCUMFERENCE = 251.33;
-/** `.proc-arc { transition: stroke-dashoffset 0.12s linear }` */
-export const PROC_ARC_TRANSITION_MS = 120;
+/**
+ * The arc glides to each new quarter: with the count stepping a quarter at a
+ * time, the mockup's 0.12 s (made for one digit) read as a jump.
+ */
+export const PROC_ARC_TRANSITION_MS = 300;
 
 /** The pill's messages, in the order the scan reaches them. */
 export const PROC_CAPTIONS = [

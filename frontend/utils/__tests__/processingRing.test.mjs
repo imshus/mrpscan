@@ -58,18 +58,20 @@ test('the count runs 0, 25, 50, 75, 100 at half-second steps, evenly', () => {
   assert.equal(procPercentAt(1000), 50);
   assert.equal(procPercentAt(1500), 75);
   assert.equal(procPercentAt(2000), 100);
-  // Never ahead of the clock: the digit before each quarter.
-  assert.equal(procPercentAt(499), 24);
-  assert.equal(procPercentAt(999), 49);
-  assert.equal(procPercentAt(1999), 99);
-  // Even: one digit every 20 ms, all the way.
-  for (let ms = 0; ms <= 2000; ms += 20) assert.equal(procPercentAt(ms), ms / 20, `${ms} ms`);
+  // Never ahead of the clock: the quarter before each step.
+  assert.equal(procPercentAt(499), 0);
+  assert.equal(procPercentAt(999), 25);
+  assert.equal(procPercentAt(1999), 75);
+  // Only the five steps, never the digits between them.
+  const seen = new Set();
   let previous = 0;
   for (let ms = 0; ms <= 2500; ms += 1) {
     const value = procPercentAt(ms);
-    assert.ok(value >= previous && value - previous <= 1, `step at ${ms} ms`);
+    seen.add(value);
+    assert.ok(value >= previous && value - previous <= 25, `step at ${ms} ms`);
     previous = value;
   }
+  assert.deepEqual([...seen].sort((a, b) => a - b), [0, 25, 50, 75, 100]);
   // Clamped: nothing before the start, 100 at most however long it takes.
   assert.equal(procPercentAt(-300), 0);
   assert.equal(procPercentAt(Number.NaN), 0);
@@ -94,18 +96,13 @@ test('the count waits at 100 until the work is done, then the card opens', () =>
 
 test('work done before the count does not hurry it: an even 0.5 s a quarter', () => {
   assert.equal(PROC_FINISH_SPEEDUP, 1);
-  // Ready at 0.8 s (40): the count keeps its pace, 100 at 2 s.
-  assert.equal(procPercentAt(800, 800), 40);
-  assert.equal(procPercentAt(900, 800), 45);
-  assert.equal(procPercentAt(1999, 800), 99);
+  // Ready at 0.8 s: the count keeps its steps, 100 at 2 s.
+  assert.equal(procPercentAt(800, 800), 25);
+  assert.equal(procPercentAt(1000, 800), 50);
+  assert.equal(procPercentAt(1999, 800), 75);
   assert.equal(procPercentAt(2000, 800), 100);
-  // Never behind the even count, never a jump of more than the faster pace.
-  let previous = 0;
   for (let ms = 0; ms <= 2000; ms += 1) {
-    const value = procPercentAt(ms, 800);
-    assert.ok(value >= procPercentAt(ms), `not behind at ${ms} ms`);
-    assert.ok(value >= previous && value - previous <= 1, `step at ${ms} ms`);
-    previous = value;
+    assert.equal(procPercentAt(ms, 800), procPercentAt(ms), `same as the even count at ${ms} ms`);
   }
   // Already done when the screen opens: still the full even count.
   assert.equal(procPercentAt(500, 0), 25);
