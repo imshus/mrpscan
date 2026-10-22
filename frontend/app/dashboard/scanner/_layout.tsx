@@ -1,10 +1,11 @@
 import { Stack } from 'expo-router';
 
 const scannerScreenOptions = { headerShown: false, animation: 'slide_from_right' } as const;
-const scannerIndexOptions = { animation: 'fade' } as const;
 // Capture -> processing -> review is one scan moving along, not a new page
-// each time: a fade lands sooner and reads as the same place changing.
-const scannerScanStepOptions = { animation: 'fade' } as const;
+// each time. They switch at once: a cross-fade showed the two screens
+// through each other for a moment, which read as the app going blurry.
+const scannerIndexOptions = { animation: 'none' } as const;
+const scannerScanStepOptions = { animation: 'none' } as const;
 
 export default function ScannerLayout() {
   return (

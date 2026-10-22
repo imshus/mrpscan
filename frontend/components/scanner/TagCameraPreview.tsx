@@ -381,8 +381,11 @@ export const TagCameraPreview = forwardRef<TagCameraPreviewRef, TagCameraPreview
           onCameraReady={() => setReady(true)}
         />
       )}
+      {/* Only the spinner while the camera starts: a half-black cover over the
+          whole screen made a slow start look like the app had gone dim and
+          blurry. */}
       {!ready && !paused ? (
-        <View style={StyleSheet.absoluteFill} className="items-center justify-center bg-black/50">
+        <View style={StyleSheet.absoluteFill} className="items-center justify-center" pointerEvents="none">
           <ActivityIndicator size="large" color="#B8860B" />
         </View>
       ) : null}

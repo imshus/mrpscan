@@ -39,7 +39,9 @@ export default function DashboardLayout() {
   if (!isAuthenticated) return <Redirect href="/login" />;
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    // A page slides in from the right: Android's default fade let the old
+    // and new page show through each other for a moment, which read as blur.
+    <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="settings" />
       <Stack.Screen name="business-profile" options={{ headerShown: false }} />

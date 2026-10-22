@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Store } from 'lucide-react-native';
@@ -23,6 +24,9 @@ export function EmployeeWelcomePopup() {
   const employeeName = useAuthStore((s) => String(s.registration.fullName ?? '').trim());
   const [visible, setVisible] = useState(false);
   const opacity = useRef(new Animated.Value(0)).current;
+  // Home stays mounted under the pages opened from it; the welcome waits
+  // until Home is on screen rather than opening over another page.
+  const isFocused = useIsFocused();
 
   useEffect(() => {
     if (userRole !== 'employee' || !sessionStartedAt || !businessName) {
@@ -46,7 +50,7 @@ export function EmployeeWelcomePopup() {
     Animated.timing(opacity, { toValue: 1, duration: 160, useNativeDriver: true }).start();
   }, [visible, opacity]);
 
-  if (!visible) return null;
+  if (!visible || !isFocused) return null;
 
   const dismiss = () => {
     setVisible(false);
