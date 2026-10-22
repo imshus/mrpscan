@@ -32,7 +32,13 @@ import { loadLabourCodes } from '@/components/scanner/LaborSection';
 import { analysisLabourCode, findLabourCode } from '@/utils/labourCodes';
 import { applyStoneRateTables } from '@/utils/stoneSequenceUtils';
 import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
-import { PROC_CAPTION_FROM, PROC_CAPTIONS, procCaptionIndex } from '@/utils/processingRing';
+import {
+  PROC_CAPTION_FROM,
+  PROC_CAPTIONS,
+  procCanLeave,
+  procCaptionIndex,
+  procPercentAt,
+} from '@/utils/processingRing';
 import { findItemOnTag, loadItemCatalogue } from '@/utils/itemCatalogue';
 import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
 import {
@@ -42,25 +48,17 @@ import {
   fetchLabourRate,
 } from '@/utils/ratesApi';
 
-// The counter climbs toward 99 at a six-second pace, filling the ring digit
-// by digit through the four messages its caption rolls through, pinned to the
-// wall clock: the digit due at any moment comes from elapsed time, so a busy JS
-// thread can delay a frame but never stretch the count — it catches up a
-// couple of digits per frame instead. Everything happens behind the count:
-// upload, the reading, and the first MRP calculation. The hand-off to the
-// review card waits for the reading with its price and nothing else: the
-// moment both are stored the count sprints to 100 and the card opens. There
-// is no minimum window any more — a reading that is already done (the photo
-// started its read as it landed on the server) opens the card at once, and
-// one that outlives the pace holds the counter at 99 until it lands.
-// Billing is finalized server-side in the background and never blocks this.
+// The counter fills the ring 0 → 25 → 50 → 75 → 100, half a second a quarter
+// (utils/processingRing procPercentAt), one caption a quarter, pinned to the
+// wall clock: the digit due at any moment comes from elapsed time, so a busy
+// JS thread can delay a frame but never stretch the count. Everything happens
+// behind the count: upload, the reading, and the first MRP calculation. The
+// hand-off to the review card waits for the reading with its price and
+// nothing else: a count that reaches 100 first waits there until both are
+// stored, and work done sooner runs the rest of the count out faster; the
+// card opens on 100. Billing is finalized server-side in the background and
+// never blocks this.
 const TICK_MS = 16;
-/** How many digits one frame may advance while catching up to the clock. */
-const MAX_DIGITS_PER_TICK = 2;
-/** The counter's pace while it waits: 99 at six seconds. It gates nothing. */
-const COUNTER_PACE_MS = 6000;
-/** How long the count takes to run out to 100 once the reading and price are in hand. */
-const SPRINT_MS = 200;
 /** How long to wait for the first price after the reading before opening the card regardless. */
 const PRICE_WAIT_CAP_MS = 4000;
 
@@ -101,9 +99,9 @@ export default function ProcessingScreen() {
   const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Whether the hand-off to the review card already happened.
   const navigatedRef = useRef(false);
-  // When the reading and its price were in hand, and the digit the count
-  // sprints to 100 from; null while still waiting.
-  const sprintRef = useRef<{ startedAt: number; from: number } | null>(null);
+  // When the reading and its price were in hand (wall clock); null while
+  // still waiting.
+  const readyAtRef = useRef<number | null>(null);
   // Wall-clock marks for the timings shown on the review screen.
   const scanStartRef = useRef(0);
   const uploadDoneRef = useRef(0);
@@ -188,9 +186,9 @@ export default function ProcessingScreen() {
     setAnalysisPending(true);
 
     // The hand-off fires once the reading with its price is stored — never
-    // before, so the review card opens with values and price, and no later
-    // than the short sprint of the count to 100.
-    sprintRef.current = null;
+    // before, so the review card opens with values and price — and the count
+    // stands at 100.
+    readyAtRef.current = null;
     const handOff = () => {
       if (navigatedRef.current) return;
       if (tickerRef.current) {
@@ -203,32 +201,21 @@ export default function ProcessingScreen() {
       router.replace('/dashboard/scanner/review-results' as Href);
     };
     const finishWhenReady = () => {
-      if (navigatedRef.current || sprintRef.current) return;
+      if (navigatedRef.current || readyAtRef.current !== null) return;
       if (useScannerStore.getState().scanId !== scanId) return;
-      sprintRef.current = { startedAt: Date.now(), from: progressRef.current };
+      readyAtRef.current = Date.now();
     };
 
-    // The counter: the digit due now comes from elapsed wall-clock time, and
-    // each frame advances at most a couple of digits toward it — so the count
-    // is visible digit by digit even when uploads keep the JS thread busy.
-    // The caption rolls on at 25, 55 and 85. Once the reading and its
-    // price are in hand the count runs out to 100 over SPRINT_MS, and the
-    // review card opens on the last digit.
+    // The counter: the digit due now comes from elapsed wall-clock time —
+    // 25 at 0.5 s, 50 at 1 s, 75 at 1.5 s, 100 at 2 s — and the caption rolls
+    // on at 25, 50 and 75. The review card opens once the count stands at
+    // 100 with the reading and its price in hand.
     if (tickerRef.current) clearInterval(tickerRef.current);
     const ticker = setInterval(() => {
-      const sprint = sprintRef.current;
-      if (sprint) {
-        const share = Math.min(1, (Date.now() - sprint.startedAt) / SPRINT_MS);
-        const digit = Math.min(100, sprint.from + Math.ceil((100 - sprint.from) * share));
-        applyDigit(digit);
-        if (digit >= 100) handOff();
-        return;
-      }
-      const elapsed = Date.now() - scanStartRef.current;
-      const due = Math.min(99, Math.floor((elapsed / COUNTER_PACE_MS) * 100));
-      if (due > progressRef.current) {
-        applyDigit(Math.min(due, progressRef.current + MAX_DIGITS_PER_TICK));
-      }
+      const start = scanStartRef.current;
+      const readyAt = readyAtRef.current;
+      applyDigit(procPercentAt(Date.now() - start, readyAt === null ? null : readyAt - start));
+      if (procCanLeave(progressRef.current, readyAt !== null)) handOff();
     }, TICK_MS);
     tickerRef.current = ticker;
 
@@ -493,7 +480,7 @@ export default function ProcessingScreen() {
     } catch (error) {
       clearInterval(ticker);
       tickerRef.current = null;
-      sprintRef.current = null;
+      readyAtRef.current = null;
       analysisRunKeyRef.current = null;
       setAnalysisPending(false);
       // Aborted by an account change: nothing to tell whoever signed in next.

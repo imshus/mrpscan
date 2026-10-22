@@ -49,13 +49,14 @@ import {
   procCubeFace,
   procGlowOpacity,
   procGlowTipOpacity,
+  procPercentLabel,
 } from '@/utils/processingRing';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedG = Animated.createAnimatedComponent(G);
 
 type UnifiedScanLoaderProps = {
-  /** The scan's progress, 0–100: fills the ring and picks the caption. */
+  /** The scan's progress, 0–100: fills the ring, reads inside it and picks the caption. */
   progress: number;
 };
 
@@ -66,7 +67,7 @@ const PULSE_GRADIENT_RADIUS = (PULSE_SIZE / 2) * Math.SQRT2;
 const DASH = [PROC_RING_CIRCUMFERENCE, PROC_RING_CIRCUMFERENCE];
 /** Where the arc's path starts (3 o'clock in the viewBox, 12 o'clock once turned). */
 const ARC_START_X = PROC_RING_CENTER + PROC_RING_RADIUS;
-/** `.proc-cube-box { transition: transform 0.55s cubic-bezier(.65, 0, .35, 1) }` */
+/** `.proc-cube-box { transition: transform … cubic-bezier(.65, 0, .35, 1) }`, 400 ms. */
 const ROLL_TIMING = {
   duration: PROC_CUBE_ROLL_MS,
   easing: Easing.bezier(...PROC_CUBE_EASING),
@@ -74,11 +75,12 @@ const ROLL_TIMING = {
 
 /**
  * Mockup `.proc-center` (6348f60): a 230 dp ring that fills clockwise with
- * the scan's progress, glowing red, with a glass pill under it whose caption
- * rolls like a cube to the next message. No percentage.
+ * the scan's progress, glowing red, the percentage in its middle, with a
+ * glass pill under it whose caption rolls like a cube to the next message.
  */
 export function UnifiedScanLoader({ progress }: UnifiedScanLoaderProps) {
   const captionIndex = procCaptionIndex(progress);
+  const percent = procPercentLabel(progress);
 
   return (
     <View style={styles.center}>
@@ -101,6 +103,12 @@ export function UnifiedScanLoader({ progress }: UnifiedScanLoaderProps) {
             />
           </Svg>
           <RingArc progress={progress} />
+        </View>
+        {/* Outside the turned spinner, so the digits stay upright. */}
+        <View pointerEvents="none" style={styles.percentBox}>
+          <Text style={styles.percent} numberOfLines={1}>
+            {percent}
+          </Text>
         </View>
       </View>
       <RollingCaption index={captionIndex} />
@@ -442,6 +450,26 @@ const styles = StyleSheet.create({
     width: PROC_RING_SIZE,
     height: PROC_RING_SIZE,
     transform: [{ rotate: '-90deg' }],
+  },
+  // Over the ring's 230 dp square, centred on the ring.
+  percentBox: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: PROC_RING_SIZE,
+    height: PROC_RING_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Mockup `.proc-percent { font-size: 3.4rem; font-weight: 800; color: #fff }`:
+  // "100%" is about 135 dp wide, inside the ring's 183 dp clear middle.
+  percent: {
+    color: Colors.white,
+    fontSize: 54.4,
+    fontWeight: '800',
+    textAlign: 'center',
+    includeFontPadding: false,
+    fontVariant: ['tabular-nums'],
   },
   cube: {
     marginTop: PROC_CUBE_MARGIN_TOP,

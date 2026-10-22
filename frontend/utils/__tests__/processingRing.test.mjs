@@ -1,9 +1,10 @@
 /**
  * Pins the scan processing screen's ring and caption (utils/processingRing.ts,
- * design mockup 6348f60): which message the pill shows at each digit, how
- * far the arc is drawn and where it ends, the glow's gradients carrying the
- * mockup's drop-shadow profile, and the caption cube's faces landing where
- * CSS's perspective puts them.
+ * design mockup 6348f60): the count's even two seconds to 100 and its wait
+ * there, the percent inside the ring, which message the pill shows at each
+ * digit, how far the arc is drawn and where it ends, the glow's gradients
+ * carrying the mockup's drop-shadow profile, and the caption cube's faces
+ * landing where CSS's perspective puts them.
  *
  * Run with:  node --test utils/__tests__/processingRing.test.mjs
  */
@@ -13,8 +14,11 @@ import test from 'node:test';
 
 import {
   PROC_CAPTIONS,
+  PROC_COUNT_MS,
   PROC_CUBE_DEPTH,
   PROC_CUBE_PERSPECTIVE,
+  PROC_CUBE_ROLL_MS,
+  PROC_FINISH_SPEEDUP,
   PROC_GLOW_GRADIENT_RADIUS,
   PROC_GLOW_PROFILE,
   PROC_GLOW_REACH,
@@ -25,10 +29,13 @@ import {
   PROC_RING_RADIUS,
   procArcEnd,
   procArcOffset,
+  procCanLeave,
   procCaptionIndex,
   procCubeFace,
   procGlowOpacity,
   procGlowTipOpacity,
+  procPercentAt,
+  procPercentLabel,
 } from '../processingRing.ts';
 
 const close = (actual, expected, tolerance, label) =>
@@ -44,21 +51,109 @@ test('the pill reads the mockup messages in order, with no numbers', () => {
   for (const caption of PROC_CAPTIONS) assert.doesNotMatch(caption, /\d|%/);
 });
 
-test('the caption moves on at 25, 55 and 85', () => {
+test('the count runs 0, 25, 50, 75, 100 at half-second steps, evenly', () => {
+  assert.equal(PROC_COUNT_MS, 2000);
+  assert.equal(procPercentAt(0), 0);
+  assert.equal(procPercentAt(500), 25);
+  assert.equal(procPercentAt(1000), 50);
+  assert.equal(procPercentAt(1500), 75);
+  assert.equal(procPercentAt(2000), 100);
+  // Never ahead of the clock: the digit before each quarter.
+  assert.equal(procPercentAt(499), 24);
+  assert.equal(procPercentAt(999), 49);
+  assert.equal(procPercentAt(1999), 99);
+  // Even: one digit every 20 ms, all the way.
+  for (let ms = 0; ms <= 2000; ms += 20) assert.equal(procPercentAt(ms), ms / 20, `${ms} ms`);
+  let previous = 0;
+  for (let ms = 0; ms <= 2500; ms += 1) {
+    const value = procPercentAt(ms);
+    assert.ok(value >= previous && value - previous <= 1, `step at ${ms} ms`);
+    previous = value;
+  }
+  // Clamped: nothing before the start, 100 at most however long it takes.
+  assert.equal(procPercentAt(-300), 0);
+  assert.equal(procPercentAt(Number.NaN), 0);
+  assert.equal(procPercentAt(6000), 100);
+  assert.equal(procPercentAt(60_000), 100);
+});
+
+test('the count waits at 100 until the work is done, then the card opens', () => {
+  assert.equal(procCanLeave(100, false), false);
+  assert.equal(procCanLeave(99, true), false);
+  assert.equal(procCanLeave(100, true), true);
+  // Work not done: the count holds at 100.
+  assert.equal(procPercentAt(2000, null), 100);
+  assert.equal(procPercentAt(5000, null), 100);
+  // Work done at or after 2 s changes nothing about the count.
+  for (const readyAt of [2000, 6000]) {
+    for (const ms of [0, 500, 1000, 1500, 1999, 2000, 4000]) {
+      assert.equal(procPercentAt(ms, readyAt), procPercentAt(ms), `ready ${readyAt}, ${ms} ms`);
+    }
+  }
+});
+
+test('work done before the count runs the rest out faster, digit by digit', () => {
+  assert.equal(PROC_FINISH_SPEEDUP, 4);
+  // Ready at 0.8 s (40): four times the pace from there, 100 at 1.1 s.
+  assert.equal(procPercentAt(800, 800), 40);
+  assert.equal(procPercentAt(900, 800), 60);
+  assert.equal(procPercentAt(1099, 800), 99);
+  assert.equal(procPercentAt(1100, 800), 100);
+  // Never behind the even count, never a jump of more than the faster pace.
+  let previous = 0;
+  for (let ms = 0; ms <= 2000; ms += 1) {
+    const value = procPercentAt(ms, 800);
+    assert.ok(value >= procPercentAt(ms), `not behind at ${ms} ms`);
+    assert.ok(value >= previous && value - previous <= 1, `step at ${ms} ms`);
+    previous = value;
+  }
+  // Already done when the screen opens: 100 at half a second.
+  assert.equal(procPercentAt(499, 0), 99);
+  assert.equal(procPercentAt(500, 0), 100);
+});
+
+/** When a 16 ms ticker opens the card for work that is done at `readyAt`. */
+function leavesAt(readyAt) {
+  for (let ms = 0; ms < 20_000; ms += 16) {
+    const ready = ms >= readyAt;
+    if (procCanLeave(procPercentAt(ms, ready ? readyAt : null), ready)) return ms;
+  }
+  return null;
+}
+
+test('the card opens on 100: early work at 1.1 s, work at 2 s at 2 s, slow work when it lands', () => {
+  assert.ok(Math.abs(leavesAt(800) - 1100) <= 16, `ready 0.8 s: ${leavesAt(800)}`);
+  assert.ok(Math.abs(leavesAt(2000) - 2000) <= 16, `ready 2 s: ${leavesAt(2000)}`);
+  assert.ok(Math.abs(leavesAt(6000) - 6000) <= 16, `ready 6 s: ${leavesAt(6000)}`);
+});
+
+test('the ring reads the count as a whole percent', () => {
+  assert.equal(procPercentLabel(0), '0%');
+  assert.equal(procPercentLabel(50), '50%');
+  assert.equal(procPercentLabel(100), '100%');
+  assert.equal(procPercentLabel(99.9), '99%');
+  assert.equal(procPercentLabel(-4), '0%');
+  assert.equal(procPercentLabel(Number.NaN), '0%');
+  assert.equal(procPercentLabel(130), '100%');
+});
+
+test('the caption moves on each quarter, at 25, 50 and 75', () => {
   const at = (p) => PROC_CAPTIONS[procCaptionIndex(p)];
   assert.equal(at(0), 'Uploading Tags...');
   assert.equal(at(24), 'Uploading Tags...');
   assert.equal(at(25), 'Processing Tag Details...');
-  assert.equal(at(54), 'Processing Tag Details...');
-  assert.equal(at(55), 'Calculating MRP...');
-  assert.equal(at(84), 'Calculating MRP...');
-  assert.equal(at(85), 'Loading Scanned Results...');
+  assert.equal(at(49), 'Processing Tag Details...');
+  assert.equal(at(50), 'Calculating MRP...');
+  assert.equal(at(74), 'Calculating MRP...');
+  assert.equal(at(75), 'Loading Scanned Results...');
   assert.equal(at(99), 'Loading Scanned Results...');
   assert.equal(at(100), 'Loading Scanned Results...');
   // Out of range or not a number: the nearest end, never undefined.
   assert.equal(at(-3), 'Uploading Tags...');
   assert.equal(at(Number.NaN), 'Uploading Tags...');
   assert.equal(at(140), 'Loading Scanned Results...');
+  // Each message rolls in and lands inside its half-second quarter.
+  assert.ok(PROC_CUBE_ROLL_MS < PROC_COUNT_MS / PROC_CAPTIONS.length);
 });
 
 test('the arc fills clockwise from nothing at 0 to the whole ring at 100', () => {

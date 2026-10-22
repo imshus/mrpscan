@@ -1,12 +1,51 @@
 /**
  * The numbers behind the scan processing screen (design mockup 6348f60:
  * `.proc-ring`, `.proc-arc`, `.proc-cube`): a thin ring that fills clockwise
- * as the scan progresses, glowing, and a glass pill under it whose caption
- * rolls like a cube to the next message. No percentage is shown.
+ * as the scan progresses, glowing, with the percentage inside it, and a
+ * glass pill under it whose caption rolls like a cube to the next message.
  *
  * Pure, so node can test it; the functions marked 'worklet' also run inside
  * Reanimated's animated styles and props.
  */
+
+// ---------------------------------------------------------------------------
+// The count (owner, 22 Oct 2026): 0 → 25 → 50 → 75 → 100, half a second a
+// quarter, evenly, so 100 at two seconds. It waits at 100 until the reading
+// and its price are in hand, and the review card opens then. Work done
+// before the count is runs the rest of the count out faster, digit by
+// digit, and the card opens on 100.
+// ---------------------------------------------------------------------------
+
+/** 0 to 100 at an even pace: 25 every half second. */
+export const PROC_COUNT_MS = 2000;
+/** How much faster the count runs out once the work is done before it. */
+export const PROC_FINISH_SPEEDUP = 4;
+
+/**
+ * The percent due `elapsedMs` into the scan: an even count that reaches 100
+ * at PROC_COUNT_MS and holds there. `readyAtMs` is when the reading with its
+ * price was in hand (null while it is not): from then on, the count's clock
+ * runs PROC_FINISH_SPEEDUP times faster.
+ */
+export function procPercentAt(elapsedMs: number, readyAtMs: number | null = null): number {
+  if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) return 0;
+  let clock = elapsedMs;
+  if (readyAtMs !== null && Number.isFinite(readyAtMs) && elapsedMs > readyAtMs) {
+    const from = Math.max(0, readyAtMs);
+    clock = from + PROC_FINISH_SPEEDUP * (elapsedMs - from);
+  }
+  return Math.min(100, Math.floor((clock * 100) / PROC_COUNT_MS));
+}
+
+/** The review card opens on 100 and only with the work done: until then the count waits at 100. */
+export function procCanLeave(percent: number, ready: boolean): boolean {
+  return ready && percent >= 100;
+}
+
+/** The text inside the ring: a whole percent, never ahead of the count. */
+export function procPercentLabel(progress: number): string {
+  return `${Math.floor(clampProgress(progress))}%`;
+}
 
 /** The ring's SVG is a 96 box drawn at 230 dp (`.proc-spinner`). */
 export const PROC_RING_SIZE = 230;
@@ -34,8 +73,8 @@ export const PROC_CAPTIONS = [
   'Loading Scanned Results...',
 ] as const;
 
-/** The first progress digit of each caption (mockup procStageFor: < 25, < 55, < 85). */
-export const PROC_CAPTION_FROM = [0, 25, 55, 85] as const;
+/** The first progress digit of each caption: one message a quarter of the count. */
+export const PROC_CAPTION_FROM = [0, 25, 50, 75] as const;
 
 const clampProgress = (progress: number): number => {
   'worklet';
@@ -213,9 +252,11 @@ export function procArcEnd(arcOffset: number): { x: number; y: number } {
 // ---------------------------------------------------------------------------
 // The rolling caption (`.proc-cube`): a 270 × 38 pill seen through
 // perspective 700, its faces 19 out from the cube's axis; rolling to the next
-// message turns the cube 90° about its horizontal axis over 550 ms
+// message turns the cube 90° about its horizontal axis
 // (cubic-bezier(.65, 0, .35, 1)): the old message rolls up and away and the
-// next one comes up from underneath.
+// next one comes up from underneath. The mockup rolled over 550 ms; a
+// message now lasts half a second, so the roll takes 400 ms and each message
+// lands and stands still before the next one is due.
 // ---------------------------------------------------------------------------
 
 export const PROC_CUBE_WIDTH = 270;
@@ -224,7 +265,7 @@ export const PROC_CUBE_MARGIN_TOP = 52;
 export const PROC_CUBE_PERSPECTIVE = 700;
 /** `translateZ(19px)`: half the pill's height. */
 export const PROC_CUBE_DEPTH = 19;
-export const PROC_CUBE_ROLL_MS = 550;
+export const PROC_CUBE_ROLL_MS = 400;
 export const PROC_CUBE_EASING = [0.65, 0, 0.35, 1] as const;
 
 /**
