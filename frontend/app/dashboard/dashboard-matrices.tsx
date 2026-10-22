@@ -12,6 +12,7 @@ import { DropdownOption } from '@/components/settings/SettingsDropdown';
 import { MasterNavList } from '@/components/dashboard/masters/MasterNavList';
 import type { MasterNavItem } from '@/constants/settingsMasters';
 import {
+  DEFAULT_MATRIX_VALUES,
   GOLD_MATRIX_SECTIONS,
   OPENING_MATRIX_KEYS,
   type MatrixKey,
@@ -63,27 +64,12 @@ const RATE_OPTIONS: RateOption[] = GOLD_MATRIX_SECTIONS.flatMap((section) =>
   })),
 );
 
-const DEFAULT_DASHBOARD_MATRIX_VALUES: DashboardMatrixValues = {
-  '24k_mcx': true,
-  '24k_rtgs': false,
-  '24k_cash': false,
-  '22k_rtgs': false,
-  '22k_cash': false,
-  '20k_rtgs': false,
-  '20k_cash': false,
-  '18k_rtgs': false,
-  '18k_cash': false,
-  '14k_rtgs': false,
-  '14k_cash': false,
-  '9k_rtgs': false,
-  '9k_cash': false,
-  'bhaw_source_jmd': false,
-};
-
 function normalizeMatrixValues(values: Record<string, boolean> | null | undefined): DashboardMatrixValues {
-  // Nothing saved yet means every rate is on, 24K included.
+  // The app's defaults (constants/dashboardMatrices): this screen kept its own
+  // copy, whose bhaw_source_jmd was still false — Mega Bullion — after the
+  // shop asked for JMD Patil by default.
   const merged: DashboardMatrixValues = {
-    ...DEFAULT_DASHBOARD_MATRIX_VALUES,
+    ...DEFAULT_MATRIX_VALUES,
     ...(values ?? {}),
   };
   // Nothing selected at all is a blank dashboard, which nobody chooses: the
@@ -324,8 +310,10 @@ export default function DashboardMatricesScreen() {
     }
 
     try {
+      // No house sent: the server keeps the one followed. Sending the house
+      // shown recorded it as chosen — a shop that had never chosen was
+      // saved on whatever house it happened to be shown.
       const saved = await updateBullionSources({
-        selected: bullion.selected,
         requestedNames: [...bullion.requestedNames, name],
       });
       setBullion(saved);

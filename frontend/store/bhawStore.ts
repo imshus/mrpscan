@@ -4,13 +4,11 @@ import { create } from 'zustand';
 
 import {
   BHAW_LIVE_STREAM_URL,
-  BHAW_PROVIDERS,
   createLastGoodKeeper,
   feedMcxSell,
   fetchBhawSnapshot,
   readBhawSnapshot,
   selectVendor,
-  type BhawProvider,
   type BhawSnapshotEntry,
   type BhawVendor,
 } from '@/utils/bhawApi';
@@ -43,8 +41,15 @@ import { openEventStream } from '@/utils/sseClient';
  * not re-render on every tick.
  */
 
-/** Which house this account follows, remembered across cold starts. */
-const PROVIDER_KEY = 'bullion-provider';
+/**
+ * Which house this account follows, remembered across cold starts: it
+ * stands in only until the server answers (utils/bullionChoice phoneHouse).
+ * Under the app's prefix, so a new build's wipe clears it with the rest.
+ * The key before it ('bullion-provider') is not read: the wipe never reached
+ * it, and older builds wrote the two-house toggle's answer there — Mega
+ * Bullion for shops that had never chosen, while the toggle defaulted to off.
+ */
+const PROVIDER_KEY = 'pratham-bullion-house';
 
 interface BhawState {
   provider: string;
@@ -147,9 +152,8 @@ function boardsOf(entries: BhawSnapshotEntry[]): BhawVendor[] {
 }
 
 export const useBhawStore = create<BhawState>()((set, get) => ({
-  // Empty until the remembered choice is read (or the legacy toggle answers
-  // for accounts that never picked): a hardcoded default here would shadow
-  // both for the first paint.
+  // Empty until the remembered house is read or the server names one: a
+  // hardcoded default here would shadow both for the first paint.
   provider: '',
   vendors: [],
   isLoaded: false,
@@ -424,11 +428,3 @@ function onAppStateChange(next: AppStateStatus): void {
 registerScopeResetCallback(() => {
   useBhawStore.setState({ provider: '' });
 });
-
-/**
- * Maps the older two-house toggle onto a provider key. Only for a server
- * that names no house: it cannot name any house but these two.
- */
-export function providerFromToggle(useJmd: boolean): BhawProvider {
-  return useJmd ? BHAW_PROVIDERS.JMD_PATIL : BHAW_PROVIDERS.MEGA_BULLION;
-}

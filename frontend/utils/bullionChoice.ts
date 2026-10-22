@@ -99,6 +99,29 @@ export function choiceOnFailed(
   };
 }
 
+/** The house a shop follows until it chooses another, at the shop's asking. */
+export const DEFAULT_HOUSE = 'jmd_patil';
+
+/**
+ * The house the phone follows, between the one it remembers ('' for none)
+ * and the one the server prices this account on (gold rates'
+ * bhawSource.key): undefined until the server has answered, null or '' when
+ * it answered naming none.
+ *
+ * The server's house wins as soon as it has answered. A remembered house
+ * once stood in front of it for good, and older builds remembered the
+ * two-house toggle's answer — Mega Bullion for every shop that had not
+ * touched it while the toggle defaulted to off. Until the server answers
+ * the remembered house stands in, and nothing ('') while there is none: a
+ * made-up house would only flash. A server that names no house leaves the
+ * default, JMD Patil.
+ */
+export function phoneHouse(remembered: string, server: string | null | undefined): string {
+  if (server) return server;
+  if (server === undefined) return remembered;
+  return remembered || DEFAULT_HOUSE;
+}
+
 /**
  * The save's body for a tap on `key`. The shop's requested names go only
  * once the list has loaded: unknown, they are left out and the server keeps

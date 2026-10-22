@@ -304,3 +304,41 @@ test('saves go one at a time in tap order; only the latest held tap is sent next
   q = r.queue;
   assert.deepEqual(queueOnTap(q, { key: 'jmd_patil', attempt: 4 }).send, { key: 'jmd_patil', attempt: 4 });
 });
+
+// ---- JMD Patil unless the shop chose (22 Oct 2026) ----------------------------
+//
+// "by default jmd patil not selected some time select mega bullion": the
+// phone followed the house it remembered ahead of the server's for good, and
+// older builds remembered the two-house toggle's answer — Mega Bullion for
+// every shop that never chose, while the toggle defaulted to off; with no
+// house remembered, the toggle itself stood in for a server that named none.
+
+test('the server\'s house wins over a remembered one as soon as it answers', async () => {
+  const { phoneHouse } = await import('@/utils/bullionChoice');
+  assert.equal(phoneHouse('mega_bullion', 'jmd_patil'), 'jmd_patil', 'it stayed on Mega Bullion');
+  assert.equal(phoneHouse('', 'jmd_patil'), 'jmd_patil');
+  // A house the shop chose is the server's answer too, Mega Bullion included.
+  assert.equal(phoneHouse('jmd_patil', 'mega_bullion'), 'mega_bullion');
+  assert.equal(phoneHouse('', 'smd_bullion'), 'smd_bullion');
+});
+
+test('until the server answers the remembered house stands in, and none is made up', async () => {
+  const { phoneHouse } = await import('@/utils/bullionChoice');
+  assert.equal(phoneHouse('smd_bullion', undefined), 'smd_bullion');
+  assert.equal(phoneHouse('', undefined), '', 'no default to flash before the server says');
+});
+
+test('a server that names no house leaves JMD Patil; the older toggle is not read', async () => {
+  const { DEFAULT_HOUSE, phoneHouse } = await import('@/utils/bullionChoice');
+  assert.equal(DEFAULT_HOUSE, 'jmd_patil');
+  assert.equal(phoneHouse('', null), 'jmd_patil', 'a toggle saved off made it Mega Bullion');
+  assert.equal(phoneHouse('', ''), 'jmd_patil');
+  assert.equal(phoneHouse('smd_bullion', null), 'smd_bullion');
+});
+
+test('the Home tile defaults read JMD Patil for the older toggle', async () => {
+  const { DEFAULT_MATRIX_VALUES, withOpeningDefaults } = await import('@/constants/dashboardMatrices');
+  assert.equal(DEFAULT_MATRIX_VALUES.bhaw_source_jmd, true);
+  assert.equal(withOpeningDefaults({}).bhaw_source_jmd, true);
+  assert.equal(withOpeningDefaults({ '22k_rtgs': true }).bhaw_source_jmd, true);
+});
