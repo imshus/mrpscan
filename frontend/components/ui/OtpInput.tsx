@@ -98,6 +98,14 @@ const styles = StyleSheet.create({
   },
   otpOverlayInput: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0,
+    // iOS leaves a view under 0.01 opacity out when it looks for what was
+    // tapped (0.01 itself lands a hair under once stored as a float), so a
+    // fully clear field could not be tapped back into after the keyboard
+    // closed. Just above that, with clear text, it is still invisible.
+    // Android hit-tests regardless of opacity and keeps its 0.
+    ...Platform.select({
+      ios: { opacity: 0.02, color: 'transparent' },
+      default: { opacity: 0 },
+    }),
   },
 });

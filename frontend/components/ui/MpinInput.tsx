@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Eye, EyeOff } from 'lucide-react-native';
 
 import { Colors, Radius } from '@/constants/theme';
@@ -177,6 +177,14 @@ const styles = StyleSheet.create({
   eye: { padding: 6 },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0,
+    // iOS leaves a view under 0.01 opacity out when it looks for what was
+    // tapped (0.01 itself lands a hair under once stored as a float), so a
+    // fully clear field could never be tapped into: a box without autoFocus,
+    // or one whose keyboard was closed, stayed dead. Just above that, with
+    // clear text, it is still invisible. Android keeps its 0.
+    ...Platform.select({
+      ios: { opacity: 0.02, color: 'transparent' },
+      default: { opacity: 0 },
+    }),
   },
 });

@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -395,6 +396,17 @@ export default function InvoiceSheetScreen() {
       // Fetch into app storage first: a failed download must not leave an
       // empty file sitting in the user's folder.
       const { fileName, uri } = await fetchPdfToCache();
+
+      // iOS has no Storage Access Framework (the calls below throw there):
+      // an iPhone saves a PDF from the share sheet's "Save to Files".
+      if (Platform.OS === 'ios') {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Save ${fileName}`,
+          UTI: 'com.adobe.pdf',
+        });
+        return;
+      }
 
       const permission =
         await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();

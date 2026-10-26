@@ -78,5 +78,14 @@
     "ios": "cross-env EXPO_OFFLINE=1 expo start --ios",
     "web": "cross-env EXPO_OFFLINE=1 expo start --web --lan"
   },
+  "expo": {
+    "autolinking": {
+      "ios": {
+        "exclude": [
+          "expo-in-app-updates"
+        ]
+      }
+    }
+  },
   "private": true
 }
