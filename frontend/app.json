@@ -16,7 +16,17 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "MRPscan uses the camera to scan the price tags on your jewellery.",
         "NSPhotoLibraryUsageDescription": "Choose a photo of a jewellery tag from your gallery to scan it.",
-        "NSMicrophoneUsageDescription": "Talk to the MRPscan 24/7 voice assistant."
+        "NSMicrophoneUsageDescription": "Talk to the MRPscan 24/7 voice assistant.",
+        "LSApplicationQueriesSchemes": [
+          "tez",
+          "phonepe",
+          "paytmmp",
+          "credpay",
+          "mobikwik",
+          "in.fampay.app",
+          "bhim",
+          "amazonpay"
+        ]
       },
       "privacyManifests": {
         "NSPrivacyTracking": false,
