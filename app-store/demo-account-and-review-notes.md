@@ -42,10 +42,10 @@ node scripts/seed_review_demo.js --phone 9999999999 --apply
 That adds labour codes LB-01…LB-06, wastage codes WS-05/08/10/12 and item
 codes GR (Gold Ring) and LR (Ladies Ring).
 
-Give the shop scan credits for the reviewer (a licence with its bonus credits):
+Give the shop a permanent licence with 1000 scan credits:
 
 ```bash
-node scripts/grant_license.js --phone 9999999999 --apply
+node scripts/grant_license.js --phone 9999999999 --apply --credits 1000
 ```
 
 Then scan `sample-tag-GR10286.jpg` (in this folder) once from the gallery, so
