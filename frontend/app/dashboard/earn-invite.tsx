@@ -15,6 +15,7 @@ import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
+import { canPurchaseInApp } from '@/utils/platformCommerce';
 import { fetchReferralOverview, type ReferralOverview } from '@/utils/referralApi';
 
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.mrpscan';
@@ -32,6 +33,7 @@ export default function EarnInviteScreen() {
   const [overview, setOverview] = useState<ReferralOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const canBuy = canPurchaseInApp();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -105,7 +107,7 @@ export default function EarnInviteScreen() {
               <View style={styles.statDivider} />
               <View style={styles.statCol}>
                 <Text style={styles.statValue}>{overview.purchaseCredits}</Text>
-                <Text style={styles.statLabel}>PURCHASE CREDITS</Text>
+                <Text style={styles.statLabel}>{canBuy ? 'PURCHASE CREDITS' : 'BONUS CREDITS'}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statCol}>
@@ -123,14 +125,20 @@ export default function EarnInviteScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.offerCard}>
-              <Text style={styles.offerText}>
-                Refer for purchase, send code and earn {overview.purchaseReward} Credits
-              </Text>
-              <TouchableOpacity activeOpacity={0.9} style={styles.sendBtn} onPress={() => void sharePurchase()}>
-                <Text style={styles.sendBtnText}>Send Link</Text>
-              </TouchableOpacity>
-            </View>
+            {/* A reward for getting another shop to buy, with a share that
+                says "sign up and purchase": a call to buy outside the app,
+                so not on iPhone (utils/platformCommerce.ts). The free invite
+                above stays. */}
+            {canBuy ? (
+              <View style={styles.offerCard}>
+                <Text style={styles.offerText}>
+                  Refer for purchase, send code and earn {overview.purchaseReward} Credits
+                </Text>
+                <TouchableOpacity activeOpacity={0.9} style={styles.sendBtn} onPress={() => void sharePurchase()}>
+                  <Text style={styles.sendBtnText}>Send Link</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
           </>
         ) : null}
       </ScrollView>

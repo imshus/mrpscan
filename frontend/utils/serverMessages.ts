@@ -1,4 +1,5 @@
 import { ApiError } from '@/utils/apiClient';
+import { canPurchaseInApp, storeSafeServerMessage } from '@/utils/platformCommerce';
 
 /**
  * Sentences for the codes the API throws as messages.
@@ -57,6 +58,10 @@ export function friendlyServerMessage(error: unknown, fallback: string): string 
   }
 
   if (!raw) return fallback;
+
+  // iPhone sells nothing, so the licence and credits codes are said there
+  // without "buy" or "recharge" (utils/platformCommerce.ts).
+  if (!canPurchaseInApp() && MESSAGES[raw]) return storeSafeServerMessage(raw, MESSAGES[raw]);
 
   const mapped = MESSAGES[raw];
   if (mapped) return mapped;

@@ -10,6 +10,7 @@ import {
 import { GradientView } from '@/components/ui/GradientView';
 import { Gradients } from '@/constants/theme';
 import type { SubscriptionOverview } from '@/types/subscription';
+import { canPurchaseInApp } from '@/utils/platformCommerce';
 
 type BannerStatus = SubscriptionOverview['status'];
 
@@ -117,6 +118,10 @@ export function SubscriptionBanner({
 
   const actionLabel = showTrialOnboarding ? 'Start Free Trial →' : 'Purchase License →';
   const handlePress = showTrialOnboarding ? onStartTrial : onPurchase;
+  // On iPhone the tile sells nothing (utils/platformCommerce.ts): a free
+  // trial can still be started, but a running or ended trial shows its state
+  // with no Purchase License button.
+  const offersAction = showTrialOnboarding || canPurchaseInApp();
 
   // Second line carries the number that matters for the state: credits for a
   // held licence (it is billed per scan), days left for a trial (or the full
@@ -170,7 +175,7 @@ export function SubscriptionBanner({
         ) : null}
         {/* Nothing is left to buy or manage once a licence is held, so the
             tile reports the balance and offers no way through to a page. */}
-        {hasLicence || readOnly ? null : (
+        {hasLicence || readOnly || !offersAction ? null : (
           <Pressable disabled={loading} onPress={handlePress} style={styles.cta}>
             <Text style={styles.ctaText}>{loading ? 'Please wait…' : actionLabel}</Text>
           </Pressable>

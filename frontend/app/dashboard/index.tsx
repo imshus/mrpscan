@@ -35,6 +35,7 @@ import {
   startFreeTrial,
   type SubscriptionSummary,
 } from '@/utils/subscriptionApi';
+import { canPurchaseInApp } from '@/utils/platformCommerce';
 import { useMatricesStore } from '@/store/matricesStore';
 import { useSettingsAccess } from '@/hooks/useSettingsAccess';
 import type { MatrixKey } from '@/constants/dashboardMatrices';
@@ -364,6 +365,9 @@ export default function DashboardScreen() {
   }, [loadMarketData]);
 
   const handlePurchaseLicense = useCallback(() => {
+    // The banner offers no Purchase License on iPhone; nothing else may send
+    // a shop there either (utils/platformCommerce.ts).
+    if (!canPurchaseInApp()) return;
     router.push('/dashboard/purchase-license');
   }, [router]);
 

@@ -1,5 +1,6 @@
 import { API_BASE_URL, getApiUrl } from '@/constants/api';
 import { useAuthStore } from '@/store/authStore';
+import { canPurchaseInApp, storeSafeServerMessage } from '@/utils/platformCommerce';
 import { PRICING_RULES, PRICING_RULES_HEADER } from '@/utils/pricingRules';
 import {
   currentScopeGeneration,
@@ -372,6 +373,15 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
             ? (errorBody as { error: string }).error
             : `Request failed (${response.status})`
         : `Request failed (${response.status})`;
+    // iPhone sells nothing (utils/platformCommerce.ts), so a refusal that
+    // says "Please add credits" or "Purchase application" is said there as
+    // the account's position only. Android shows the server's words as ever.
+    if (!canPurchaseInApp()) {
+      const code = typeof errorBody === 'object' && errorBody !== null
+        ? (errorBody as { error?: unknown }).error
+        : undefined;
+      throw new ApiError(storeSafeServerMessage(code, message), response.status, errorBody);
+    }
     throw new ApiError(message, response.status, errorBody);
   }
 

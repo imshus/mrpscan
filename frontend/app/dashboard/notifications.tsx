@@ -16,6 +16,7 @@ import {
   type NotificationKind,
 } from '@/utils/notificationsApi';
 import { markNotificationsSeen } from '@/hooks/useUnseenNotifications';
+import { canPurchaseInApp, notificationWithoutPurchaseCallToAction } from '@/utils/platformCommerce';
 
 const KIND_STYLE: Record<NotificationKind, { Icon: typeof Gift; bg: string; color: string }> = {
   referral_purchase: { Icon: PartyPopper, bg: Colors.metalGoldBg, color: Colors.metalGold },
@@ -30,12 +31,21 @@ export default function NotificationsScreen() {
   const [items, setItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const canBuy = canPurchaseInApp();
 
   const load = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
-      setItems(await fetchNotifications());
+      const rows = await fetchNotifications();
+      // The server's low-credit and trial reminders end "Recharge now…" or
+      // "Upgrade to a Subscription…"; iPhone sells nothing, so there they stop
+      // at the state itself (utils/platformCommerce.ts).
+      setItems(
+        canBuy
+          ? rows
+          : rows.map((row) => ({ ...row, segments: notificationWithoutPurchaseCallToAction(row.segments) })),
+      );
       // Opening the screen is what clears the bell's dot; nothing server-side
       // records a notification as read.
       void markNotificationsSeen();
@@ -44,7 +54,7 @@ export default function NotificationsScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canBuy]);
 
   useFocusEffect(
     useCallback(() => {
@@ -68,7 +78,11 @@ export default function NotificationsScreen() {
         ) : error ? (
           <Text style={styles.errorText}>{error}</Text>
         ) : items.length === 0 ? (
-          <Text style={styles.emptyText}>Nothing yet. Rewards, purchases and reminders land here.</Text>
+          <Text style={styles.emptyText}>
+            {canBuy
+              ? 'Nothing yet. Rewards, purchases and reminders land here.'
+              : 'Nothing yet. Rewards and reminders land here.'}
+          </Text>
         ) : (
           items.map((item) => {
             const kindStyle = KIND_STYLE[item.kind] ?? KIND_STYLE.low_credit;

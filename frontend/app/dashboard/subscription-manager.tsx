@@ -33,6 +33,12 @@ import {
   verifyPayment,
 } from '@/utils/subscriptionApi';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
+import {
+  ACCOUNT_STATUS_SUBTITLE,
+  ACCOUNT_STATUS_TITLE,
+  accountStatusLines,
+  canPurchaseInApp,
+} from '@/utils/platformCommerce';
 import Constants from 'expo-constants';
 
 type RazorpayModule = {
@@ -40,6 +46,8 @@ type RazorpayModule = {
 };
 
 function getRazorpayCheckout(): RazorpayModule | null {
+  // Never loaded on iPhone, which sells nothing (utils/platformCommerce.ts).
+  if (!canPurchaseInApp()) return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
     const mod = require('react-native-razorpay');
@@ -121,7 +129,11 @@ export default function SubscriptionManagerScreen() {
   const [selectedAmount, setSelectedAmount] = useState<number>(MIN_RECHARGE);
   const [usingCustomAmount, setUsingCustomAmount] = useState(false);
 
-  const canManagePayments = userRole === 'business';
+  // iPhone: this screen reports the account and sells nothing — no Recharge
+  // Credits, no licence price, no Purchase Now (utils/platformCommerce.ts).
+  const canBuy = canPurchaseInApp();
+  const canManagePayments = userRole === 'business' && canBuy;
+  const screenTitle = canBuy ? 'Credits & Subscription' : ACCOUNT_STATUS_TITLE;
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -130,11 +142,11 @@ export default function SubscriptionManagerScreen() {
       setOverview(data);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load credit details.';
-      Alert.alert('Credits & Subscription', message);
+      Alert.alert(screenTitle, message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [screenTitle]);
 
   useFocusEffect(
     useCallback(() => {
@@ -197,7 +209,7 @@ export default function SubscriptionManagerScreen() {
     } catch (error) {
       if (!isPaymentCancellation(error)) {
         const message = error instanceof Error ? error.message : 'Action failed.';
-        Alert.alert('Credits & Subscription', message);
+        Alert.alert(screenTitle, message);
       }
     } finally {
       setBusyAction(null);
@@ -326,8 +338,10 @@ export default function SubscriptionManagerScreen() {
             <ChevronLeft size={22} color={Colors.textPrimary} strokeWidth={2.2} />
           </Pressable>
           <View style={styles.headerTextWrap}>
-            <Text style={styles.headerTitle}>Credits & Subscription</Text>
-            <Text style={styles.headerSubtitle}>Manage your credits, usage and payments</Text>
+            <Text style={styles.headerTitle}>{screenTitle}</Text>
+            <Text style={styles.headerSubtitle}>
+              {canBuy ? 'Manage your credits, usage and payments' : ACCOUNT_STATUS_SUBTITLE}
+            </Text>
           </View>
         </View>
 
@@ -357,6 +371,14 @@ export default function SubscriptionManagerScreen() {
 
                 <Text style={styles.walletLabel}>Wallet Balance</Text>
                 <Text style={styles.walletValue}>{currencyDisplay(overview.creditBalance)}</Text>
+
+                {/* iPhone: where the account stands, said plainly, with no
+                    word on where to buy. Android shows the buttons below. */}
+                {canBuy
+                  ? null
+                  : accountStatusLines(overview).map((line) => (
+                      <Text key={line} style={styles.statusNote}>{line}</Text>
+                    ))}
 
                 {showStartTrial ? (
                   <Pressable disabled={busyAction !== null} onPress={handleStartTrial} style={styles.heroBtn}>
@@ -521,14 +543,18 @@ export default function SubscriptionManagerScreen() {
 
       <BottomNav />
 
-      <PaymentEmailPopup
-        visible={emailFor !== null}
-        initialEmail={overview?.billingEmail ?? ''}
-        actionLabel="Continue to Pay"
-        onCancel={() => setEmailFor(null)}
-        onContinue={continueWithEmail}
-      />
-      <PaymentDonePopup paid={paid} onClose={() => setPaid(null)} />
+      {canBuy ? (
+        <>
+          <PaymentEmailPopup
+            visible={emailFor !== null}
+            initialEmail={overview?.billingEmail ?? ''}
+            actionLabel="Continue to Pay"
+            onCancel={() => setEmailFor(null)}
+            onContinue={continueWithEmail}
+          />
+          <PaymentDonePopup paid={paid} onClose={() => setPaid(null)} />
+        </>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -637,6 +663,14 @@ const styles = StyleSheet.create({
     lineHeight: 42,
     fontWeight: '800',
     color: Colors.primary,
+    textAlign: 'center',
+  },
+  statusNote: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 17,
+    color: '#624C27',
+    fontWeight: '600',
     textAlign: 'center',
   },
   heroBtn: {

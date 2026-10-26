@@ -10,6 +10,7 @@ import { Colors, Spacing } from '@/constants/theme';
 import { useSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useAuthStore } from '@/store/authStore';
 import { getBusinessProfile, formatProfileValue } from '@/utils/businessProfile';
+import { ACCOUNT_STATUS_TITLE, canPurchaseInApp } from '@/utils/platformCommerce';
 
 /** Per-item icon accent colors matching the mockup's settings menu. */
 const ICON_ACCENTS: Record<string, { bg: string; color: string }> = {
@@ -122,7 +123,12 @@ export default function SettingsScreen() {
                   <Icon size={ICON_SIZE} color={accent ? accent.color : Colors.textMuted} />
                 </View>
                 <View style={styles.menuTextWrap}>
-                  <Text style={styles.menuTitle}>{item.title}</Text>
+                  <Text style={styles.menuTitle}>
+                    {/* On iPhone the screen behind it only reports the
+                        account (utils/platformCommerce.ts), so it is named
+                        for that rather than for a subscription on offer. */}
+                    {item.id === 'subscription' && !canPurchaseInApp() ? ACCOUNT_STATUS_TITLE : item.title}
+                  </Text>
                 </View>
               </>
             );
