@@ -25,12 +25,14 @@ export default function EmployeesScreen() {
   const setMode = useEmployeeDraftStore((s) => s.setMode);
 
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
+  // The spinner is only for a roster the phone has not stored yet; a stored
+  // one shows at once and refreshes underneath.
+  const [loading, setLoading] = useState(() => useEmployeeStore.getState().employees.length === 0);
   const [error, setError] = useState<string | null>(null);
 
   const loadEmployees = useCallback(async () => {
     setError(null);
-    setLoading(true);
+    if (useEmployeeStore.getState().employees.length === 0) setLoading(true);
     try {
       const result = await fetchEmployees();
       if (result.success && result.data) {

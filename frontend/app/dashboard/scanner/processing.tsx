@@ -12,7 +12,7 @@ import { isDemoScanMode } from '@/constants/scanMode';
 import { useFormulaStore } from '@/store/formulaStore';
 import { useScannerStore } from '@/store/scannerStore';
 import { ScanStage, type ScanItemData } from '@/types/scanner';
-import { ApiError, isRequestAbortedError } from '@/utils/apiClient';
+import { ApiError, isRequestAbortedError, isRequestTimeoutError } from '@/utils/apiClient';
 import { syncFormulaStoreFromApi } from '@/utils/formulaSettingsApi';
 import {
   applyFormula2KaratConstraint,
@@ -242,8 +242,12 @@ export default function ProcessingScreen() {
             try {
               await backgroundUpload;
               return;
-            } catch {
-              // Background upload failed; fall back to a fresh prepare + upload.
+            } catch (error) {
+              // Timed out twice already (utils/scanApi.ts retries once): the
+              // network cannot carry it, and the same bytes again would only
+              // double the wait before the error.
+              if (isRequestTimeoutError(error)) throw error;
+              // Any other failure: a fresh prepare + upload.
             }
           }
           await uploadFn(scanId, uri);

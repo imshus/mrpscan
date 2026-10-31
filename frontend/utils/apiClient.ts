@@ -40,6 +40,11 @@ export function isRequestAbortedError(error: unknown): boolean {
   return error instanceof ApiError && error.message === REQUEST_ABORTED_MESSAGE;
 }
 
+/** True when `error` is a request that ran out its timeout ("Request timed out after 45s"). */
+export function isRequestTimeoutError(error: unknown): boolean {
+  return error instanceof ApiError && error.message.startsWith('Request timed out after ');
+}
+
 /**
  * Forwards an abort from the caller's signal to the internal controller.
  * Returns an unlink function that must be called once the request settles.

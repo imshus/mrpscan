@@ -31,6 +31,8 @@ export interface UseFinalTabPricingOptions {
   selectedType: JewelleryType;
   goldRates?: GoldRate[];
   selectedKarat?: string;
+  /** False: ask the server nothing (a wishlist item showing its saved price). */
+  enabled?: boolean;
 }
 
 // Fallback empty state while loading
@@ -121,6 +123,7 @@ export function useFinalTabPricing({
   structuredData,
   selectedType,
   selectedKarat,
+  enabled = true,
 }: UseFinalTabPricingOptions): FinalTabPricingResult {
   const scanId = useScannerStore((s) => s.scanId);
   const mrpRefreshToken = useScannerStore((s) => s.mrpRefreshToken);
@@ -225,7 +228,7 @@ export function useFinalTabPricing({
 
   useEffect(() => {
     // No point pricing an empty card; the real figures arrive with the result.
-    if (!scanId || analysisPending) return;
+    if (!enabled || !scanId || analysisPending) return;
 
     let isMounted = true;
     const requestKey = `${scanId}|${calculationKey}|${mrpRefreshToken}`;
@@ -464,7 +467,7 @@ export function useFinalTabPricing({
       isMounted = false;
       if (timer) clearTimeout(timer);
     };
-  }, [scanId, calculationKey, mrpRefreshToken, analysisPending]);
+  }, [enabled, scanId, calculationKey, mrpRefreshToken, analysisPending]);
 
   return pricing;
 }

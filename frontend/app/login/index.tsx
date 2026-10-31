@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
@@ -19,7 +19,7 @@ import { OtpInput } from '@/components/ui/OtpInput';
 import { Colors } from '@/constants/theme';
 import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { useAuthStore } from '@/store/authStore';
-import { fetchPhoneStatus, loginBusiness, sendLoginOtp, verifyLoginOtp } from '@/utils/authApi';
+import { fetchPhoneStatus, loginBusiness, sendLoginOtp, verifyLoginOtp, type PhoneStatus } from '@/utils/authApi';
 import { REMEMBERED_PHONE_KEY } from '@/utils/clearAppState';
 import { classifyLoginFailure, EMPLOYEE_MPIN_NOT_SET_MESSAGE } from '@/utils/loginFailure';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
@@ -114,6 +114,8 @@ export default function BusinessLoginScreen() {
   // one (which proves the number with its own code). Looked up a beat after
   // the tenth digit lands, so typing does not fire a request per keystroke.
   const [phoneHasMpin, setPhoneHasMpin] = useState<boolean | null>(null);
+  // That answer, kept with its number, so Send code does not ask again.
+  const phoneStatusRef = useRef<{ phone: string; status: PhoneStatus } | null>(null);
   useEffect(() => {
     if (lookupPhone.length !== 10) {
       setPhoneHasMpin(null);
@@ -122,6 +124,7 @@ export default function BusinessLoginScreen() {
     let cancelled = false;
     const timer = setTimeout(() => {
       void fetchPhoneStatus(lookupPhone).then((status) => {
+        if (status) phoneStatusRef.current = { phone: lookupPhone, status };
         if (cancelled) return;
         setPhoneHasMpin(status && status.registered ? status.hasMpin : null);
       });
@@ -169,13 +172,16 @@ export default function BusinessLoginScreen() {
     try {
       // No text to a number no account uses; an account from before MPINs
       // goes to set one, which proves the number with its own code.
-      const status = await fetchPhoneStatus(lookupPhone);
+      const known = phoneStatusRef.current;
+      const status = known?.phone === lookupPhone ? known.status : await fetchPhoneStatus(lookupPhone);
       if (status && !status.registered) {
         setPhoneError('No account uses this number. Create an account below.');
         triggerShake();
         return;
       }
       if (status && status.registered && status.hasMpin === false) {
+        // Coming back from setting one, the number is asked about afresh.
+        phoneStatusRef.current = null;
         router.push({
           pathname: '/login/set-mpin',
           params: { phone: lookupPhone, mode: 'first' },

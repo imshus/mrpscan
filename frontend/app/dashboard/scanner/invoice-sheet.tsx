@@ -58,6 +58,9 @@ const DEFAULT_TERMS = [
 
 const ZOOM_STEPS = [0.85, 1, 1.15, 1.3];
 
+/** The most the first preview waits for the invoice number and QR. */
+const PREVIEW_HEADER_WAIT_MS = 1500;
+
 /** A cart with nothing checked out bills no lines (one array, so memos hold). */
 const NO_LINES: InvoiceLineItemRow[] = [];
 
@@ -95,6 +98,8 @@ export default function InvoiceSheetScreen() {
   const [generated, setGenerated] = useState<GenerateInvoiceResponse | null>(null);
   // Reserved when the preview opens, so the QR on screen is the PDF's QR.
   const [reservedQr, setReservedQr] = useState<ReservedInvoiceQr | null>(null);
+  // Both of the above have answered, or the wait for them is over.
+  const [headerReady, setHeaderReady] = useState(false);
   // The invoice rendered by the server from the template the PDF uses.
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
@@ -141,16 +146,25 @@ export default function InvoiceSheetScreen() {
       if (!cancelled && fresh) setBusiness(fresh);
     });
     // Reserve the token now so the preview shows the same QR the PDF prints.
-    void reserveInvoiceQr().then((reserved) => {
+    const qr = reserveInvoiceQr().then((reserved) => {
       if (!cancelled && reserved) setReservedQr(reserved);
     });
-    apiFetchNextInvoiceNumber()
+    const number = apiFetchNextInvoiceNumber()
       .then((next) => {
         if (!cancelled && next) setInvoiceNumber(next);
       })
       .catch(() => {});
+    // The preview is asked for once both have answered (or a short wait is
+    // up), not once without them and again as each lands.
+    const waited = setTimeout(() => {
+      if (!cancelled) setHeaderReady(true);
+    }, PREVIEW_HEADER_WAIT_MS);
+    void Promise.allSettled([qr, number]).then(() => {
+      if (!cancelled) setHeaderReady(true);
+    });
     return () => {
       cancelled = true;
+      clearTimeout(waited);
     };
   }, []);
 
@@ -216,7 +230,7 @@ export default function InvoiceSheetScreen() {
 
   // Render the invoice from the server template whenever the figures change.
   useEffect(() => {
-    if (grandTotal <= 0) return;
+    if (grandTotal <= 0 || !headerReady) return;
     let cancelled = false;
     void fetchInvoicePreviewHtml({ ...invoicePayload, invoice_number: invoiceNumber })
       .then((html) => {
@@ -225,7 +239,7 @@ export default function InvoiceSheetScreen() {
     return () => {
       cancelled = true;
     };
-  }, [invoicePayload, invoiceNumber, grandTotal]);
+  }, [invoicePayload, invoiceNumber, grandTotal, headerReady]);
 
   const generateOnce = async (): Promise<GenerateInvoiceResponse> => {
     if (generated) return generated;

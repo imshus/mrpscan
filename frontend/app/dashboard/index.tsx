@@ -332,14 +332,17 @@ export default function DashboardScreen() {
     }, [loadMarketData]),
   );
 
-  useEffect(() => {
-    // Auto-refresh the dashboard every 60 seconds
-    const intervalId = setInterval(() => {
-      // Pass false to loadMarketData to avoid showing the loading spinner every minute
-      void loadMarketData(false);
-    }, 60000);
-    return () => clearInterval(intervalId);
-  }, [loadMarketData]);
+  // Auto-refresh every 60 seconds, only while Home is on screen: under the
+  // scanner these reads would compete with the tag's upload and analysis.
+  // Coming back refreshes at once (the focus effect above).
+  useFocusEffect(
+    useCallback(() => {
+      const intervalId = setInterval(() => {
+        void loadMarketData(false);
+      }, 60000);
+      return () => clearInterval(intervalId);
+    }, [loadMarketData]),
+  );
 
   const handleStartTrial = useCallback(async () => {
     try {

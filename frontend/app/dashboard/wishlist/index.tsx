@@ -98,7 +98,9 @@ export default function WishlistScreen() {
         onAddToCart={handleAddToCart}
       />
 
-      {isLoading ? (
+      {/* The saved list shows at once and refreshes underneath; the spinner
+          is only for a phone that has nothing saved yet. */}
+      {isLoading && items.length === 0 ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading wishlist…</Text>

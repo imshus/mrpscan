@@ -71,6 +71,9 @@ export default function ScanResultsScreen() {
     structuredData,
     selectedType,
     selectedKarat,
+    // A wishlist item shows the price it was saved with: pricing the
+    // scanner's last scan for it was a request nobody used.
+    enabled: !(isFromWishlist && wishlistItem?.snapshot.pricing),
   });
   const activePricing = isFromWishlist
     ? wishlistItem?.snapshot.pricing ?? livePricing
