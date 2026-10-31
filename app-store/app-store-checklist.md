@@ -9,8 +9,8 @@ These steps are yours, in this order.
 Apple's reviewer uses the live servers, so they must run the new code.
 
 - **Backend (appapi.mrpscan.com).** It is running commit `008cfb7` (checked
-  31 Oct). Deploy the latest `main` (with `8b5fffa`, the demo login, and
-  `5fa8816`). Then add to `backend/.env` and restart:
+  31 Oct). Deploy the latest `main` (up to `98673a4`: the demo login, the
+  faster scans and the new indexes). Then add to `backend/.env` and restart:
 
   ```
   REVIEW_LOGIN_PHONE=9999999999
