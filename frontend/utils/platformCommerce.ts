@@ -156,6 +156,20 @@ export function notificationWithoutPurchaseCallToAction<T extends { text: string
 }
 
 /**
+ * An FAQ question or answer about buying: what MRPscan costs, how to pay or
+ * recharge. On iPhone the FAQ leaves these out whole, since an answer like
+ * "₹12,000 + GST … Purchase Now on Razorpay" is a price on offer and a way
+ * to pay outside the App Store.
+ */
+const BUYING_TOPIC =
+  /\b(?:purchas\w*|buy\w*|pay(?:ing|ment|ments|s)?|paid|recharg\w*|razorpay|upi|subscri\w*|cost|costs|price|pricing|plans?|refund\w*)\b|₹|\brs\.?\s?\d/i;
+
+/** Whether an FAQ item (its question and answer, in any language) is about buying. */
+export function faqAboutBuying(...texts: string[]): boolean {
+  return texts.some((text) => BUYING_TOPIC.test(text));
+}
+
+/**
  * The server's refusals said without sending the shop to buy, by the code
  * the API answers with (the body's `error`, or a bare code as the message).
  * On Android these codes read "Please purchase a license" or "Please add

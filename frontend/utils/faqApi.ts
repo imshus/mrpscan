@@ -1,5 +1,6 @@
 import { apiRequest } from '@/utils/apiClient';
 import { unwrapApiData } from '@/utils/apiResponse';
+import { canPurchaseInApp, faqAboutBuying } from '@/utils/platformCommerce';
 
 export type FaqLanguage = 'en' | 'hi';
 
@@ -36,7 +37,10 @@ export async function fetchFaqs(): Promise<FaqSection[]> {
     .map((raw): FaqSection | null => {
       const row = raw as Partial<FaqSection>;
       if (!isText(row.section) || !Array.isArray(row.items)) return null;
-      const items = row.items.filter((item): item is FaqItem => isText(item?.q) && isText(item?.a));
+      const items = row.items
+        .filter((item): item is FaqItem => isText(item?.q) && isText(item?.a))
+        // Nothing about prices or paying on iPhone (utils/platformCommerce.ts).
+        .filter((item) => canPurchaseInApp() || !faqAboutBuying(item.q.en, item.a.en, item.q.hi, item.a.hi));
       if (!items.length) return null;
       return { section: row.section, items };
     })

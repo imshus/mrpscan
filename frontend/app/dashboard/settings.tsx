@@ -1,5 +1,6 @@
-import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { ChevronLeft, LogOut, Trash2 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,6 +22,7 @@ const ICON_ACCENTS: Record<string, { bg: string; color: string }> = {
   invite: { bg: Colors.metalGoldBg, color: Colors.metalGold },
   contact: { bg: Colors.diamondBg, color: Colors.diamond },
   faqs: { bg: Colors.metalGoldBg, color: Colors.metalGold },
+  privacy: { bg: Colors.diamondBg, color: Colors.diamond },
 };
 
 const ICON_SIZE = 16;
@@ -133,7 +135,12 @@ export default function SettingsScreen() {
               </>
             );
 
-            const onPress = item.route ? () => router.push(item.route as Href) : undefined;
+            const { url, route } = item;
+            const onPress = url
+              ? () => void WebBrowser.openBrowserAsync(url).catch(() => Linking.openURL(url))
+              : route
+                ? () => router.push(route as Href)
+                : undefined;
 
             if (onPress) {
               return (

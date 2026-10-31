@@ -29,7 +29,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 
 const ICONS = [
   'ClipboardCheck', 'Clock', 'Crown', 'FileText', 'Gift', 'Headset', 'HelpCircle', 'IdCard', 'LayoutGrid',
-  'Lock', 'LogOut', 'Sigma', 'Trash2', 'TrendingUp', 'Type', 'UserPlus',
+  'Lock', 'LogOut', 'ShieldCheck', 'Sigma', 'Trash2', 'TrendingUp', 'Type', 'UserPlus',
 ];
 const STANDINS = {
   'lucide-react-native': ICONS.map((name) => `export const ${name} = () => null;`).join('\n'),

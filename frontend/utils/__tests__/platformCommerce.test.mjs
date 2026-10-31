@@ -387,3 +387,42 @@ test('iPhone: the same refusals arrive as the account’s position, status and b
     assert.equal(friendlyServerMessage(new Error('TRIAL_ALREADY_EXPIRED'), 'x'), 'This shop has already used its free trial.');
   });
 });
+
+test('FAQ: iPhone leaves out the questions about prices and paying; Android shows them all', async () => {
+  const { fetchFaqs } = await import('@/utils/faqApi');
+  const item = (en, answer) => ({ q: { en, hi: en }, a: { en: answer, hi: answer } });
+  const body = {
+    success: true,
+    data: {
+      sections: [
+        {
+          section: { en: 'Pricing & Payment', hi: 'कीमत' },
+          items: [
+            item('How much does MRPscan cost?', '₹12,000 + GST, paid one time for each GST.'),
+            item('How do I recharge my credits?', 'Settings → Credits & Subscription → Purchase Now.'),
+            item('Which payment methods can I use?', 'Razorpay supports UPI, cards and net banking.'),
+          ],
+        },
+        {
+          section: { en: 'Gold', hi: 'सोना' },
+          items: [
+            item('Can I choose my preferred Bullion source?', 'Yes. Dashboard Settings → Choose a Bullion.'),
+            item('How is the gold rate applied?', 'The live rate of the house you follow, per 10 gram.'),
+          ],
+        },
+      ],
+    },
+  };
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  try {
+    const ios = await onPlatformAsync('ios', () => quietly(() => fetchFaqs()));
+    assert.deepEqual(ios.map((section) => section.section.en), ['Gold'], 'a section left with nothing is dropped');
+    assert.equal(ios[0].items.length, 2, 'the gold answers all stay');
+    const android = await onPlatformAsync('android', () => quietly(() => fetchFaqs()));
+    assert.deepEqual(android.map((section) => section.items.length), [3, 2]);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

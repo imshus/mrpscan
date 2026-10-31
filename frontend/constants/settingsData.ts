@@ -10,6 +10,7 @@ import {
   IdCard,
   LayoutGrid,
   LogOut,
+  ShieldCheck,
   Sigma,
   Trash2,
   TrendingUp,
@@ -17,12 +18,16 @@ import {
   UserPlus,
 } from 'lucide-react-native';
 
+import { PRIVACY_POLICY_URL } from '@/constants/legal';
+
 export interface SettingsMenuItem {
   id: string;
   title: string;
   subtitle?: string;
   icon: LucideIcon;
   route?: string;
+  /** A web page opened in the in-app browser instead of a route. */
+  url?: string;
   isLogout?: boolean;
   /** Drawn like Logout, in red, just above it. */
   isDeleteAccount?: boolean;
@@ -79,6 +84,14 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     title: 'FAQs',
     icon: HelpCircle,
     route: '/dashboard/faqs',
+  },
+  // The App Store wants the privacy policy reachable inside the app
+  // (guideline 5.1.1(i)), for owners and employees alike.
+  {
+    id: 'privacy',
+    title: 'Privacy Policy',
+    icon: ShieldCheck,
+    url: PRIVACY_POLICY_URL,
   },
   // Just above Logout, for owners and employees alike: only the person's own
   // login goes, the shop's records stay (app/dashboard/delete-account.tsx).
