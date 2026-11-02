@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Records the Pratham AI call through Android's voice-communication path, so
@@ -119,4 +120,11 @@ export function patchAudioApi(projectRoot) {
     writeFileSync(path, source.replace(edit.find, edit.replace));
     console.log(`Patched ${edit.file} for voice-communication audio`);
   }
+}
+
+// Run directly (`node scripts/patch-audio-api.mjs`): Expo's cloud builds call
+// it after installing packages (package.json "eas-build-post-install"), as
+// they never run build-apk.mjs or build-aab.mjs.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  patchAudioApi(resolve(dirname(fileURLToPath(import.meta.url)), '..'));
 }

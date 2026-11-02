@@ -70,6 +70,7 @@
     "ui:debug:reload": "node scripts/mobile-ui-debugger.mjs reload",
     "setup:android": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-android-sdk.ps1",
     "typecheck": "tsc --noEmit",
+    "eas-build-post-install": "node scripts/patch-audio-api.mjs",
     "start": "cross-env EXPO_OFFLINE=1 expo start --lan",
     "start:clean": "cross-env EXPO_OFFLINE=1 expo start --lan --clear",
     "start:web": "cross-env EXPO_OFFLINE=1 expo start --web --lan",
