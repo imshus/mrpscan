@@ -106,7 +106,7 @@ export async function togglePrathamAiCall(): Promise<void> {
           if (status === 'error') {
             call = null;
             setStatus('idle');
-            if (detail) Alert.alert('24/7', detail);
+            if (detail) Alert.alert('Ask AI', detail);
             return;
           }
           if (status === 'ended') {
@@ -145,7 +145,7 @@ async function voiceConsentGiven(): Promise<boolean> {
   }
   const allowed = await new Promise<boolean>((resolve) => {
     Alert.alert(
-      '24/7 voice assistant',
+      'Ask AI',
       'During the call, what you say is sent to the MRPscan voice service and the AI services it uses: ' +
         'Deepgram turns your speech into text, OpenAI writes the answer and ElevenLabs speaks it.',
       [
@@ -167,7 +167,7 @@ async function voiceConsentGiven(): Promise<boolean> {
 
 function notConfigured(): void {
   Alert.alert(
-    '24/7',
-    'The 24/7 agent is not set up yet. Set PRATHAM_AI_URL on the server, or EXPO_PUBLIC_PRATHAM_AI_URL in the app.',
+    'Ask AI',
+    'Ask AI is not available right now. Please try again later.',
   );
 }

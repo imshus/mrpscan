@@ -16,7 +16,7 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "MRPscan uses the camera to scan the price tags on your jewellery.",
         "NSPhotoLibraryUsageDescription": "Choose a photo of a jewellery tag from your gallery to scan it.",
-        "NSMicrophoneUsageDescription": "Talk to the MRPscan 24/7 voice assistant."
+        "NSMicrophoneUsageDescription": "Talk to Ask AI, the MRPscan voice assistant."
       },
       "privacyManifests": {
         "NSPrivacyTracking": false,
@@ -77,7 +77,7 @@
         "expo-camera",
         {
           "cameraPermission": "MRPscan uses the camera to scan the price tags on your jewellery.",
-          "microphonePermission": "Talk to the MRPscan 24/7 voice assistant.",
+          "microphonePermission": "Talk to Ask AI, the MRPscan voice assistant.",
           "recordAudioAndroid": false
         }
       ],
@@ -86,7 +86,7 @@
         {
           "photosPermission": "Choose a photo of a jewellery tag from your gallery to scan it.",
           "cameraPermission": "MRPscan uses the camera to scan the price tags on your jewellery.",
-          "microphonePermission": "Talk to the MRPscan 24/7 voice assistant."
+          "microphonePermission": "Talk to Ask AI, the MRPscan voice assistant."
         }
       ],
       [
@@ -105,7 +105,7 @@
       [
         "react-native-audio-api",
         {
-          "iosMicrophonePermission": "Talk to the MRPscan 24/7 voice assistant.",
+          "iosMicrophonePermission": "Talk to Ask AI, the MRPscan voice assistant.",
           "iosBackgroundMode": false,
           "androidPermissions": ["android.permission.RECORD_AUDIO"],
           "androidForegroundService": false,
