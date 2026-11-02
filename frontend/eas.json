@@ -41,6 +41,9 @@
       "android": {
         "buildType": "app-bundle",
         "credentialsSource": "local"
+      },
+      "ios": {
+        "credentialsSource": "local"
       }
     }
   },
