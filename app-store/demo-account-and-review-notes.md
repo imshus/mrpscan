@@ -58,26 +58,100 @@ History and Wishlist show something.
 - **User name:** `9999999999`
 - **Password:** `OTP 123456, then MPIN 1234`
 
-**Notes** (paste as is):
+**Notes** (paste as is; about 3,000 characters, under App Store Connect's
+4,000 limit):
 
-> MRPscan is a business tool for Indian jewellery shops. It reads the price tag
-> on a piece of jewellery (gross/net weight, karat, diamond and colour-stone
-> details) with the camera and calculates its selling price (MRP) from live
-> gold rates and the shop's own labour and wastage settings.
+> WHAT THE APP DOES
+> MRPscan is a business tool for GST-registered jewellery shops in India. The
+> shop photographs the price tag on a piece of jewellery; the app reads the tag
+> (weights, karat, diamonds, colour stones) and calculates the piece's selling
+> price (MRP) from live gold rates and the shop's own labour and wastage
+> settings, then makes a GST invoice for the shop's customer.
 >
-> To sign in: tap Log In, enter the phone number 9999999999 and tap Get OTP.
-> No SMS is sent to this demo number: enter the OTP 123456. Then enter the
-> MPIN 1234.
+> HOW TO SIGN IN
+> Tap Login, enter 9999999999 and tap Send code. No SMS is sent to this demo
+> number: enter the code 123456, then the MPIN 1234.
 >
-> To try the main feature: Home → Scan → Upload → choose the attached image
-> "sample-tag-GR10286.jpg" (or point the camera at it on a screen) → Calculate.
-> The review card shows the reading and the MRP; Generate Invoice creates a GST
-> invoice.
+> HOW TO TRY A SCAN
+> Tap Scanner in the bottom bar. Tap the picture icon at the lower right of
+> the camera frame, choose the attached image "sample-tag-GR10286.jpg" (or
+> point the camera at it on another screen), then tap "Calculate directly".
+> The result card shows the reading and the MRP; "Generate Invoice" makes the
+> invoice. Ask AI in the bottom bar is a voice assistant for help with the app
+> (it asks for permission before the first call).
 >
-> The app does not sell anything on iPhone. Shops' licences and scan credits
-> are managed outside the app.
+> CREDITS AND THE LICENCE (business accounts only)
+> - Who can have an account: only a GST-registered business. Sign-up requires
+>   the business's GSTIN, which is verified against India's GST register before
+>   the account is created. The business owner then adds staff logins with
+>   their own permissions. Individuals and consumers cannot sign up.
+> - Licence: each business (each GSTIN) buys a one-time application licence
+>   directly from Amitaash IT Solutions Pvt. Ltd., with a GST tax invoice
+>   issued to that business. A new business can first try the app for 7 days
+>   with 10 trial credits, free; starting the trial involves no payment.
+> - Credits: scanning is billed per use. Each completed tag scan deducts a
+>   processing charge of about Rs 0.70 (the cost of reading the tag) from the
+>   business account's prepaid balance; one credit equals one rupee. The
+>   licence includes 1,000 credits. The balance belongs to the business and is
+>   shared by its staff.
+> - Where these are bought: outside this iOS app. They are sold by Amitaash IT
+>   Solutions directly to the registered business, which is invoiced as a
+>   business. The iOS app offers nothing for sale: no prices, no purchase or
+>   recharge buttons, no links, and no instructions on where to pay. It only
+>   shows the business account's current credits, licence status and its
+>   statement of past charges, the way a company's account page would.
+> - Why no In-App Purchase: the app is sold only to organisations (registered
+>   businesses) for use by their staff, as described in guideline 3.1.3(c)
+>   (Enterprise Services); and the iOS app is a free companion to that paid
+>   business service with no purchasing or calls to action, as in 3.1.3(f).
+>   The jewellery prices shown in the app (MRP, invoices) are for physical
+>   goods the shop sells to its customers in person; no payment for them is
+>   taken in the app.
+>
+> DEMO ACCOUNT
+> The demo account is a demo business ("MRPscan Demo Jewellers") with a
+> licence and over 1,000 credits, so every feature can be tried without any
+> payment.
+>
+> Contact during review: info@mrpscan.com
 
 **Attachment:** `sample-tag-GR10286.jpg`
+
+### If Apple asks about payments (Resolution Center reply)
+
+Paste and send as is if a reviewer raises guideline 3.1.1 (In-App Purchase):
+
+> Thank you for the review. MRPscan is sold only to registered businesses, not
+> to consumers, and nothing can be bought in the iOS app.
+>
+> 1. Accounts are business accounts. Creating an account requires the
+>    business's GSTIN (its Indian GST registration), verified against the GST
+>    register before the account exists. A person without a registered
+>    business cannot sign up. The owner adds staff logins with their own
+>    permissions, and all staff share the business's account.
+> 2. The business buys a one-time licence for its GSTIN, and prepaid usage
+>    credits for tag scanning (each scan costs about Rs 0.70 in processing),
+>    directly from Amitaash IT Solutions Pvt. Ltd. The business is invoiced as
+>    a business, with a GST tax invoice. This is the model in guideline
+>    3.1.3(c), Enterprise Services: the app is sold directly to organisations
+>    for use by their employees.
+> 3. The iOS app contains no purchasing: no prices, no purchase or recharge
+>    buttons, no external links or instructions about where to buy. It shows
+>    only the business account's current balance, licence status and past
+>    charges, the same information as a company account statement. In that
+>    respect it is also a free stand-alone companion to the paid business
+>    service, as in guideline 3.1.3(f).
+> 4. The prices shown in the app's main feature are the selling prices of
+>    physical jewellery that the shop sells to its customers in person
+>    (guideline 3.1.3(e)); the app takes no payment for them.
+>
+> If any screen still reads as an offer to buy, please tell us which one and
+> we will change it straight away.
+
+Keep the app matching these words: if the owner decides to keep showing
+credits in rupees ("Wallet Balance ₹…") on iPhone, the notes above already
+explain it as the business account's balance; the safer option (status update,
+decision 1) is to show the number of credits only.
 
 ## 5. During review, and after
 
