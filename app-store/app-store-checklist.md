@@ -62,6 +62,12 @@ purpose **App Functionality**.
 
 ## 4. App Store Connect → App Information and version
 
+- **New app record:** App Store Connect → Apps → + → New App, platform iOS,
+  **Bundle ID `com.mrpscan`** (the iPhone app's ID; Android stays
+  `com.amitaashitsolutions` on Play). Register it under Certificates,
+  Identifiers & Profiles first if the list does not offer it; the first EAS
+  build can also create it.
+
 - **Privacy Policy URL:** https://mrpscan.com/privacy-policy
 - **Support URL:** https://mrpscan.com/support
 - **Category:** Business. **Age rating:** answer "None" to every question (4+).
