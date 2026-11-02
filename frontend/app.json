@@ -24,19 +24,27 @@
         "NSPrivacyAccessedAPITypes": [
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
-            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
           },
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
-            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "C617.1"
+            ]
           },
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
-            "NSPrivacyAccessedAPITypeReasons": ["35F9.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "35F9.1"
+            ]
           },
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
-            "NSPrivacyAccessedAPITypeReasons": ["E174.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "E174.1"
+            ]
           }
         ]
       }
@@ -107,7 +115,9 @@
         {
           "iosMicrophonePermission": "Talk to Ask AI, the MRPscan voice assistant.",
           "iosBackgroundMode": false,
-          "androidPermissions": ["android.permission.RECORD_AUDIO"],
+          "androidPermissions": [
+            "android.permission.RECORD_AUDIO"
+          ],
           "androidForegroundService": false,
           "disableFFmpeg": true
         }
@@ -119,9 +129,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "7943fc3a-2489-4310-8431-362187abe74b"
+        "projectId": "6746401f-fe65-4cd6-b75e-d6c16737253e"
       }
     },
-    "owner": "imshu"
+    "owner": "amitaash-it-solutions-private-limited"
   }
 }
