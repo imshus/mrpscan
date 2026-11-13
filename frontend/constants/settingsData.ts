@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react-native';
 import {
   ClipboardCheck,
+  Clock,
   Crown,
   FileText,
   Gift,
@@ -8,13 +9,16 @@ import {
   HelpCircle,
   IdCard,
   LayoutGrid,
-  Lock,
   LogOut,
+  ShieldCheck,
   Sigma,
+  Trash2,
   TrendingUp,
   Type,
   UserPlus,
 } from 'lucide-react-native';
+
+import { PRIVACY_POLICY_URL } from '@/constants/legal';
 
 export interface SettingsMenuItem {
   id: string;
@@ -22,7 +26,11 @@ export interface SettingsMenuItem {
   subtitle?: string;
   icon: LucideIcon;
   route?: string;
+  /** A web page opened in the in-app browser instead of a route. */
+  url?: string;
   isLogout?: boolean;
+  /** Drawn like Logout, in red, just above it. */
+  isDeleteAccount?: boolean;
 }
 
 export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
@@ -39,7 +47,7 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     route: '/dashboard/masters',
   },
   // 'rate-control' (Rate Control Panel) is intentionally not listed — the
-  // design-mockup settings menu has exactly six items. The route still exists
+  // design-mockup settings menu does not have it. The route still exists
   // at /dashboard/rate-control; re-add an entry here to surface it again.
   {
     id: 'employee',
@@ -48,14 +56,14 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     route: '/dashboard/employees',
   },
   {
-    id: 'password',
-    title: 'Password Manager',
-    icon: Lock,
-    route: '/dashboard/password-manager',
+    id: 'history',
+    title: 'History',
+    icon: Clock,
+    route: '/dashboard/history',
   },
   {
     id: 'subscription',
-    title: 'Purchase/Accts/Credits',
+    title: 'Credits & Subscription',
     icon: Crown,
     route: '/dashboard/subscription-manager',
   },
@@ -76,6 +84,23 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     title: 'FAQs',
     icon: HelpCircle,
     route: '/dashboard/faqs',
+  },
+  // The App Store wants the privacy policy reachable inside the app
+  // (guideline 5.1.1(i)), for owners and employees alike.
+  {
+    id: 'privacy',
+    title: 'Privacy Policy',
+    icon: ShieldCheck,
+    url: PRIVACY_POLICY_URL,
+  },
+  // Just above Logout, for owners and employees alike: only the person's own
+  // login goes, the shop's records stay (app/dashboard/delete-account.tsx).
+  {
+    id: 'delete-account',
+    title: 'Delete Account',
+    icon: Trash2,
+    route: '/dashboard/delete-account',
+    isDeleteAccount: true,
   },
   {
     id: 'logout',

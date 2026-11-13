@@ -1,5 +1,7 @@
 import { API_BASE_URL, getApiUrl } from '@/constants/api';
 import { useAuthStore } from '@/store/authStore';
+import { canPurchaseInApp, storeSafeServerMessage } from '@/utils/platformCommerce';
+import { PRICING_RULES, PRICING_RULES_HEADER } from '@/utils/pricingRules';
 import {
   currentScopeGeneration,
   currentUserScope,
@@ -38,6 +40,11 @@ export function isRequestAbortedError(error: unknown): boolean {
   return error instanceof ApiError && error.message === REQUEST_ABORTED_MESSAGE;
 }
 
+/** True when `error` is a request that ran out its timeout ("Request timed out after 45s"). */
+export function isRequestTimeoutError(error: unknown): boolean {
+  return error instanceof ApiError && error.message.startsWith('Request timed out after ');
+}
+
 /**
  * Forwards an abort from the caller's signal to the internal controller.
  * Returns an unlink function that must be called once the request settles.
@@ -55,7 +62,8 @@ function linkAbortSignal(controller: AbortController, signal?: AbortSignal): () 
 
 const getResponseCache = new Map<string, unknown>();
 
-const SENSITIVE_LOG_KEY = /password|otp|token|secret|authorization/i;
+// mpin/confirmMpin travel in sign-in and employee bodies; never in the log.
+const SENSITIVE_LOG_KEY = /password|otp|token|secret|authorization|mpin/i;
 
 function redactSensitiveLogValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redactSensitiveLogValue);
@@ -189,6 +197,12 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const headers = new Headers(customHeaders);
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
+  }
+  // Which pricing rules this build bills with: the server prices the
+  // analysis and every /calculate by them, so the MRP the card quotes is
+  // the one this build's invoice bills (utils/pricingRules).
+  if (!headers.has(PRICING_RULES_HEADER)) {
+    headers.set(PRICING_RULES_HEADER, PRICING_RULES);
   }
 
   let requestBody: BodyInit | undefined;
@@ -331,6 +345,19 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
             }
             return parsed;
           }
+          // The retry's own refusal is the one to report: the first 401's
+          // body ("Token is invalid or expired") hid the real code, so a
+          // wrong OTP read as a sign-in problem.
+          const retryClone = response.clone();
+          try {
+            errorBody = await response.json();
+          } catch {
+            try {
+              errorBody = await retryClone.text();
+            } catch {
+              errorBody = null;
+            }
+          }
         } catch (error) {
           if ((error as Error)?.name === 'AbortError') {
             if (externalSignal?.aborted) {
@@ -351,6 +378,15 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
             ? (errorBody as { error: string }).error
             : `Request failed (${response.status})`
         : `Request failed (${response.status})`;
+    // iPhone sells nothing (utils/platformCommerce.ts), so a refusal that
+    // says "Please add credits" or "Purchase application" is said there as
+    // the account's position only. Android shows the server's words as ever.
+    if (!canPurchaseInApp()) {
+      const code = typeof errorBody === 'object' && errorBody !== null
+        ? (errorBody as { error?: unknown }).error
+        : undefined;
+      throw new ApiError(storeSafeServerMessage(code, message), response.status, errorBody);
+    }
     throw new ApiError(message, response.status, errorBody);
   }
 

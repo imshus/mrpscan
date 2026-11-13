@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -10,7 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Colors } from '@/constants/theme';
-import { SCANNER_FRAME_HEIGHT } from './ScannerScreenLayout';
+import { SCANNER_FRAME_HEIGHT } from '@/constants/scannerFrame';
 
 /**
  * Mockup .cap-scanline / @keyframes capScan: a 2px white line with a red glow
@@ -19,6 +19,13 @@ import { SCANNER_FRAME_HEIGHT } from './ScannerScreenLayout';
  */
 export function BarcodeOverlay() {
   const sweep = useSharedValue(0);
+  // The frame's height follows the screen's width now, so the sweep is
+  // measured from the box it is drawn in.
+  const boxHeight = useSharedValue(SCANNER_FRAME_HEIGHT);
+  const handleLayout = (event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    if (height > 0) boxHeight.value = height;
+  };
 
   useEffect(() => {
     sweep.value = withRepeat(
@@ -35,14 +42,14 @@ export function BarcodeOverlay() {
         translateY: interpolate(
           sweep.value,
           [0, 1],
-          [SCANNER_FRAME_HEIGHT * 0.06, SCANNER_FRAME_HEIGHT * 0.92],
+          [boxHeight.value * 0.06, boxHeight.value * 0.92],
         ),
       },
     ],
   }));
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={handleLayout}>
       <Animated.View style={[styles.scanline, scanlineStyle]} />
     </View>
   );

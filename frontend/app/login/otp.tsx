@@ -91,8 +91,7 @@ export default function LoginOtpScreen() {
       ...(payload.fullName ? { fullName: payload.fullName } : {}),
     });
 
-    // Remembered so the next sign-in, after the midnight sign-out too, is
-    // the MPIN alone.
+    // Remembered so the next sign-in is the MPIN alone.
     setSavedCredentials(mobile);
   };
 

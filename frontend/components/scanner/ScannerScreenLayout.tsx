@@ -15,9 +15,10 @@ import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-nativ
 
 import { Colors } from '@/constants/theme';
 import {
-  SCANNER_FRAME_HEIGHT,
+  scannerFrameSize,
   SCANNER_FRAME_VERTICAL_BIAS,
-  SCANNER_FRAME_WIDTH,
+  SCANNER_THUMB_HEIGHT,
+  SCANNER_THUMB_WIDTH,
 } from '@/constants/scannerFrame';
 import { TagCameraPreview, type TagCameraPreviewRef } from './TagCameraPreview';
 
@@ -32,6 +33,37 @@ const ACTION_ICON_STROKE_WIDTH = 2;
  *  fill="none" is set on every shape explicitly — react-native-svg defaults
  *  shapes to black fill and does NOT reliably inherit fill from the parent
  *  <Svg>, so relying on the root fill renders dark blobs on Android. */
+/** One colour between two #rrggbb colours, `t` of the way from `from` to `to`. */
+function mixHex(from: string, to: string, t: number): string {
+  const channel = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+  const part = (i: number) =>
+    Math.round(channel(from, i) + (channel(to, i) - channel(from, i)) * t)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${part(0)}${part(1)}${part(2)}`;
+}
+
+const PILL_GRADIENT_STEPS = 40;
+
+/**
+ * The owner's design: the Click pill runs light red to deep red, left to
+ * right. Drawn as narrow solid strips, not an SVG: over the camera surface an
+ * SVG fill let the live preview show through the pill, and plain views
+ * cannot. At 40 steps the bands are a shade apart, too close to see.
+ */
+function PillGradient({ from, to }: { from: string; to: string }) {
+  return (
+    <View style={[StyleSheet.absoluteFill, styles.pillGradient]} pointerEvents="none">
+      {Array.from({ length: PILL_GRADIENT_STEPS }, (_, i) => (
+        <View
+          key={i}
+          style={{ flex: 1, backgroundColor: mixHex(from, to, i / (PILL_GRADIENT_STEPS - 1)) }}
+        />
+      ))}
+    </View>
+  );
+}
+
 function CapScanIcon({ color = '#FFFFFF' }: { color?: string }) {
   return (
     <Svg width={ACTION_ICON_SIZE} height={ACTION_ICON_SIZE} viewBox="0 0 24 24" fill="none">
@@ -90,6 +122,11 @@ interface ScannerScreenLayoutProps {
   shutterLabel?: string;
   /** The shutter is the red pill on the first side, cream once a side is held. */
   shutterTone?: 'primary' | 'secondary';
+  /**
+   * The camera is still answering the last press: the shutter is dimmed and
+   * ignores taps until it has, so one press is one photo.
+   */
+  shutterBusy?: boolean;
   /** Gallery button beside the frame; shown when there is nothing to discard. */
   onUploadPress?: () => void;
   /** Discard button beside the frame, which takes the scan back to its start. */
@@ -136,6 +173,7 @@ export function ScannerScreenLayout({
   onShutterPress,
   shutterLabel = 'Click',
   shutterTone = 'primary',
+  shutterBusy = false,
   onUploadPress,
   onDeletePress,
   onCalculatePress,
@@ -164,10 +202,17 @@ export function ScannerScreenLayout({
     setRootSize((prev) => (prev.width === w && prev.height === h ? prev : { width: w, height: h }));
   };
 
-  const frameLeft = Math.round((rootSize.width - SCANNER_FRAME_WIDTH) / 2);
-  const frameTop = Math.round(rootSize.height / 2 - SCANNER_FRAME_HEIGHT * SCANNER_FRAME_VERTICAL_BIAS);
-  const frameRight = frameLeft + SCANNER_FRAME_WIDTH;
-  const frameBottom = frameTop + SCANNER_FRAME_HEIGHT;
+  // The frame spans the screen but for a narrow margin (scannerFrame.ts);
+  // TagCameraPreview cuts the photo to this same box.
+  const frame = scannerFrameSize(rootSize.width);
+  const frameLeft = Math.round((rootSize.width - frame.width) / 2);
+  const frameTop = Math.round(rootSize.height / 2 - frame.height * SCANNER_FRAME_VERTICAL_BIAS);
+  const frameRight = frameLeft + frame.width;
+  const frameBottom = frameTop + frame.height;
+  // The owner's design: corner brackets in proportion to the frame and the
+  // gallery / discard button inside its lower right corner. The pills keep
+  // their earlier 240 x 48 (the owner's call), centred under the frame.
+  const cornerSize = Math.round(Math.min(44, Math.max(26, frame.width * 0.11)));
 
   // Percentage-sized SVGs don't reliably track content-driven heights on
   // Android, so the top fade is drawn at the bar's measured pixel size.
@@ -207,8 +252,8 @@ export function ScannerScreenLayout({
           {photoLayer({
             x: frameLeft,
             y: frameTop,
-            width: SCANNER_FRAME_WIDTH,
-            height: SCANNER_FRAME_HEIGHT,
+            width: frame.width,
+            height: frame.height,
           })}
         </View>
       ) : null}
@@ -234,7 +279,7 @@ export function ScannerScreenLayout({
             intensity={38}
             tint="dark"
             experimentalBlurMethod="dimezisBlurView"
-            style={[styles.mask, { top: frameTop, left: 0, width: frameLeft, height: SCANNER_FRAME_HEIGHT }]}
+            style={[styles.mask, { top: frameTop, left: 0, width: frameLeft, height: frame.height }]}
           />
           <BlurView
             intensity={38}
@@ -242,7 +287,7 @@ export function ScannerScreenLayout({
             experimentalBlurMethod="dimezisBlurView"
             style={[
               styles.mask,
-              { top: frameTop, left: frameRight, width: Math.max(0, rootSize.width - frameRight), height: SCANNER_FRAME_HEIGHT },
+              { top: frameTop, left: frameRight, width: Math.max(0, rootSize.width - frameRight), height: frame.height },
             ]}
           />
         </View>
@@ -292,7 +337,7 @@ export function ScannerScreenLayout({
             // The same size as the capture frame, sitting above the
             // instruction; clamped so a short screen cannot push it under
             // the top bar.
-            { top: Math.max(Math.max(frameTop - 36, 70) - (SCANNER_FRAME_HEIGHT + 16), 64) },
+            { top: Math.max(Math.max(frameTop - 36, 70) - (SCANNER_THUMB_HEIGHT + 16), 64) },
           ]}
           pointerEvents="none"
         >
@@ -313,15 +358,23 @@ export function ScannerScreenLayout({
 
       {headerContent ? <View style={styles.headerContent}>{headerContent}</View> : null}
 
-      {cameraPermissionGranted || photoLayer ? (
+      {/* Drawn once the screen is measured: the frame's size and place come
+          from its width and height. */}
+      {(cameraPermissionGranted || photoLayer) && rootSize.width > 0 ? (
         <>
           {/* Mockup .cap-frame + .cap-corner brackets */}
-          <View style={styles.frame} pointerEvents={frameInteractive ? 'box-none' : 'none'}>
+          <View
+            style={[
+              styles.frame,
+              { left: frameLeft, top: frameTop, width: frame.width, height: frame.height },
+            ]}
+            pointerEvents={frameInteractive ? 'box-none' : 'none'}
+          >
             <View style={styles.frameClip}>{children}</View>
-            <View style={[styles.corner, styles.cornerTL]} />
-            <View style={[styles.corner, styles.cornerTR]} />
-            <View style={[styles.corner, styles.cornerBR]} />
-            <View style={[styles.corner, styles.cornerBL]} />
+            <View style={[styles.corner, { width: cornerSize, height: cornerSize }, styles.cornerTL]} />
+            <View style={[styles.corner, { width: cornerSize, height: cornerSize }, styles.cornerTR]} />
+            <View style={[styles.corner, { width: cornerSize, height: cornerSize }, styles.cornerBR]} />
+            <View style={[styles.corner, { width: cornerSize, height: cornerSize }, styles.cornerBL]} />
           </View>
 
           {/* Mockup .cap-controls — Click / Upload Image pills.
@@ -344,7 +397,8 @@ export function ScannerScreenLayout({
                   style={[
                     styles.sideButton,
                     onDeletePress ? styles.sideButtonDanger : styles.sideButtonLight,
-                    { top: frameBottom - 46 },
+                    // Inside the frame's lower right corner (the owner's design).
+                    { top: frameBottom - 44 - 12, left: frameRight - 44 - 12 },
                   ]}
                 >
                   {onDeletePress ? (
@@ -356,13 +410,31 @@ export function ScannerScreenLayout({
               ) : null}
 
               <View style={[styles.controls, { top: frameBottom + 20 }]}>
-                <Pressable onPress={onShutterPress} style={styles.actionSlot}>
+                <Pressable
+                  onPress={onShutterPress}
+                  disabled={shutterBusy}
+                  accessibilityState={{ busy: shutterBusy, disabled: shutterBusy }}
+                  style={styles.actionSlot}
+                >
                   {shutterTone === 'secondary' ? (
-                    <View style={[styles.actionButton, styles.uploadButton]}>
+                    <View
+                      style={[
+                        styles.actionButton,
+                        styles.uploadButton,
+                        shutterBusy && styles.actionButtonHeld,
+                      ]}
+                    >
                       <Text style={styles.uploadLabel}>{shutterLabel}</Text>
                     </View>
                   ) : (
-                    <View style={[styles.actionButton, styles.actionButtonSolid]}>
+                    <View
+                      style={[
+                        styles.actionButton,
+                        styles.actionButtonSolid,
+                        shutterBusy && styles.actionButtonHeld,
+                      ]}
+                    >
+                      <PillGradient from={Colors.brandLight} to={Colors.brandDeep} />
                       <CapScanIcon color={Colors.white} />
                       <Text style={styles.scanLabel}>{shutterLabel}</Text>
                     </View>
@@ -384,6 +456,7 @@ export function ScannerScreenLayout({
                           calculateDisabled && styles.actionButtonHeld,
                         ]}
                       >
+                        <PillGradient from={Colors.brandLight} to={Colors.brandDeep} />
                         <Text style={styles.scanLabel}>
                           {calculateDisabled ? 'Adjusting tag…' : 'Calculate directly'}
                         </Text>
@@ -434,10 +507,10 @@ const styles = StyleSheet.create({
     zIndex: 4,
   },
   capturedThumb: {
-    // The captured side at the size it was framed at — the scan area's own
-    // width and height — so what is in hand can actually be read.
-    width: SCANNER_FRAME_WIDTH,
-    height: SCANNER_FRAME_HEIGHT,
+    // The captured side, large enough that what is in hand can be read; the
+    // frame's own shape, at the mockup's size (see scannerFrame.ts).
+    width: SCANNER_THUMB_WIDTH,
+    height: SCANNER_THUMB_HEIGHT,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.35)',
@@ -464,8 +537,8 @@ const styles = StyleSheet.create({
     zIndex: 25,
     textAlign: 'center',
     color: Colors.white,
-    fontSize: 13.6,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: 'bold',
     letterSpacing: 0.14,
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 1 },
@@ -481,14 +554,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   frame: {
+    // Placed and sized inline from the measured screen (scannerFrameSize):
+    // centred, with its top at height/2 - 0.6 x its height, as the mockup's
+    // translate(-50%, -60%).
     position: 'absolute',
-    top: '50%',
-    left: '50%',
-    width: SCANNER_FRAME_WIDTH,
-    height: SCANNER_FRAME_HEIGHT,
-    // Mockup: transform: translate(-50%, -60%)
-    marginLeft: -SCANNER_FRAME_WIDTH / 2,
-    marginTop: -SCANNER_FRAME_HEIGHT * SCANNER_FRAME_VERTICAL_BIAS,
   },
   frameClip: {
     ...StyleSheet.absoluteFillObject,
@@ -497,8 +566,6 @@ const styles = StyleSheet.create({
   },
   corner: {
     position: 'absolute',
-    width: 26,
-    height: 26,
     borderColor: Colors.brand,
   },
   cornerTL: { top: 0, left: 0, borderLeftWidth: 3, borderTopWidth: 3, borderTopLeftRadius: 6 },
@@ -529,8 +596,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   sideButton: {
+    // Placed inline, inside the frame's lower right corner.
     position: 'absolute',
-    right: 14,
     width: 44,
     height: 44,
     alignItems: 'center',
@@ -564,7 +631,7 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   actionSlot: {
-    width: SCANNER_FRAME_WIDTH,
+    width: 240,
   },
   actionButton: {
     height: 48,
@@ -574,17 +641,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  // Flat red, not the gradient the rest of the app uses: this pill sits over
-  // the camera surface, and an SVG fill there let the live preview show
-  // through it. A plain background cannot.
+  // The red under the strip gradient (PillGradient), which the strips cover;
+  // clipped to the pill's rounded ends.
   actionButtonSolid: {
     backgroundColor: Colors.primary,
+    overflow: 'hidden',
     elevation: 8,
+  },
+  pillGradient: {
+    flexDirection: 'row',
   },
   scanLabel: {
     color: Colors.white,
     fontSize: 13.1,
-    fontWeight: '700',
+    // 'bold' (Typeface.BOLD), not '800': the phone's system font has no 800
+    // and drew it medium.
+    fontWeight: 'bold',
   },
   uploadButton: {
     backgroundColor: Colors.background,
@@ -595,6 +667,6 @@ const styles = StyleSheet.create({
   uploadLabel: {
     color: Colors.textPrimary,
     fontSize: 13.1,
-    fontWeight: '700',
+    fontWeight: 'bold',
   },
 });

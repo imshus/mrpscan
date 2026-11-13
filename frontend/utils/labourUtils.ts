@@ -1,10 +1,11 @@
 import {
   DEFAULT_LABOUR_CHARGE_UNIT,
-  DEFAULT_LABOUR_CHARGE_UNITS,
+  LABOUR_CHARGE_UNITS,
   LABOUR_VALIDATION_MESSAGE,
   type LabourChargeUnit,
 } from '@/constants/labour';
 import type { ScanItemData } from '@/types/scanner';
+import { labourUnitOf, parseTagLabour } from '@/utils/pricingRules';
 
 export function parseNumericLabourValue(raw: string): number | null {
   const cleaned = raw.replace(/[₹,%\s]/g, '').replace(/,/g, '');
@@ -27,13 +28,6 @@ export function formatPurityPercent(value: string): string {
   return `${num}%`;
 }
 
-function parseChargeUnitFromText(raw: string): LabourChargeUnit {
-  if (/per\s*10\s*gram/i.test(raw)) return 'Per 10 Gram';
-  if (/per\s*1\s*gram/i.test(raw)) return 'Per Gram';
-  if (/per\s*gram/i.test(raw)) return 'Per Gram';
-  return DEFAULT_LABOUR_CHARGE_UNIT;
-}
-
 export function parseLabourFromApi(labourRaw: string): Pick<
   ScanItemData,
   'labourPurityPercent' | 'labourChargeAmount' | 'labourChargeUnit'
@@ -46,38 +40,31 @@ export function parseLabourFromApi(labourRaw: string): Pick<
 
   if (!labourRaw?.trim()) return empty;
 
-  const pipeParts = labourRaw.split('|');
-  if (pipeParts.length === 2 && parseNumericLabourValue(pipeParts[0]) !== null) {
-    const unit = DEFAULT_LABOUR_CHARGE_UNITS.includes(pipeParts[1].trim() as LabourChargeUnit)
-      ? (pipeParts[1].trim() as LabourChargeUnit)
-      : DEFAULT_LABOUR_CHARGE_UNIT;
-    return {
-      labourPurityPercent: '',
-      labourChargeAmount: String(parseNumericLabourValue(pipeParts[0])),
-      labourChargeUnit: unit,
-    };
-  }
-
-  const kind = classifyOcrLabourValue(labourRaw);
-  if (kind === 'purity') {
+  // The tag's labour, read exactly as the server reads it for the price it
+  // makes inside the analysis (utils/pricingRules parseTagLabour): "12%" is
+  // 12 percent of the gold value, "MC 850" is Rs 850 a gram, "850|Per 10
+  // Gram" as it says. A "12%" used to be filed as a labour purity nothing
+  // priced, and text it could not read was sent as it stood ("MC 850",
+  // "NIL"), which the server then refused.
+  const fromTag = parseTagLabour(labourRaw);
+  if (fromTag) {
     return {
       ...empty,
-      labourPurityPercent: formatPurityPercent(labourRaw),
+      labourChargeAmount: String(fromTag.amount),
+      labourChargeUnit: fromTag.unit,
     };
   }
 
-  if (kind === 'charge') {
-    return {
-      ...empty,
-      labourChargeAmount: String(parseNumericLabourValue(labourRaw) ?? ''),
-      labourChargeUnit: parseChargeUnitFromText(labourRaw),
-    };
-  }
+  // Nothing priceable: a plain figure up to 100 (a rate or a percent?) or
+  // text with no number. The item's or the shop's charge fills the box, as
+  // the server prices the same tag.
+  return empty;
+}
 
-  return {
-    ...empty,
-    labourChargeAmount: labourRaw.trim(),
-  };
+/** A labour unit the card can hold: the rupee units or a percent. */
+export function toLabourChargeUnit(raw: unknown): LabourChargeUnit {
+  const unit = labourUnitOf(raw);
+  return unit && LABOUR_CHARGE_UNITS.includes(unit) ? unit : DEFAULT_LABOUR_CHARGE_UNIT;
 }
 
 export function serializeLabourForApi(
@@ -102,6 +89,7 @@ export function formatLabourDisplay(
   }
   if (data.labourChargeAmount.trim()) {
     const amount = parseNumericLabourValue(data.labourChargeAmount) ?? data.labourChargeAmount;
+    if (data.labourChargeUnit === 'Percent') return `${amount}% of gold`;
     return `₹${amount} ${data.labourChargeUnit}`;
   }
   return '';

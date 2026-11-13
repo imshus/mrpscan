@@ -28,11 +28,22 @@
         "buildType": "app-bundle"
       },
       "ios": {
-        "autoIncrement": true
+        "autoIncrement": true,
+        "image": "latest"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://appapi.mrpscan.com",
         "ANDROID_PACKAGE": "com.amitaashitsolutions"
+      }
+    },
+    "production-cli": {
+      "extends": "production",
+      "android": {
+        "buildType": "app-bundle",
+        "credentialsSource": "local"
+      },
+      "ios": {
+        "credentialsSource": "local"
       }
     }
   },

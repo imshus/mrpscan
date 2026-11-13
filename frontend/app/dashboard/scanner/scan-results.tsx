@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { CheckCircle, Heart } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,8 +17,11 @@ import { MOCK_SCAN_RESULT } from '@/constants/scannerData';
 import { isDemoScanMode } from '@/constants/scanMode';
 import { Colors } from '@/constants/theme';
 import { useFinalTabPricing } from '@/hooks/useFinalTabPricing';
+import { CART_INVOICE_SOURCE } from '@/hooks/useCartInvoice';
+import { useCartStore } from '@/store/cartStore';
 import { useScannerStore } from '@/store/scannerStore';
 import { useWishlistStore } from '@/store/wishlistStore';
+import { cartPieceFromWishlistItem, isBillablePiece } from '@/utils/cartInvoice';
 import { resolveScannedKarat } from '@/utils/formulaUtils';
 import { buildWishlistItem, buildTagCode } from '@/utils/wishlistUtils';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
@@ -27,7 +30,7 @@ import { parseStoneArraysFromStructuredData } from '@/utils/stoneSequenceUtils';
 export default function ScanResultsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ fromWishlist?: string; wishlistId?: string }>();
+  const params = useLocalSearchParams<{ fromWishlist?: string; wishlistId?: string; from?: string }>();
   const scanData = useScannerStore((s) => s.scanData);
   const selectedType = useScannerStore((s) => s.selectedType);
   const structuredData = useScannerStore((s) => s.structuredData);
@@ -68,17 +71,29 @@ export default function ScanResultsScreen() {
     structuredData,
     selectedType,
     selectedKarat,
+    // A wishlist item shows the price it was saved with: pricing the
+    // scanner's last scan for it was a request nobody used.
+    enabled: !(isFromWishlist && wishlistItem?.snapshot.pricing),
   });
   const activePricing = isFromWishlist
     ? wishlistItem?.snapshot.pricing ?? livePricing
     : livePricing;
 
   // Hand these exact figures to the invoice, so the bill prints the price shown
-  // here instead of asking the server for a second opinion.
+  // here instead of asking the server for a second opinion. A wishlist item's
+  // price goes with its own other charges: the invoice used to bill the
+  // current scan's beside the item's prices.
   const setPreviewPricing = useScannerStore((state) => state.setPreviewPricing);
+  const snapshotChargeItems = isFromWishlist ? activeScanData.otherChargesItems : undefined;
+  const snapshotChargeRemarks = isFromWishlist ? activeScanData.otherChargesRemarks : undefined;
   useEffect(() => {
-    setPreviewPricing(activePricing);
-  }, [activePricing, setPreviewPricing]);
+    setPreviewPricing(
+      activePricing,
+      isFromWishlist
+        ? { items: snapshotChargeItems ?? [], remarks: snapshotChargeRemarks ?? '' }
+        : null,
+    );
+  }, [activePricing, isFromWishlist, snapshotChargeItems, snapshotChargeRemarks, setPreviewPricing]);
 
   const handleAddToWishlist = async () => {
     if (addingToWishlist) return;
@@ -93,6 +108,8 @@ export default function ScanResultsScreen() {
         colorstones,
         pricing: livePricing,           // ← correct backend MRP
         scanTimestamp: new Date().toISOString(),
+        // So its Wishlist history line, and a cart that bills it, name the scan.
+        scanId: useScannerStore.getState().scanId,
       });
       await addWishlistItem(item);
       setHasAdded(true);
@@ -105,7 +122,32 @@ export default function ScanResultsScreen() {
     }
   };
 
+  // A wishlist item is billed as a one-tag checkout, so its invoice keeps the
+  // tag it billed and lands in Checkout history (the owner's ask), with the
+  // same lines it would bill alone. A scan straight from the scanner bills as
+  // it always has.
+  const startCheckout = useCartStore((s) => s.startCheckout);
+  const handleGenerateInvoice = () => {
+    const piece = isFromWishlist && wishlistItem ? cartPieceFromWishlistItem(wishlistItem) : null;
+    // An item saved without its breakdown still bills from this screen's
+    // figures, as it did before; it only stays out of Checkout history.
+    if (!piece || !isBillablePiece(piece)) {
+      router.push('/dashboard/scanner/invoice-preview');
+      return;
+    }
+    startCheckout([piece], { singleItem: true });
+    router.push({
+      pathname: '/dashboard/scanner/invoice-preview',
+      params: { source: CART_INVOICE_SOURCE },
+    } as unknown as Href);
+  };
+
   const handleBack = () => {
+    // Opened from a cart row: back is that cart, still holding its tags.
+    if (isFromWishlist && params.from === 'cart' && router.canGoBack()) {
+      router.back();
+      return;
+    }
     if (isFromWishlist) {
       router.push('/dashboard/wishlist' as Href);
       return;
@@ -144,6 +186,11 @@ export default function ScanResultsScreen() {
                 amount={activePricing.ultimateMrpDisplay}
                 style={styles.mrpCard}
               />
+              {/* No price to bill (refused inputs, no live rate): said here,
+                  and nothing is invoiced or saved at a price the card lost. */}
+              {activePricing.pricingError ? (
+                <Text style={styles.pricingError}>{activePricing.pricingError}</Text>
+              ) : null}
             </CardHeader>
 
             <KeyboardAwareScrollView
@@ -159,7 +206,7 @@ export default function ScanResultsScreen() {
                 jewelleryType={activeSelectedType}
                 pricing={activePricing}
                 editable={false}
-                gstNote={demoResult?.gstNote ?? 'MRP = Gold + Stones + Labour + Other Charges'}
+                gstNote={demoResult?.gstNote ?? 'MRP = Gold + Stones + Labour + Wastage + Other Charges'}
               />
             </KeyboardAwareScrollView>
 
@@ -170,7 +217,7 @@ export default function ScanResultsScreen() {
                     variant="alt"
                     title={hasAdded ? 'Item Added' : addingToWishlist ? 'Adding...' : 'Add to Wishlist'}
                     onPress={handleAddToWishlist}
-                    disabled={hasAdded || addingToWishlist}
+                    disabled={hasAdded || addingToWishlist || Boolean(activePricing.pricingError)}
                     icon={wishlistIcon}
                     style={styles.footerBtn}
                   />
@@ -178,7 +225,8 @@ export default function ScanResultsScreen() {
                 <PillButton
                   variant="brand"
                   title="Generate Invoice"
-                  onPress={() => router.push('/dashboard/scanner/invoice-preview')}
+                  onPress={handleGenerateInvoice}
+                  disabled={Boolean(activePricing.pricingError)}
                   style={styles.footerBtn}
                 />
               </View>
@@ -193,6 +241,13 @@ export default function ScanResultsScreen() {
 }
 
 const styles = StyleSheet.create({
+  pricingError: {
+    marginTop: 6,
+    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.dangerText,
+  },
   mrpCard: {
     marginBottom: 0,
   },

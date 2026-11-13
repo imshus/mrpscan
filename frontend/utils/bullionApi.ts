@@ -64,11 +64,12 @@ export async function fetchBullionSources(): Promise<BullionSources | null> {
 /**
  * POST /settings/bullion — the whole choice: which house is followed and the
  * shop's own list. Throws with the server's message so the screen can say why
- * a name was refused.
+ * a name was refused. With no requestedNames the server keeps the ones it has;
+ * with no selected it keeps the house followed, and records none as chosen.
  */
 export async function updateBullionSources(payload: {
-  selected: string;
-  requestedNames: string[];
+  selected?: string;
+  requestedNames?: string[];
 }): Promise<BullionSources> {
   const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/settings/bullion', {
     method: 'POST',

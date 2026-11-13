@@ -5,6 +5,8 @@ interface MrpBreakdownCardProps {
   diamondAmount?: string;
   colorstoneAmount?: string;
   labourAmount: string;
+  /** Present when the piece carries wastage; it is part of the Final MRP. */
+  wastageAmount?: string;
   otherChargesTotal?: string;
   ultimateMrp: string;
 }
@@ -14,6 +16,7 @@ export function MrpBreakdownCard({
   diamondAmount,
   colorstoneAmount,
   labourAmount,
+  wastageAmount,
   otherChargesTotal,
   ultimateMrp,
 }: MrpBreakdownCardProps) {
@@ -23,6 +26,7 @@ export function MrpBreakdownCard({
       {diamondAmount ? <FinRow label="Diamond Amount" value={diamondAmount} /> : null}
       {colorstoneAmount ? <FinRow label="Colorstone Amount" value={colorstoneAmount} /> : null}
       <FinRow label="Labour Amount" value={labourAmount} />
+      {wastageAmount ? <FinRow label="Wastage Amount" value={wastageAmount} /> : null}
       {otherChargesTotal ? <FinRow label="Other Charges Total" value={otherChargesTotal} /> : null}
       <FinRow label="Final MRP" value={ultimateMrp} amount />
     </MetalTile>

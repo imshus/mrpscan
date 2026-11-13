@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { applyUploadSigning } from './apply-upload-signing.mjs';
 import { clearStaleAutolinking } from './clear-stale-autolinking.mjs';
+import { patchAudioApi } from './patch-audio-api.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, '..');
@@ -172,6 +173,10 @@ clearStaleAutolinking(androidRoot);
 writeFileSync(join(androidRoot, 'local.properties'), `sdk.dir=${toGradlePath(androidSdk)}\n`);
 
 applyUploadSigning(projectRoot, { required: true });
+
+// The Play bundle gets the same voice-call echo fix as the test APK
+// (build-apk.mjs): the library's Oboe streams, patched in place.
+patchAudioApi(projectRoot);
 
 // Always regenerate the files that were left partially written by the failed
 // concurrent builds reported by Metro's source-map composer.

@@ -4,11 +4,8 @@ import { useAuthStore } from '@/store/authStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { useMatricesStore } from '@/store/matricesStore';
 import { fetchEmployees } from '@/utils/employeeApi';
-import { useMidnightLogout } from '@/hooks/useMidnightLogout';
 
 export default function DashboardLayout() {
-  // Every session ends at 12:00 AM; the guard below then shows Log In.
-  useMidnightLogout();
   const fetchValues = useMatricesStore((s) => s.fetchValues);
   const setEmployees = useEmployeeStore((s) => s.setEmployees);
   const hasHydrated = useAuthStore((s) => s._hasHydrated);
@@ -42,7 +39,9 @@ export default function DashboardLayout() {
   if (!isAuthenticated) return <Redirect href="/login" />;
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    // A page slides in from the right: Android's default fade let the old
+    // and new page show through each other for a moment, which read as blur.
+    <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="settings" />
       <Stack.Screen name="business-profile" options={{ headerShown: false }} />
@@ -52,12 +51,15 @@ export default function DashboardLayout() {
       <Stack.Screen name="inventory" options={{ headerShown: false }} />
       <Stack.Screen name="employees" options={{ headerShown: false }} />
       <Stack.Screen name="password-manager" />
+      <Stack.Screen name="history" />
+      <Stack.Screen name="delete-account" />
       <Stack.Screen name="purity-control" />
       <Stack.Screen name="subscription-manager" />
       <Stack.Screen name="purchase-license" />
       <Stack.Screen name="credit-history" />
       <Stack.Screen name="scanner" options={{ headerShown: false }} />
       <Stack.Screen name="wishlist/index" options={{ headerShown: false }} />
+      <Stack.Screen name="cart" />
     </Stack>
   );
 }

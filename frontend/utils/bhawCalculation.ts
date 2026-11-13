@@ -3,12 +3,14 @@ import type { BhawVendor } from '@/utils/bhawApi';
 /**
  * Cash and RTGS rates for the selected bullion provider.
  *
- *   cash = MCX base + provider's cash_bhaw + the shop's own cash adjustment
- *   rtgs = MCX base + provider's rtgs_bhaw + the shop's own rtgs adjustment
+ *   cash = MCX base + provider's cash bhaw + the shop's own cash adjustment
+ *   rtgs = MCX base + provider's rtgs bhaw + the shop's own rtgs adjustment
  *
- * The provider's bhaw is a signed rupee figure — JMD Patil currently quotes
- * cash at a discount (−3,200) and RTGS at a premium (+4,800) — so it is always
- * added, never conditionally subtracted.
+ * The provider's bhaw is vendor.cashBhaw / rtgsBhaw: its premium over its own
+ * MCX sell (see utils/bhawPayload.ts), not the feed's cash_bhaw / rtgs_bhaw,
+ * which are measured from the MCX buy. It is a signed rupee figure — JMD
+ * Patil quotes cash at a discount (−1,200) and RTGS at a premium (+2,250) —
+ * so it is always added, never conditionally subtracted.
  *
  * The shop's own adjustments come from Gold Rate Settings and are kept in the
  * formula deliberately: they are what the shop sells at. Dropping them would

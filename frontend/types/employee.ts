@@ -52,6 +52,4 @@ export interface EmployeeDraft {
   gender: EmployeeGender;
   designation: string;
   permissions: EmployeePermissions;
-  password: string;
-  confirmPassword: string;
 }

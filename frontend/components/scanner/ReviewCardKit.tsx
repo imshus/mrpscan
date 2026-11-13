@@ -17,8 +17,9 @@ import { Colors, Gradients, Radius } from '@/constants/theme';
 /**
  * Presentational primitives for the Scanner Review / Final Result screens,
  * matching design-mockup styles.css lines 1295-1461 (floating card system,
- * metal tiles, amount tiles, footer buttons). Used ONLY by the review/final
- * screen tree — do not import from other areas.
+ * metal tiles, amount tiles, footer buttons). Used by the review/final screen
+ * tree, and by History's read-only tag details (components/history), which
+ * are meant to look like that card — do not import from other areas.
  */
 
 /** Splits a "₹58,685" display string into rupee sign + number for styling. */
@@ -43,11 +44,13 @@ interface CardHeaderProps {
   onBack?: () => void;
   /** Optional control rendered at the right end of the title row. */
   accessory?: ReactNode;
+  /** Optional strip filling the row between the back button and the accessory. */
+  center?: ReactNode;
   /** Rendered below the title row (the MRP amount card). */
   children?: ReactNode;
 }
 
-export function CardHeader({ title, onBack, accessory, children }: CardHeaderProps) {
+export function CardHeader({ title, onBack, accessory, center, children }: CardHeaderProps) {
   return (
     <View style={styles.stickyHead}>
       <View style={styles.stickyTop}>
@@ -61,6 +64,7 @@ export function CardHeader({ title, onBack, accessory, children }: CardHeaderPro
           </Pressable>
         ) : null}
         {title ? <Text style={styles.stickyTitle}>{title}</Text> : null}
+        {center ?? null}
         {/* Pushed to the trailing edge so it sits top-right whether or not
             this header carries a title. */}
         {accessory ? <View style={styles.headAccessory}>{accessory}</View> : null}
@@ -178,6 +182,8 @@ export function MetalGrid({ children }: { children: ReactNode }) {
 interface MetalFieldSlotProps {
   label: string;
   fullWidth?: boolean;
+  /** .amount-field span: an amount's label, dark and extra-bold. */
+  strongLabel?: boolean;
   /** Retained for callers that provide confidence metadata; no visual marker is shown. */
   attention?: boolean;
   children: ReactNode;
@@ -187,11 +193,12 @@ interface MetalFieldSlotProps {
 export function MetalFieldSlot({
   label,
   fullWidth = false,
+  strongLabel = false,
   children,
 }: MetalFieldSlotProps) {
   return (
     <View style={[styles.metalField, fullWidth && styles.metalFieldFull]}>
-      <Text style={styles.metalFieldLabel}>{label}</Text>
+      <Text style={[styles.metalFieldLabel, strongLabel && styles.metalFieldLabelStrong]}>{label}</Text>
       {children}
     </View>
   );
@@ -207,6 +214,8 @@ interface MetalInputProps {
   amount?: boolean;
   /** .input-icon prefix (e.g. ₹). */
   prefix?: string;
+  /** The same, after the figure (e.g. %). */
+  suffix?: string;
   fullWidth?: boolean;
   /** Retained for callers that provide confidence metadata; no visual marker is shown. */
   attention?: boolean;
@@ -218,6 +227,8 @@ interface MetalInputProps {
   invalid?: boolean;
   onFocus?: ComponentProps<typeof TextInput>['onFocus'];
   onBlur?: ComponentProps<typeof TextInput>['onBlur'];
+  /** Shown faint while the box is empty: the figure that applies then. */
+  placeholder?: string;
 }
 
 export function MetalInput({
@@ -228,14 +239,18 @@ export function MetalInput({
   keyboardType,
   amount = false,
   prefix,
+  suffix,
   fullWidth,
   invalid = false,
   onFocus,
   onBlur,
+  placeholder,
 }: MetalInputProps) {
   const input = (
     <TextInput
       value={value}
+      placeholder={placeholder}
+      placeholderTextColor={Colors.placeholder}
       onChangeText={onChangeText}
       accessibilityLabel={label}
       editable={editable}
@@ -248,19 +263,20 @@ export function MetalInput({
       onFocus={onFocus}
       onBlur={onBlur}
       style={[
-        prefix ? styles.inputIconInput : styles.metalInput,
-        !prefix && amount && styles.metalInputAmount,
-        !prefix && invalid && styles.metalInputInvalid,
+        prefix || suffix ? styles.inputIconInput : styles.metalInput,
+        !prefix && !suffix && amount && styles.metalInputAmount,
+        !prefix && !suffix && invalid && styles.metalInputInvalid,
       ]}
     />
   );
 
   return (
-    <MetalFieldSlot label={label} fullWidth={fullWidth}>
-      {prefix ? (
+    <MetalFieldSlot label={label} fullWidth={fullWidth} strongLabel={amount}>
+      {prefix || suffix ? (
         <View style={[styles.inputIcon, invalid && styles.metalInputInvalid]}>
-          <Text style={styles.inputIconPrefix}>{prefix}</Text>
+          {prefix ? <Text style={styles.inputIconPrefix}>{prefix}</Text> : null}
           {input}
+          {suffix ? <Text style={styles.inputIconPrefix}>{suffix}</Text> : null}
         </View>
       ) : (
         input
@@ -279,7 +295,7 @@ interface MetalValueBoxProps {
 /** Read-only display styled like a .metal-field input. */
 export function MetalValueBox({ label, value, amount = false, fullWidth }: MetalValueBoxProps) {
   return (
-    <MetalFieldSlot label={label} fullWidth={fullWidth}>
+    <MetalFieldSlot label={label} fullWidth={fullWidth} strongLabel={amount}>
       <View style={[styles.metalInputBox, amount && styles.metalInputBoxAmount]}>
         <Text
           style={[styles.metalInputBoxText, amount && styles.metalInputAmountText]}
@@ -523,6 +539,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.textMuted,
     marginBottom: 4,
+  },
+  metalFieldLabelStrong: {
+    color: Colors.textPrimary,
+    fontWeight: '800',
   },
   metalInputInvalid: {
     borderColor: Colors.dangerText,

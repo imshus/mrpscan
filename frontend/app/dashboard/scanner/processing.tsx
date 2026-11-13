@@ -12,7 +12,7 @@ import { isDemoScanMode } from '@/constants/scanMode';
 import { useFormulaStore } from '@/store/formulaStore';
 import { useScannerStore } from '@/store/scannerStore';
 import { ScanStage, type ScanItemData } from '@/types/scanner';
-import { ApiError, isRequestAbortedError } from '@/utils/apiClient';
+import { ApiError, isRequestAbortedError, isRequestTimeoutError } from '@/utils/apiClient';
 import { syncFormulaStoreFromApi } from '@/utils/formulaSettingsApi';
 import {
   applyFormula2KaratConstraint,
@@ -25,46 +25,60 @@ import {
   derivePricingInput,
   prefetchFirstPricing,
   seedServerPricing,
+  seedServerPricingError,
 } from '@/utils/pricingPrefetch';
+import { prefillLabour } from '@/utils/pricingRules';
+import { loadLabourCodes } from '@/components/scanner/LaborSection';
+import { analysisLabourCode, findLabourCode } from '@/utils/labourCodes';
+import { applyStoneRateTables } from '@/utils/stoneSequenceUtils';
 import { getBackgroundSideUpload } from '@/utils/uploadPipeline';
+import {
+  PROC_CAPTION_FROM,
+  PROC_CAPTIONS,
+  procCanLeave,
+  procCaptionIndex,
+  procPercentAt,
+} from '@/utils/processingRing';
 import { findItemOnTag, loadItemCatalogue } from '@/utils/itemCatalogue';
 import { apiKeyForScanField, structuredDataToScanItem } from '@/utils/scanMappers';
-import { fetchGoldRates, fetchLabourRate } from '@/utils/ratesApi';
+import {
+  fetchColorstoneRates,
+  fetchDiamondRates,
+  fetchGoldRates,
+  fetchLabourRate,
+} from '@/utils/ratesApi';
 
-// The counter runs 0 to 99 over six seconds, showing every digit through
-// five labelled sections of twenty digits each, pinned to the wall clock: the
-// digit due at any moment comes from elapsed time, so a busy JS thread can
-// delay a frame but never stretch the count — it catches up a couple of
-// digits per frame instead. Everything happens behind the count: upload, the
-// reading, and the first MRP calculation. The last digit — and the hand-off
-// to the review card — waits for BOTH the six seconds and the reading with
-// its price, so the card always opens complete: a reading that outlives the
-// window holds the counter at 99 until it lands, and one that finishes early
-// still lets the count run its full six seconds.
-// Billing is finalized server-side in the background and never blocks this.
+// The counter fills the ring 0 → 25 → 50 → 75 → 100, half a second a quarter
+// (utils/processingRing procPercentAt), one caption a quarter, pinned to the
+// wall clock: the digit due at any moment comes from elapsed time, so a busy
+// JS thread can delay a frame but never stretch the count. Everything happens
+// behind the count: upload, the reading, and the first MRP calculation. The
+// hand-off to the review card waits for the reading with its price and
+// nothing else: a count that reaches 100 first waits there until both are
+// stored, and work done sooner runs the rest of the count out faster; the
+// card opens on 100. Billing is finalized server-side in the background and
+// never blocks this.
 const TICK_MS = 16;
-/** How many digits one frame may advance while catching up to the clock. */
-const MAX_DIGITS_PER_TICK = 2;
-/** The counter's window: six seconds to 99; 100 lands when the reading and price are in hand. */
-const EARLY_REVIEW_MS = 6000;
 /** How long to wait for the first price after the reading before opening the card regardless. */
 const PRICE_WAIT_CAP_MS = 4000;
 
-/** The five sections of the counter; a digit belongs to the last one it reached. */
-const SECTIONS = [
-  { from: 0, stage: ScanStage.Uploading, message: 'Uploading Tags...' },
-  { from: 20, stage: ScanStage.AIProcessing, message: 'Reading the Tag...' },
-  { from: 40, stage: ScanStage.AIProcessing, message: 'Analysing Details...' },
-  { from: 60, stage: ScanStage.PreparingResults, message: 'Calculating Price...' },
-  { from: 80, stage: ScanStage.PreparingResults, message: 'Loading Scanned Results...' },
+/**
+ * The sections of the counter, one per caption the ring's pill shows
+ * (utils/processingRing): a digit belongs to the last one it reached.
+ */
+const SECTION_STAGES = [
+  ScanStage.Uploading,
+  ScanStage.AIProcessing,
+  ScanStage.PreparingResults,
+  ScanStage.PreparingResults,
 ] as const;
+const SECTIONS = PROC_CAPTIONS.map((message, i) => ({
+  from: PROC_CAPTION_FROM[i],
+  stage: SECTION_STAGES[i],
+  message,
+}));
 
-const sectionFor = (digit: number) => {
-  for (let i = SECTIONS.length - 1; i >= 0; i -= 1) {
-    if (digit >= SECTIONS[i].from) return SECTIONS[i];
-  }
-  return SECTIONS[0];
-};
+const sectionFor = (digit: number) => SECTIONS[procCaptionIndex(digit)];
 
 export default function ProcessingScreen() {
   const router = useRouter();
@@ -83,14 +97,11 @@ export default function ProcessingScreen() {
   const progressRef = useRef(0);
   const analysisRunKeyRef = useRef<string | null>(null);
   const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // The review screen opens after EARLY_REVIEW_MS whether or not the analysis
-  // has returned; these track whether that hand-off already happened.
+  // Whether the hand-off to the review card already happened.
   const navigatedRef = useRef(false);
-  const earlyNavRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The two conditions the hand-off waits for: the six seconds have run, and
-  // the reading with its price is stored. Whichever lands second opens the card.
-  const windowElapsedRef = useRef(false);
-  const analysisReadyRef = useRef(false);
+  // When the reading and its price were in hand (wall clock); null while
+  // still waiting.
+  const readyAtRef = useRef<number | null>(null);
   // Wall-clock marks for the timings shown on the review screen.
   const scanStartRef = useRef(0);
   const uploadDoneRef = useRef(0);
@@ -144,7 +155,6 @@ export default function ProcessingScreen() {
   useEffect(
     () => () => {
       if (tickerRef.current) clearInterval(tickerRef.current);
-      if (earlyNavRef.current) clearTimeout(earlyNavRef.current);
     },
     [],
   );
@@ -175,42 +185,37 @@ export default function ProcessingScreen() {
     navigatedRef.current = false;
     setAnalysisPending(true);
 
-    // The hand-off fires when both the window and the reading are done —
-    // never before either — so the review card opens with values and price.
-    windowElapsedRef.current = false;
-    analysisReadyRef.current = false;
-    const finishIfReady = () => {
-      if (!windowElapsedRef.current || !analysisReadyRef.current) return;
+    // The hand-off fires once the reading with its price is stored — never
+    // before, so the review card opens with values and price — and the count
+    // stands at 100.
+    readyAtRef.current = null;
+    const handOff = () => {
       if (navigatedRef.current) return;
-      if (useScannerStore.getState().scanId !== scanId) return;
-      navigatedRef.current = true;
       if (tickerRef.current) {
         clearInterval(tickerRef.current);
         tickerRef.current = null;
       }
+      if (useScannerStore.getState().scanId !== scanId) return;
+      navigatedRef.current = true;
       applyDigit(100);
       router.replace('/dashboard/scanner/review-results' as Href);
     };
-    if (earlyNavRef.current) clearTimeout(earlyNavRef.current);
-    earlyNavRef.current = setTimeout(() => {
-      earlyNavRef.current = null;
-      windowElapsedRef.current = true;
-      finishIfReady();
-    }, EARLY_REVIEW_MS);
+    const finishWhenReady = () => {
+      if (navigatedRef.current || readyAtRef.current !== null) return;
+      if (useScannerStore.getState().scanId !== scanId) return;
+      readyAtRef.current = Date.now();
+    };
 
-    // The counter: the digit due now comes from elapsed wall-clock time, and
-    // each frame advances at most a couple of digits toward it — so the count
-    // is visible digit by digit yet always finishes on schedule, even when
-    // uploads keep the JS thread busy. Section labels switch every twenty
-    // digits. The last digit lands when the review card opens or the
-    // analysis returns.
+    // The counter: the digit due now comes from elapsed wall-clock time —
+    // 25 at 0.5 s, 50 at 1 s, 75 at 1.5 s, 100 at 2 s — and the caption rolls
+    // on at 25, 50 and 75. The review card opens once the count stands at
+    // 100 with the reading and its price in hand.
     if (tickerRef.current) clearInterval(tickerRef.current);
     const ticker = setInterval(() => {
-      const elapsed = Date.now() - scanStartRef.current;
-      const due = Math.min(99, Math.floor((elapsed / EARLY_REVIEW_MS) * 100));
-      if (due > progressRef.current) {
-        applyDigit(Math.min(due, progressRef.current + MAX_DIGITS_PER_TICK));
-      }
+      const start = scanStartRef.current;
+      const readyAt = readyAtRef.current;
+      applyDigit(procPercentAt(Date.now() - start, readyAt === null ? null : readyAt - start));
+      if (procCanLeave(progressRef.current, readyAt !== null)) handOff();
     }, TICK_MS);
     tickerRef.current = ticker;
 
@@ -237,8 +242,12 @@ export default function ProcessingScreen() {
             try {
               await backgroundUpload;
               return;
-            } catch {
-              // Background upload failed; fall back to a fresh prepare + upload.
+            } catch (error) {
+              // Timed out twice already (utils/scanApi.ts retries once): the
+              // network cannot carry it, and the same bytes again would only
+              // double the wait before the error.
+              if (isRequestTimeoutError(error)) throw error;
+              // Any other failure: a fresh prepare + upload.
             }
           }
           await uploadFn(scanId, uri);
@@ -260,6 +269,21 @@ export default function ProcessingScreen() {
       // These requests do not depend on the OCR result. Start them while the
       // tag is being analyzed so the preview does not wait for rate setup.
       const labourRatePromise = fetchLabourRate().catch(() => null);
+      // The shop's Masters -> Labour Code list (never rejects; a failed read
+      // is an empty list), so a code the tag matched can fill the labour box
+      // with its rate. It also warms the review card's Labour Code dropdown.
+      const labourCodesPromise = isDemoScanMode() ? Promise.resolve([]) : loadLabourCodes();
+      // The shop's stone rate tables, so each stone starts with the rate its
+      // row would look up (packet code first) and the card's first price is
+      // the one the server worked out inside the analysis; without them the
+      // first price used the printed rates and changed once the rows looked
+      // theirs up. A failed read leaves the printed rates for the rows.
+      const stoneRatesPromise = isDemoScanMode()
+        ? Promise.resolve([null, null] as const)
+        : Promise.all([
+            fetchDiamondRates().catch(() => null),
+            fetchColorstoneRates().catch(() => null),
+          ]);
       // The saved item codes, fetched alongside the analysis so the tag's
       // code can be named the moment the reading lands.
       const cataloguePromise = loadItemCatalogue();
@@ -293,7 +317,12 @@ export default function ProcessingScreen() {
         throw new ApiError('Scan analysis completed, but billing was not confirmed. Please contact support before retrying.');
       }
 
-      const flatData = result.structuredData ?? {};
+      const [diamondRateRows, colorstoneRateRows] = await stoneRatesPromise;
+      const flatData = applyStoneRateTables(
+        result.structuredData ?? {},
+        diamondRateRows,
+        colorstoneRateRows,
+      );
       let adjustedScanData = applyClientFormulaRules({
         ...DEFAULT_SCAN_ITEM,
         ...structuredDataToScanItem(flatData),
@@ -304,30 +333,6 @@ export default function ProcessingScreen() {
       const extractedKarat = readScannedKarat(adjustedScanData.karat, adjustedScanData.tunch);
       const fallbackKarat = extractedKarat || '14K';
       adjustedScanData = { ...adjustedScanData, karat: fallbackKarat };
-
-      const hasLabourValues = Boolean(adjustedScanData.labourChargeAmount?.trim());
-
-      if (!hasLabourValues) {
-        // Errors are already swallowed at kickoff and keep scanned values.
-        const labourRate = await labourRatePromise;
-        if (labourRate) {
-          // Only support AMOUNT type - percentage type removed
-          if (labourRate.chargeType === 'AMOUNT') {
-            adjustedScanData = {
-              ...adjustedScanData,
-              labourChargeAmount: String(labourRate.value ?? ''),
-              labourChargeUnit:
-                labourRate.rupeesUnit ?? adjustedScanData.labourChargeUnit,
-              // The rate is set against a chosen weight, so the scan has to
-              // charge it against the same one.
-              labourWeightBasis:
-                labourRate.weightBasis ?? adjustedScanData.labourWeightBasis,
-              labourPurityPercent: '',
-            };
-          }
-          // Percentage type no longer supported - ignore it
-        }
-      }
 
       // Formulas shape the price the review screen shows, so this one is
       // still awaited; it was started before the analysis and is normally done.
@@ -340,14 +345,48 @@ export default function ProcessingScreen() {
       // Every identifier on the tag is tried, the chosen number first: an
       // item code printed beside an SR NO still names the piece.
       const tagIdentifiers = [adjustedScanData.sku, ...(result.tagIdentifiers ?? [])];
+      let foundItem: Awaited<ReturnType<typeof loadItemCatalogue>>[number] | null = null;
       if (tagIdentifiers.some((value) => value.trim())) {
         const found = findItemOnTag(tagIdentifiers, await cataloguePromise);
         if (found) {
+          foundItem = found.item;
           adjustedScanData = {
             ...adjustedScanData,
             itemName: found.item.description,
             itemCode: found.code,
           };
+        }
+      }
+
+      // The labour the card starts with when the tag prints none: the
+      // Masters item's own labour in its unit, else the shop's charge —
+      // AMOUNT per its unit, PERCENTAGE as a percent of the gold value — on
+      // the weight the shop's charge was saved against. The server prices
+      // the reading from the same choice, and charges whatever this box
+      // holds; the shop's rate used to be filled in over the item's, so the
+      // item's labour was never what the card or the invoice charged.
+      // A Masters -> Labour Code the server matched on the tag comes first:
+      // its rate, in its unit, as the server opens the analysis' price with
+      // it (pricing rules 4) and charges a code ahead of the item's and the
+      // shop's; a code without a rate is passed over. The code is the
+      // analysis' own labourCode, kept even when it could not price. Only the
+      // box is filled: the code itself is the server's to find again from the
+      // tag (and to show on Labour Code).
+      if (!adjustedScanData.labourChargeAmount?.trim()) {
+        // Errors are already swallowed at kickoff and keep scanned values.
+        const labourRate = await labourRatePromise;
+        const matchedLabourCode = analysisLabourCode(result);
+        const labourCodeRow = matchedLabourCode
+          ? findLabourCode(await labourCodesPromise, matchedLabourCode)
+          : null;
+        const prefill = prefillLabour(
+          foundItem,
+          labourRate,
+          adjustedScanData.labourWeightBasis,
+          labourCodeRow,
+        );
+        if (prefill) {
+          adjustedScanData = { ...adjustedScanData, ...prefill, labourPurityPercent: '' };
         }
       }
 
@@ -401,13 +440,16 @@ export default function ProcessingScreen() {
       updateScanData(adjustedScanData);
       setAnalysisPending(false);
 
-      // The server priced the reading inside the analysis: hand that price to
-      // the card so it shows the instant the values do, with no round trip.
+      // The server priced the reading inside the analysis: kept as the
+      // stand-in the card shows if its own first price is slow to land.
       if (result.pricing) seedServerPricing(scanId, result.pricing);
-      // Also start the card's own first calculation now, while the counter
-      // is still running, so its confirmation is already in hand too.
-      // Derived exactly the way the pricing hook derives it, or the hook
-      // cannot claim this request as its own.
+      // Or why it could not: no live gold rate, or a reading it cannot price.
+      else if (result.pricingError?.message) seedServerPricingError(scanId, result.pricingError.message);
+      // Start the card's own first calculation now, while the counter is
+      // still running, so it is in hand when the card opens: the first price
+      // the card shows is then made from the card's own inputs. Derived
+      // exactly the way the pricing hook derives it, or the hook cannot claim
+      // this request as its own.
       {
         const state = useScannerStore.getState();
         prefetchFirstPricing(
@@ -431,23 +473,19 @@ export default function ProcessingScreen() {
       }
       console.info('[LOADER_PROGRESS]', { scanId, timestamp: Date.now(), stage: 'analysis_stored' });
 
-      // The price: already here when the server priced the reading inside
-      // the analysis; otherwise the first calculation just fired is waited
-      // for, capped so a slow rate lookup cannot hold the card hostage.
+      // The price: the card's own first calculation, just fired, is waited
+      // for — capped so a slow rate lookup cannot hold the card hostage (the
+      // server's price from the analysis then stands in until it lands).
       await Promise.race([
         awaitPricingReady(scanId),
         new Promise<void>((resolve) => setTimeout(resolve, PRICE_WAIT_CAP_MS)),
       ]);
-      analysisReadyRef.current = true;
-      finishIfReady();
+      finishWhenReady();
     } catch (error) {
       clearInterval(ticker);
       tickerRef.current = null;
+      readyAtRef.current = null;
       analysisRunKeyRef.current = null;
-      if (earlyNavRef.current) {
-        clearTimeout(earlyNavRef.current);
-        earlyNavRef.current = null;
-      }
       setAnalysisPending(false);
       // Aborted by an account change: nothing to tell whoever signed in next.
       if (isRequestAbortedError(error)) return;
@@ -509,11 +547,7 @@ export default function ProcessingScreen() {
         <Rect x="0" y="0" width="100%" height="100%" fill="url(#procBg)" />
       </Svg>
       <SafeAreaView style={styles.center}>
-        <UnifiedScanLoader
-          progress={scanLoading.progress}
-          stage={scanLoading.stage}
-          message={scanLoading.message}
-        />
+        <UnifiedScanLoader progress={scanLoading.progress} />
       </SafeAreaView>
     </View>
   );

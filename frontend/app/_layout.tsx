@@ -15,6 +15,7 @@ import Animated, {
 
 import { ReduxProvider } from '@/components/ReduxProvider';
 import { AnimatedSplash } from '@/components/splash/AnimatedSplash';
+import { AppUpdatePopup } from '@/components/ui/AppUpdatePopup';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useEmployeeStore } from '@/store/employeeStore';
@@ -275,6 +276,9 @@ export default function RootLayout() {
         {splashVisible && (
           <AnimatedSplash onReveal={revealContent} onFinish={() => setSplashVisible(false)} />
         )}
+        {/* "New version available" when Google Play has a newer one: asked
+            once the splash is gone, and again whenever the app comes back. */}
+        <AppUpdatePopup enabled={storageReady && !splashVisible} />
       </View>
     </ReduxProvider>
   );

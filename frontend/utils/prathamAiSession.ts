@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert, Linking, Platform } from 'react-native';
 import { create } from 'zustand';
 
@@ -65,9 +66,10 @@ export async function togglePrathamAiCall(): Promise<void> {
   if (starting) return;
 
   starting = true;
-  const attempt = (generation += 1);
-  setStatus('connecting');
   try {
+    if (!(await voiceConsentGiven())) return;
+    const attempt = (generation += 1);
+    setStatus('connecting');
     // A server that answers slowly (or has no such route) must not leave the
     // button sitting green: the address it would supply is only an override
     // of the one built into the app, so it is worth a short wait and no more.
@@ -125,6 +127,42 @@ export async function togglePrathamAiCall(): Promise<void> {
   } finally {
     starting = false;
   }
+}
+
+const VOICE_CONSENT_KEY = 'pratham-ai-voice-consent-v1';
+
+/**
+ * Asked once on this phone, before the first call sends any voice: where
+ * the voice goes (the App Store's guideline 5.1.2(i) wants personal data
+ * shared with third-party AI named and agreed to first). A "Not now" is
+ * not remembered, so the next tap asks again.
+ */
+async function voiceConsentGiven(): Promise<boolean> {
+  try {
+    if ((await AsyncStorage.getItem(VOICE_CONSENT_KEY)) === 'yes') return true;
+  } catch {
+    // Unreadable storage: ask.
+  }
+  const allowed = await new Promise<boolean>((resolve) => {
+    Alert.alert(
+      '24/7 voice assistant',
+      'During the call, what you say is sent to the MRPscan voice service and the AI services it uses: ' +
+        'Deepgram turns your speech into text, OpenAI writes the answer and ElevenLabs speaks it.',
+      [
+        { text: 'Not now', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Allow', onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) },
+    );
+  });
+  if (allowed) {
+    try {
+      await AsyncStorage.setItem(VOICE_CONSENT_KEY, 'yes');
+    } catch {
+      // Asked again next time; the call goes ahead now.
+    }
+  }
+  return allowed;
 }
 
 function notConfigured(): void {

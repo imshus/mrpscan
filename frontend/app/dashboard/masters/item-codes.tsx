@@ -21,7 +21,13 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { invalidateItemCatalogue } from '@/utils/itemCatalogue';
-import { deleteItemCode, fetchItemCodes, saveItemCode } from '@/utils/itemCodeApi';
+import {
+  deleteItemCode,
+  fetchItemCodes,
+  ITEM_LABOUR_UNITS,
+  saveItemCode,
+  type ItemLabourUnit,
+} from '@/utils/itemCodeApi';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 /** One editable line of the sheet; unsaved rows have no id yet. */
@@ -33,6 +39,8 @@ interface RowState {
   /** Held as typed, so a cleared field stays cleared rather than becoming 0. */
   wastage: string;
   labour: string;
+  /** What the labour figure is in; the scanner charges it in this unit. */
+  labourUnit: ItemLabourUnit;
   /** Edited since its last save; the tick, + Add and leaving the screen flush it. */
   dirty?: boolean;
   /** Unlocked by the pencil; the tick saves and locks again. New rows start open. */
@@ -49,8 +57,18 @@ const emptyRow = (): RowState => ({
   code: '',
   wastage: '',
   labour: '',
+  labourUnit: 'Per Gram',
   editing: true,
 });
+
+/** How each labour unit reads on its chip; a tap moves to the next. */
+const LABOUR_UNIT_LABELS: Record<ItemLabourUnit, string> = {
+  'Per Gram': '₹/g',
+  'Per 10 Gram': '₹/10g',
+  Percent: '% of gold',
+};
+const nextLabourUnit = (unit: ItemLabourUnit): ItemLabourUnit =>
+  ITEM_LABOUR_UNITS[(ITEM_LABOUR_UNITS.indexOf(unit) + 1) % ITEM_LABOUR_UNITS.length];
 
 /** A stored figure as it belongs in a text field: absent reads as empty. */
 const figureText = (value: number | null | undefined) =>
@@ -88,6 +106,7 @@ export default function ItemCodesScreen() {
         code: item.code,
         wastage: figureText(item.wastage),
         labour: figureText(item.labour),
+        labourUnit: item.labourUnit,
       }));
       // The sheet always ends with a blank line to type into, like the mockup.
       setRows([...loaded, emptyRow()]);
@@ -121,6 +140,7 @@ export default function ItemCodesScreen() {
         description: row.name.trim(),
         wastage: row.wastage.trim(),
         labour: row.labour.trim(),
+        labourUnit: row.labourUnit,
       });
       if (saved) {
         updateRow(row.key, {
@@ -129,6 +149,7 @@ export default function ItemCodesScreen() {
           name: saved.description,
           wastage: figureText(saved.wastage),
           labour: figureText(saved.labour),
+          labourUnit: saved.labourUnit,
           dirty: false,
         });
       }
@@ -315,7 +336,24 @@ export default function ItemCodesScreen() {
                           />
                         </View>
                         <View style={styles.field}>
-                          <Text style={styles.fieldLabel}>LABOUR</Text>
+                          <View style={styles.labelRow}>
+                            <Text style={styles.fieldLabel}>LABOUR</Text>
+                            {/* The unit the figure is in: per gram, per 10 g
+                                or a percent of the gold value. A tap moves
+                                to the next while the row is open. */}
+                            <Pressable
+                              onPress={() =>
+                                updateRow(row.key, { labourUnit: nextLabourUnit(row.labourUnit), dirty: true })
+                              }
+                              disabled={row.editing !== true}
+                              hitSlop={6}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Labour unit: ${LABOUR_UNIT_LABELS[row.labourUnit]}`}
+                              style={styles.unitChip}
+                            >
+                              <Text style={styles.unitChipText}>{LABOUR_UNIT_LABELS[row.labourUnit]}</Text>
+                            </Pressable>
+                          </View>
                           <TextInput
                             value={row.labour}
                             onChangeText={(text) => {
@@ -443,6 +481,24 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textTransform: 'uppercase',
     marginBottom: 5,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  unitChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  unitChipText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.brandDeep,
   },
   fieldInput: {
     fontSize: 13,

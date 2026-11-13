@@ -15,9 +15,10 @@ import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
+import { canPurchaseInApp } from '@/utils/platformCommerce';
 import { fetchReferralOverview, type ReferralOverview } from '@/utils/referralApi';
 
-const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.mrpscan';
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.amitaashitsolutions';
 
 /**
  * The Play Store link with the sender's code and the offer it was shared
@@ -28,10 +29,19 @@ const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.mrpsca
 const inviteLink = (code: string, offer: 'invite50' | 'purchase500') =>
   `${PLAY_STORE_URL}&referrer=${encodeURIComponent(`code=${code}&offer=${offer}`)}`;
 
+/**
+ * The invite's link line. On iPhone there is none: an iOS app may not point
+ * people at another platform's store (App Store rule 2.3.10), and the code
+ * alone is what the new shop types in at sign-up.
+ */
+const inviteLinkLine = (code: string, offer: 'invite50' | 'purchase500') =>
+  canPurchaseInApp() ? `: ${inviteLink(code, offer)}` : '.';
+
 export default function EarnInviteScreen() {
   const [overview, setOverview] = useState<ReferralOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const canBuy = canPurchaseInApp();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,7 +65,7 @@ export default function EarnInviteScreen() {
       await Share.share({
         message:
           `Join me on MRPscan — photograph a jewellery tag, get the MRP, print the bill. ` +
-          `Install and sign up with my invite code ${overview.referralCode} and I earn ${overview.inviteReward} credits: ${inviteLink(overview.referralCode, 'invite50')}`,
+          `Install and sign up with my invite code ${overview.referralCode} and I earn ${overview.inviteReward} credits${inviteLinkLine(overview.referralCode, 'invite50')}`,
       });
     } catch {
       // Share sheet dismissed; nothing to do.
@@ -105,7 +115,7 @@ export default function EarnInviteScreen() {
               <View style={styles.statDivider} />
               <View style={styles.statCol}>
                 <Text style={styles.statValue}>{overview.purchaseCredits}</Text>
-                <Text style={styles.statLabel}>PURCHASE CREDITS</Text>
+                <Text style={styles.statLabel}>{canBuy ? 'PURCHASE CREDITS' : 'BONUS CREDITS'}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statCol}>
@@ -123,14 +133,20 @@ export default function EarnInviteScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.offerCard}>
-              <Text style={styles.offerText}>
-                Refer for purchase, send code and earn {overview.purchaseReward} Credits
-              </Text>
-              <TouchableOpacity activeOpacity={0.9} style={styles.sendBtn} onPress={() => void sharePurchase()}>
-                <Text style={styles.sendBtnText}>Send Link</Text>
-              </TouchableOpacity>
-            </View>
+            {/* A reward for getting another shop to buy, with a share that
+                says "sign up and purchase": a call to buy outside the app,
+                so not on iPhone (utils/platformCommerce.ts). The free invite
+                above stays. */}
+            {canBuy ? (
+              <View style={styles.offerCard}>
+                <Text style={styles.offerText}>
+                  Refer for purchase, send code and earn {overview.purchaseReward} Credits
+                </Text>
+                <TouchableOpacity activeOpacity={0.9} style={styles.sendBtn} onPress={() => void sharePurchase()}>
+                  <Text style={styles.sendBtnText}>Send Link</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
           </>
         ) : null}
       </ScrollView>

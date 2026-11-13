@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import {
   AudioContext,
   AudioManager,
@@ -142,7 +143,10 @@ export class PrathamAiCall {
     ws.onopen = () => {
       opened = true;
       this.running = true;
-      ws.send(JSON.stringify({ type: 'start', gender: this.options.gender }));
+      // The platform lets the agent leave buying out on iPhone, where the
+      // app sells nothing (utils/platformCommerce.ts); servers before that
+      // ignore it.
+      ws.send(JSON.stringify({ type: 'start', gender: this.options.gender, platform: Platform.OS }));
       this.startMic();
       this.setListening();
     };

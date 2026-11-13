@@ -19,6 +19,8 @@ export default function MastersScreen() {
     if (item.id === 'rates-diamond') return access.canEditDiamond;
     if (item.id === 'rates-colorstone') return access.canEditColorstone;
     if (item.id === 'rates-labour') return access.canEditLabour;
+    // Labour Code sits right under Labour Charges and follows its permission.
+    if (item.id === 'labour-codes') return access.canEditLabour;
     // Wastage sits under Labour Charges and follows the same permission.
     if (item.id === 'wastage') return access.canEditLabour;
     // The item-code catalogue is the shop's to shape, so the tile is the owner's.

@@ -1,13 +1,17 @@
 import type { SettingsPermissionKey } from '@/types/employee';
 
-/** Never visible to employees, regardless of owner permissions. */
-export const OWNER_ONLY_SETTINGS_IDS = new Set(['matrices', 'subscription']);
+/**
+ * Never visible to employees, regardless of owner permissions. Employee
+ * Manager is the owner's: an employee neither sees it in Settings nor can open
+ * its screens (the employees layout guards on this id).
+ */
+export const OWNER_ONLY_SETTINGS_IDS = new Set(['matrices', 'subscription', 'employee']);
 
-/** Always visible to employees in settings. */
-// 'employee' opens Employee Management scoped to themselves: the backend
-// returns only their own record to an employee, and the screens hide the
-// owner's add/edit/delete controls.
-export const EMPLOYEE_ALWAYS_SETTINGS_IDS = new Set(['password', 'invite', 'contact', 'employee', 'logout']);
+/**
+ * Always visible to employees in settings. History lists their own scans,
+ * wishlist and invoices, and Delete Account removes their own login.
+ */
+export const EMPLOYEE_ALWAYS_SETTINGS_IDS = new Set(['history', 'invite', 'contact', 'privacy', 'delete-account', 'logout']);
 
 /** Optional settings items the owner can grant per employee. */
 export const SETTINGS_PERMISSION_MAP: Partial<Record<string, SettingsPermissionKey>> = {

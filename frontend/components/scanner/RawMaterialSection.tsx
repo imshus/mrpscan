@@ -12,6 +12,7 @@ import {
 import { SearchableSelectDropdown } from '@/components/scanner/SearchableSelectDropdown';
 import type { SearchableSelectOption } from '@/components/scanner/SearchableSelectDropdown';
 import {
+  DEFAULT_KARAT_PURITY_PERCENT,
   KARAT_DROPDOWN_OPTIONS,
   computePureWeightGrams,
   formatIndianCurrency,
@@ -39,6 +40,15 @@ interface RawMaterialSectionProps {
   calculationMode?: 'rtgs' | 'cash';
   calculationRateAccess?: 'rtgs' | 'cash' | 'both';
   backendGoldAmount?: number;
+  /**
+   * From the same pricing answer as backendGoldAmount: the 24K rate per gram
+   * it applied, the pure weight and the purity it used. The rate box and
+   * Pure Weight read these, so they are the figures behind the amount beside
+   * them — not rates fetched once when the card opened.
+   */
+  backendGoldRatePerGram?: number;
+  backendPureWeight?: number;
+  backendPurityPercent?: number;
 }
 
 const RATE_OPTIONS: ReadonlyArray<{ value: 'rtgs' | 'cash'; label: string }> = [
@@ -84,6 +94,9 @@ export const RawMaterialSection = memo(function RawMaterialSection({
   calculationMode = 'rtgs',
   calculationRateAccess = 'both',
   backendGoldAmount,
+  backendGoldRatePerGram,
+  backendPureWeight,
+  backendPurityPercent,
 }: RawMaterialSectionProps) {
   const [isPurityEditing, setIsPurityEditing] = useState(false);
   const fixedRateLabel = calculationRateAccess === 'cash' ? 'Retail Rate' : 'RTGS Rate';
@@ -106,7 +119,9 @@ export const RawMaterialSection = memo(function RawMaterialSection({
     const match = goldRates?.find(
       (rate) => normalizeRateKarat(rate.carat) === normalizedKarat,
     );
-    return match?.purity ?? 0;
+    // 23K, 21K and 10K have no row in the shop's table; the server prices
+    // them at karat / 24, which the default table carries.
+    return match?.purity ?? DEFAULT_KARAT_PURITY_PERCENT[normalizedKarat] ?? 0;
   }, [goldRates, normalizedKarat]);
 
   const [purityDraft, setPurityDraft] = useState('');
@@ -131,7 +146,14 @@ export const RawMaterialSection = memo(function RawMaterialSection({
   const customPurityValue = parseNumericLabourValue(scanData.customPurityPercent) ?? 0;
   const effectivePurity = hasCustomPurity ? customPurityValue : defaultPurity;
   const netWtGrams = parseWeightValue(scanData.netWt);
-  const pureWeightGrams = computePureWeightGrams(netWtGrams, effectivePurity);
+  // The server's answer, once there is one; the phone's own figures only
+  // until then.
+  const hasBackendRate =
+    typeof backendGoldRatePerGram === 'number' && backendGoldRatePerGram > 0;
+  const pureWeightGrams =
+    hasBackendRate && typeof backendPureWeight === 'number'
+      ? backendPureWeight
+      : computePureWeightGrams(netWtGrams, effectivePurity);
 
   const scannerUse = calculationMode ?? 'rtgs';
   const baseFinalRate =
@@ -148,10 +170,18 @@ export const RawMaterialSection = memo(function RawMaterialSection({
         ? goldTaxSettings?.cashChangeBy ?? 0
         : goldTaxSettings?.rtgsChangeBy ?? 0)
     : 0;
-  const finalBaseRate = baseFinalRate ?? fallbackBase;
+  const finalBaseRate = hasBackendRate
+    ? backendGoldRatePerGram * 10
+    : baseFinalRate ?? fallbackBase;
+  // The purity the server used; with no net weight it cannot be told from
+  // the answer, and the card's own purity stands in.
+  const ratePurity =
+    hasBackendRate && typeof backendPurityPercent === 'number' && backendPurityPercent > 0
+      ? backendPurityPercent
+      : effectivePurity;
   const currentGoldRate =
-    finalBaseRate > 0 && effectivePurity > 0
-      ? finalBaseRate * (effectivePurity / 100)
+    finalBaseRate > 0 && ratePurity > 0
+      ? finalBaseRate * (ratePurity / 100)
       : 0;
   const localCurrentGoldRateDisplay =
     currentGoldRate > 0 ? `${formatIndianCurrency(currentGoldRate)} /10gm` : '—';

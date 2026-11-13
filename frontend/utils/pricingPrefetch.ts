@@ -37,14 +37,23 @@ export function derivePricingInput(
   const { diamonds, colorstones } = parseStoneArraysFromStructuredData(structuredData ?? {}, scanData);
   const otherChargesTotal = computeOtherChargesTotal(scanData);
   const rawCustomPurity = scanData.customPurityPercent?.trim();
+  // The first number in each field, never below zero: weights, rates and
+  // percents are not negative, and the card's own figures read them the
+  // same way (a stray minus used to be dropped and flip the sign).
+  const figure = (raw: string | undefined | null) => Math.max(0, parseNumericValue(raw));
   const payload: CalculateMrpPayload = {
     jewelleryType: selectedType,
-    netWt: parseNumericValue(scanData.netWt) || 0,
-    grossWt: parseNumericValue(scanData.grossWt) || 0,
+    netWt: figure(scanData.netWt),
+    grossWt: figure(scanData.grossWt),
     purityKarat: resolvedKarat,
     labourChargeAmount: scanData.labourChargeAmount,
     labourChargeUnit: scanData.labourChargeUnit,
     labourWeightBasis: scanData.labourWeightBasis,
+    // The Masters -> Labour Code picked on the card, which the server records
+    // ahead of the tag's own. Picking it filled the labour figure above with
+    // the code's rate, and a figure sent beats the code's, so a rate changed
+    // by hand afterwards is what is charged.
+    ...(scanData.labourCode?.trim() ? { labourCode: scanData.labourCode.trim() } : {}),
     calculationMode: scanData.calculationRate,
     otherCharges: otherChargesTotal,
     // The wastage the shop charges is kept against the item code, so the
@@ -53,24 +62,36 @@ export function derivePricingInput(
     // Every identifier on the tag, so a Masters -> Wastage code printed
     // beside the item number is found as well.
     tagIdentifiers: useScannerStore.getState().tagIdentifiers,
-    // Sent only when typed: an empty box means "the item's own figure", and
-    // sending 0 instead would wipe wastage off the price.
-    ...(scanData.wastagePercent?.trim()
-      ? { wastagePercent: parseNumericValue(scanData.wastagePercent) }
+    // Sent only when a figure is typed: an empty box (or a lone '.' on the
+    // way to '.5') means "the item's own figure", and sending 0 instead
+    // would wipe wastage off the price.
+    ...(/\d/.test(scanData.wastagePercent ?? '')
+      ? { wastagePercent: figure(scanData.wastagePercent) }
       : {}),
+    // The Masters -> Wastage code picked on the card, which the server then
+    // prices (when no % is typed) and records, ahead of the tag's own.
+    ...(scanData.wastageCode?.trim() ? { wastageCode: scanData.wastageCode.trim() } : {}),
+    // Always one of the two: the server refuses anything else, and a scan
+    // made before the tile had the choice is on the net weight.
+    wastageWeightBasis: scanData.wastageWeightBasis === 'gross' ? 'gross' : 'net',
+    // Each stone's unit as printed: a weight in grams is priced as 5 ct a
+    // gram, as the server prices the reading; without it the card priced
+    // "0.40 g" as 0.40 ct, a fifth of the analysis's price.
     diamonds: diamonds.map((d) => ({
-      weight: parseNumericValue(d.weight) || 0,
-      rate: parseNumericValue(d.rate) || 0,
-      discountPercent: parseNumericValue(d.discountPercent ?? '0') || 0,
+      weight: figure(d.weight),
+      rate: figure(d.rate),
+      discountPercent: figure(d.discountPercent ?? '0'),
+      unit: d.unit === 'g' ? 'g' : 'ct',
     })),
     colorstones: colorstones.map((c) => ({
-      weight: parseNumericValue(c.weight) || 0,
-      rate: parseNumericValue(c.rate) || 0,
+      weight: figure(c.weight),
+      rate: figure(c.rate),
+      unit: c.unit === 'g' ? 'g' : 'ct',
     })),
   };
 
   if (rawCustomPurity) {
-    payload.customPurityPercent = parseNumericValue(rawCustomPurity);
+    payload.customPurityPercent = figure(rawCustomPurity);
   }
 
   return { diamonds, colorstones, payload, resolvedKarat };
@@ -79,12 +100,25 @@ export function derivePricingInput(
 interface PrefetchEntry {
   payloadKey: string;
   promise: Promise<CalculateMrpResponse>;
+  /** The answer, once it has landed — read synchronously by the card. */
+  settled?: CalculateMrpResponse;
+}
+
+/** A prefetched first calculation handed to the pricing hook. */
+export interface PrefetchedPricing {
+  promise: Promise<CalculateMrpResponse>;
+  /** Already answered: the card shows it at once, with nothing before it. */
+  settled?: CalculateMrpResponse;
 }
 
 /** One in-flight first calculation per scan; old scans fall off the end. */
 const prefetched = new Map<string, PrefetchEntry>();
 const MAX_ENTRIES = 3;
 
+/**
+ * The whole payload, every field: a price made for one input (the wastage
+ * on the net weight, say) is never handed to a request for another (gross).
+ */
 function payloadKeyFor(payload: CalculateMrpPayload): string {
   return JSON.stringify(payload);
 }
@@ -99,10 +133,16 @@ export function prefetchFirstPricing(scanId: string, input: PricingInput): void 
   if (prefetched.get(scanId)?.payloadKey === payloadKey) return;
 
   const promise = calculateScanMrp(scanId, input.payload);
-  prefetched.set(scanId, { payloadKey, promise });
-  promise.catch(() => {
-    if (prefetched.get(scanId)?.promise === promise) prefetched.delete(scanId);
-  });
+  const entry: PrefetchEntry = { payloadKey, promise };
+  prefetched.set(scanId, entry);
+  promise.then(
+    (response) => {
+      entry.settled = response;
+    },
+    () => {
+      if (prefetched.get(scanId)?.promise === promise) prefetched.delete(scanId);
+    },
+  );
 
   while (prefetched.size > MAX_ENTRIES) {
     const oldest = prefetched.keys().next().value;
@@ -112,9 +152,9 @@ export function prefetchFirstPricing(scanId: string, input: PricingInput): void 
 }
 
 /**
- * The price the server computed inside the analysis itself. The hook shows
- * it the instant the card opens — no round trip at all — and then confirms
- * with its own request, which replaces it only if the figures differ.
+ * The price the server computed inside the analysis itself. The card shows
+ * it only while its own first price is still out (a slow or failed prefetch,
+ * or an edit before it landed); its own request replaces it.
  */
 const serverPricing = new Map<string, CalculateMrpResponse>();
 
@@ -141,13 +181,41 @@ export function takeServerPricing(scanId: string): CalculateMrpResponse | null {
 }
 
 /**
- * Resolves once a price for this scan is in hand — the server's from the
- * analysis, or the prefetched first calculation once it settles — so the
- * counter can hold its hand-off until the card has something to show.
+ * Why the analysis could not price the reading (no live gold rate, a
+ * reading that cannot be priced): the card says so, rather than showing a
+ * price, until its own request answers.
+ */
+const serverPricingErrors = new Map<string, string>();
+registerScopeResetCallback(() => {
+  serverPricingErrors.clear();
+});
+
+export function seedServerPricingError(scanId: string, message: string): void {
+  serverPricingErrors.set(scanId, message);
+  while (serverPricingErrors.size > MAX_ENTRIES) {
+    const oldest = serverPricingErrors.keys().next().value;
+    if (oldest == null) break;
+    serverPricingErrors.delete(oldest);
+  }
+}
+
+export function takeServerPricingError(scanId: string): string | null {
+  const message = serverPricingErrors.get(scanId) ?? null;
+  serverPricingErrors.delete(scanId);
+  return message;
+}
+
+/**
+ * Resolves once the card's own first price for this scan is in hand — the
+ * prefetched first calculation, made from exactly the inputs the card sends —
+ * so the counter can hold its hand-off until the card has it to show. The
+ * price the server made inside the analysis is derived from the reading on
+ * the server's side and can differ from the card's (labour weight basis,
+ * tag labour, other charges, item code), so it no longer ends the wait; it
+ * is the fallback the card shows while its own price is still out.
  * Never rejects: a failed prefetch simply means the card prices itself.
  */
 export async function awaitPricingReady(scanId: string): Promise<void> {
-  if (serverPricing.has(scanId)) return;
   const entry = prefetched.get(scanId);
   if (!entry) return;
   await entry.promise.then(
@@ -164,9 +232,9 @@ export async function awaitPricingReady(scanId: string): Promise<void> {
 export function takePrefetchedPricing(
   scanId: string,
   payload: CalculateMrpPayload,
-): Promise<CalculateMrpResponse> | null {
+): PrefetchedPricing | null {
   const entry = prefetched.get(scanId);
   if (!entry || entry.payloadKey !== payloadKeyFor(payload)) return null;
   prefetched.delete(scanId);
-  return entry.promise;
+  return { promise: entry.promise, settled: entry.settled };
 }

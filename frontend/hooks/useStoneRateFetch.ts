@@ -50,13 +50,13 @@ export function useStoneRateFetch({
     const trimmedShapeRaw = shape?.trim() ?? '';
     const trimmedShape = trimmedShapeRaw.toLowerCase() === 'none' ? '' : trimmedShapeRaw;
     const trimmedPacketCode = packetCode?.trim() ?? '';
-    // What the server can actually answer: a packet code, or a colour AND a
-    // clarity. Asking with only a shape or only a colour returned 400, which
-    // the catch below swallowed.
+    // What a rate row can be found by: for a diamond any of packet code,
+    // shape, colour or clarity; for a colour stone its packet code, or a
+    // colour or a clarity (the server's findColorstoneRateMatch).
     const hasLookupCriteria =
       type === 'diamond'
         ? Boolean(trimmedPacketCode || trimmedShape || trimmedColor || trimmedClarity)
-        : Boolean(trimmedColor && trimmedClarity);
+        : Boolean(trimmedPacketCode || trimmedColor || trimmedClarity);
 
     if (!hasLookupCriteria) {
       setRate('');
@@ -115,7 +115,7 @@ export function useStoneRateFetch({
     const hasLookupCriteria =
       type === 'diamond'
         ? Boolean(trimmedPacketCode || trimmedShape || trimmedColor || trimmedClarity)
-        : Boolean(trimmedColor && trimmedClarity);
+        : Boolean(trimmedPacketCode || trimmedColor || trimmedClarity);
 
     if (!hasLookupCriteria) {
       setRate('');

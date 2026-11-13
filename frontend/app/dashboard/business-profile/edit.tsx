@@ -345,7 +345,12 @@ export default function EditBusinessProfileScreen() {
 
       {done ? (
         <ProfileUpdatedPopup
-          onDone={() => router.replace('/dashboard/business-profile')}
+          onDone={() => {
+            // The popup's dim goes with its card: left mounted, it sat
+            // empty over the profile until this screen had gone.
+            setDone(false);
+            router.replace('/dashboard/business-profile');
+          }}
         />
       ) : null}
 

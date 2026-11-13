@@ -5,6 +5,7 @@ import {
   deriveActiveBaseRate,
   type ScannerCalculationUse,
 } from '@/utils/goldRateUtils';
+import { type InvoiceLineItemRow } from '@/utils/moneyMath';
 import { buildQuality } from '@/utils/qualityUtils';
 import {
   computeStoneAmountWithDiscount,
@@ -14,15 +15,7 @@ import {
 export const GST_RATE_OPTIONS = [0, 3, 5, 9, 18, 28] as const;
 export type GstRateOption = (typeof GST_RATE_OPTIONS)[number];
 
-export interface InvoiceLineItemRow {
-  key: string;
-  description: string;
-  note: string;
-  qty: number;
-  qtyUnit: string;
-  price: number;
-  amount: number;
-}
+export type { InvoiceLineItemRow };
 
 /*
  * Gold and labour are no longer priced here.
@@ -84,13 +77,11 @@ export function computeInvoiceSubtotal(rows: InvoiceLineItemRow[]): number {
   return rows.reduce((sum, row) => sum + row.amount, 0);
 }
 
-export function computeGstAmount(subtotal: number, gstRate: GstRateOption): number {
-  return (subtotal * gstRate) / 100;
-}
-
-export function computeGrandTotal(subtotal: number, gstAmount: number): number {
-  return subtotal + gstAmount;
-}
+/*
+ * GST and the grand total are utils/moneyMath's computeInvoiceTax and
+ * computeGrandTotal: the server's per-line arithmetic, so the app's totals
+ * are the PDF's.
+ */
 
 export function formatInvoiceDateTime(date: Date = new Date()): string {
   return date.toLocaleString('en-IN', {

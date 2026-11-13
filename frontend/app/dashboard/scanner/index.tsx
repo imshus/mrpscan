@@ -9,6 +9,7 @@ import { MessagePopup } from '@/components/settings/MessagePopup';
 import { useAuthStore } from '@/store/authStore';
 import { useScannerStore } from '@/store/scannerStore';
 import { ApiError } from '@/utils/apiClient';
+import { canPurchaseInApp, scanBlockedNotice, TRIAL_ENDED_LINE } from '@/utils/platformCommerce';
 import { fetchSubscriptionOverview, MIN_SCAN_BALANCE, startFreeTrial } from '@/utils/subscriptionApi';
 import type { SubscriptionOverview } from '@/types/subscription';
 
@@ -31,6 +32,7 @@ export default function ScannerScreen() {
   const resetScanSession = useScannerStore((s) => s.resetScanSession);
   const setScanSessionBootstrapping = useScannerStore((s) => s.setScanSessionBootstrapping);
   const isOwner = userRole === 'business';
+  const canBuy = canPurchaseInApp();
 
   // Trial over: the server's scanner flag is off and a trial has been used —
   // its end stamp, or failing that its start date (a licence put back to no
@@ -118,7 +120,8 @@ export default function ScannerScreen() {
       if (overview.status === 'NO_LICENSE' && !overview.trialExpiredAt) {
         await startFreeTrial();
       } else {
-        router.push(PURCHASE_ROUTE);
+        // Never to the purchase screen on iPhone (utils/platformCommerce.ts).
+        if (canBuy) router.push(PURCHASE_ROUTE);
         return;
       }
       await loadOverview();
@@ -160,6 +163,18 @@ export default function ScannerScreen() {
         }
       : null;
 
+  // iPhone sells nothing (utils/platformCommerce.ts): the same taps get the
+  // reason only — no Purchase License or Recharge Credits button, and no
+  // word on where to buy.
+  const blockedPopup: { title: string; message: string; action?: string; route?: Href } | null = canBuy
+    ? popup
+    : scanBlockedNotice({
+        trialExpired,
+        creditsLow,
+        outOfCredits,
+        creditBalance: Number(overview?.creditBalance || 0),
+      });
+
   const leave = () => {
     setPopupHidden(true);
     if (router.canGoBack()) {
@@ -175,14 +190,16 @@ export default function ScannerScreen() {
   };
 
   const bannerTitle = isTrialExpired
-    ? 'Purchase Application'
+    ? (canBuy ? 'Purchase Application' : 'Free trial ended')
     : 'Start your FREE Trial Today';
 
   const bannerSubtitle = isTrialExpired
-    ? 'Trial expired. Purchase application to continue scanning.'
+    ? (canBuy ? 'Trial expired. Purchase application to continue scanning.' : TRIAL_ENDED_LINE)
     : 'Scanner access will unlock instantly after starting your free trial.';
 
   const primaryActionLabel = isTrialExpired ? 'Purchase Application' : 'Start Free Trial';
+  // A free trial can still be started on iPhone; buying the application cannot.
+  const showPrimaryAction = canBuy || !isTrialExpired;
 
   return (
     <View className="flex-1 bg-white">
@@ -193,7 +210,7 @@ export default function ScannerScreen() {
       <View className="flex-1 items-center justify-center bg-white px-6">
         {initializing ? <ActivityIndicator size="large" color="#D9291F" /> : null}
 
-        {showBlockedState && !popup ? (
+        {showBlockedState && !blockedPopup ? (
           <View className="w-full rounded-2xl border border-[#E8DBC2] bg-[#FFF7E8] p-5">
             <Text className="text-[24px] font-extrabold text-[#3F2F1C]">{bannerTitle}</Text>
             <Text className="mt-2 text-[14px] leading-5 text-[#675437]">{bannerSubtitle}</Text>
@@ -201,7 +218,7 @@ export default function ScannerScreen() {
               Credits Remaining: {Number(overview?.creditBalance || 0).toFixed(2)}
             </Text>
 
-            {isOwner ? (
+            {isOwner && !showPrimaryAction ? null : isOwner ? (
               <Pressable
                 onPress={handlePrimaryAction}
                 disabled={actionLoading}
@@ -224,13 +241,13 @@ export default function ScannerScreen() {
           from the purchase screen, the old answer must not show for the
           length of the round trip. */}
       <MessagePopup
-        message={popup && !popupHidden && !initializing ? popup.message : null}
-        title={popup?.title}
+        message={blockedPopup && !popupHidden && !initializing ? blockedPopup.message : null}
+        title={blockedPopup?.title}
         tone="error"
         icon="alert"
-        actionLabel={popup?.action}
+        actionLabel={blockedPopup?.action}
         onAction={() => {
-          if (popup) goTo(popup.route);
+          if (blockedPopup?.route) goTo(blockedPopup.route);
         }}
         onDismiss={leave}
       />

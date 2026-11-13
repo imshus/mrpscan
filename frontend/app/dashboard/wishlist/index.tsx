@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,53 +8,77 @@ import { BottomNav } from '@/components/dashboard/BottomNav';
 import { WishlistCard } from '@/components/wishlist/WishlistCard';
 import { WishlistScreenHeader } from '@/components/wishlist/WishlistScreenHeader';
 import { Colors, Spacing } from '@/constants/theme';
+import { useCartStore } from '@/store/cartStore';
 import { useWishlistStore } from '@/store/wishlistStore';
+import { selectionInListOrder } from '@/utils/cartInvoice';
 
 export default function WishlistScreen() {
   const router = useRouter();
   const items = useWishlistStore((s) => s.items);
   const isLoading = useWishlistStore((s) => s.isLoading);
   const removeItem = useWishlistStore((s) => s.removeItem);
-  const clearAll = useWishlistStore((s) => s.clearAll);
   const syncFromApi = useWishlistStore((s) => s.syncFromApi);
+  const setCartItems = useCartStore((s) => s.setItems);
+
+  // The items ticked for the cart. Read against the list as it stands, so a
+  // tick on an item deleted or synced away since simply drops out.
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const selectedIds = useMemo(() => selectionInListOrder(items, selected), [items, selected]);
 
   // Fetch latest from backend each time the screen mounts
   useEffect(() => {
     syncFromApi();
   }, [syncFromApi]);
 
-  // Deletes straight away: a wishlist entry is cheap to re-add, so a
-  // confirmation on every bin tap cost more than the mistake it prevented.
-  const handleDeleteItem = async (id: string) => {
-    try {
-      await removeItem(id);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to delete item.';
-      Alert.alert('Error', msg);
-    }
+  const toggleSelected = (id: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
-  const handleClearWishlist = () => {
-    if (items.length === 0) return;
+  // Add to cart: the ticked items, in the wishlist's order, become the cart,
+  // and the ticks clear (mockup wlCartBtn).
+  const handleAddToCart = () => {
+    if (selectedIds.length === 0) return;
+    setCartItems(selectedIds);
+    setSelected(new Set());
+    router.push('/dashboard/cart' as Href);
+  };
 
+  // The bin removes the ticked items, after one confirmation (mockup
+  // wlBinBtn). Ticks on the ones that went clear; a failed one stays ticked.
+  const handleDeleteSelected = () => {
+    const ids = selectedIds;
+    if (ids.length === 0) return;
     Alert.alert(
-      'Clear Wishlist',
-      'Are you sure you want to remove all items from your wishlist?',
+      'Remove from Wishlist',
+      ids.length === 1
+        ? 'Remove this item from your wishlist?'
+        : `Remove ${ids.length} items from your wishlist?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Clear All',
+          text: 'Remove',
           style: 'destructive',
           onPress: async () => {
-            try {
-              await clearAll();
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : 'Failed to clear wishlist.';
-              Alert.alert('Error', msg);
+            const failed: string[] = [];
+            let lastError = '';
+            for (const id of ids) {
+              try {
+                await removeItem(id);
+              } catch (err) {
+                failed.push(id);
+                lastError = err instanceof Error ? err.message : 'Failed to delete item.';
+              }
             }
+            setSelected(new Set(failed));
+            if (failed.length > 0) Alert.alert('Error', lastError);
           },
         },
-      ]
+      ],
     );
   };
 
@@ -68,9 +92,15 @@ export default function WishlistScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <BackgroundPattern />
-      <WishlistScreenHeader onClearWishlist={handleClearWishlist} />
+      <WishlistScreenHeader
+        selectedCount={selectedIds.length}
+        onDeleteSelected={handleDeleteSelected}
+        onAddToCart={handleAddToCart}
+      />
 
-      {isLoading ? (
+      {/* The saved list shows at once and refreshes underneath; the spinner
+          is only for a phone that has nothing saved yet. */}
+      {isLoading && items.length === 0 ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading wishlist…</Text>
@@ -93,7 +123,8 @@ export default function WishlistScreen() {
               key={item.id}
               item={item}
               onPress={() => handleOpenItem(item.id)}
-              onDelete={() => handleDeleteItem(item.id)}
+              selected={selected.has(item.id)}
+              onToggleSelect={() => toggleSelected(item.id)}
             />
           ))}
         </ScrollView>

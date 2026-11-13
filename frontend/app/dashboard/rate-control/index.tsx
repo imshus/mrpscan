@@ -46,7 +46,8 @@ interface RateAdjustmentCardProps {
   icon: LucideIcon;
   sign: Sign;
   amount: string;
-  finalRate: number;
+  /** Null while there is no MCX to build it on. */
+  finalRate: number | null;
   onSignChange: (next: Sign) => void;
   onAmountChange: (value: string) => void;
 }
@@ -69,6 +70,15 @@ function SignToggle({ value, onChange }: { value: Sign; onChange: (next: Sign) =
       </Pressable>
     </View>
   );
+}
+
+/**
+ * The MCX the server holds, or null when it has none (it answers mcx: null
+ * rather than a made-up Rs 1,60,000): shown as a dash, never as Rs 0.
+ */
+function toMcx(value: unknown): number | null {
+  const mcx = toSafeNumber(value, Number.NaN);
+  return Number.isFinite(mcx) && mcx > 0 ? mcx : null;
 }
 
 function toSafeNumber(value: unknown, fallback = 0): number {
@@ -160,7 +170,7 @@ function RateAdjustmentCard({
 
       <View style={styles.finalSection}>
         <Text style={styles.finalLabel}>Final {title}</Text>
-        <Text style={styles.finalValue}>{formatInr(finalRate)}</Text>
+        <Text style={styles.finalValue}>{finalRate === null ? '—' : formatInr(finalRate)}</Text>
       </View>
     </View>
   );
@@ -171,7 +181,7 @@ export default function RateControlScreen() {
   const isSuper = useAuthStore((s) => s.isSuper);
 
   const [loading, setLoading] = useState(true);
-  const [mcx, setMcx] = useState(0);
+  const [mcx, setMcx] = useState<number | null>(null);
   const [mcxUpdatedAtLabel, setMcxUpdatedAtLabel] = useState<string | null>(null);
 
   const [savedRtgsChange, setSavedRtgsChange] = useState(0);
@@ -206,7 +216,7 @@ export default function RateControlScreen() {
   };
 
   const applyDataToState = useCallback((raw: SupremeRatesData) => {
-    const nextMcx = toSafeNumber(raw.mcx);
+    const nextMcx = toMcx(raw.mcx);
     const nextRtgs = toSafeNumber(raw.rtgsChange);
     const nextCash = toSafeNumber(raw.cashChange);
 
@@ -253,8 +263,8 @@ export default function RateControlScreen() {
   const rtgsDraftChange = useMemo(() => signedValue(rtgsSign, rtgsAmount), [rtgsSign, rtgsAmount]);
   const cashDraftChange = useMemo(() => signedValue(cashSign, cashAmount), [cashSign, cashAmount]);
 
-  const rtgsFinalRate = useMemo(() => mcx + rtgsDraftChange, [mcx, rtgsDraftChange]);
-  const cashFinalRate = useMemo(() => mcx + cashDraftChange, [mcx, cashDraftChange]);
+  const rtgsFinalRate = useMemo(() => (mcx === null ? null : mcx + rtgsDraftChange), [mcx, rtgsDraftChange]);
+  const cashFinalRate = useMemo(() => (mcx === null ? null : mcx + cashDraftChange), [mcx, cashDraftChange]);
 
   const rtgsChanged = !isSameNumber(rtgsDraftChange, savedRtgsChange);
   const cashChanged = !isSameNumber(cashDraftChange, savedCashChange);
@@ -293,7 +303,7 @@ export default function RateControlScreen() {
 
       const resolvedRtgs = toSafeNumber(data.rtgsChange, rtgsDraftChange);
       const resolvedCash = toSafeNumber(data.cashChange, cashDraftChange);
-      const resolvedMcx = toSafeNumber(data.mcx, mcx);
+      const resolvedMcx = 'mcx' in data ? toMcx(data.mcx) : mcx;
 
       setMcx(resolvedMcx);
       setSavedRtgsChange(resolvedRtgs);
@@ -364,7 +374,7 @@ export default function RateControlScreen() {
                 </View>
               </View>
 
-              <Text style={styles.mcxValue}>{formatInr(mcx)}</Text>
+              <Text style={styles.mcxValue}>{mcx === null ? '—' : formatInr(mcx)}</Text>
 
               {mcxUpdatedAtLabel ? (
                 <Text style={styles.updatedAtText}>Updated {mcxUpdatedAtLabel}</Text>

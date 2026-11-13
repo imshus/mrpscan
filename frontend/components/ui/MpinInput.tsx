@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Eye, EyeOff } from 'lucide-react-native';
 
 import { Colors, Radius } from '@/constants/theme';
@@ -20,6 +20,13 @@ interface MpinInputProps {
   /** Called once the fourth digit is typed: move on, or submit. */
   onComplete?: (value: string) => void;
   label?: string;
+  /**
+   * Which eye stands for the hidden state. 'eye' (the default) shows the
+   * open eye while masked, as the sign-in screens always have. 'eye-off' is
+   * the mockup's own semantics — slashed while masked, open while shown —
+   * used by the owner's employee MPIN screens.
+   */
+  maskedIcon?: 'eye' | 'eye-off';
 }
 
 /**
@@ -35,7 +42,7 @@ interface MpinInputProps {
  * instead and the eye appeared to do nothing.
  */
 export const MpinInput = forwardRef<MpinInputHandle, MpinInputProps>(function MpinInput(
-  { value, onChange, error, autoFocus = false, onComplete, label },
+  { value, onChange, error, autoFocus = false, onComplete, label, maskedIcon = 'eye' },
   ref,
 ) {
   const inputRef = useRef<TextInput>(null);
@@ -115,7 +122,7 @@ export const MpinInput = forwardRef<MpinInputHandle, MpinInputProps>(function Mp
           accessibilityLabel={revealed ? 'Hide MPIN' : 'Show MPIN'}
           style={styles.eye}
         >
-          {revealed ? (
+          {revealed === (maskedIcon === 'eye') ? (
             <EyeOff size={20} color={Colors.textMuted} />
           ) : (
             <Eye size={20} color={Colors.textMuted} />
@@ -170,6 +177,14 @@ const styles = StyleSheet.create({
   eye: { padding: 6 },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0,
+    // iOS leaves a view under 0.01 opacity out when it looks for what was
+    // tapped (0.01 itself lands a hair under once stored as a float), so a
+    // fully clear field could never be tapped into: a box without autoFocus,
+    // or one whose keyboard was closed, stayed dead. Just above that, with
+    // clear text, it is still invisible. Android keeps its 0.
+    ...Platform.select({
+      ios: { opacity: 0.02, color: 'transparent' },
+      default: { opacity: 0 },
+    }),
   },
 });

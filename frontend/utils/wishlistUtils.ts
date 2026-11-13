@@ -1,5 +1,6 @@
 import type { JewelleryType, ScanItemData, StoneEntry, StructuredScanData } from '@/types/scanner';
 import type { WishlistItem, WishlistItemSnapshot } from '@/types/wishlist';
+import type { AddWishlistPayload } from '@/utils/wishlistApi';
 import {
   buildStoneAmountRow,
   computeFinalTabPricing,
@@ -12,6 +13,7 @@ import {
   parseStoneArraysFromStructuredData,
 } from '@/utils/stoneSequenceUtils';
 import { resolveScannedKarat } from '@/utils/formulaUtils';
+import { roundHalfUp } from '@/utils/moneyMath';
 
 /** Unique ID for each wishlist addition so variants of the same tag can be saved. */
 function generateWishlistId(tagCode: string): string {
@@ -38,8 +40,9 @@ export function formatWishlistPriceBadge(
   _selectedType: JewelleryType,
   pricing: FinalTabPricingResult,
 ): string {
-  // Always show the total MRP regardless of jewellery type
-  const amount = Math.round(pricing.ultimateMrp).toLocaleString('en-IN');
+  // Always show the total MRP regardless of jewellery type, rounded as the
+  // card rounds it (half-up on the exact figure).
+  const amount = roundHalfUp(pricing.ultimateMrp).toLocaleString('en-IN');
   return `₹ ${amount}`;
 }
 
@@ -108,7 +111,9 @@ export function buildWishlistSnapshot(input: {
   diamonds: StoneEntry[];
   colorstones: StoneEntry[];
   pricing: FinalTabPricingResult;
+  scanId?: string | null;
 }): WishlistItemSnapshot {
+  const scanId = input.scanId?.trim();
   const selectedKarat = resolveScannedKarat(input.scanData.karat, input.scanData.tunch) || '14K';
   const goldMetrics = computeGoldAmountWithPurityOverride({
     netWtGrams: input.pricing.netWtGrams,
@@ -130,6 +135,7 @@ export function buildWishlistSnapshot(input: {
     pureWtGrams: goldMetrics.pureWtGrams,
     effectivePurityPercent: goldMetrics.purityPercent,
     usedLaborPurityOverride: goldMetrics.usedLaborOverride,
+    ...(scanId ? { scanId } : {}),
   };
 }
 
@@ -142,6 +148,8 @@ export function buildWishlistItem(input: {
   pricing?: FinalTabPricingResult;
   /** ISO string of when the scan was originally created */
   scanTimestamp?: string;
+  /** The scan being saved (the scanner's scanId), kept in the snapshot. */
+  scanId?: string | null;
 }): WishlistItem {
   const pricing =
     input.pricing ??
@@ -157,9 +165,32 @@ export function buildWishlistItem(input: {
     tagCode,
     priceBadge: formatWishlistPriceBadge(input.selectedType, pricing),
     calculationRate: input.scanData.calculationRate,
-    totalMrp: Math.round(pricing.ultimateMrp),
+    totalMrp: roundHalfUp(pricing.ultimateMrp),
     addedAt: now,
     scanTimestamp: input.scanTimestamp ?? now,
     snapshot,
+  };
+}
+
+/**
+ * POST /wishlist's body for an item: the item as it is saved, and the scan
+ * and catalogue name its Wishlist history line is filed under. A name is
+ * sent only when the tag matched a catalogue item; without one the server
+ * names the line "<karat> <type>" ("22K Gold").
+ */
+export function wishlistAddPayload(item: WishlistItem): AddWishlistPayload {
+  const scanId = item.snapshot?.scanId?.trim();
+  const itemName = item.snapshot?.scanData?.itemName?.trim();
+  return {
+    itemId: item.id,
+    title: item.title,
+    tagCode: item.tagCode,
+    totalMrp: item.totalMrp,
+    priceBadge: item.priceBadge,
+    calculationRate: item.calculationRate,
+    scanTimestamp: item.scanTimestamp,
+    snapshot: item.snapshot,
+    ...(scanId ? { scanId } : {}),
+    ...(itemName ? { itemName } : {}),
   };
 }

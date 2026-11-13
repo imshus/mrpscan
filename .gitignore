@@ -52,3 +52,5 @@ output/
 
 # Play Store upload key (never commit)
 frontend/credentials/
+# Local signing for `eas build --profile production-cli` (made from credentials/; never committed)
+frontend/credentials.json

@@ -10,12 +10,18 @@ import {
   formatIndianCurrency,
   formatWeightGrams,
   parseNumericValue,
+  stoneCaratsText,
   type FinalTabPricingResult,
   type StoneAmountRow,
 } from '@/utils/scanPriceCalculation';
 import { parseWeightValue } from '@/utils/formulaUtils';
 import { calculateScanMrp } from '@/utils/scanApi';
-import { derivePricingInput, takePrefetchedPricing, takeServerPricing } from '@/utils/pricingPrefetch';
+import {
+  derivePricingInput,
+  takePrefetchedPricing,
+  takeServerPricing,
+  takeServerPricingError,
+} from '@/utils/pricingPrefetch';
 import { ApiError } from '@/utils/apiClient';
 import { useScannerStore } from '@/store/scannerStore';
 
@@ -25,6 +31,8 @@ export interface UseFinalTabPricingOptions {
   selectedType: JewelleryType;
   goldRates?: GoldRate[];
   selectedKarat?: string;
+  /** False: ask the server nothing (a wishlist item showing its saved price). */
+  enabled?: boolean;
 }
 
 // Fallback empty state while loading
@@ -49,6 +57,7 @@ const defaultPricing: FinalTabPricingResult = {
   useFixedAmountMode: false,
   labourAmount: 0,
   labourDisplay: '—',
+  labourCode: '',
   wastageCode: '',
   wastagePercent: 0,
   wastageAmount: 0,
@@ -60,6 +69,26 @@ const defaultPricing: FinalTabPricingResult = {
 };
 
 const PRICING_EDIT_DEBOUNCE_MS = 350;
+
+/**
+ * No price: the server refused the inputs (400 INVALID_PRICING_INPUT) or had
+ * no live gold rate (503 RATES_UNAVAILABLE). The card shows why instead of a
+ * figure, and Generate Invoice stays off: keeping the last price, as every
+ * build did, let the invoice bill a price for inputs the card no longer held.
+ */
+function pricingRefused(message: string): FinalTabPricingResult {
+  return {
+    ...defaultPricing,
+    goldBasePriceDisplay: '—',
+    ultimateMrpDisplay: '—',
+    pricingError: message,
+  };
+}
+
+/** A refusal the card can explain, as opposed to a dropped connection. */
+function isPricingRefusal(err: unknown): err is ApiError {
+  return err instanceof ApiError && (err.status === 400 || err.status === 503);
+}
 
 function buildPricingStateKey(pricing: FinalTabPricingResult): string {
   return JSON.stringify({
@@ -74,9 +103,18 @@ function buildPricingStateKey(pricing: FinalTabPricingResult): string {
     diamondAmount: pricing.diamondAmount,
     colorstoneAmount: pricing.colorstoneAmount,
     labourAmount: pricing.labourAmount,
+    labourCode: pricing.labourCode,
+    wastageCode: pricing.wastageCode,
+    wastagePercent: pricing.wastagePercent,
+    wastageAmount: pricing.wastageAmount,
+    wastageWeightGrams: pricing.wastageWeightGrams,
+    wastageWeightBasis: pricing.wastageWeightBasis,
+    wastageRatePerGram: pricing.wastageRatePerGram,
     otherChargesAmount: pricing.otherChargesAmount,
     ultimateMrp: pricing.ultimateMrp,
     stoneRows: pricing.stoneRows,
+    netWeightEstimated: pricing.netWeightEstimated,
+    pricingError: pricing.pricingError,
   });
 }
 
@@ -85,10 +123,14 @@ export function useFinalTabPricing({
   structuredData,
   selectedType,
   selectedKarat,
+  enabled = true,
 }: UseFinalTabPricingOptions): FinalTabPricingResult {
   const scanId = useScannerStore((s) => s.scanId);
   const mrpRefreshToken = useScannerStore((s) => s.mrpRefreshToken);
   const analysisPending = useScannerStore((s) => s.analysisPending);
+  // Sent with every request (derivePricingInput reads it from the store), so
+  // a change to it has to price again like any field.
+  const tagIdentifiers = useScannerStore((s) => s.tagIdentifiers);
   const [pricing, setPricing] = useState<FinalTabPricingResult>(defaultPricing);
 
   const lastRequestKeyRef = useRef<string | null>(null);
@@ -106,6 +148,9 @@ export function useFinalTabPricing({
         labourChargeUnit: scanData.labourChargeUnit,
         labourWeightBasis: scanData.labourWeightBasis,
         labourPurityPercent: scanData.labourPurityPercent,
+        // A Masters -> Labour Code picked on the card: the server records it
+        // ahead of the tag's own, so a pick has to price again like any field.
+        labourCode: scanData.labourCode,
         calculationRate: scanData.calculationRate,
         customPurityPercent: scanData.customPurityPercent,
         otherChargesAmount: scanData.otherChargesAmount,
@@ -115,7 +160,17 @@ export function useFinalTabPricing({
         diamondRate: scanData.diamondRate,
         colorstoneWeight: scanData.colorstoneWeight,
         colorstoneRate: scanData.colorstoneRate,
+        // Wastage is priced from these: a typed percent, a picked wastage
+        // code (its percent), the weight the percent is taken of, and the
+        // item the server looks the wastage up by. Left out, an edit to any
+        // of them never re-priced the card.
+        wastagePercent: scanData.wastagePercent,
+        wastageCode: scanData.wastageCode,
+        wastageWeightBasis: scanData.wastageWeightBasis,
+        itemCode: scanData.itemCode,
+        sku: scanData.sku,
       },
+      tagIdentifiers,
       structuredData: {
         diamonds: structuredData?.diamonds ?? '',
         colorstones: structuredData?.colorstones ?? '',
@@ -137,6 +192,7 @@ export function useFinalTabPricing({
       scanData.labourChargeUnit,
       scanData.labourWeightBasis,
       scanData.labourPurityPercent,
+      scanData.labourCode,
       scanData.calculationRate,
       scanData.customPurityPercent,
       scanData.otherChargesAmount,
@@ -146,6 +202,12 @@ export function useFinalTabPricing({
       scanData.diamondRate,
       scanData.colorstoneWeight,
       scanData.colorstoneRate,
+      scanData.wastagePercent,
+      scanData.wastageCode,
+      scanData.wastageWeightBasis,
+      scanData.itemCode,
+      scanData.sku,
+      tagIdentifiers,
       structuredData?.diamonds,
       structuredData?.colorstones,
       structuredData?.packetCode,
@@ -166,7 +228,7 @@ export function useFinalTabPricing({
 
   useEffect(() => {
     // No point pricing an empty card; the real figures arrive with the result.
-    if (!scanId || analysisPending) return;
+    if (!enabled || !scanId || analysisPending) return;
 
     let isMounted = true;
     const requestKey = `${scanId}|${calculationKey}|${mrpRefreshToken}`;
@@ -183,34 +245,47 @@ export function useFinalTabPricing({
     const requestPricing = () => {
       const { diamonds, colorstones, payload, resolvedKarat } = calculationInput;
 
-      // The server priced the reading inside the analysis: show that the
-      // instant the card opens, with no request at all. The request below
-      // then confirms it and replaces it only if the figures differ.
-      if (isFirstRequestForScan) {
-        const seeded = takeServerPricing(scanId);
-        if (seeded) {
-          const seededPricing = toPricingResult(seeded);
-          setPricing((current) =>
-            buildPricingStateKey(current) === buildPricingStateKey(seededPricing) ? current : seededPricing,
-          );
-        }
-      }
-
       // The processing screen starts the first calculation while its counter
-      // runs; when the payloads match, that answer is already in hand here.
-      const prefetchedPromise = isFirstRequestForScan
+      // runs, from exactly these inputs; when the payloads match, that answer
+      // is normally in hand already and is the first price the card shows.
+      const prefetched = isFirstRequestForScan
         ? takePrefetchedPricing(scanId, payload)
         : null;
+
+      // The server also priced the reading inside the analysis, from its own
+      // derivation of the inputs, which can differ from the card's. It is
+      // shown only while the card's own price is still out.
+      if (isFirstRequestForScan) {
+        const seeded = takeServerPricing(scanId);
+        const seededError = takeServerPricingError(scanId);
+        const first = prefetched?.settled ?? seeded;
+        if (first) {
+          const firstPricing = toPricingResult(first);
+          setPricing((current) =>
+            buildPricingStateKey(current) === buildPricingStateKey(firstPricing) ? current : firstPricing,
+          );
+        } else if (seededError) {
+          // The analysis could not price the reading either: say why while
+          // the card's own request is out.
+          setPricing(pricingRefused(seededError));
+        }
+        if (prefetched?.settled) return;
+      }
 
       function toPricingResult(res: CalculateMrpResponse): FinalTabPricingResult {
         const stoneBlocks = buildDisplayStoneBlocks(diamonds, colorstones);
         const stoneRows: StoneAmountRow[] = stoneBlocks.map(block => {
-            const wt = parseNumericValue(block.entry.weight) || 0;
-            const rt = parseNumericValue(block.entry.rate) || 0;
+            // As the request reads them (derivePricingInput): never below
+            // zero, and in carats — a weight printed in grams is 5 ct a
+            // gram, as the server prices it. The row carries carats, so the
+            // invoice's stone line is in carats too.
+            const carats = stoneCaratsText(block.entry);
+            const wt = Math.max(0, parseNumericValue(carats));
+            const rt = Math.max(0, parseNumericValue(block.entry.rate));
             const rowAmt =
               block.stoneType === 'diamond'
                 ? computeStoneAmountWithDiscount(
-                    block.entry.weight,
+                    carats,
                     block.entry.rate,
                     block.entry.discountPercent,
                   )
@@ -221,7 +296,7 @@ export function useFinalTabPricing({
               stoneType: block.stoneType,
               rate: `₹${block.entry.rate}/ct`,
               quality: block.entry.quality || '—',
-              weight: `${block.entry.weight} ct`,
+              weight: `${carats} ct`,
                 amount: rowAmt,
                 amountDisplay: formatIndianCurrency(rowAmt),
             };
@@ -232,7 +307,13 @@ export function useFinalTabPricing({
         const backendStoneTotal = diamondAmount + colorstoneAmount;
 
         const grossWtGrams = parseWeightValue(scanData.grossWt);
-        const netWtGrams = payload.netWt;
+        // The net weight the gold was priced on: with none on the tag, the
+        // server works it out from the gross (less the stones) and says so.
+        // The invoice's gold line and the purity figures use it; the blank
+        // net weight sent used to bill gold with no quantity.
+        const netWtUsed = Number(res.breakdown.netWeightUsed);
+        const netWtGrams = Number.isFinite(netWtUsed) && netWtUsed > 0 ? netWtUsed : payload.netWt;
+        const netWeightEstimated = res.breakdown.netWeightEstimated === true;
         const pureWeight = res.breakdown.pureWeight;
         const goldAmount = res.breakdown.goldAmount;
         const effectivePurityPercent =
@@ -251,9 +332,15 @@ export function useFinalTabPricing({
           },
           netWtGrams,
           grossWtGrams,
+          res.breakdown.goldAmount,
         );
         const backendLabourAmount = res.breakdown.labourAmount;
         const backendWastageAmount = Number(res.breakdown.wastageAmount) || 0;
+        // The rate the wastage grams were priced at, which the invoice's
+        // wastage line bills at. A server before pricing rules 3 sends none
+        // (it priced them at the 24K rate) and the invoice falls back to that.
+        const wastageRatePerGram = Number(res.breakdown.wastageRatePerGram);
+        const wastageWeightBasis = res.breakdown.wastageWeightBasis;
         const backendOtherCharges = res.breakdown.otherCharges;
         const finalTotal = res.finalMRP;
 
@@ -279,7 +366,10 @@ export function useFinalTabPricing({
         return {
           grossWtDisplay: scanData.grossWt || '—',
           netWtGrams,
-          netWtDisplay: formatWeightGrams(netWtGrams),
+          netWtDisplay: netWeightEstimated
+            ? `${formatWeightGrams(netWtGrams)} (est.)`
+            : formatWeightGrams(netWtGrams),
+          netWeightEstimated,
           selectedKarat: resolvedKarat,
           effectivePurityPercent,
           puritySource,
@@ -297,10 +387,22 @@ export function useFinalTabPricing({
           useFixedAmountMode: labour.mode === 'fixedAmount',
           labourAmount: backendLabourAmount,
           labourDisplay: formatIndianCurrency(backendLabourAmount),
+          // The Masters -> Labour Code priced with: the one picked, else the
+          // one the tag matched. The Labour Code box shows it.
+          labourCode: res.breakdown.labourCode || '',
           // Priced from the item's own wastage, which only the server can
           // read; an item without one sends nothing and the tile stays blank.
           wastageCode: res.breakdown.wastageCode || '',
           wastagePercent: Number(res.breakdown.wastagePercent) || 0,
+          wastageWeightGrams: Number(res.breakdown.wastageWeightGrams) || 0,
+          wastageWeightBasis:
+            wastageWeightBasis === 'gross' || wastageWeightBasis === 'net'
+              ? wastageWeightBasis
+              : undefined,
+          wastageRatePerGram:
+            Number.isFinite(wastageRatePerGram) && wastageRatePerGram > 0
+              ? wastageRatePerGram
+              : undefined,
           wastageAmount: backendWastageAmount,
           wastageDisplay:
             backendWastageAmount > 0 ? formatIndianCurrency(backendWastageAmount) : '—',
@@ -311,7 +413,7 @@ export function useFinalTabPricing({
         };
       }
 
-      (prefetchedPromise ?? calculateScanMrp(scanId, payload))
+      (prefetched?.promise ?? calculateScanMrp(scanId, payload))
       .then((res: CalculateMrpResponse) => {
         if (!isMounted) return;
         const nextPricing = toPricingResult(res);
@@ -340,6 +442,16 @@ export function useFinalTabPricing({
           return;
         }
 
+        if (isPricingRefusal(err)) {
+          // The price the card held belongs to inputs it no longer has (or
+          // to a rate that is gone): clear it and say why.
+          const refused = pricingRefused(err.message);
+          setPricing((current) =>
+            buildPricingStateKey(current) === buildPricingStateKey(refused) ? current : refused,
+          );
+          return;
+        }
+
         console.error('Failed to calculate MRP via backend', err);
       });
     };
@@ -355,7 +467,7 @@ export function useFinalTabPricing({
       isMounted = false;
       if (timer) clearTimeout(timer);
     };
-  }, [scanId, calculationKey, mrpRefreshToken, analysisPending]);
+  }, [enabled, scanId, calculationKey, mrpRefreshToken, analysisPending]);
 
   return pricing;
 }

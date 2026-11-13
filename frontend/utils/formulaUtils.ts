@@ -1,5 +1,19 @@
+/**
+ * Karat parsing, and reading a number off a tag's text.
+ *
+ * No imports on purpose — node loads this file as-is (type stripping) for
+ * utils/__tests__/formulaUtils.test.mjs, so what is tested is what the app runs.
+ */
+
 export const ALL_FORMULA_KARATS = ['24K', '22K', '20K', '18K', '14K', '9K'] as const;
-const VALID_KARAT_NUMBERS = new Set(['24', '22', '20', '18', '14', '9']);
+
+/**
+ * Every karat a tag may carry and the card can price: the formula karats
+ * plus 23K, 21K and 10K. Those three used to be unreadable here, so a 23K or
+ * a BIS 958 tag fell to the 14K default and its gold was billed at 58.5%.
+ */
+export const SCANNABLE_KARATS = ['24K', '23K', '22K', '21K', '20K', '18K', '14K', '10K', '9K'] as const;
+const VALID_KARAT_NUMBERS = new Set(SCANNABLE_KARATS.map((karat) => karat.slice(0, -1)));
 
 export type FormulaKarat = (typeof ALL_FORMULA_KARATS)[number];
 
@@ -27,10 +41,13 @@ export function normalizeKarat(value?: string | null): string {
  */
 const FINENESS_STANDARDS: ReadonlyArray<readonly [number, string]> = [
   [375, '9K'],
+  [417, '10K'],
   [585, '14K'],
   [750, '18K'],
   [833, '20K'],
+  [875, '21K'],
   [916, '22K'],
+  [958, '23K'],
   [999, '24K'],
 ];
 /** Parts per thousand a printed value may sit from a standard and still mean it. */
@@ -104,9 +121,43 @@ export function applyFormula2KaratConstraint(
   return { karat: '', requiresDropdown: true };
 }
 
+/**
+ * The first number written in a piece of tag text: 'Rs. 45,000' → 45000,
+ * 'Wt.10.500' → 10.5, '₹87,500/ct' → 87500, '-500' → -500, '.5 ct' → 0.5.
+ *
+ * Deleting every character that is not a digit or a dot, as this used to,
+ * kept the dot of an abbreviation: 'Rs. 45,000' became '.45000', read as
+ * 0.45, and 'Wt.10.500' became '.10.500', read as 0.1. A minus counts only
+ * when it stands in front of the number, not as a separator after a word
+ * ('LBR-850' is 850).
+ */
+export function parseNumericValue(raw: string | number | undefined | null): number {
+  if (raw == null) return 0;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
+  const text = String(raw);
+  const pattern = /\d[\d,]*(?:\.\d+)?|\.\d+/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text)) !== null) {
+    const start = match.index;
+    const token = match[0];
+    // A dot straight after a letter ends an abbreviation ('Wt.'); the number
+    // starts at the digit after it.
+    if (token.startsWith('.') && start > 0 && /[A-Za-z]/.test(text[start - 1])) {
+      pattern.lastIndex = start + 1;
+      continue;
+    }
+    const value = Number.parseFloat(token.replace(/,/g, ''));
+    if (!Number.isFinite(value)) return 0;
+    const negative =
+      start > 0 && text[start - 1] === '-' && (start === 1 || !/[A-Za-z0-9]/.test(text[start - 2]));
+    return negative ? -value : value;
+  }
+  return 0;
+}
+
+/** A weight off the tag or the card: its first number, never below zero. */
 export function parseWeightValue(value: string): number {
-  const parsed = Number.parseFloat(value.replace(/[^\d.]/g, ''));
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Math.max(0, parseNumericValue(value));
 }
 
 export function computeNetWeightFallback(

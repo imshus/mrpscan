@@ -1,9 +1,11 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useFocusEffect } from 'expo-router';
 
-import { useBhawStore, providerFromToggle } from '@/store/bhawStore';
-import { useMatricesStore } from '@/store/matricesStore';
+import { useBhawStore } from '@/store/bhawStore';
 import type { BhawRates } from '@/utils/bhawCalculation';
 import { feedMcxSell, hasLiveBhaw, houseMcxSell, type BhawVendor } from '@/utils/bhawApi';
+import { phoneHouse } from '@/utils/bullionChoice';
+import { houseNameFor } from '@/utils/bullionNames';
 
 export interface UseBhawRatesInput {
   /**
@@ -24,6 +26,12 @@ export interface UseBhawRatesInput {
    * MCX — a house's bhaw on another contract is a rate nobody charges.
    */
   serverPricingMcxRate?: number;
+  /**
+   * The house the server priced this account on (gold rates' bhawSource.key):
+   * undefined until the server has answered, null when it answered without
+   * naming one. Followed once it has; the remembered house stands in until.
+   */
+  serverProvider?: string | null;
 }
 
 export interface UseBhawRatesResult extends BhawRates {
@@ -45,9 +53,14 @@ export interface UseBhawRatesResult extends BhawRates {
 /**
  * Live cash/RTGS rates for the provider selected in Dashboard Settings.
  *
- * Polls the bhaw feed while the calling screen is mounted and keeps the
- * provider in step with the `bhaw_source_jmd` toggle, so Home and Gold Rate
- * Settings always show the same numbers.
+ * Keeps the shared live stream open while the calling screen is in focus
+ * (Home stays mounted under every screen pushed over it, so holding it while
+ * merely mounted kept ~20 KB/s flowing behind the scanner) and hydrates the
+ * followed house (the server's; the remembered one until it answers), so
+ * Home and Gold Rate Settings always show the same numbers. Those are the live
+ * stream's; scans and invoices are priced by the server on its 3-minute
+ * snapshot with the same arithmetic, so a scan can differ from what these
+ * screens show by up to three minutes of market movement.
  */
 export function useBhawRates(input: UseBhawRatesInput): UseBhawRatesResult {
   const {
@@ -57,9 +70,9 @@ export function useBhawRates(input: UseBhawRatesInput): UseBhawRatesResult {
     fallbackCashBhaw = 0,
     fallbackRtgsBhaw = 0,
     serverPricingMcxRate,
+    serverProvider,
   } = input;
 
-  const useJmd = useMatricesStore((state) => state.values.bhaw_source_jmd);
   const setProvider = useBhawStore((state) => state.setProvider);
   const vendors = useBhawStore((state) => state.vendors);
   const provider = useBhawStore((state) => state.provider);
@@ -69,19 +82,24 @@ export function useBhawRates(input: UseBhawRatesInput): UseBhawRatesResult {
   const startPolling = useBhawStore((state) => state.startPolling);
   const hydrateProvider = useBhawStore((state) => state.hydrateProvider);
 
-  // The remembered choice first; the legacy two-house toggle only stands in
-  // for accounts that have never picked on the new card list.
+  // The house the server prices this account on (any house on the feed) as
+  // soon as it has answered; the remembered one only until then
+  // (utils/bullionChoice phoneHouse). The older two-house toggle is not
+  // read: a shop that never chose had it saved off, and was shown Mega
+  // Bullion. A run superseded by a newer answer applies nothing.
   useEffect(() => {
+    let latest = true;
     void hydrateProvider().then(() => {
-      const state = useBhawStore.getState();
-      if (state.provider) return;
-      // Unset means JMD Patil, the default; only a saved "off" means the
-      // other house.
-      setProvider(providerFromToggle(useJmd !== false));
+      if (!latest) return;
+      const next = phoneHouse(useBhawStore.getState().provider, serverProvider);
+      if (next) setProvider(next);
     });
-  }, [hydrateProvider, useJmd, setProvider]);
+    return () => {
+      latest = false;
+    };
+  }, [hydrateProvider, setProvider, serverProvider]);
 
-  useEffect(() => startPolling(), [startPolling]);
+  useFocusEffect(useCallback(() => startPolling(), [startPolling]));
 
   return useMemo(() => {
     const vendor = vendors.find((entry) => entry.source === provider) ?? null;
@@ -104,7 +122,9 @@ export function useBhawRates(input: UseBhawRatesInput): UseBhawRatesResult {
     return {
       ...rates,
       vendor,
-      vendorName: vendor?.name ?? (provider === 'jmd_patil' ? 'JMD Patil' : 'Mega Bullion'),
+      // Any house on the feed, by the feed's name; the known name while the
+      // boards are out (it read "Mega Bullion" for every house but JMD's).
+      vendorName: vendor?.name ?? houseNameFor(provider),
       mcxRate,
       mcxIsLive: liveMcx !== null,
       houseMcx,

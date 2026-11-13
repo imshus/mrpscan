@@ -1,16 +1,22 @@
 import { useMemo, useState } from 'react';
-import { Alert, View } from 'react-native';
+import { Alert, Vibration, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 
 import { InvoiceGenerationBilling } from '@/components/scanner/InvoiceGenerationBilling';
 import { PrimaryGreenButton } from '@/components/scanner/PrimaryGreenButton';
 import { ScanScreenWrapper } from '@/components/scanner/ScanScreenWrapper';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
+import { REFUSAL_BUZZ } from '@/constants/haptics';
+import { CART_INVOICE_SOURCE, useCartInvoice } from '@/hooks/useCartInvoice';
 import { useInvoiceComputation } from '@/hooks/useInvoiceComputation';
+import type { InvoiceLineItemRow } from '@/utils/invoiceCalculation';
 import { MessagePopup } from '@/components/settings/MessagePopup';
 import { useInvoiceStore } from '@/store/invoiceStore';
 import { useScannerStore } from '@/store/scannerStore';
 import { parseStoneArraysFromStructuredData } from '@/utils/stoneSequenceUtils';
+
+/** A cart with nothing checked out bills no lines (one array, so memos hold). */
+const NO_LINES: InvoiceLineItemRow[] = [];
 
 export default function InvoicePreviewScreen() {
   const router = useRouter();
@@ -21,11 +27,19 @@ export default function InvoicePreviewScreen() {
 
   const customer = useInvoiceStore((state) => state.customer);
   const [eInvoiceNote, setEInvoiceNote] = useState<string | null>(null);
+  // Bumped when Preview is refused for a missing name or phone.
+  const [missingTick, setMissingTick] = useState(0);
+
+  // Opened from the cart's Generate Invoice: the cart's pieces are billed,
+  // not the scanner's last scan.
+  const { isCart, invoice: cartInvoice } = useCartInvoice();
 
   // One source of truth for the figures: the same hook the preview sheet and
   // the generated PDF read, so this screen can never guard on a total the
   // invoice would not print.
-  const { grandTotal } = useInvoiceComputation();
+  const { grandTotal } = useInvoiceComputation({
+    lineItems: isCart ? (cartInvoice?.rows ?? NO_LINES) : undefined,
+  });
 
   const { diamonds, colorstones } = useMemo(
     () => parseStoneArraysFromStructuredData(structuredData, scanData),
@@ -36,12 +50,16 @@ export default function InvoicePreviewScreen() {
   // Nothing is generated here — the invoice number is consumed only when the
   // user presses Download on the preview.
   const validateBasics = (): boolean => {
-    if (!customer.customerName.trim()) {
-      Alert.alert('Missing Info', 'Please enter the customer name before generating.');
+    // A missing name or phone: no popup, at the owner's asking. The field
+    // goes red with what it needs, takes the cursor, and the phone buzzes
+    // once. The phone is held to the 10 digits its field asks for.
+    if (!customer.customerName.trim() || customer.customerPhone.trim().length !== 10) {
+      Vibration.vibrate(REFUSAL_BUZZ);
+      setMissingTick((n) => n + 1);
       return false;
     }
-    if (!customer.customerPhone.trim()) {
-      Alert.alert('Missing Info', 'Please enter the customer phone number before generating.');
+    if (isCart && !cartInvoice) {
+      Alert.alert('Cart is empty', 'Select tags in Wishlist and tap Add to cart, then generate the invoice.');
       return false;
     }
     // Gold rates load asynchronously; previewing a zero-value invoice helps no one.
@@ -57,6 +75,14 @@ export default function InvoicePreviewScreen() {
 
   const handleGenerateInvoice = () => {
     if (!validateBasics()) return;
+    if (isCart) {
+      // The preview bills the same cart.
+      router.push({
+        pathname: '/dashboard/scanner/invoice-sheet',
+        params: { source: CART_INVOICE_SOURCE },
+      } as unknown as Href);
+      return;
+    }
     router.push('/dashboard/scanner/invoice-sheet' as Href);
   };
 
@@ -89,6 +115,7 @@ export default function InvoicePreviewScreen() {
         diamonds={diamonds}
         colorstones={colorstones}
         scanId={scanId}
+        missingTick={missingTick}
       />
 
       <MessagePopup message={eInvoiceNote} onDismiss={() => setEInvoiceNote(null)} />

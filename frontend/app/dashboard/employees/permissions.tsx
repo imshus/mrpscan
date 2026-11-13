@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,11 +19,21 @@ import { GradientView } from '@/components/ui/GradientView';
 import { MatrixCheckboxRow } from '@/components/settings/MatrixCheckboxRow';
 import { GOLD_MATRIX_SECTIONS } from '@/constants/dashboardMatrices';
 import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
-import { useEmployeeDraftStore } from '@/store/employeeDraftStore';
+import { transferForPhone, useEmployeeDraftStore, verifiedPhoneToken } from '@/store/employeeDraftStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import type { EmployeePermissionKey } from '@/types/employee';
-import type { MatrixKey } from '@/constants/dashboardMatrices';
-import { buildEmployeeDraftPayload, createEmployeeDraft, updateEmployeeApi } from '@/utils/employeeApi';
+import {
+  createEmployeeWithMpin,
+  EMPLOYEE_ERROR_CODES,
+  fetchEmployees,
+  updateEmployeeApi,
+} from '@/utils/employeeApi';
+import {
+  isMpinPairValid,
+  normalizeIndianPhone,
+  OWN_NUMBER_MESSAGE,
+  PHONE_TAKEN_MESSAGE,
+} from '@/utils/employeeCredentials';
 
 const ACCENT_GOLD = Colors.metalGold;
 
@@ -65,11 +76,23 @@ export default function EmployeePermissionsScreen() {
   const setPermissions = useEmployeeDraftStore((s) => s.setPermissions);
   const mode = useEmployeeDraftStore((s) => s.mode);
   const editEmployeeId = useEmployeeDraftStore((s) => s.editEmployeeId);
+  const credentials = useEmployeeDraftStore((s) => s.credentials);
+  const setTakenPhone = useEmployeeDraftStore((s) => s.setTakenPhone);
+  const setOwnPhone = useEmployeeDraftStore((s) => s.setOwnPhone);
+  const resetDraft = useEmployeeDraftStore((s) => s.resetDraft);
+  const phoneVerification = useEmployeeDraftStore((s) => s.phoneVerification);
+  const setPhoneVerification = useEmployeeDraftStore((s) => s.setPhoneVerification);
+  const phoneTransfer = useEmployeeDraftStore((s) => s.phoneTransfer);
   const updateEmployee = useEmployeeStore((s) => s.updateEmployee);
+  const setEmployees = useEmployeeStore((s) => s.setEmployees);
 
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // The number turned out to be one that cannot be taken after all (it
+  // changed hands between the check on Add and this create): the way back to
+  // change it.
+  const [phoneRefused, setPhoneRefused] = useState(false);
   const [rateOptionError, setRateOptionError] = useState<string | null>(null);
 
   const toggle = (key: EmployeePermissionKey) => togglePermission(key);
@@ -97,7 +120,9 @@ export default function EmployeePermissionsScreen() {
   const rateOption = resolveRateOption();
 
   const handleContinue = async () => {
+    if (saving) return;
     setFormError(null);
+    setPhoneRefused(false);
 
     if (!rateOption) {
       setRateOptionError('Select a gold rate option before continuing.');
@@ -108,35 +133,102 @@ export default function EmployeePermissionsScreen() {
     if (mode === 'edit' && editEmployeeId) {
       setSaving(true);
       try {
-        const result = await updateEmployeeApi(editEmployeeId, {
-          name: draft.fullName,
-          phone: draft.phone,
-          email: draft.email,
-          designation: draft.designation,
-          permissions: permissions,
-        });
-        
+        // Permissions only: the details were not edited here, and a number
+        // from a roster loaded before someone changed it elsewhere would read
+        // to the server as a new, unproved number.
+        const result = await updateEmployeeApi(editEmployeeId, { permissions });
+
         if (!result.success) {
           setFormError(result.error ?? 'Failed to update employee.');
           return;
         }
 
         updateEmployee(editEmployeeId, { permissions: { ...permissions } });
-        router.replace(`/dashboard/employees/${editEmployeeId}` as Href);
+        // Back to their page, not a second copy of it on top.
+        router.dismissTo(`/dashboard/employees/${editEmployeeId}` as Href);
       } finally {
         setSaving(false);
       }
       return;
     }
 
+    // Adding: this Continue is the one create — the details from Add, the
+    // MPIN from Employee Credentials and the permissions on this screen, all
+    // in one call, so the employee's login carries them from the start.
+    if (!isMpinPairValid(credentials.mpin, credentials.confirmMpin)) {
+      // Only reachable if the draft was cleared under the flow; the MPIN is
+      // set on the screen before this one.
+      router.back();
+      return;
+    }
+
+    // The number was proved by OTP on the way here; a proof that has lapsed
+    // (the owner took more than 25 minutes) is done again from Add, where
+    // Continue sends a fresh code. The MPIN and permissions stay as set.
+    const phoneVerificationToken = verifiedPhoneToken(phoneVerification, draft.phone);
+    const verifyAgain = () => {
+      setPhoneVerification(null);
+      Alert.alert(
+        'Verify the phone again',
+        "The employee's phone check has expired. Tap Continue to send a new OTP.",
+      );
+      router.dismissTo('/dashboard/employees/add' as Href);
+    };
+    if (!phoneVerificationToken) {
+      verifyAgain();
+      return;
+    }
+
     setSaving(true);
     try {
-      const result = await createEmployeeDraft(buildEmployeeDraftPayload(draft));
+      const result = await createEmployeeWithMpin({
+        name: draft.fullName,
+        phone: draft.phone,
+        email: draft.email,
+        // Add no longer asks for a designation; the server still requires
+        // one when an employee is created, and the roster reads "Employee".
+        designation: draft.designation.trim() || 'Employee',
+        mpin: credentials.mpin,
+        confirmMpin: credentials.confirmMpin,
+        permissions,
+        phoneVerificationToken,
+        confirmTransfer: !!transferForPhone(phoneTransfer, draft.phone),
+      });
+
       if (!result.success) {
-        setFormError(result.error ?? 'Failed to save employee draft.');
+        if (result.code === EMPLOYEE_ERROR_CODES.phoneNotVerified) {
+          verifyAgain();
+          return;
+        }
+        if (result.code === EMPLOYEE_ERROR_CODES.ownNumber) {
+          // Nothing was saved (and no one was moved): as below.
+          setOwnPhone(normalizeIndianPhone(draft.phone));
+          setPhoneRefused(true);
+          setFormError(OWN_NUMBER_MESSAGE);
+          return;
+        }
+        if (result.code === EMPLOYEE_ERROR_CODES.phoneTaken) {
+          // Nothing was saved. The draft stays as typed, so Add opens with
+          // the number marked and everything else still filled in.
+          setTakenPhone(normalizeIndianPhone(draft.phone));
+          setPhoneRefused(true);
+          setFormError(PHONE_TAKEN_MESSAGE);
+          return;
+        }
+        // TRIAL_REQUIRED_FOR_MORE_EMPLOYEES and anything else: the server's
+        // own words, as before.
+        setFormError(result.error);
         return;
       }
-      router.push('/dashboard/employees/create-password' as Href);
+
+      const listResult = await fetchEmployees();
+      if (listResult.success && listResult.data) {
+        setEmployees(listResult.data);
+      }
+
+      // The MPIN goes with the draft: nothing of it outlives the create.
+      resetDraft();
+      router.dismissTo('/dashboard/employees' as Href);
     } finally {
       setSaving(false);
     }
@@ -273,6 +365,16 @@ export default function EmployeePermissionsScreen() {
           </GradientView>
         </TouchableOpacity>
         {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
+        {phoneRefused ? (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => router.dismissTo('/dashboard/employees/add' as Href)}
+            style={styles.changeNumberBtn}
+            accessibilityRole="button"
+          >
+            <Text style={styles.changeNumberText}>Change phone number</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
 
       <BottomNav />
@@ -407,6 +509,21 @@ const styles = StyleSheet.create({
     color: Colors.brandDeep,
     marginTop: 12,
     textAlign: 'center',
+  },
+  changeNumberBtn: {
+    alignSelf: 'center',
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundAlt,
+  },
+  changeNumberText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.brandDeep,
   },
   radioGroup: {
     marginTop: 12,

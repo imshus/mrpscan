@@ -233,7 +233,10 @@ const styles = StyleSheet.create({
   },
   overlayInput: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0.01,
+    // iOS leaves a view under 0.01 opacity out of tap handling, and 0.01
+    // lands a hair under it once stored as a float: there the field could not
+    // be tapped back into after the keyboard closed. Android keeps its 0.01.
+    opacity: Platform.OS === 'ios' ? 0.02 : 0.01,
     color: 'transparent',
   },
   metaRow: {

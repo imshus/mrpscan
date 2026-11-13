@@ -1,6 +1,7 @@
-import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { ChevronLeft, LogOut } from 'lucide-react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { ChevronLeft, LogOut, Trash2 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
@@ -10,14 +11,18 @@ import { Colors, Spacing } from '@/constants/theme';
 import { useSettingsAccess } from '@/hooks/useSettingsAccess';
 import { useAuthStore } from '@/store/authStore';
 import { getBusinessProfile, formatProfileValue } from '@/utils/businessProfile';
+import { ACCOUNT_STATUS_TITLE, canPurchaseInApp } from '@/utils/platformCommerce';
 
 /** Per-item icon accent colors matching the mockup's settings menu. */
 const ICON_ACCENTS: Record<string, { bg: string; color: string }> = {
   masters: { bg: Colors.diamondBg, color: Colors.diamond },
   employee: { bg: Colors.metalGoldBg, color: Colors.metalGold },
+  history: { bg: Colors.metalGoldBg, color: Colors.metalGold },
   subscription: { bg: Colors.dangerBg, color: Colors.brandDeep },
   invite: { bg: Colors.metalGoldBg, color: Colors.metalGold },
   contact: { bg: Colors.diamondBg, color: Colors.diamond },
+  faqs: { bg: Colors.metalGoldBg, color: Colors.metalGold },
+  privacy: { bg: Colors.diamondBg, color: Colors.diamond },
 };
 
 const ICON_SIZE = 16;
@@ -88,6 +93,25 @@ export default function SettingsScreen() {
               );
             }
 
+            // Logout's tile, made unmistakably destructive: a solid red disc
+            // and a red edge. It only opens Delete Account, which asks for an
+            // OTP and the typed word before anything is removed.
+            if (item.isDeleteAccount) {
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  onPress={() => router.push(item.route as Href)}
+                  activeOpacity={0.9}
+                  style={[styles.menuCard, styles.deleteCard]}
+                >
+                  <View style={styles.deleteIconWrap}>
+                    <Trash2 size={ICON_SIZE} color={Colors.white} />
+                  </View>
+                  <Text style={styles.deleteTitle}>{item.title}</Text>
+                </TouchableOpacity>
+              );
+            }
+
             const Icon = item.icon;
             const accent = ICON_ACCENTS[item.id];
             const content = (
@@ -101,12 +125,22 @@ export default function SettingsScreen() {
                   <Icon size={ICON_SIZE} color={accent ? accent.color : Colors.textMuted} />
                 </View>
                 <View style={styles.menuTextWrap}>
-                  <Text style={styles.menuTitle}>{item.title}</Text>
+                  <Text style={styles.menuTitle}>
+                    {/* On iPhone the screen behind it only reports the
+                        account (utils/platformCommerce.ts), so it is named
+                        for that rather than for a subscription on offer. */}
+                    {item.id === 'subscription' && !canPurchaseInApp() ? ACCOUNT_STATUS_TITLE : item.title}
+                  </Text>
                 </View>
               </>
             );
 
-            const onPress = item.route ? () => router.push(item.route as Href) : undefined;
+            const { url, route } = item;
+            const onPress = url
+              ? () => void WebBrowser.openBrowserAsync(url).catch(() => Linking.openURL(url))
+              : route
+                ? () => router.push(route as Href)
+                : undefined;
 
             if (onPress) {
               return (
@@ -194,6 +228,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  deleteCard: {
+    borderColor: '#F5C6C2',
+  },
+  deleteIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.brand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   menuTextWrap: {
     flex: 1,
   },
@@ -208,5 +253,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: Colors.brandDeep,
+  },
+  deleteTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.brand,
   },
 });

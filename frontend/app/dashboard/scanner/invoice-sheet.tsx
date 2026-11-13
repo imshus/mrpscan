@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -22,14 +23,19 @@ import { BottomNav, BOTTOM_NAV_HEIGHT, getBottomNavBottom } from '@/components/d
 import { ScreenBackHeader } from '@/components/scanner/ScreenBackHeader';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
+import { useCartStore } from '@/store/cartStore';
 import { useInvoiceStore } from '@/store/invoiceStore';
 import { useScannerStore } from '@/store/scannerStore';
+import { useCartInvoice } from '@/hooks/useCartInvoice';
 import { useInvoiceComputation } from '@/hooks/useInvoiceComputation';
 import { getBusinessProfile } from '@/utils/businessProfile';
+import type { CartInvoice } from '@/utils/cartInvoice';
+import type { InvoiceLineItemRow } from '@/utils/invoiceCalculation';
 import { formatItemIdentity, resolveItemIdentity } from '@/utils/itemIdentity';
 import { HSN_JEWELLERY } from '@/components/invoice/InvoiceSheet';
 import { fetchBusinessProfile, type BusinessProfileResponse } from '@/utils/businessProfileApi';
 import { invoicePdfFileName } from '@/utils/invoicePdfCache';
+import { roundHalfUp } from '@/utils/moneyMath';
 import { currentScopeGeneration } from '@/utils/userScopedStorage';
 import { ApiError } from '@/utils/apiClient';
 import {
@@ -51,6 +57,12 @@ const DEFAULT_TERMS = [
 ];
 
 const ZOOM_STEPS = [0.85, 1, 1.15, 1.3];
+
+/** The most the first preview waits for the invoice number and QR. */
+const PREVIEW_HEADER_WAIT_MS = 1500;
+
+/** A cart with nothing checked out bills no lines (one array, so memos hold). */
+const NO_LINES: InvoiceLineItemRow[] = [];
 
 function todayStamp(): string {
   return new Date()
@@ -86,6 +98,8 @@ export default function InvoiceSheetScreen() {
   const [generated, setGenerated] = useState<GenerateInvoiceResponse | null>(null);
   // Reserved when the preview opens, so the QR on screen is the PDF's QR.
   const [reservedQr, setReservedQr] = useState<ReservedInvoiceQr | null>(null);
+  // Both of the above have answered, or the wait for them is over.
+  const [headerReady, setHeaderReady] = useState(false);
   // The invoice rendered by the server from the template the PDF uses.
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
@@ -100,6 +114,18 @@ export default function InvoiceSheetScreen() {
   const placeOfSupply = useInvoiceStore((state) => state.placeOfSupply);
   const transport = useInvoiceStore((state) => state.transport);
 
+  // Opened from the cart: one invoice for all its pieces, each with its own
+  // lines. Opened from a scan result: that scan, exactly as before.
+  const { isCart, invoice: liveCartInvoice } = useCartInvoice();
+  // Once its invoice is generated the cart is emptied (the wishlist keeps
+  // its items), so going back and generating again cannot bill the same
+  // pieces twice. This screen keeps the cart it billed, for Share, Email and
+  // the rest, which reuse that one invoice. A ref, set before the cart is
+  // emptied, so no render in between sees an empty cart.
+  const billedCartRef = useRef<CartInvoice | null>(null);
+  const cartInvoice = billedCartRef.current ?? liveCartInvoice;
+  const endCheckout = useCartStore((state) => state.endCheckout);
+
   const {
     lineItemRows,
     subtotal,
@@ -108,7 +134,11 @@ export default function InvoiceSheetScreen() {
     grandTotal,
     grandTotalWords,
     ratesLoaded,
-  } = useInvoiceComputation();
+  } = useInvoiceComputation({
+    // The GSTIN the server taxes by (CGST + SGST for 07), once fetched.
+    supplierGstin: business?.gstNumber,
+    lineItems: isCart ? (cartInvoice?.rows ?? NO_LINES) : undefined,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -116,23 +146,34 @@ export default function InvoiceSheetScreen() {
       if (!cancelled && fresh) setBusiness(fresh);
     });
     // Reserve the token now so the preview shows the same QR the PDF prints.
-    void reserveInvoiceQr().then((reserved) => {
+    const qr = reserveInvoiceQr().then((reserved) => {
       if (!cancelled && reserved) setReservedQr(reserved);
     });
-    apiFetchNextInvoiceNumber()
+    const number = apiFetchNextInvoiceNumber()
       .then((next) => {
         if (!cancelled && next) setInvoiceNumber(next);
       })
       .catch(() => {});
+    // The preview is asked for once both have answered (or a short wait is
+    // up), not once without them and again as each lands.
+    const waited = setTimeout(() => {
+      if (!cancelled) setHeaderReady(true);
+    }, PREVIEW_HEADER_WAIT_MS);
+    void Promise.allSettled([qr, number]).then(() => {
+      if (!cancelled) setHeaderReady(true);
+    });
     return () => {
       cancelled = true;
+      clearTimeout(waited);
     };
   }, []);
 
-  // The scanned piece, so the invoice says which item it bills for.
+  // The scanned piece, so the invoice says which item it bills for. A cart's
+  // lines name their own pieces already, and the scanner's last scan is none
+  // of them.
   const itemLabel = useMemo(
-    () => formatItemIdentity(resolveItemIdentity(scanData)),
-    [scanData],
+    () => (isCart ? '' : formatItemIdentity(resolveItemIdentity(scanData))),
+    [isCart, scanData],
   );
 
 
@@ -165,6 +206,11 @@ export default function InvoiceSheetScreen() {
       amount_in_words: grandTotalWords,
       terms_and_conditions: '',
       public_token: reservedQr?.publicToken,
+      // A cart says how many pieces it bills and which; a single scan sends
+      // neither, as it always has.
+      ...(cartInvoice
+        ? { piece_count: cartInvoice.pieces.length, pieces: cartInvoice.pieces }
+        : {}),
     }),
     [
       customer,
@@ -178,12 +224,13 @@ export default function InvoiceSheetScreen() {
       grandTotal,
       grandTotalWords,
       reservedQr,
+      cartInvoice,
     ],
   );
 
   // Render the invoice from the server template whenever the figures change.
   useEffect(() => {
-    if (grandTotal <= 0) return;
+    if (grandTotal <= 0 || !headerReady) return;
     let cancelled = false;
     void fetchInvoicePreviewHtml({ ...invoicePayload, invoice_number: invoiceNumber })
       .then((html) => {
@@ -192,16 +239,27 @@ export default function InvoiceSheetScreen() {
     return () => {
       cancelled = true;
     };
-  }, [invoicePayload, invoiceNumber, grandTotal]);
+  }, [invoicePayload, invoiceNumber, grandTotal, headerReady]);
 
   const generateOnce = async (): Promise<GenerateInvoiceResponse> => {
     if (generated) return generated;
+    // The checkout this invoice bills, as it stands now: the answer may come
+    // after another has been started, and must end this one, not that.
+    const { checkout: pieces, singleItem, itemIds: cartIds } = useCartStore.getState();
     const result = await apiGenerateInvoice(invoicePayload);
+    if (isCart && cartInvoice) {
+      billedCartRef.current = cartInvoice;
+      endCheckout({ pieces, singleItem, cartIds });
+    }
     setGenerated(result);
     return result;
   };
 
   const guardTotals = (): boolean => {
+    if (isCart && !cartInvoice) {
+      Alert.alert('Cart is empty', 'Select tags in Wishlist and tap Add to cart, then generate the invoice.');
+      return false;
+    }
     if (grandTotal <= 0) {
       Alert.alert(
         'Rates not ready',
@@ -353,6 +411,17 @@ export default function InvoiceSheetScreen() {
       // empty file sitting in the user's folder.
       const { fileName, uri } = await fetchPdfToCache();
 
+      // iOS has no Storage Access Framework (the calls below throw there):
+      // an iPhone saves a PDF from the share sheet's "Save to Files".
+      if (Platform.OS === 'ios') {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Save ${fileName}`,
+          UTI: 'com.adobe.pdf',
+        });
+        return;
+      }
+
       const permission =
         await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
       if (!permission.granted) {
@@ -416,9 +485,16 @@ export default function InvoiceSheetScreen() {
 
   // Accompanying text for the email body. No link: the PDF travels as the
   // attachment, so there is nothing for the recipient to open elsewhere.
-  const shareText = (number: string) =>
-    `Invoice ${number} from ${profile.businessName || 'us'} — ` +
-    `₹ ${Math.round(grandTotal).toLocaleString('en-IN')}. The invoice is attached as a PDF.`;
+  // The total is the issued invoice's own — the figure its PDF prints —
+  // and the app's only for a server that does not return it.
+  const shareText = (issued: GenerateInvoiceResponse) => {
+    const issuedTotal = Number(issued.grandTotal);
+    const total = Number.isFinite(issuedTotal) && issuedTotal > 0 ? issuedTotal : grandTotal;
+    return (
+      `Invoice ${issued.invoiceNumber} from ${profile.businessName || 'us'} — ` +
+      `₹ ${roundHalfUp(total).toLocaleString('en-IN')}. The invoice is attached as a PDF.`
+    );
+  };
 
   // DRIVE — system share sheet; the user taps "Drive"/"Save to Drive". expo-sharing
   // hands Android a FileProvider content:// URI with a Parcelable EXTRA_STREAM, which
@@ -470,7 +546,7 @@ export default function InvoiceSheetScreen() {
         }
       }
       const subject = `Invoice ${result.invoiceNumber} from ${profile.businessName || 'us'}`;
-      const body = shareText(result.invoiceNumber);
+      const body = shareText(result);
       const recipients = customer.customerEmail.trim() ? [customer.customerEmail.trim()] : [];
       if (await MailComposer.isAvailableAsync()) {
         await MailComposer.composeAsync({ recipients, subject, body, attachments: [uri] });

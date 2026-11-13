@@ -24,6 +24,8 @@ export function LabourChargeResultSection({ pricing }: LabourChargeResultSection
   return (
     <>
       <MetalTile title="Labour Charge" tone="labour">
+        {/* The Masters → Labour Code the price was made with, as on Wastage. */}
+        {pricing.labourCode ? <FinRow label="Labour Code" value={pricing.labourCode} /> : null}
         <FinRow label="Input Mode" value={modeLabel} />
         <Text style={styles.modeHint}>{modeHint}</Text>
       </MetalTile>

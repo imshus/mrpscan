@@ -1,4 +1,5 @@
 import type { LabourChargeUnit, LabourWeightBasis } from '@/constants/labour';
+import type { WastageWeightBasis } from '@/constants/wastage';
 
 export type JewelleryType = 'Diamond' | 'Gold';
 
@@ -49,6 +50,14 @@ export interface AnalyzeScanResponse {
    * them. Empty from a server that does not send it yet.
    */
   tagIdentifiers?: string[];
+  /**
+   * The Masters -> Labour Code the server matched on the tag, when it names
+   * one ('' or absent: none); the analysis' price records it as well, but
+   * only this names it when the analysis could not price (pricing null).
+   * analyzeScan always carries it, trimmed ('' for none or a server that
+   * does not send it); the demo answer leaves it out.
+   */
+  labourCode?: string;
   billing?: {
     billed: boolean;
     /** True while the server finalizes billing in the background (two-step scan). */
@@ -62,6 +71,11 @@ export interface AnalyzeScanResponse {
    * the server could not price it; the card then prices itself.
    */
   pricing?: CalculateMrpResponse | null;
+  /**
+   * Why the analysis has no price, when it is a reason the card can say: no
+   * live gold rate (RATES_UNAVAILABLE) or a reading that cannot be priced.
+   */
+  pricingError?: { code: string; message: string } | null;
 }
 
 export interface ClarificationField {
@@ -188,6 +202,11 @@ export interface ScanItemData {
   labourChargeUnit: LabourChargeUnit;
   labourWeightBasis: LabourWeightBasis;
   /**
+   * The Masters → Labour Code picked for this scan; picking it fills
+   * labourChargeAmount and labourChargeUnit with the code's rate and unit.
+   */
+  labourCode?: string;
+  /**
    * A wastage % typed on the review screen for this scan alone. Empty means
    * the item master's own figure applies; the server treats a sent value as
    * the override.
@@ -195,6 +214,8 @@ export interface ScanItemData {
   wastagePercent?: string;
   /** The Masters → Wastage code picked for this scan; its percent fills wastagePercent. */
   wastageCode?: string;
+  /** The weight the wastage percent is taken of; net unless picked on the Wastage tile. */
+  wastageWeightBasis: WastageWeightBasis;
   calculationRate: 'rtgs' | 'cash';
   otherChargesAmount: string;
   otherChargesItems: OtherChargeItem[];
@@ -225,6 +246,11 @@ export interface StoneEntry {
   rate: string;
   discountPercent?: string;
   pieces?: string;
+  /**
+   * The unit the weight was printed in: 'g' (priced as 5 ct a gram) or
+   * 'ct'. Absent on rows saved before units were read: carats.
+   */
+  unit?: 'g' | 'ct';
 }
 
 export interface SequentialStoneBlock {
@@ -326,8 +352,18 @@ export interface CalculateMrpPayload {
   tagIdentifiers?: string[];
   /** Overrides the item's own wastage, for a piece that is an exception. */
   wastagePercent?: number;
-  diamonds: Array<{ weight: number; rate: number; discountPercent?: number }>;
-  colorstones: Array<{ weight: number; rate: number }>;
+  /** A Masters -> Wastage code picked on the card: used ahead of the tag's own. */
+  wastageCode?: string;
+  /**
+   * A Masters -> Labour Code picked on the card: found ahead of the tag's own.
+   * A labour figure sent alongside (labourChargeAmount) still beats its rate.
+   */
+  labourCode?: string;
+  /** The weight the wastage percent is taken of (pricing rules 3; the server's default is net). */
+  wastageWeightBasis?: WastageWeightBasis;
+  /** `unit`: the weight's unit, 'ct' or 'g' (5 ct a gram). */
+  diamonds: Array<{ weight: number; rate: number; discountPercent?: number; unit?: 'g' | 'ct' }>;
+  colorstones: Array<{ weight: number; rate: number; unit?: 'g' | 'ct' }>;
 }
 
 export interface CalculateMrpResponse {
@@ -339,13 +375,30 @@ export interface CalculateMrpResponse {
     goldAmount: number;
     labourAmount: number;
     labourChargeType: string;
+    /** The Masters -> Labour Code picked or matched on the tag; blank when none. */
+    labourCode?: string;
     /** Blank when the item carries no wastage, so the tile stays empty. */
     wastageCode?: string;
     wastagePercent?: number;
+    /** The weight the percent was taken of; absent from a server before pricing rules 3. */
+    wastageWeightBasis?: WastageWeightBasis;
+    /** The weight × the percent: the grams the invoice's wastage line bills. */
     wastageWeightGrams?: number;
+    /**
+     * The rate per gram the wastage grams were priced at: the Gold tile's
+     * Current Gold Rate per gram (the 24K rate × the purity). Absent from a
+     * server before pricing rules 3, which priced them at the 24K rate.
+     */
+    wastageRatePerGram?: number;
     wastageAmount?: number;
     otherCharges: number;
     subtotal?: number;
+    /** The net weight the gold was priced on: the gross less the stones when none was given. */
+    netWeightUsed?: number;
+    /** True when netWeightUsed was worked out from the gross weight (low confidence). */
+    netWeightEstimated?: boolean;
   };
   finalMRP: number;
+  /** finalMRP to the rupee, half-up. */
+  finalMRPRounded?: number;
 }

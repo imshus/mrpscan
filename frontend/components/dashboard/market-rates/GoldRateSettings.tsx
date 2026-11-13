@@ -26,6 +26,9 @@ type SavedRates = {
   tax: number;
   variant: 'taxed' | 'plain';
 };
+/** The form's typed fields; the RTGS variant is a tick, saved at once. */
+type TypedField = 'mcx' | 'rtgs' | 'cash' | 'tax';
+const UNTOUCHED: Record<TypedField, boolean> = { mcx: false, rtgs: false, cash: false, tax: false };
 export type ScannerCalculationUse = 'rtgs' | 'cash';
 export type TaxChangeTarget = 'rtgs' | 'cash';
 
@@ -348,6 +351,9 @@ export function GoldRateSettingsPanel({
   const savingRef = useRef(false);
   const saveAgainRef = useRef(false);
   const [editTick, setEditTick] = useState(0);
+  // Which boxes the shop typed in since the form was last filled. Only
+  // those are saved: a box nobody touched never writes its figure back.
+  const touchedRef = useRef<Record<TypedField, boolean>>({ ...UNTOUCHED });
 
   useEffect(() => {
     if (!visible) return;
@@ -360,9 +366,12 @@ export function GoldRateSettingsPanel({
     const rtgs = toSafeNumber(rtgsChange, 0);
     const cash = toSafeNumber(cashChange, 0);
     const mcxForm = getSignAndAmount(mcx);
-    // Shown as "bhaw already applied + this shop's own adjustment".
-    const rtgsForm = getSignAndAmount(rtgs + toSafeNumber(bhawRtgs, 0));
-    const cashForm = getSignAndAmount(cash + toSafeNumber(bhawCash, 0));
+    // The shop's own adjustment only. The house bhaw (JMD Patil's +2,100,
+    // say) is already in the rate and named on the card ("Includes ...");
+    // put in the box as well, it read as the shop's own change (the owner's
+    // call, 17 Oct 2026). What is saved has always been the own change.
+    const rtgsForm = getSignAndAmount(rtgs);
+    const cashForm = getSignAndAmount(cash);
 
     setMcxSign(mcxForm.sign);
     setMcxAmount(mcxForm.amount);
@@ -374,12 +383,13 @@ export function GoldRateSettingsPanel({
     setTaxPercent(String(tax));
     setVariant(rtgsVariant);
     savedRef.current = { mcx, rtgs, cash, tax, variant: rtgsVariant };
-  }, [visible, mcxChange, rtgsChange, cashChange, bhawRtgs, bhawCash, rtgsTaxPercent, rtgsVariant]);
+    touchedRef.current = { ...UNTOUCHED };
+  }, [visible, mcxChange, rtgsChange, cashChange, rtgsTaxPercent, rtgsVariant]);
 
   /**
-   * The provider bhaw is already inside the current RTGS/Cash rate, so the
-   * Change By box shows it rather than adding it a second time: typing a
-   * different figure moves the rate by the difference alone.
+   * The provider bhaw is already inside the current RTGS/Cash rate; the card
+   * names it under its title and the Change By box holds the shop's own
+   * adjustment alone.
    */
   const bhawIn = (value?: number) => toSafeNumber(value, 0);
   const bhawNote = (value?: number, live = true) => {
@@ -395,14 +405,8 @@ export function GoldRateSettingsPanel({
   };
 
   const mcxDraftChange = useMemo(() => signedValue(mcxSign, mcxAmount), [mcxSign, mcxAmount]);
-  const rtgsDraftChange = useMemo(
-    () => signedValue(rtgsSign, rtgsAmount) - toSafeNumber(bhawRtgs, 0),
-    [rtgsSign, rtgsAmount, bhawRtgs],
-  );
-  const cashDraftChange = useMemo(
-    () => signedValue(cashSign, cashAmount) - toSafeNumber(bhawCash, 0),
-    [cashSign, cashAmount, bhawCash],
-  );
+  const rtgsDraftChange = useMemo(() => signedValue(rtgsSign, rtgsAmount), [rtgsSign, rtgsAmount]);
+  const cashDraftChange = useMemo(() => signedValue(cashSign, cashAmount), [cashSign, cashAmount]);
   const taxDraft = useMemo(() => {
     const parsed = Number.parseFloat(taxPercent);
     return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : 0;
@@ -476,11 +480,12 @@ export function GoldRateSettingsPanel({
     }
     const draft = draftRef.current;
     const saved = savedRef.current;
+    const touched = touchedRef.current;
     const fields: ChangedFields = {
-      mcx: !isSameNumber(draft.mcx, saved.mcx),
-      rtgs: !isSameNumber(draft.rtgs, saved.rtgs),
-      cash: !isSameNumber(draft.cash, saved.cash),
-      tax: !isSameNumber(draft.tax, saved.tax),
+      mcx: touched.mcx && !isSameNumber(draft.mcx, saved.mcx),
+      rtgs: touched.rtgs && !isSameNumber(draft.rtgs, saved.rtgs),
+      cash: touched.cash && !isSameNumber(draft.cash, saved.cash),
+      tax: touched.tax && !isSameNumber(draft.tax, saved.tax),
       variant: draft.variant !== saved.variant,
     };
     const changed = fields.mcx || fields.rtgs || fields.cash || fields.tax || fields.variant;
@@ -511,8 +516,9 @@ export function GoldRateSettingsPanel({
   saveRef.current = save;
 
   /** A field the shop typed in: saved once the typing pauses. */
-  const edited = <T,>(setter: (value: T) => void) => (value: T) => {
+  const edited = <T,>(field: TypedField, setter: (value: T) => void) => (value: T) => {
     setter(value);
+    touchedRef.current[field] = true;
     dirtyRef.current = true;
     editSeqRef.current += 1;
     setEditTick((tick) => tick + 1);
@@ -561,8 +567,8 @@ export function GoldRateSettingsPanel({
           formula=""
           currentLabel="Current MCX Rate"
           finalLabel="Final MCX Rate"
-          onSignChange={edited(setMcxSign)}
-          onAmountChange={edited(setMcxAmount)}
+          onSignChange={edited('mcx', setMcxSign)}
+          onAmountChange={edited('mcx', setMcxAmount)}
         />
 
         <RateCard
@@ -577,8 +583,8 @@ export function GoldRateSettingsPanel({
           formula={''}
           currentLabel="Current Retail Rate"
           finalLabel="Final Retail Rate"
-          onSignChange={edited(setCashSign)}
-          onAmountChange={edited(setCashAmount)}
+          onSignChange={edited('cash', setCashSign)}
+          onAmountChange={edited('cash', setCashAmount)}
         />
 
         {/* RTGS in two forms: Rate 1 is the board RTGS from Dashboard
@@ -598,8 +604,8 @@ export function GoldRateSettingsPanel({
           formula={''}
           currentLabel="Current RTGS Rate"
           finalLabel="Final RTGS Rate 1"
-          onSignChange={edited(setRtgsSign)}
-          onAmountChange={edited(setRtgsAmount)}
+          onSignChange={edited('rtgs', setRtgsSign)}
+          onAmountChange={edited('rtgs', setRtgsAmount)}
           selected={variant === 'taxed'}
           onSelect={() => selectVariant('taxed')}
         />
@@ -617,8 +623,8 @@ export function GoldRateSettingsPanel({
           formula={''}
           currentLabel="Current RTGS Rate"
           finalLabel="Final RTGS Rate 2"
-          onSignChange={edited(setRtgsSign)}
-          onAmountChange={edited(setRtgsAmount)}
+          onSignChange={edited('rtgs', setRtgsSign)}
+          onAmountChange={edited('rtgs', setRtgsAmount)}
           selected={variant === 'plain'}
           onSelect={() => selectVariant('plain')}
           changeControl={
@@ -626,7 +632,7 @@ export function GoldRateSettingsPanel({
               <Text style={styles.taxFieldLabel}>− Tax</Text>
               <TextInput
                 value={taxPercent}
-                onChangeText={edited((value: string) =>
+                onChangeText={edited('tax', (value: string) =>
                   setTaxPercent(value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')),
                 )}
                 keyboardType="decimal-pad"

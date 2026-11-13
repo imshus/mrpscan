@@ -16,6 +16,7 @@
     "expo-font": "~14.0.12",
     "expo-image-manipulator": "~14.0.8",
     "expo-image-picker": "~17.0.11",
+    "expo-in-app-updates": "^0.12.0",
     "expo-linking": "~8.0.12",
     "expo-mail-composer": "~15.0.8",
     "expo-print": "~15.0.8",
@@ -25,6 +26,7 @@
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
     "expo-web-browser": "~15.0.11",
+    "jpeg-js": "^0.4.4",
     "lucide-react-native": "^1.18.0",
     "nativewind": "^4.2.5",
     "react": "19.1.0",
@@ -68,6 +70,7 @@
     "ui:debug:reload": "node scripts/mobile-ui-debugger.mjs reload",
     "setup:android": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-android-sdk.ps1",
     "typecheck": "tsc --noEmit",
+    "eas-build-post-install": "node scripts/patch-audio-api.mjs",
     "start": "cross-env EXPO_OFFLINE=1 expo start --lan",
     "start:clean": "cross-env EXPO_OFFLINE=1 expo start --lan --clear",
     "start:web": "cross-env EXPO_OFFLINE=1 expo start --web --lan",
@@ -75,6 +78,15 @@
     "android": "cross-env EXPO_OFFLINE=1 expo start --android --lan",
     "ios": "cross-env EXPO_OFFLINE=1 expo start --ios",
     "web": "cross-env EXPO_OFFLINE=1 expo start --web --lan"
+  },
+  "expo": {
+    "autolinking": {
+      "ios": {
+        "exclude": [
+          "expo-in-app-updates"
+        ]
+      }
+    }
   },
   "private": true
 }

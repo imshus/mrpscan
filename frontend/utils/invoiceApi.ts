@@ -34,6 +34,23 @@ export interface GenerateInvoicePayload {
   terms_and_conditions: string;
   /** Token reserved for the preview, so the PDF prints that same QR. */
   public_token?: string;
+  /**
+   * A cart's invoice: how many pieces it bills and which. Left out for a
+   * single scan, which the server counts as one piece. The server still works
+   * every figure out from line_items; these say what the lines are of.
+   */
+  piece_count?: number;
+  pieces?: InvoicePiecePayload[];
+}
+
+/** One billed piece of a cart's invoice. */
+export interface InvoicePiecePayload {
+  wishlist_item_id?: string;
+  scan_id?: string;
+  item_name: string;
+  tag_code: string;
+  /** What the piece bills: the sum of its own lines. */
+  mrp: number;
 }
 
 export interface GenerateInvoiceResponse {
@@ -50,6 +67,10 @@ export interface GenerateInvoiceResponse {
   invoiceId: string;
   /** Data URI of the QR printed on the PDF, so the app shows the same code. */
   qrCodeImage?: string;
+  /** The figures as issued — the server's, worked out from the line items. */
+  subtotal?: number;
+  gstAmount?: number;
+  grandTotal?: number;
 }
 
 /** Prefers the durable URL, falling back to the expiring one. */
@@ -140,14 +161,29 @@ export async function apiEmailInvoice(invoiceId: string): Promise<{ sentTo: stri
 }
 
 /**
- * GET /api/v1/invoices
- * Returns the list of invoices for the authenticated business.
+ * A row of GET /invoices: the list leaves the line items out, and says how
+ * many pieces were billed instead (absent on invoices issued before the
+ * server counted them).
  */
-export async function apiFetchInvoices(): Promise<GenerateInvoiceResponse[]> {
-  const res = await apiRequest<{ success: boolean; data: { invoices: GenerateInvoiceResponse[] } }>(
-    '/invoices',
+export interface InvoiceListEntry {
+  _id: string;
+  invoiceNumber: string;
+  grandTotal: number;
+  pieceCount?: number;
+  createdAt: string;
+}
+
+/**
+ * GET /api/v1/invoices
+ * Newest first; the owner's are the shop's, an employee's their own. The
+ * server sends 20 when no limit is given, and at most 50.
+ */
+export async function apiFetchInvoices(limit?: number): Promise<InvoiceListEntry[]> {
+  const query = limit ? `?limit=${encodeURIComponent(String(limit))}` : '';
+  const res = await apiRequest<{ success: boolean; data?: { invoices?: InvoiceListEntry[] } }>(
+    `/invoices${query}`,
   );
-  return res.data?.invoices ?? [];
+  return Array.isArray(res.data?.invoices) ? res.data.invoices : [];
 }
 
 /**

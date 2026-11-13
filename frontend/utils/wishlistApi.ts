@@ -14,7 +14,7 @@ interface ApiWishlistItem {
   savedBy?: string | null;
 }
 
-interface AddWishlistPayload {
+export interface AddWishlistPayload {
   itemId: string;
   title: string;
   tagCode: string;
@@ -23,6 +23,13 @@ interface AddWishlistPayload {
   calculationRate?: 'rtgs' | 'cash';
   scanTimestamp: string;
   snapshot: WishlistItem['snapshot'];
+  /**
+   * Only for its line in Settings → History → Wishlist history: the scan it
+   * was priced from, and the catalogue name it carries. The server keeps
+   * neither on the wishlist item itself (the scan id is in the snapshot).
+   */
+  scanId?: string;
+  itemName?: string;
 }
 
 function mapApiItemToWishlistItem(raw: ApiWishlistItem): WishlistItem {

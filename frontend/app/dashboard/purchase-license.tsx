@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Check, ChevronDown, ChevronLeft, ChevronUp } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -30,6 +30,7 @@ import {
   validateRazorpayPaymentResult,
   verifyPayment,
 } from '@/utils/subscriptionApi';
+import { canPurchaseInApp } from '@/utils/platformCommerce';
 import { friendlyServerMessage } from '@/utils/serverMessages';
 import Constants from 'expo-constants';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
@@ -39,6 +40,8 @@ type RazorpayModule = {
 };
 
 function getRazorpayCheckout(): RazorpayModule | null {
+  // Never loaded on iPhone, which sells nothing (utils/platformCommerce.ts).
+  if (!canPurchaseInApp()) return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
     const mod = require('react-native-razorpay');
@@ -88,7 +91,18 @@ function toPurchaseState(overview: SubscriptionOverview | null): 'LOADING' | 'PE
 const TRIAL_PANEL_GRADIENT = ['#F8F5EB', '#E6DBC3', '#C7B792'];
 const PREMIUM_PANEL_GRADIENT = ['#E9AA9A', '#BE5B4A', Surfaces.premium];
 
-export default function PurchaseLicenseScreen() {
+/**
+ * The licence and credits for sale. Not on iPhone, which sells nothing
+ * (utils/platformCommerce.ts): nothing in the app links here there, and a
+ * deep link to it lands on Credits & Licence, the account as it stands.
+ * Android renders the screen below exactly as before.
+ */
+export default function PurchaseLicenseRoute() {
+  if (!canPurchaseInApp()) return <Redirect href={'/dashboard/subscription-manager' as Href} />;
+  return <PurchaseLicenseScreen />;
+}
+
+function PurchaseLicenseScreen() {
   const router = useRouter();
   const allowed = useRequireSettingsAccess('subscription');
   const userRole = useAuthStore((s) => s.userRole);

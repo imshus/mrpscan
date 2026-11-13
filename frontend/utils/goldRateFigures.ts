@@ -1,6 +1,8 @@
 import type { GoldRatesResponse } from '@/types/rates';
 import { feedMcxSell, houseMcxSell, type BhawVendor } from '@/utils/bhawApi';
+import { houseNameFor } from '@/utils/bullionNames';
 import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
+import { roundHalfUp } from '@/utils/moneyMath';
 
 /**
  * The one calculation behind every gold figure the app shows.
@@ -9,8 +11,10 @@ import { resolveMcxChangeValue } from '@/utils/goldRateUtils';
  * figures Gold Rate Settings arrives at — the same inputs through the same
  * arithmetic, at the shop's asking, after the two screens read different
  * things and disagreed by the shop's own MCX change. The arithmetic is the
- * server's (rateCalculation.service.js), which is what scans are priced
- * on, so all three agree.
+ * server's (rateCalculation.service.js). The boards are not: Home and Gold
+ * Rate Settings show the live stream, while scans and invoices are priced
+ * by the server on its 3-minute snapshot, so a scan can differ from these
+ * screens by up to three minutes of market movement.
  */
 
 /** What the figures stand on: the market MCX, the house line, the bhaw. */
@@ -71,22 +75,27 @@ export interface GoldRateFigures {
  */
 export const RTGS_RATE2_DEFAULT_TAX_PERCENT = 0;
 
-const HOUSE_NAMES: Record<string, string> = {
-  jmd_patil: 'JMD Patil',
-  mega_bullion: 'Mega Bullion',
-  shri_sai: 'Shri Sai Jewels',
-  shri_ganesh: 'Shri Ganesh Bullion',
-};
-
-export function houseNameFor(key: string, fallback?: string): string {
-  return HOUSE_NAMES[key] ?? fallback ?? key;
+/**
+ * The board the figures stand on: once the server has named the house it
+ * prices on, that house's live board alone — or none while the live stream
+ * does not carry it, so each side shows a dash rather than another house's
+ * rates. The phone's own house stands in only until the server has named one.
+ */
+export function serverHouseVendor(
+  serverKey: string | null | undefined,
+  vendors: readonly BhawVendor[],
+  phoneVendor: BhawVendor | null,
+): BhawVendor | null {
+  if (!serverKey) return phoneVendor;
+  return vendors.find((v) => v.source === serverKey) ?? null;
 }
 
 /**
  * The base off the server's response and the live boards. The house is the
- * one the server priced on (bhawSource), so what the screens show is what
- * scans charge, whichever house this phone last tapped; the phone's own
- * choice stands in only until the server has answered.
+ * one the server priced on (bhawSource), whichever house this phone last
+ * tapped; the phone's own choice stands in only until the server has
+ * answered. The board figures are the live stream's, so they can run up to
+ * three minutes ahead of the 3-minute snapshot the server prices scans on.
  */
 export function goldRateBase(
   gold: GoldRatesResponse,
@@ -94,7 +103,7 @@ export function goldRateBase(
   phoneVendor: BhawVendor | null,
 ): GoldRateBase {
   const serverKey = gold.bhawSource?.key;
-  const vendor = (serverKey ? vendors.find((v) => v.source === serverKey) : null) ?? phoneVendor;
+  const vendor = serverHouseVendor(serverKey, vendors, phoneVendor);
   // Each bhaw side stands on its own: a house that quotes RTGS but not cash
   // (Shri Sai today) prices RTGS off its own board and shows no Retail. The
   // house's own MCX line is used whenever it has one; the server's base
@@ -109,6 +118,8 @@ export function goldRateBase(
       houseLine !== null ? Math.round(houseLine) : gold.taxSettings?.pricingMcxLiveRate ?? gold.mcxLiveRate,
     rtgsBhaw: rtgsLive && vendor ? (vendor.rtgsBhaw as number) : gold.supremeChanges?.rtgsChange ?? 0,
     cashBhaw: cashLive && vendor ? (vendor.cashBhaw as number) : gold.supremeChanges?.cashChange ?? 0,
+    // The feed's name for the house, any house on it: off the board, else as
+    // the server named it, else the known name.
     houseName: vendor?.name || houseNameFor(serverKey ?? '', gold.bhawSource?.name),
     cashLive,
     rtgsLive,
@@ -149,9 +160,9 @@ export function computeGoldRateFigures(base: GoldRateBase, changes: GoldRateChan
   // 1.03, 4 by 1.04, 0 leaves it as Rate 1. The server's expression and
   // rounding.
   const rtgsBoard = base.rtgsLive ? pricing + base.rtgsBhaw + changes.rtgsChange : null;
-  const rtgsRate1 = rtgsBoard === null ? null : Math.round(rtgsBoard);
+  const rtgsRate1 = rtgsBoard === null ? null : roundHalfUp(rtgsBoard);
   const rtgsRate2 =
-    rtgsBoard === null ? null : Math.round(rtgsBoard / (1 + changes.rtgsTaxPercent / 100));
+    rtgsBoard === null ? null : roundHalfUp(rtgsBoard / (1 + changes.rtgsTaxPercent / 100));
   return {
     mcxFinal,
     retailFinal,
@@ -161,7 +172,11 @@ export function computeGoldRateFigures(base: GoldRateBase, changes: GoldRateChan
   };
 }
 
-/** A karat's share of a 24K figure, rounded as the server rounds its rows. */
+/**
+ * A karat's share of a 24K figure, half-up to the rupee as the server rounds
+ * its rows. Exactly: ₹1,20,125 at 91.6% is 1,10,034.50 and shows ₹1,10,035;
+ * Math.round on the float (110034.49999999999) showed ₹1,10,034.
+ */
 export function karatFigure(figure: number, purity: number): number {
-  return Math.round(figure * (purity / 100));
+  return roundHalfUp((figure * purity) / 100);
 }

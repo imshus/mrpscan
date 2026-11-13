@@ -2,17 +2,51 @@
   "expo": {
     "name": "MRPscan",
     "slug": "pratham",
-    "version": "1.0.358",
+    "version": "1.0.388",
     "orientation": "portrait",
     "icon": "./assets/images/app-logo.jpeg",
     "scheme": "pratham",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.amitaashitsolution",
+      "supportsTablet": false,
+      "bundleIdentifier": "com.amitaashitsolutions",
       "buildNumber": "227",
+      "icon": "./assets/images/ios-icon.png",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "MRPscan uses the camera to scan the price tags on your jewellery.",
+        "NSPhotoLibraryUsageDescription": "Choose a photo of a jewellery tag from your gallery to scan it.",
+        "NSMicrophoneUsageDescription": "Talk to the MRPscan 24/7 voice assistant."
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "C617.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "35F9.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "E174.1"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -30,7 +64,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.amitaashitsolution",
-      "versionCode": 359
+      "versionCode": 389
     },
     "web": {
       "bundler": "metro",
@@ -39,6 +73,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/withPodsDeploymentTarget",
       [
         "expo-splash-screen",
         {
@@ -50,16 +85,17 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow MRPscan to access your camera to scan jewellery tags.",
-          "microphonePermission": false,
+          "cameraPermission": "MRPscan uses the camera to scan the price tags on your jewellery.",
+          "microphonePermission": "Talk to the MRPscan 24/7 voice assistant.",
           "recordAudioAndroid": false
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow MRPscan to access your photos to upload jewellery tag images.",
-          "cameraPermission": "Allow MRPscan to access your camera to scan jewellery tags."
+          "photosPermission": "Choose a photo of a jewellery tag from your gallery to scan it.",
+          "cameraPermission": "MRPscan uses the camera to scan the price tags on your jewellery.",
+          "microphonePermission": "Talk to the MRPscan 24/7 voice assistant."
         }
       ],
       [
@@ -78,9 +114,11 @@
       [
         "react-native-audio-api",
         {
-          "iosMicrophonePermission": "Allow MRPscan to use the microphone to talk with Pratham AI.",
+          "iosMicrophonePermission": "Talk to the MRPscan 24/7 voice assistant.",
           "iosBackgroundMode": false,
-          "androidPermissions": ["android.permission.RECORD_AUDIO"],
+          "androidPermissions": [
+            "android.permission.RECORD_AUDIO"
+          ],
           "androidForegroundService": false,
           "disableFFmpeg": true
         }
@@ -92,9 +130,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "c94809e5-54d5-4df1-a888-a54aaaf1dd05"
+        "projectId": "6746401f-fe65-4cd6-b75e-d6c16737253e"
       }
     },
-    "owner": "prathamtest"
+    "owner": "amitaash-it-solutions-private-limited"
   }
 }

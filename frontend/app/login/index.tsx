@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
@@ -19,8 +19,9 @@ import { OtpInput } from '@/components/ui/OtpInput';
 import { Colors } from '@/constants/theme';
 import { useAndroidOtpAutofill } from '@/hooks/useAndroidOtpAutofill';
 import { useAuthStore } from '@/store/authStore';
-import { fetchPhoneStatus, loginBusiness, sendLoginOtp, verifyLoginOtp } from '@/utils/authApi';
+import { fetchPhoneStatus, loginBusiness, sendLoginOtp, verifyLoginOtp, type PhoneStatus } from '@/utils/authApi';
 import { REMEMBERED_PHONE_KEY } from '@/utils/clearAppState';
+import { classifyLoginFailure, EMPLOYEE_MPIN_NOT_SET_MESSAGE } from '@/utils/loginFailure';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
 /** Seconds before a code can be sent again, as the mockup counts them. */
@@ -47,7 +48,7 @@ function formatCountdown(seconds: number): string {
  * folds away, so the number and code stay in view.
  *
  * A phone that has signed in before skips the code, at the shop's asking:
- * after signing out (or the midnight sign-out) it greets the shop with the
+ * after signing out it greets the shop with the
  * number it knows, masked, and "Use another number", and asks for the MPIN
  * alone, as Log In always has. "Use another number" drops that number, and
  * a new one goes through the mockup's steps above. Coming back from Forgot
@@ -113,6 +114,8 @@ export default function BusinessLoginScreen() {
   // one (which proves the number with its own code). Looked up a beat after
   // the tenth digit lands, so typing does not fire a request per keystroke.
   const [phoneHasMpin, setPhoneHasMpin] = useState<boolean | null>(null);
+  // That answer, kept with its number, so Send code does not ask again.
+  const phoneStatusRef = useRef<{ phone: string; status: PhoneStatus } | null>(null);
   useEffect(() => {
     if (lookupPhone.length !== 10) {
       setPhoneHasMpin(null);
@@ -121,6 +124,7 @@ export default function BusinessLoginScreen() {
     let cancelled = false;
     const timer = setTimeout(() => {
       void fetchPhoneStatus(lookupPhone).then((status) => {
+        if (status) phoneStatusRef.current = { phone: lookupPhone, status };
         if (cancelled) return;
         setPhoneHasMpin(status && status.registered ? status.hasMpin : null);
       });
@@ -146,6 +150,8 @@ export default function BusinessLoginScreen() {
 
   const [mpin, setMpin] = useState(handedBackMpin);
   const [invalid, setInvalid] = useState(false);
+  // A refusal that is not a wrong MPIN, in words the person can act on.
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [shakeStyle, triggerShake] = useShake();
 
@@ -166,13 +172,16 @@ export default function BusinessLoginScreen() {
     try {
       // No text to a number no account uses; an account from before MPINs
       // goes to set one, which proves the number with its own code.
-      const status = await fetchPhoneStatus(lookupPhone);
+      const known = phoneStatusRef.current;
+      const status = known?.phone === lookupPhone ? known.status : await fetchPhoneStatus(lookupPhone);
       if (status && !status.registered) {
         setPhoneError('No account uses this number. Create an account below.');
         triggerShake();
         return;
       }
       if (status && status.registered && status.hasMpin === false) {
+        // Coming back from setting one, the number is asked about afresh.
+        phoneStatusRef.current = null;
         router.push({
           pathname: '/login/set-mpin',
           params: { phone: lookupPhone, mode: 'first' },
@@ -190,6 +199,7 @@ export default function BusinessLoginScreen() {
       setOtpVerified(false);
       setMpin('');
       setInvalid(false);
+      setLoginError(null);
       setResendIn(RESEND_AFTER_SECONDS);
     } finally {
       setSending(false);
@@ -206,6 +216,7 @@ export default function BusinessLoginScreen() {
     setOtpVerified(false);
     setMpin('');
     setInvalid(false);
+    setLoginError(null);
   };
 
   const verifyCode = async (code: string) => {
@@ -250,21 +261,32 @@ export default function BusinessLoginScreen() {
     try {
       const result = await loginBusiness(loginPhone, { mpin: submittedMpin });
 
-      // The account exists but has no MPIN — everyone who registered before
-      // MPINs did. Send them to set one rather than showing them an error
-      // about a credential they were never given.
-      if (result.code === 'MPIN_NOT_SET') {
-        setMpin('');
-        router.push({
-          pathname: '/login/set-mpin',
-          params: { phone: loginPhone, mode: 'first' },
-        } as unknown as Href);
-        return;
-      }
-
       if (!result.success || !result.data) {
+        const failure = classifyLoginFailure(result.code);
         setMpin('');
-        setInvalid(true);
+
+        // The account exists but has no MPIN — everyone who registered before
+        // MPINs did. Send them to set one rather than showing them an error
+        // about a credential they were never given.
+        if (failure === 'owner-mpin-not-set') {
+          router.push({
+            pathname: '/login/set-mpin',
+            params: { phone: loginPhone, mode: 'first' },
+          } as unknown as Href);
+          return;
+        }
+
+        // An employee's MPIN is their owner's to set, never through the
+        // owner's set-MPIN screen: say who to ask, and stay here.
+        if (failure === 'employee-mpin-not-set') {
+          setLoginError(EMPLOYEE_MPIN_NOT_SET_MESSAGE);
+        } else if (failure === 'refused' && result.error) {
+          // A named refusal — a revoked employee, say — in the server's words.
+          setLoginError(result.error);
+        } else {
+          setLoginError(null);
+          setInvalid(true);
+        }
         triggerShake();
         return;
       }
@@ -275,6 +297,10 @@ export default function BusinessLoginScreen() {
         setRefreshToken(payload.refreshToken);
       }
 
+      // An employee signs in here too, with the number and MPIN their owner
+      // set. The session is theirs from this point: the dashboard loads
+      // their own record (GET /employees answers an employee with themself)
+      // and every permission gate reads it, matched by this phone number.
       const backendRole = payload.role;
       if (backendRole === 'EMP') {
         setUserRole('employee');
@@ -402,6 +428,7 @@ export default function BusinessLoginScreen() {
                   onChange={(next) => {
                     setMpin(next);
                     setInvalid(false);
+                    setLoginError(null);
                   }}
                   autoFocus
                   onComplete={(complete) => void handleLogin(complete)}
@@ -423,6 +450,7 @@ export default function BusinessLoginScreen() {
               </Reveal>
 
               {invalid ? <AuthErrorText center>Incorrect MPIN.</AuthErrorText> : null}
+              {loginError ? <AuthErrorText center>{loginError}</AuthErrorText> : null}
 
               <Reveal d={1}>
                 <AuthPrimaryButton

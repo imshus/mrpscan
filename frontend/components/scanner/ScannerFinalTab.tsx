@@ -24,6 +24,7 @@ import type {
   StoneEntry,
   StructuredScanData,
 } from '@/types/scanner';
+import { DEFAULT_WASTAGE_WEIGHT_BASIS } from '@/constants/wastage';
 import { resolveScannedKarat } from '@/utils/formulaUtils';
 import { formatIndianCurrency } from '@/utils/scanPriceCalculation';
 import { OtherChargesSection } from '@/components/scanner/OtherChargesSection';
@@ -89,7 +90,7 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
   onStoneEntryChange,
   onRateErrorChange,
   showLabourValidation = false,
-  gstNote = 'MRP = Gold + Stones + Labour + Other Charges (server verified)',
+  gstNote = 'MRP = Gold + Stones + Labour + Wastage + Other Charges (server verified)',
   calculationRateAccess = 'both',
   clubDiamonds = false,
   highlightMissingStones = false,
@@ -212,12 +213,14 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
         labourChargeAmount: scanData.labourChargeAmount,
         labourChargeUnit: scanData.labourChargeUnit,
         labourWeightBasis: scanData.labourWeightBasis,
+        labourCode: scanData.labourCode,
       }),
     [
       scanData.labourPurityPercent,
       scanData.labourChargeAmount,
       scanData.labourChargeUnit,
       scanData.labourWeightBasis,
+      scanData.labourCode,
     ],
   );
 
@@ -234,6 +237,11 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
       }
       if (values.labourWeightBasis !== undefined) {
         onFieldChange?.('labourWeightBasis', values.labourWeightBasis);
+      }
+      // A Masters -> Labour Code picked on the tile: its rate and unit came
+      // in the same change, above.
+      if (values.labourCode !== undefined) {
+        onFieldChange?.('labourCode', values.labourCode);
       }
     },
     [onFieldChange],
@@ -257,6 +265,10 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
           goldTaxSettings={goldTaxSettings}
           mcxLiveRate={mcxLiveRate}
           backendGoldAmount={pricing.goldBasePrice}
+          // The rate and pure weight from the same answer as the amount.
+          backendGoldRatePerGram={pricing.goldRatePerGram}
+          backendPureWeight={pricing.pureWtGrams}
+          backendPurityPercent={pricing.effectivePurityPercent}
           calculationMode={scanData.calculationRate}
           calculationRateAccess={calculationRateAccess}
           editable
@@ -343,10 +355,15 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
         <LaborSection
           values={laborValues}
           onChange={handleLaborChange}
+          // Only a Masters -> Labour Code the server priced with (picked, or
+          // matched on the tag); none reads as '—'.
+          code={pricing.labourCode || undefined}
           grossWeightGrams={scanData.grossWt}
           netWeightGrams={scanData.netWt}
+          labourAmount={pricing.labourAmount}
           pureWeightDisplay={pricing.pureWtDisplay}
           goldAmountDisplay={pricing.goldBasePriceDisplay}
+          goldAmount={pricing.goldBasePrice}
           missing={highlightMissingStones}
         />
         </View>
@@ -365,11 +382,24 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
         editable={editable}
         percentOverride={scanData.wastagePercent}
         onPercentChange={(text) => onFieldChange?.('wastagePercent', text)}
+        // Left empty: nothing typed, so the item's or the code's figure shows
+        // in the box again (and is what the server prices).
+        onPercentReset={() => onFieldChange?.('wastagePercent', undefined)}
         selectedCode={scanData.wastageCode}
         onCodeChange={(code, percent) => {
           onFieldChange?.('wastageCode', code);
-          onFieldChange?.('wastagePercent', percent === null ? '' : String(percent));
+          // A code without a percent leaves the box to the priced figure.
+          onFieldChange?.('wastagePercent', percent === null ? undefined : String(percent));
         }}
+        // The review screen shows the scan's choice; the results view the
+        // weight the server priced with (a price before pricing rules 3
+        // carries none, and was on the net weight).
+        weightBasis={
+          editable
+            ? scanData.wastageWeightBasis || DEFAULT_WASTAGE_WEIGHT_BASIS
+            : pricing.wastageWeightBasis || DEFAULT_WASTAGE_WEIGHT_BASIS
+        }
+        onWeightBasisChange={(basis) => onFieldChange?.('wastageWeightBasis', basis)}
       />
 
       {editable ? (
@@ -404,6 +434,9 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
               : undefined
           }
           labourAmount={pricing.labourDisplay}
+          wastageAmount={
+            (pricing.wastageAmount ?? 0) > 0 ? pricing.wastageDisplay : undefined
+          }
           otherChargesTotal={
             pricing.otherChargesAmount > 0 ? pricing.otherChargesDisplay : undefined
           }

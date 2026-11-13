@@ -2,6 +2,7 @@ import { apiRequest, ApiError } from '@/utils/apiClient';
 import { unwrapApiData } from '@/utils/apiResponse';
 import type { BusinessLoginResponse } from '@/types/auth';
 import { normalizeGstNumber } from '@/utils/validation';
+import { friendlyServerMessage } from '@/utils/serverMessages';
 
 type ApiEnvelope<T extends Record<string, unknown>> = T & {
   success?: boolean;
@@ -291,9 +292,12 @@ export async function verifyLoginOtp(
  * MPIN?". Null on any failure or on a server from before the field existed,
  * which the screen reads as "assume the usual" and keeps the forgot link.
  */
-export async function fetchPhoneStatus(
-  mobile: string,
-): Promise<{ registered: boolean; hasMpin: boolean } | null> {
+export interface PhoneStatus {
+  registered: boolean;
+  hasMpin: boolean;
+}
+
+export async function fetchPhoneStatus(mobile: string): Promise<PhoneStatus | null> {
   try {
     const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>(
       '/auth/check-availability',
@@ -691,6 +695,11 @@ export async function registerBusiness(payload: {
  * A `code` of MPIN_NOT_SET means the account is real but has no MPIN yet —
  * every account created before this — and the screen sends it to set one over
  * an OTP rather than reporting a wrong credential.
+ *
+ * The same call signs an employee in when the number is their login: `role`
+ * comes back 'EMP' and the token carries their shop and permissions.
+ * EMPLOYEE_MPIN_NOT_SET is that employee with no MPIN yet, which only their
+ * owner can set.
  */
 export async function loginBusiness(
   mobile: string,
@@ -766,8 +775,17 @@ export async function loginBusiness(
       },
     };
   } catch (error) {
+    // A refusal arrives as an HTTP error (409 MPIN_NOT_SET, 401 for a wrong
+    // MPIN, EMPLOYEE_MPIN_NOT_SET for an employee whose owner has not set
+    // one), so the code is read from the error's body. It used to be dropped
+    // here, and every refusal read as "Incorrect MPIN".
+    const body = error instanceof ApiError ? error.body : undefined;
+    const bodyCode =
+      body && typeof body === 'object' ? (body as Record<string, unknown>).error : undefined;
     return {
       success: false,
+      code:
+        typeof bodyCode === 'string' && /^[A-Z][A-Z0-9_]+$/.test(bodyCode) ? bodyCode : undefined,
       error: error instanceof ApiError ? error.message : 'Login failed.',
     };
   }
@@ -974,3 +992,4 @@ export async function changeUserPassword(currentPassword: string, newPassword: s
     };
   }
 }
+

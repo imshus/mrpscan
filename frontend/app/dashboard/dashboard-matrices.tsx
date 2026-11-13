@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -12,6 +12,7 @@ import { DropdownOption } from '@/components/settings/SettingsDropdown';
 import { MasterNavList } from '@/components/dashboard/masters/MasterNavList';
 import type { MasterNavItem } from '@/constants/settingsMasters';
 import {
+  DEFAULT_MATRIX_VALUES,
   GOLD_MATRIX_SECTIONS,
   OPENING_MATRIX_KEYS,
   type MatrixKey,
@@ -27,6 +28,20 @@ import {
   updateBullionSources,
   type BullionSources,
 } from '@/utils/bullionApi';
+import {
+  bullionSaveBody,
+  choiceOnFailed,
+  choiceOnLoaded,
+  choiceOnSaved,
+  choiceOnTap,
+  initialBullionChoice,
+  initialBullionSaveQueue,
+  queueOnSettled,
+  queueOnTap,
+  type BullionChoice,
+  type BullionSaveJob,
+} from '@/utils/bullionChoice';
+import { isHouseOnList } from '@/utils/bullionNames';
 import { updateDashboardMatrices } from '@/utils/matricesApi';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 
@@ -49,27 +64,12 @@ const RATE_OPTIONS: RateOption[] = GOLD_MATRIX_SECTIONS.flatMap((section) =>
   })),
 );
 
-const DEFAULT_DASHBOARD_MATRIX_VALUES: DashboardMatrixValues = {
-  '24k_mcx': true,
-  '24k_rtgs': false,
-  '24k_cash': false,
-  '22k_rtgs': false,
-  '22k_cash': false,
-  '20k_rtgs': false,
-  '20k_cash': false,
-  '18k_rtgs': false,
-  '18k_cash': false,
-  '14k_rtgs': false,
-  '14k_cash': false,
-  '9k_rtgs': false,
-  '9k_cash': false,
-  'bhaw_source_jmd': false,
-};
-
 function normalizeMatrixValues(values: Record<string, boolean> | null | undefined): DashboardMatrixValues {
-  // Nothing saved yet means every rate is on, 24K included.
+  // The app's defaults (constants/dashboardMatrices): this screen kept its own
+  // copy, whose bhaw_source_jmd was still false — Mega Bullion — after the
+  // shop asked for JMD Patil by default.
   const merged: DashboardMatrixValues = {
-    ...DEFAULT_DASHBOARD_MATRIX_VALUES,
+    ...DEFAULT_MATRIX_VALUES,
     ...(values ?? {}),
   };
   // Nothing selected at all is a blank dashboard, which nobody chooses: the
@@ -113,14 +113,16 @@ export default function DashboardMatricesScreen() {
   const [draft, setDraft] = useState<DashboardMatrixValues>(() => normalizeMatrixValues(storedValues));
   // One menu at a time, so a long karat list never hides the field above it.
   const [openMenu, setOpenMenu] = useState<'bullion' | 'karat' | null>(null);
-  // The houses to choose from: the two on the live feed, plus the shop's own.
+  // The houses to choose from: every house on the live feed (the server's
+  // list, by key and feed name), plus the names the shop has asked for.
   const [bullion, setBullion] = useState<BullionSources | null>(null);
-  // The live boards behind the cards. Polling is shared with Home, so opening
-  // this screen costs one request rather than a second feed.
+  // The live boards behind the cards. The stream connection is shared with
+  // Home, so opening this screen opens no second connection; it is held
+  // only while this screen is in focus.
   const vendors = useBhawStore((state) => state.vendors);
   const bhawProvider = useBhawStore((state) => state.provider);
   const startBhawPolling = useBhawStore((state) => state.startPolling);
-  useEffect(() => startBhawPolling(), [startBhawPolling]);
+  useFocusEffect(useCallback(() => startBhawPolling(), [startBhawPolling]));
   useEffect(() => {
     void useBhawStore.getState().hydrateProvider();
   }, []);
@@ -130,9 +132,12 @@ export default function DashboardMatricesScreen() {
   // What the popup is saying. It stays until its cross (or a tap) closes it.
   const [popup, setPopup] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
-  // The tap whose server answer still counts; an earlier tap's late answer
-  // must not undo a later one.
-  const bullionSaveSeq = useRef(0);
+  // Where the tick stands with the server: the last house it confirmed and
+  // the tap whose answer still counts (utils/bullionChoice). An earlier
+  // tap's late answer, or the GET's, must not undo a later tap.
+  const bullionChoice = useRef<BullionChoice>(initialBullionChoice());
+  // One save out at a time, in tap order (utils/bullionChoice queueOnTap).
+  const bullionSaves = useRef(initialBullionSaveQueue());
 
   // Saves of this screen still on their way to the server. While any is,
   // the store does not feed the draft: an earlier tap's answer landing
@@ -153,11 +158,19 @@ export default function DashboardMatricesScreen() {
     let cancelled = false;
     void fetchBullionSources().then((loaded) => {
       if (cancelled || !loaded) return;
-      setBullion(loaded);
       // The server's record is the house scans are priced on, so the tick
       // (and every rate on the phone) follows it, not a stamp this phone
-      // made before the server had answered.
-      if (loaded.selected) useBhawStore.getState().setProvider(loaded.selected);
+      // made before the server had answered — unless a house was tapped
+      // while this was on its way: the tap is newer, and its own save
+      // settles the tick.
+      const { choice, follow } = choiceOnLoaded(bullionChoice.current, loaded.selected);
+      bullionChoice.current = choice;
+      if (follow) {
+        setBullion(loaded);
+        useBhawStore.getState().setProvider(follow);
+      } else {
+        setBullion({ ...loaded, selected: useBhawStore.getState().provider || loaded.selected });
+      }
     });
     return () => {
       cancelled = true;
@@ -220,41 +233,64 @@ export default function DashboardMatricesScreen() {
 
   if (!allowed) return null;
 
+  /** The phone follows `key`: the tick, every rate on the phone, and the older toggle kept in step. */
+  const followHouse = (key: string) => {
+    useBhawStore.getState().setProvider(key);
+    if (!key) return;
+    useMatricesStore.setState((state) => ({
+      values: { ...state.values, bhaw_source_jmd: key === 'jmd_patil' },
+    }));
+  };
+
   const selectBullion = (key: string) => {
     setOpenMenu(null);
     if (selectedSource === key) return;
 
     // The phone follows the house at once — the tick and every rate on the
     // phone are driven from here — and the server records it behind. If the
-    // server refuses, or cannot be reached, the phone goes back to the house
-    // the server still prices on, and says so.
-    const previousProvider = useBhawStore.getState().provider;
-    const previousJmd = useMatricesStore.getState().values.bhaw_source_jmd;
-    const previous = bullion;
-    const attempt = (bullionSaveSeq.current += 1);
-    useBhawStore.getState().setProvider(key);
-    useMatricesStore.setState((state) => ({
-      values: { ...state.values, bhaw_source_jmd: key === 'jmd_patil' },
-    }));
-    if (bullion) setBullion({ ...bullion, selected: key });
+    // server refuses, or cannot be reached, the phone goes back to the last
+    // house the server confirmed (not the one before this tap, which may
+    // itself have been an unsaved tap), and says so.
+    const tapped = choiceOnTap(bullionChoice.current, useBhawStore.getState().provider);
+    bullionChoice.current = tapped.choice;
+    const { attempt } = tapped;
+    followHouse(key);
+    setBullion((current) => (current ? { ...current, selected: key } : current));
 
-    void updateBullionSources({ selected: key, requestedNames: bullion?.requestedNames ?? [] })
+    const queued = queueOnTap(bullionSaves.current, { key, attempt });
+    bullionSaves.current = queued.queue;
+    if (queued.send) sendBullionSave(queued.send);
+  };
+
+  /** One tap's save; when it answers, the tap held behind it (if any) goes. */
+  const sendBullionSave = ({ key, attempt }: BullionSaveJob) => {
+    // Before the list has loaded the shop's requested names are unknown: they
+    // are left out, and the server keeps them.
+    void updateBullionSources(bullionSaveBody(key, bullion?.requestedNames))
       .then((saved) => {
-        if (attempt !== bullionSaveSeq.current) return;
-        setBullion(saved);
+        const { choice, follow } = choiceOnSaved(bullionChoice.current, attempt, saved.selected);
+        bullionChoice.current = choice;
         // Home and Gold Rate Settings read the server's rates for the house
         // it now prices on.
         store.dispatch(goldRatesApi.util.invalidateTags(['GoldRates']));
+        // A later tap still on its way settles the tick itself.
+        if (!follow) return;
+        setBullion(saved);
+        followHouse(follow);
       })
       .catch(() => {
+        const { choice, revertTo } = choiceOnFailed(bullionChoice.current, attempt);
+        bullionChoice.current = choice;
         // A later tap has already moved on; its own answer settles things.
-        if (attempt !== bullionSaveSeq.current) return;
-        useBhawStore.getState().setProvider(previousProvider);
-        useMatricesStore.setState((state) => ({
-          values: { ...state.values, bhaw_source_jmd: previousJmd },
-        }));
-        if (previous) setBullion(previous);
+        if (revertTo === null) return;
+        followHouse(revertTo);
+        setBullion((current) => (current ? { ...current, selected: revertTo } : current));
         setPopup({ text: 'That change could not be saved. Please try again.', tone: 'error' });
+      })
+      .finally(() => {
+        const next = queueOnSettled(bullionSaves.current);
+        bullionSaves.current = next.queue;
+        if (next.send) sendBullionSave(next.send);
       });
   };
 
@@ -265,14 +301,19 @@ export default function DashboardMatricesScreen() {
    */
   const addBullion = async (name: string): Promise<string | null> => {
     if (!bullion) return 'The bullion houses are still loading.';
-    const known = [...bullion.houses.map((house) => house.label), ...bullion.requestedNames];
-    if (known.some((existing) => existing.toLowerCase() === name.toLowerCase())) {
+    // Every house on the feed is on the list already, whatever the case or
+    // spacing it is typed in ("smd bullion" is SMD Bullion): it is picked
+    // above, not asked for. The server reads names the same way.
+    const cards = vendors.map((vendor) => ({ key: String(vendor.source), label: vendor.name }));
+    if (isHouseOnList(name, [...bullion.houses, ...cards], bullion.requestedNames)) {
       return 'That bullion house is already on your list.';
     }
 
     try {
+      // No house sent: the server keeps the one followed. Sending the house
+      // shown recorded it as chosen — a shop that had never chosen was
+      // saved on whatever house it happened to be shown.
       const saved = await updateBullionSources({
-        selected: bullion.selected,
         requestedNames: [...bullion.requestedNames, name],
       });
       setBullion(saved);

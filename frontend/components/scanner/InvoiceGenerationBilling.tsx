@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -41,6 +41,12 @@ interface InvoiceGenerationBillingProps {
   colorstones: StoneEntry[];
   scanId?: string | null;
   readOnly?: boolean;
+  /**
+   * Bumped each time Preview Invoice is refused for a missing name or
+   * phone: both show their red state, and the first one missing takes the
+   * cursor.
+   */
+  missingTick?: number;
 }
 
 function SectionHeader({
@@ -84,6 +90,7 @@ function ValidatedInput({
   autoCapitalize = 'sentences',
   maxLength,
   placeholder,
+  inputRef,
 }: {
   label: string;
   value: string;
@@ -96,11 +103,13 @@ function ValidatedInput({
   maxLength?: number;
   /** Example text per the mockup, e.g. "e.g. Garg Jewellers". */
   placeholder?: string;
+  inputRef?: Ref<TextInput>;
 }) {
   return (
     <View className="mb-3">
       <FieldLabel label={label} required={required} />
       <TextInput
+        ref={inputRef}
         value={value}
         onChangeText={onChangeText}
         keyboardType={keyboardType}
@@ -268,6 +277,7 @@ export function InvoiceGenerationBilling({
   colorstones,
   scanId = null,
   readOnly = false,
+  missingTick = 0,
 }: InvoiceGenerationBillingProps) {
   const { width } = useWindowDimensions();
   const isWideLayout = width >= 720;
@@ -293,6 +303,19 @@ export function InvoiceGenerationBilling({
     name: false,
     address: false,
   });
+  const nameRef = useRef<TextInput>(null);
+  const phoneRef = useRef<TextInput>(null);
+
+  // Preview Invoice refused: no popup (the owner's ask). Both required
+  // fields show what is wrong with them, and the first one wrong takes the
+  // cursor, which brings it on screen.
+  useEffect(() => {
+    if (missingTick === 0 || readOnly) return;
+    setTouched((current) => ({ ...current, name: true, phone: true }));
+    const { customerName, customerPhone } = useInvoiceStore.getState().customer;
+    if (!customerName.trim()) nameRef.current?.focus();
+    else if (customerPhone.trim().length !== 10) phoneRef.current?.focus();
+  }, [missingTick, readOnly]);
 
   useEffect(() => {
     let cancelled = false;
@@ -407,6 +430,7 @@ export function InvoiceGenerationBilling({
                   }}
                   required
                   error={nameError}
+                  inputRef={nameRef}
                 />
                 <ValidatedInput
                   label="Mobile Number"
@@ -419,6 +443,7 @@ export function InvoiceGenerationBilling({
                   maxLength={10}
                   required
                   error={phoneError}
+                  inputRef={phoneRef}
                 />
               </View>
               <View className={isWideLayout ? 'w-[48%]' : 'w-full'}>

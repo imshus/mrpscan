@@ -176,6 +176,46 @@ export async function fetchSubscriptionOverview(): Promise<SubscriptionOverview>
   return toOverview(unwrapped);
 }
 
+/** What an employee may see of the shop's plan: the Home tile's figures. */
+export type SubscriptionSummary = Pick<
+  SubscriptionOverview,
+  | 'status'
+  | 'trialStatus'
+  | 'trialEndDate'
+  | 'trialExpiredAt'
+  | 'trialDaysRemaining'
+  | 'applicationPurchased'
+  | 'creditBalance'
+>;
+
+/**
+ * The shop's plan and credit balance, for anyone signed in to the shop —
+ * employees included, for whom /subscription/overview stays closed. Nothing
+ * about payments comes with it.
+ */
+export async function fetchSubscriptionSummary(): Promise<SubscriptionSummary> {
+  const response = await apiRequest<ApiEnvelope<Record<string, unknown>>>('/subscription/summary', {
+    method: 'GET',
+  });
+  const unwrapped = unwrapEnvelope(response);
+  if (!isSuccessfulResponse(response, unwrapped)) {
+    throw new Error(resolveApiMessage(response, unwrapped, 'Failed to load subscription summary.'));
+  }
+  const overview = toOverview(unwrapped);
+  // The summary states the trial's end as trialStatus rather than a
+  // trialExpiredAt date; the tile reads "ended" off either.
+  const expired = unwrapped.trialStatus === 'EXPIRED';
+  return {
+    status: overview.status,
+    trialStatus: expired ? 'EXPIRED' : overview.trialStatus,
+    trialEndDate: overview.trialEndDate,
+    trialExpiredAt: overview.trialExpiredAt ?? (expired ? overview.trialEndDate ?? new Date().toISOString() : null),
+    trialDaysRemaining: overview.trialDaysRemaining,
+    applicationPurchased: overview.applicationPurchased,
+    creditBalance: overview.creditBalance,
+  };
+}
+
 /**
  * Starts the free trial and returns what the server actually granted: the
  * window it runs for and the credits now in the wallet. The screens say those
