@@ -77,7 +77,7 @@ History and Wishlist show something.
 > the camera frame, choose the attached image "sample-tag-GR10286.jpg" (or
 > point the camera at it on another screen), then tap "Calculate directly".
 > The result card shows the reading and the MRP; "Generate Invoice" makes the
-> invoice. Ask AI in the bottom bar is a voice assistant for help with the app
+> invoice. 24/7 in the bottom bar is a voice assistant for help with the app
 > (it asks for permission before the first call).
 >
 > CREDITS AND THE LICENCE (business accounts only)

@@ -63,7 +63,7 @@ FOR THE WHOLE TEAM
 • History keeps every scanned tag, wishlist and invoice.
 
 HELP WHEN YOU NEED IT
-• Ask AI, the voice assistant in the bottom bar, answers questions about the
+• 24/7, the voice assistant in the bottom bar, answers questions about the
   app in Hindi, English or Hinglish and walks you through each step.
 • FAQs in English and Hindi.
 
@@ -88,5 +88,5 @@ rates, and make GST invoices.
 Answer "None" or "No" to every question. The app has no user-generated content
 shared with other users, no web browsing, no gambling or contests, and no
 mature themes. If the questionnaire asks about AI assistants, answer it as
-it stands: Ask AI is a voice assistant that answers questions about using the
+it stands: 24/7 is a voice assistant that answers questions about using the
 app.

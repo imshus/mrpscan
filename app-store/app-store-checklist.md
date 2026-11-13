@@ -17,7 +17,7 @@ Apple's reviewer uses the live servers, so they must run the new code.
   REVIEW_LOGIN_OTP=123456
   ```
 
-- **Ask AI voice agent (prathamai.mrpscan.com).** Deploy `Dynamic Voice Agent`
+- **24/7 voice agent (prathamai.mrpscan.com).** Deploy `Dynamic Voice Agent`
   commit `b435795`, so an iPhone caller is never told prices or how to pay.
 
 - Make the demo shop and give it the licence: see
@@ -29,7 +29,7 @@ Apple checks that the policy names who gets the data (rule 5.1.2(i)).
 Add under "Jewellery Images and AI/OCR Processing" and a new section:
 
 > **AI service providers.** Tag photos you scan are sent to OpenAI, which reads
-> the tag's text and figures for us. When you use the Ask AI voice assistant,
+> the tag's text and figures for us. When you use the 24/7 voice assistant,
 > what you say during the call is sent to Deepgram (speech to text), OpenAI
 > (the answer) and ElevenLabs (the spoken reply). The app asks for your
 > permission before the first call.
@@ -54,7 +54,7 @@ purpose **App Functionality**.
 | Contact Info | Physical Address | shop address (GST), invoice customers |
 | Contact Info | Email Address | invoice email to a customer (only if used) |
 | User Content | Photos or Videos | tag photos |
-| User Content | Audio Data | Ask AI voice assistant |
+| User Content | Audio Data | 24/7 voice assistant |
 | User Content | Other User Content | invoices, wishlist, masters |
 | Identifiers | User ID | account ID |
 | Purchases | Purchase History | licence and credit history shown in the app |
@@ -91,6 +91,6 @@ npx eas-cli submit -p ios --latest
 
 Install it from TestFlight on an iPhone and check: demo login (9999999999 →
 123456 → 1234), a scan from the gallery, an invoice, Settings → Privacy
-Policy, the Ask AI call (consent prompt first), and that no screen shows a
+Policy, the 24/7 call (consent prompt first), and that no screen shows a
 price, Purchase or Recharge. Take the screenshots there (6.9" iPhone,
 1320 × 2868), then **Add for Review**.
