@@ -18,7 +18,7 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 import { canPurchaseInApp } from '@/utils/platformCommerce';
 import { fetchReferralOverview, type ReferralOverview } from '@/utils/referralApi';
 
-const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.mrpscan';
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.amitaashitsolutions';
 
 /**
  * The Play Store link with the sender's code and the offer it was shared
