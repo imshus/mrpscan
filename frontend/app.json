@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.amitaashitsolutions",
+      "bundleIdentifier": "com.amitaashitsolution",
       "buildNumber": "227",
       "icon": "./assets/images/ios-icon.png",
       "infoPlist": {

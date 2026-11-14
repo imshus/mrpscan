@@ -63,8 +63,8 @@ purpose **App Functionality**.
 ## 4. App Store Connect → App Information and version
 
 - **New app record:** App Store Connect → Apps → + → New App, platform iOS,
-  **Bundle ID `com.amitaashitsolutions`** (the same ID as the Play Store
-  app). Register it under Certificates,
+  **Bundle ID `com.amitaashitsolution`** (no "s"; the Play Store app is
+  `com.amitaashitsolutions`). Register it under Certificates,
   Identifiers & Profiles first if the list does not offer it; the first EAS
   build can also create it.
 
