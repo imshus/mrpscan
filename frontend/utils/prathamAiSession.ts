@@ -168,6 +168,6 @@ async function voiceConsentGiven(): Promise<boolean> {
 function notConfigured(): void {
   Alert.alert(
     '24/7',
-    'The 24/7 agent is not set up yet. Set PRATHAM_AI_URL on the server, or EXPO_PUBLIC_PRATHAM_AI_URL in the app.',
+    '24/7 is not available right now. Please try again later.',
   );
 }
