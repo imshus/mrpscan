@@ -8,7 +8,7 @@
     "scheme": "pratham",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "com.amitaashitsolution",
       "buildNumber": "227",
       "icon": "./assets/images/ios-icon.png",
