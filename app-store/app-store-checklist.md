@@ -1,6 +1,7 @@
 # MRPscan — App Store checklist (what is left for you)
 
-The app side is done (iPhone-only build, permission texts, privacy manifest,
+The app side is done (iPhone and iPad, as the live 1.0.227 is: an update may
+not drop iPad, Apple ITMS-90101; permission texts, privacy manifest,
 no buying on iPhone, Privacy Policy in Settings, voice consent, demo login).
 These steps are yours, in this order.
 
