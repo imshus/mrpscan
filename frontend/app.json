@@ -4,7 +4,7 @@
     "slug": "pratham",
     "version": "1.0.388",
     "orientation": "portrait",
-    "icon": "./assets/images/app-logo.jpeg",
+    "icon": "./assets/images/ios-icon.png",
     "scheme": "pratham",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -52,7 +52,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/app-logo.jpeg",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
