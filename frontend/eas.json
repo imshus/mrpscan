@@ -29,7 +29,7 @@
       },
       "ios": {
         "autoIncrement": true,
-        "image": "latest"
+        "image": "sdk-54"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://appapi.mrpscan.com",
