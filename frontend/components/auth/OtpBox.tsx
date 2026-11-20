@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   overlayInput: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     // iOS leaves a view under 0.01 opacity out of tap handling, and 0.01
     // lands a hair under it once stored as a float: there the field could not
     // be tapped back into after the keyboard closed. Android keeps its 0.01.

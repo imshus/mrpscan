@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   },
   eye: { padding: 6 },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     // iOS leaves a view under 0.01 opacity out when it looks for what was
     // tapped (0.01 itself lands a hair under once stored as a float), so a
     // fully clear field could never be tapped into: a box without autoFocus,

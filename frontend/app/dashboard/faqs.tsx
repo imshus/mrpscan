@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   menuScrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 18,
   },
   menu: {
