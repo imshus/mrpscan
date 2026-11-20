@@ -16,26 +16,17 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { canPurchaseInApp } from '@/utils/platformCommerce';
+import { playInviteLink } from '@/utils/playStore';
 import { fetchReferralOverview, type ReferralOverview } from '@/utils/referralApi';
-
-const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.amitaashitsolutions';
-
-/**
- * The Play Store link with the sender's code and the offer it was shared
- * under riding along as the referrer, in the key=value form Play keeps:
- * invite50 for the 50-credit invite, purchase500 for the 500-credit
- * purchase referral — so each share can be told apart later.
- */
-const inviteLink = (code: string, offer: 'invite50' | 'purchase500') =>
-  `${PLAY_STORE_URL}&referrer=${encodeURIComponent(`code=${code}&offer=${offer}`)}`;
 
 /**
  * The invite's link line. On iPhone there is none: an iOS app may not point
  * people at another platform's store (App Store rule 2.3.10), and the code
- * alone is what the new shop types in at sign-up.
+ * alone is what the new shop types in at sign-up. playInviteLink itself is
+ * platform-resolved, so the Play URL is not even bundled there.
  */
 const inviteLinkLine = (code: string, offer: 'invite50' | 'purchase500') =>
-  canPurchaseInApp() ? `: ${inviteLink(code, offer)}` : '.';
+  canPurchaseInApp() ? `: ${playInviteLink(code, offer)}` : '.';
 
 export default function EarnInviteScreen() {
   const [overview, setOverview] = useState<ReferralOverview | null>(null);
@@ -78,7 +69,7 @@ export default function EarnInviteScreen() {
       await Share.share({
         message:
           `Get MRPscan for your jewellery shop — lifetime access, scan tags and bill instantly. ` +
-          `Use my referral code ${overview.referralCode} when you sign up and purchase (${overview.purchaseReward}-credit referral): ${inviteLink(overview.referralCode, 'purchase500')}`,
+          `Use my referral code ${overview.referralCode} when you sign up and purchase (${overview.purchaseReward}-credit referral): ${playInviteLink(overview.referralCode, 'purchase500')}`,
       });
     } catch {
       // Share sheet dismissed; nothing to do.

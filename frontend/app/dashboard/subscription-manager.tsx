@@ -63,7 +63,7 @@ function getRazorpayCheckout(): RazorpayModule | null {
 
 function assertRazorpayReady(): void {
   if (Constants.appOwnership === 'expo') {
-    throw new Error('Razorpay does not work in Expo Go. Please use a development build or preview APK.');
+    throw new Error('Razorpay does not work in Expo Go. Please use a development or release build.');
   }
 
   const RazorpayCheckout = getRazorpayCheckout();
