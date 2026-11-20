@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   otpOverlayInput: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     // iOS leaves a view under 0.01 opacity out when it looks for what was
     // tapped (0.01 itself lands a hair under once stored as a float), so a
     // fully clear field could not be tapped back into after the keyboard

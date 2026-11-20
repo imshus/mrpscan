@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   frameClip: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     overflow: 'hidden',
     borderRadius: 6,
   },

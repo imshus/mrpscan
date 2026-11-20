@@ -1,6 +1,6 @@
-import { requireNativeModule } from 'expo-modules-core';
+import { requireNativeModule } from 'expo';
 import { Platform } from 'react-native';
-import type { EventSubscription } from 'expo-modules-core';
+type EventSubscription = { remove(): void };
 
 interface SmsUserConsentModule {
   startListening(): void;

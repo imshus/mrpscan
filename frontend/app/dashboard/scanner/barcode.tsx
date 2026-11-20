@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from 'expo-router';
 
 import { AdjustableImage, type AdjustableImageRef } from '@/components/scanner/AdjustableImage';
 import { BarcodeOverlay } from '@/components/scanner/BarcodeOverlay';

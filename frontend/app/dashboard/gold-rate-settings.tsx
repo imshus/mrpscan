@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   savingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: Radius.card,
     backgroundColor: 'rgba(255,255,255,0.2)',
   },

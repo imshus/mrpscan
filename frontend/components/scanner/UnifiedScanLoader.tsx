@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
     height: PROC_CUBE_HEIGHT,
   },
   face: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,

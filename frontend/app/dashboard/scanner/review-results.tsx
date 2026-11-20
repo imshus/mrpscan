@@ -5,7 +5,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';

@@ -188,7 +188,8 @@ export class PrathamAiCall {
         if (!samples.length) return;
         this.noteMicLevel(samples);
         const pcm = this.toPcm16(samples, event.buffer.sampleRate || PRATHAM_AI_MIC_RATE);
-        if (pcm.length) this.ws.send(pcm.buffer);
+        // toPcm16 builds a fresh Int16Array, so its buffer is a plain ArrayBuffer.
+        if (pcm.length) this.ws.send(pcm.buffer as ArrayBuffer);
       },
     );
     try {
