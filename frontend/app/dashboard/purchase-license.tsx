@@ -61,7 +61,7 @@ const QUICK_AMOUNTS = [50, 100, 250, 500];
 
 function assertRazorpayReady(): void {
   if (Constants.appOwnership === 'expo') {
-    throw new Error('Razorpay does not work in Expo Go. Please use a development build or preview APK.');
+    throw new Error('Razorpay does not work in Expo Go. Please use a development or release build.');
   }
 
   const RazorpayCheckout = getRazorpayCheckout();

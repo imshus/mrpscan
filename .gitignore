@@ -54,3 +54,10 @@ output/
 frontend/credentials/
 # Local signing for `eas build --profile production-cli` (made from credentials/; never committed)
 frontend/credentials.json
+
+# App Store Connect / Apple signing keys — never commit
+*.p8
+*.p12
+*.mobileprovision
+*.keystore
+*.jks
