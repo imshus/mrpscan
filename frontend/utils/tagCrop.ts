@@ -120,9 +120,13 @@ export async function cropToTagBox(image: UprightImage, box: TagBox): Promise<st
   const height = Math.max(1, Math.min(Math.round((bottom - top) * image.height), image.height - originY));
 
   try {
+    // A tag lying vertical (or upside down) is turned so its writing runs
+    // horizontally, after the cut: the same picture as turning first and
+    // cutting after, with the box still measured on the photo as it was.
+    const rotate = box.rotate ?? 0;
     const result = await manipulateAsync(
       image.uri,
-      [{ crop: { originX, originY, width, height } }],
+      [{ crop: { originX, originY, width, height } }, ...(rotate ? [{ rotate }] : [])],
       { compress: 0.92, format: SaveFormat.JPEG },
     );
     return result?.uri ?? null;

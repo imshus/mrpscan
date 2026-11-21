@@ -45,7 +45,7 @@ type ConfirmedCapture = {
  * Generous on purpose — while the server's finder still thinks at full
  * effort, eight seconds abandoned answers that were seconds from landing.
  */
-const AUTO_FRAME_TIMEOUT_MS = 15000;
+const AUTO_FRAME_TIMEOUT_MS = 30000;
 
 /**
  * How long Calculate waits for a finder still running on either side: not
