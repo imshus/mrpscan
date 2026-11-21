@@ -136,6 +136,9 @@ export default function BarcodeScannerScreen() {
 
   const onSecondSide = captureState.step === 'second';
   const backCaptured = Boolean(captureState.back);
+  // The sides' thumbnails: the cut file once it has landed.
+  const heldFrontUri = captureState.front ? captureState.front.uri : onSecondSide ? frontImageUri : null;
+  const heldBackUri = captureState.back?.uri ?? null;
 
   const baseInstruction = pickedPhoto
     ? 'Drag and pinch so only the tag fills the frame'
@@ -433,6 +436,30 @@ export default function BarcodeScannerScreen() {
     ensureScanSession();
   };
 
+  /**
+   * Deletes one side only (the shop's ask: each photo its own delete). Its
+   * photo may already be in the scan session, where a scan without it would
+   * still read it, so — as for a failed retake — that session is let go and
+   * the side still held goes up to a clean one.
+   */
+  const handleRemoveSide = (side: 'front' | 'back') => {
+    if (busy) return;
+    captureTokenRef.current += 1;
+    delete refineRef.current[side];
+    setRefining((current) => ({ ...current, [side]: false }));
+    flow.removeSide(side);
+    if (side === 'front') setFrontImageUri(null);
+    else setBackImageUri(null);
+    if (sessionSlot.releaseIfUsed(side)) {
+      invalidateBackgroundUploads();
+      ensureScanSession();
+      const { front, back } = flow.getState();
+      for (const kept of [front, back]) {
+        if (kept) handleSideReady(kept);
+      }
+    }
+  };
+
   /** Calculate from the capture screen: with the back side when it was taken. */
   const handleCalculateFromCapture = async () => {
     if (busy) return;
@@ -498,7 +525,19 @@ export default function BarcodeScannerScreen() {
         // The gallery for whichever side is next, the back included; gone
         // once both sides are held.
         onUploadPress={pickedPhoto || backCaptured ? undefined : handleUpload}
-        onDeletePress={onSecondSide || pickedPhoto ? handleDiscardScan : undefined}
+        // On the second side the bin deletes the back once it is taken, and
+        // only the back; before that it starts the scan over.
+        onDeletePress={
+          pickedPhoto
+            ? handleDiscardScan
+            : onSecondSide
+              ? backCaptured
+                ? () => handleRemoveSide('back')
+                : handleDiscardScan
+              : undefined
+        }
+        onRemoveFront={onSecondSide && !pickedPhoto ? () => handleRemoveSide('front') : undefined}
+        onRemoveBack={onSecondSide && backCaptured && !pickedPhoto ? () => handleRemoveSide('back') : undefined}
         onCalculatePress={onSecondSide && !pickedPhoto ? handleCalculateFromCapture : undefined}
         calculateDisabled={refining.front || refining.back}
         // The side already taken, ticked, above the frame: the screen asks
@@ -506,15 +545,14 @@ export default function BarcodeScannerScreen() {
         // The capture path holds that side locally until the scan starts, so
         // the store's uri alone left the camera flow with no thumbnail. It
         // appears once the front's cut to the frame has landed.
-        capturedPreviewUri={
-          onSecondSide && !pickedPhoto
-            ? captureState.front
-              ? captureState.front.uri
-              : frontImageUri
-            : undefined
-        }
+        capturedPreviewUri={pickedPhoto ? undefined : (heldFrontUri ?? heldBackUri)}
         // With the back in hand too, front and back sit side by side.
-        capturedBackUri={onSecondSide && !pickedPhoto ? captureState.back?.uri : undefined}
+        capturedBackUri={!pickedPhoto && heldFrontUri ? heldBackUri : undefined}
+        // The lone thumbnail's own delete: the front, or the back the shop
+        // kept after deleting only the front.
+        onRemovePreview={
+          pickedPhoto ? undefined : heldFrontUri ? () => handleRemoveSide('front') : heldBackUri ? () => handleRemoveSide('back') : undefined
+        }
         photoLayer={
           pickedPhoto
             ? (frame) => (

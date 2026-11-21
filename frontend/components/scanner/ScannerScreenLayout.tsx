@@ -168,6 +168,11 @@ interface ScannerScreenLayoutProps {
    * side, front and back, each ticked (the shop's ask).
    */
   capturedBackUri?: string | null;
+  /** Each photo's own delete in the side-by-side pair: front only, back only. */
+  onRemoveFront?: () => void;
+  onRemoveBack?: () => void;
+  /** The lone thumbnail's own delete. */
+  onRemovePreview?: () => void;
   headerContent?: React.ReactNode;
   controlsHidden?: boolean;
   /** Releases the camera while the gallery picker is open. */
@@ -197,6 +202,9 @@ export function ScannerScreenLayout({
   cameraRef,
   capturedPreviewUri,
   capturedBackUri,
+  onRemoveFront,
+  onRemoveBack,
+  onRemovePreview,
   headerContent,
   controlsHidden = false,
   cameraPaused = false,
@@ -360,11 +368,11 @@ export function ScannerScreenLayout({
                 styles.capturedPairRow,
                 { top: Math.max(Math.max(frameTop - 36, 70) - (pairHeight + 34), 64) },
               ]}
-              pointerEvents="none"
+              pointerEvents="box-none"
             >
               {[
-                { uri: capturedPreviewUri, label: 'Front' },
-                { uri: capturedBackUri, label: 'Back' },
+                { uri: capturedPreviewUri, label: 'Front', onRemove: onRemoveFront },
+                { uri: capturedBackUri, label: 'Back', onRemove: onRemoveBack },
               ].map((side) => (
                 <View key={side.label} style={styles.capturedPairItem}>
                   <View>
@@ -376,6 +384,17 @@ export function ScannerScreenLayout({
                     <View style={styles.capturedTick}>
                       <Check size={11} color={Colors.white} strokeWidth={3.2} />
                     </View>
+                    {side.onRemove ? (
+                      <Pressable
+                        onPress={side.onRemove}
+                        hitSlop={10}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Delete the ${side.label.toLowerCase()} photo`}
+                        style={styles.capturedRemove}
+                      >
+                        <Trash2 size={13} color={Colors.white} strokeWidth={2.2} />
+                      </Pressable>
+                    ) : null}
                   </View>
                   <Text style={styles.capturedPairLabel}>{side.label}</Text>
                 </View>
@@ -392,7 +411,7 @@ export function ScannerScreenLayout({
             // the top bar.
             { top: Math.max(Math.max(frameTop - 36, 70) - (SCANNER_THUMB_HEIGHT + 16), 64) },
           ]}
-          pointerEvents="none"
+          pointerEvents="box-none"
         >
           <Image
             source={{ uri: capturedPreviewUri }}
@@ -406,6 +425,17 @@ export function ScannerScreenLayout({
           <View style={styles.capturedTick}>
             <Check size={11} color={Colors.white} strokeWidth={3.2} />
           </View>
+          {onRemovePreview ? (
+            <Pressable
+              onPress={onRemovePreview}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Delete this photo"
+              style={styles.capturedRemove}
+            >
+              <Trash2 size={13} color={Colors.white} strokeWidth={2.2} />
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 
@@ -582,6 +612,18 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.35)',
     backgroundColor: '#1A1712',
+  },
+  // Each photo's own delete, on its lower-right corner.
+  capturedRemove: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#D9291F',
   },
   capturedPairRow: {
     position: 'absolute',
