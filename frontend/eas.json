@@ -29,7 +29,7 @@
       },
       "ios": {
         "autoIncrement": true,
-        "image": "sdk-57"
+        "image": "macos-tahoe-26.6-xcode-27.2"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://appapi.mrpscan.com",

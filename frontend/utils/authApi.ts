@@ -528,7 +528,8 @@ export async function checkRegistrationAvailability(payload: {
           mobile: payload.mobile.replace(/\D/g, '').slice(-10),
           userId: payload.userId.trim(),
         },
-        timeoutMs: 10000,
+        // 10 s gave up on a slow mobile connection before the answer arrived.
+        timeoutMs: 30000,
       },
     );
     const unwrapped = unwrapEnvelope(response);
@@ -572,7 +573,7 @@ export async function lookupAccount(payload: {
       {
         method: 'POST',
         body: { mobile, userId },
-        timeoutMs: 10000,
+        timeoutMs: 30000,
       },
     );
     const unwrapped = unwrapEnvelope(response);
