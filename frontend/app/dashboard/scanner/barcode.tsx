@@ -513,6 +513,8 @@ export default function BarcodeScannerScreen() {
               : frontImageUri
             : undefined
         }
+        // With the back in hand too, front and back sit side by side.
+        capturedBackUri={onSecondSide && !pickedPhoto ? captureState.back?.uri : undefined}
         photoLayer={
           pickedPhoto
             ? (frame) => (

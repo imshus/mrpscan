@@ -163,6 +163,11 @@ interface ScannerScreenLayoutProps {
    * kept, rather than a screen that looks like starting over.
    */
   capturedPreviewUri?: string | null;
+  /**
+   * The back side once it is in hand too: the two are then shown side by
+   * side, front and back, each ticked (the shop's ask).
+   */
+  capturedBackUri?: string | null;
   headerContent?: React.ReactNode;
   controlsHidden?: boolean;
   /** Releases the camera while the gallery picker is open. */
@@ -191,6 +196,7 @@ export function ScannerScreenLayout({
   photoLayer,
   cameraRef,
   capturedPreviewUri,
+  capturedBackUri,
   headerContent,
   controlsHidden = false,
   cameraPaused = false,
@@ -339,7 +345,45 @@ export function ScannerScreenLayout({
         </Text>
       ) : null}
 
-      {capturedPreviewUri && rootSize.height > 0 ? (
+      {capturedPreviewUri && capturedBackUri && rootSize.height > 0 ? (
+        // Both sides in hand: front and back side by side, each half the
+        // width the single thumbnail had room for, in the frame's shape.
+        (() => {
+          const pairWidth = Math.min(
+            SCANNER_THUMB_WIDTH,
+            Math.floor((rootSize.width - 16 * 2 - 12) / 2),
+          );
+          const pairHeight = Math.round(pairWidth * (SCANNER_THUMB_HEIGHT / SCANNER_THUMB_WIDTH));
+          return (
+            <View
+              style={[
+                styles.capturedPairRow,
+                { top: Math.max(Math.max(frameTop - 36, 70) - (pairHeight + 34), 64) },
+              ]}
+              pointerEvents="none"
+            >
+              {[
+                { uri: capturedPreviewUri, label: 'Front' },
+                { uri: capturedBackUri, label: 'Back' },
+              ].map((side) => (
+                <View key={side.label} style={styles.capturedPairItem}>
+                  <View>
+                    <Image
+                      source={{ uri: side.uri }}
+                      style={[styles.capturedThumb, { width: pairWidth, height: pairHeight }]}
+                      resizeMode="contain"
+                    />
+                    <View style={styles.capturedTick}>
+                      <Check size={11} color={Colors.white} strokeWidth={3.2} />
+                    </View>
+                  </View>
+                  <Text style={styles.capturedPairLabel}>{side.label}</Text>
+                </View>
+              ))}
+            </View>
+          );
+        })()
+      ) : capturedPreviewUri && rootSize.height > 0 ? (
         <View
           style={[
             styles.capturedThumbWrap,
@@ -538,6 +582,24 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.35)',
     backgroundColor: '#1A1712',
+  },
+  capturedPairRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    zIndex: 4,
+  },
+  capturedPairItem: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  capturedPairLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.85)',
   },
   capturedTick: {
     position: 'absolute',
