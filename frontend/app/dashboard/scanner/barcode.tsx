@@ -403,11 +403,19 @@ export default function BarcodeScannerScreen() {
       // the screen moves on at once, and the thumbnail, upload and Calculate
       // each wait for the cut themselves. The framed photo is what the shop
       // lined up, and it goes up cut on down to the paper tag inside it, on
-      // the phone (TagCameraPreview): the server's finder does not run behind
-      // a camera capture, at the shop's asking. It still cuts a gallery photo
-      // to its tag, since nobody framed it.
+      // the phone (TagCameraPreview); the server's finder then tightens and
+      // turns that cut below, as it does a gallery photo.
       const held = flow.confirm(ticket.side, 'camera', capture.framed, ticket);
-      if (held) ensureScanSession();
+      if (held) {
+        ensureScanSession();
+        // The shop's later ask: a vertical tag taken with Click is turned
+        // horizontal and adjusted like a gallery photo — the server's finder
+        // runs on the phone's cut once it lands, behind the shop's back.
+        capture.framed.then(
+          (framedUri) => refineSide(held, framedUri),
+          () => undefined,
+        );
+      }
       // Discarded while the camera answered: nobody waits on this cut.
       else capture.framed.catch(() => undefined);
     } finally {
