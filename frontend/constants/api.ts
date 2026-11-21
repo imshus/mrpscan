@@ -2,7 +2,9 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 export const API_V1_PREFIX = '/api/v1';
-const PROD_FALLBACK_API_URL = 'https://amitaash.com';
+// The live API. Used only when a build carries no EXPO_PUBLIC_API_URL; the
+// old fallback, amitaash.com, does not answer API calls, so such a build hung.
+const PROD_FALLBACK_API_URL = 'https://appapi.mrpscan.com';
 
 function getMetroHost(): string | null {
   const hostUri =
@@ -59,8 +61,8 @@ export function resolveApiBaseUrl(): string {
     return fallbackUrl;
   }
 
-  console.log('[API] Falling back to production base:', 'https://amitaash.com');
-  return 'https://amitaash.com';
+  console.log('[API] Falling back to production base:', PROD_FALLBACK_API_URL);
+  return normalizeBaseUrl(PROD_FALLBACK_API_URL);
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
