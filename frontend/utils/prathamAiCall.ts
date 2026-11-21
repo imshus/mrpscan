@@ -117,10 +117,15 @@ export class PrathamAiCall {
     if (this.abandoned()) return;
 
     try {
-      AudioManager.setAudioSessionOptions({
-        iosCategory: 'playAndRecord',
-        iosMode: 'voiceChat',
-        iosOptions: ['defaultToSpeaker', 'allowBluetoothHFP'],
+      AudioManager.setSystemOptions({
+        ios: {
+          category: 'playAndRecord',
+          mode: 'voiceChat',
+          options: ['defaultToSpeaker', 'allowBluetoothHFP'],
+        },
+        // A call, on the loudspeaker as on iOS: the mode Android applies
+        // its echo cancellation in.
+        android: { mode: 'inCommunication', communicationDevice: 'speaker' },
       });
       await AudioManager.setAudioSessionActivity(true);
     } catch {
@@ -175,7 +180,14 @@ export class PrathamAiCall {
   // ── microphone ────────────────────────────────────────────────────────
 
   private startMic(): void {
-    const recorder = new AudioRecorder();
+    // The platform's echo canceller, so the mic does not hear the agent on the
+    // loudspeaker: Android's voice-communication input chain, Apple's voice
+    // processing. (Before 1.0 the library had no setting and its native code
+    // was patched for this.)
+    const recorder = new AudioRecorder({
+      androidInputPreset: 'voiceCommunication',
+      iosVoiceProcessing: true,
+    });
     this.recorder = recorder;
     recorder.onError(() => this.fail('The microphone stopped working.'));
     recorder.onAudioReady(
@@ -418,7 +430,7 @@ export class PrathamAiCall {
     source.start(this.nextPlayTime);
     this.nextPlayTime += buffer.duration;
     this.playing.add(source);
-    source.onEnded = () => {
+    source.onended = () => {
       this.playing.delete(source);
     };
 
