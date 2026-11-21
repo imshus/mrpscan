@@ -3,6 +3,7 @@ import { Animated, AppState, Modal, Pressable, StyleSheet, Text, View } from 're
 import { CloudDownload } from 'lucide-react-native';
 
 import { Colors, Radius } from '@/constants/theme';
+import { notifyUpdateAvailable } from '@/utils/localNotifications';
 import { checkPlayUpdate, startPlayUpdate } from '@/utils/playStore';
 import type { PlayUpdate } from '@/utils/appUpdate.types';
 
@@ -30,7 +31,10 @@ export function AppUpdatePopup({ enabled }: { enabled: boolean }) {
     if (checking.current) return;
     checking.current = true;
     try {
-      setUpdate(await checkPlayUpdate());
+      const found = await checkPlayUpdate();
+      setUpdate(found);
+      // A notification beside the popup, once per new version (the shop's ask).
+      if (found) void notifyUpdateAvailable(found.storeVersion);
     } finally {
       checking.current = false;
     }
