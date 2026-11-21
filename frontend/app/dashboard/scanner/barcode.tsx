@@ -493,7 +493,11 @@ export default function BarcodeScannerScreen() {
         shutterLabel={pickedPhoto ? 'Use this tag' : onSecondSide ? 'Click for 2nd side' : 'Click'}
         shutterTone={pickedPhoto || !onSecondSide ? 'primary' : 'secondary'}
         shutterBusy={captureState.shutterBusy}
-        onUploadPress={onSecondSide || pickedPhoto ? undefined : handleUpload}
+        // Both sides in hand: nothing left to click, Calculate alone (the shop's call).
+        shutterHidden={onSecondSide && backCaptured && !pickedPhoto}
+        // The gallery for whichever side is next, the back included; gone
+        // once both sides are held.
+        onUploadPress={pickedPhoto || backCaptured ? undefined : handleUpload}
         onDeletePress={onSecondSide || pickedPhoto ? handleDiscardScan : undefined}
         onCalculatePress={onSecondSide && !pickedPhoto ? handleCalculateFromCapture : undefined}
         calculateDisabled={refining.front || refining.back}

@@ -127,9 +127,17 @@ interface ScannerScreenLayoutProps {
    * ignores taps until it has, so one press is one photo.
    */
   shutterBusy?: boolean;
-  /** Gallery button beside the frame; shown when there is nothing to discard. */
+  /**
+   * No shutter at all: both sides are in hand, so there is nothing left to
+   * click, and Calculate stands alone (the shop's call).
+   */
+  shutterHidden?: boolean;
+  /** Gallery button in the frame's lower-right corner, for whichever side is next. */
   onUploadPress?: () => void;
-  /** Discard button beside the frame, which takes the scan back to its start. */
+  /**
+   * Discard button, which takes the scan back to its start: lower-left when
+   * the gallery button holds the right corner, lower-right otherwise.
+   */
   onDeletePress?: () => void;
   /** The red Calculate pill under the shutter, once there is a side to price. */
   onCalculatePress?: () => void;
@@ -174,6 +182,7 @@ export function ScannerScreenLayout({
   shutterLabel = 'Click',
   shutterTone = 'primary',
   shutterBusy = false,
+  shutterHidden = false,
   onUploadPress,
   onDeletePress,
   onCalculatePress,
@@ -384,32 +393,45 @@ export function ScannerScreenLayout({
           {/* Mockup .cap-controls sits 20px below the frame, not at the screen bottom. */}
           {!controlsHidden ? (
             <>
-              {/* Beside the frame: the gallery on the first side, and the
-                  discard that returns the scan to its start thereafter. */}
-              {onDeletePress || onUploadPress ? (
+              {/* Inside the frame: the gallery for whichever side is next in
+                  the lower-right corner (the owner's design), and the discard
+                  that returns the scan to its start, lower-left beside it. */}
+              {onUploadPress ? (
                 <Pressable
-                  onPress={onDeletePress ?? onUploadPress}
+                  onPress={onUploadPress}
                   hitSlop={10}
                   accessibilityRole="button"
-                  accessibilityLabel={
-                    onDeletePress ? 'Discard and start again' : 'Upload a photo from the gallery'
-                  }
+                  accessibilityLabel="Upload a photo from the gallery"
                   style={[
                     styles.sideButton,
-                    onDeletePress ? styles.sideButtonDanger : styles.sideButtonLight,
-                    // Inside the frame's lower right corner (the owner's design).
+                    styles.sideButtonLight,
                     { top: frameBottom - 44 - 12, left: frameRight - 44 - 12 },
                   ]}
                 >
-                  {onDeletePress ? (
-                    <Trash2 size={19} color={Colors.white} strokeWidth={2} />
-                  ) : (
-                    <CapUploadIcon color={Colors.textPrimary} />
-                  )}
+                  <CapUploadIcon color={Colors.textPrimary} />
+                </Pressable>
+              ) : null}
+              {onDeletePress ? (
+                <Pressable
+                  onPress={onDeletePress}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Discard and start again"
+                  style={[
+                    styles.sideButton,
+                    styles.sideButtonDanger,
+                    {
+                      top: frameBottom - 44 - 12,
+                      left: onUploadPress ? frameLeft + 12 : frameRight - 44 - 12,
+                    },
+                  ]}
+                >
+                  <Trash2 size={19} color={Colors.white} strokeWidth={2} />
                 </Pressable>
               ) : null}
 
               <View style={[styles.controls, { top: frameBottom + 20 }]}>
+                {shutterHidden ? null : (
                 <Pressable
                   onPress={onShutterPress}
                   disabled={shutterBusy}
@@ -440,10 +462,11 @@ export function ScannerScreenLayout({
                     </View>
                   )}
                 </Pressable>
+                )}
 
                 {onCalculatePress ? (
                   <>
-                    <Text style={styles.orLabel}>OR</Text>
+                    {shutterHidden ? null : <Text style={styles.orLabel}>OR</Text>}
                     <Pressable
                       onPress={onCalculatePress}
                       disabled={calculateDisabled}
