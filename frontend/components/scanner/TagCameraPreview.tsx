@@ -25,13 +25,6 @@ import {
 } from 'expo-image-manipulator';
 
 import { scannerFrameSize, SCANNER_FRAME_VERTICAL_BIAS } from '@/constants/scannerFrame';
-import { decodeJpegBase64 } from '@/utils/jpegPixels';
-import {
-  findPaperBox,
-  paperCropRect,
-  paperFinderWidths,
-  type PixelCrop,
-} from '@/utils/paperCrop';
 import type { UprightImage } from '@/utils/tagCrop';
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -57,63 +50,6 @@ async function renderImage(
 }
 
 /**
- * The paper tag inside the framed photo, cut out of it: the white tag with
- * the figures, without the fingers and the counter around it (the owner's
- * asking). Found on the phone (utils/paperCrop.ts) in a small copy of the
- * frame, and cut from the full-size frame already in memory, so no file is
- * read back. Null when there is no paper to cut to — nothing printed in the
- * frame, the tag already filling it, a paper that cannot be told from what
- * it lies on — or when anything fails: the framed photo then stands.
- */
-async function cutToPaper(framed: ImageRef): Promise<string | null> {
-  try {
-    const steps = paperFinderWidths(framed.width);
-    if (!steps.length) return null;
-    const small = await renderImage(framed, (context) => {
-      for (const width of steps) context.resize({ width });
-    });
-    let copy: { base64?: string };
-    try {
-      // Full quality: at this size a JPEG block is as wide as a line of print.
-      copy = await small.saveAsync({ base64: true, compress: 1, format: SaveFormat.JPEG });
-    } finally {
-      small.release();
-    }
-    if (!copy.base64) return null;
-
-    const pixels = decodeJpegBase64(copy.base64);
-    const box = findPaperBox(pixels.data, pixels.width, pixels.height);
-    const rect = box ? paperCropRect(box, framed.width, framed.height) : null;
-    if (!rect) return null;
-
-    const paper = await renderImage(framed, (context) => context.crop(rect));
-    try {
-      const saved = await paper.saveAsync(CUT_SAVE);
-      return saved.uri || null;
-    } finally {
-      paper.release();
-    }
-  } catch (error) {
-    console.warn('Could not cut the photo to the paper tag; keeping the frame:', error);
-    return null;
-  }
-}
-
-/**
- * Cuts the frame out of the upright photo, and on down to the paper tag in it
- * when there is one. The frame's own cut is saved while the paper is looked
- * for, so a frame with no paper to cut to is ready as soon as it ever was.
- */
-async function cutFrameAndPaper(uri: string, rect: PixelCrop): Promise<string> {
-  const framed = await renderImage(uri, (context) => context.crop(rect));
-  const saved = framed.saveAsync(CUT_SAVE);
-  const paper = cutToPaper(framed);
-  // Let go of the decoded frame once both are done with it.
-  void Promise.allSettled([saved, paper]).then(() => framed.release());
-  return (await paper) ?? (await saved).uri;
-}
-
-/**
  * Crops a captured photo down to the region the user framed on screen.
  *
  * CameraView fills the preview with a centre-crop of the sensor image, so the
@@ -123,7 +59,7 @@ async function cutFrameAndPaper(uri: string, rect: PixelCrop): Promise<string> {
  * centred horizontally and sitting at height/2 - its height * 0.6, so we can
  * recompute it here from the
  * measured preview size. Inside the frame the cut goes on down to the paper
- * tag when one is found (cutFrameAndPaper); otherwise it is the frame.
+ * frame and nothing more.
  *
  * Returns the original uri untouched if anything is unknown, so a capture can
  * never be lost to a bad crop.
@@ -234,7 +170,17 @@ async function cropToFrame(
   }
 
   try {
-    const uri = await cutFrameAndPaper(source.uri, { originX, originY, width, height });
+    // The frame only, exactly what the shop lined up, and nothing adjusted
+    // after it (the shop's ask): no trim down to the paper tag.
+    const framed = await renderImage(source.uri, (context) =>
+      context.crop({ originX, originY, width, height }),
+    );
+    let uri: string;
+    try {
+      uri = (await framed.saveAsync(CUT_SAVE)).uri;
+    } finally {
+      framed.release();
+    }
     return { uri, upright: source };
   } catch (error) {
     console.warn('Failed to crop capture to the scan frame, using full photo:', error);
