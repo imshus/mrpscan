@@ -64,7 +64,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.amitaashitsolution",
-      "versionCode": 390
+      "versionCode": 391
     },
     "web": {
       "bundler": "metro",
@@ -74,6 +74,7 @@
     "plugins": [
       "expo-router",
       "./plugins/withPodsDeploymentTarget",
+      "./plugins/withOptionalHardwareFeatures",
       [
         "expo-splash-screen",
         {
