@@ -269,6 +269,11 @@ export interface TagBox {
   y: number;
   width: number;
   height: number;
+  /**
+   * Degrees clockwise that make the tag's writing horizontal (0, 90, 180 or
+   * 270), from the server's finder. 0 when it did not say.
+   */
+  rotate?: number;
 }
 
 /**
@@ -294,7 +299,8 @@ export async function detectTagArea(imageUri: string): Promise<TagBox | null> {
     const width = num(box.width);
     const height = num(box.height);
     if (x === null || y === null || !width || !height) return null;
-    return { x, y, width, height };
+    const rotate = [0, 90, 180, 270].includes(Number(box.rotate)) ? Number(box.rotate) : 0;
+    return { x, y, width, height, rotate };
   } catch (error) {
     // A refusal for too many detections is worth telling; any other failure
     // just leaves the framing to the user.

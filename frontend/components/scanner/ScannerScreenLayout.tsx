@@ -127,9 +127,17 @@ interface ScannerScreenLayoutProps {
    * ignores taps until it has, so one press is one photo.
    */
   shutterBusy?: boolean;
-  /** Gallery button beside the frame; shown when there is nothing to discard. */
+  /**
+   * No shutter at all: both sides are in hand, so there is nothing left to
+   * click, and Calculate stands alone (the shop's call).
+   */
+  shutterHidden?: boolean;
+  /** Gallery button in the frame's lower-right corner, for whichever side is next. */
   onUploadPress?: () => void;
-  /** Discard button beside the frame, which takes the scan back to its start. */
+  /**
+   * Discard button, which takes the scan back to its start: lower-left when
+   * the gallery button holds the right corner, lower-right otherwise.
+   */
   onDeletePress?: () => void;
   /** The red Calculate pill under the shutter, once there is a side to price. */
   onCalculatePress?: () => void;
@@ -155,6 +163,16 @@ interface ScannerScreenLayoutProps {
    * kept, rather than a screen that looks like starting over.
    */
   capturedPreviewUri?: string | null;
+  /**
+   * The back side once it is in hand too: the two are then shown side by
+   * side, front and back, each ticked (the shop's ask).
+   */
+  capturedBackUri?: string | null;
+  /** Each photo's own delete in the side-by-side pair: front only, back only. */
+  onRemoveFront?: () => void;
+  onRemoveBack?: () => void;
+  /** The lone thumbnail's own delete. */
+  onRemovePreview?: () => void;
   headerContent?: React.ReactNode;
   controlsHidden?: boolean;
   /** Releases the camera while the gallery picker is open. */
@@ -174,6 +192,7 @@ export function ScannerScreenLayout({
   shutterLabel = 'Click',
   shutterTone = 'primary',
   shutterBusy = false,
+  shutterHidden = false,
   onUploadPress,
   onDeletePress,
   onCalculatePress,
@@ -182,6 +201,10 @@ export function ScannerScreenLayout({
   photoLayer,
   cameraRef,
   capturedPreviewUri,
+  capturedBackUri,
+  onRemoveFront,
+  onRemoveBack,
+  onRemovePreview,
   headerContent,
   controlsHidden = false,
   cameraPaused = false,
@@ -330,7 +353,56 @@ export function ScannerScreenLayout({
         </Text>
       ) : null}
 
-      {capturedPreviewUri && rootSize.height > 0 ? (
+      {capturedPreviewUri && capturedBackUri && rootSize.height > 0 ? (
+        // Both sides in hand: front and back side by side, each half the
+        // width the single thumbnail had room for, in the frame's shape.
+        (() => {
+          const pairWidth = Math.min(
+            SCANNER_THUMB_WIDTH,
+            Math.floor((rootSize.width - 16 * 2 - 12) / 2),
+          );
+          const pairHeight = Math.round(pairWidth * (SCANNER_THUMB_HEIGHT / SCANNER_THUMB_WIDTH));
+          return (
+            <View
+              style={[
+                styles.capturedPairRow,
+                { top: Math.max(Math.max(frameTop - 36, 70) - (pairHeight + 34), 64) },
+              ]}
+              pointerEvents="box-none"
+            >
+              {[
+                { uri: capturedPreviewUri, label: 'Front', onRemove: onRemoveFront },
+                { uri: capturedBackUri, label: 'Back', onRemove: onRemoveBack },
+              ].map((side) => (
+                <View key={side.label} style={styles.capturedPairItem}>
+                  <View>
+                    <Image
+                      source={{ uri: side.uri }}
+                      style={[styles.capturedThumb, { width: pairWidth, height: pairHeight }]}
+                      resizeMode="contain"
+                    />
+                    <View style={styles.capturedTick}>
+                      <Check size={11} color={Colors.white} strokeWidth={3.2} />
+                    </View>
+                    {side.onRemove ? (
+                      <Pressable
+                        onPress={side.onRemove}
+                        hitSlop={10}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Delete the ${side.label.toLowerCase()} photo`}
+                        style={styles.capturedRemove}
+                      >
+                        <Trash2 size={13} color={Colors.white} strokeWidth={2.2} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  <Text style={styles.capturedPairLabel}>{side.label}</Text>
+                </View>
+              ))}
+            </View>
+          );
+        })()
+      ) : capturedPreviewUri && rootSize.height > 0 ? (
         <View
           style={[
             styles.capturedThumbWrap,
@@ -339,7 +411,7 @@ export function ScannerScreenLayout({
             // the top bar.
             { top: Math.max(Math.max(frameTop - 36, 70) - (SCANNER_THUMB_HEIGHT + 16), 64) },
           ]}
-          pointerEvents="none"
+          pointerEvents="box-none"
         >
           <Image
             source={{ uri: capturedPreviewUri }}
@@ -353,6 +425,17 @@ export function ScannerScreenLayout({
           <View style={styles.capturedTick}>
             <Check size={11} color={Colors.white} strokeWidth={3.2} />
           </View>
+          {onRemovePreview ? (
+            <Pressable
+              onPress={onRemovePreview}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Delete this photo"
+              style={styles.capturedRemove}
+            >
+              <Trash2 size={13} color={Colors.white} strokeWidth={2.2} />
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 
@@ -384,32 +467,45 @@ export function ScannerScreenLayout({
           {/* Mockup .cap-controls sits 20px below the frame, not at the screen bottom. */}
           {!controlsHidden ? (
             <>
-              {/* Beside the frame: the gallery on the first side, and the
-                  discard that returns the scan to its start thereafter. */}
-              {onDeletePress || onUploadPress ? (
+              {/* Inside the frame: the gallery for whichever side is next in
+                  the lower-right corner (the owner's design), and the discard
+                  that returns the scan to its start, lower-left beside it. */}
+              {onUploadPress ? (
                 <Pressable
-                  onPress={onDeletePress ?? onUploadPress}
+                  onPress={onUploadPress}
                   hitSlop={10}
                   accessibilityRole="button"
-                  accessibilityLabel={
-                    onDeletePress ? 'Discard and start again' : 'Upload a photo from the gallery'
-                  }
+                  accessibilityLabel="Upload a photo from the gallery"
                   style={[
                     styles.sideButton,
-                    onDeletePress ? styles.sideButtonDanger : styles.sideButtonLight,
-                    // Inside the frame's lower right corner (the owner's design).
+                    styles.sideButtonLight,
                     { top: frameBottom - 44 - 12, left: frameRight - 44 - 12 },
                   ]}
                 >
-                  {onDeletePress ? (
-                    <Trash2 size={19} color={Colors.white} strokeWidth={2} />
-                  ) : (
-                    <CapUploadIcon color={Colors.textPrimary} />
-                  )}
+                  <CapUploadIcon color={Colors.textPrimary} />
+                </Pressable>
+              ) : null}
+              {onDeletePress ? (
+                <Pressable
+                  onPress={onDeletePress}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Discard and start again"
+                  style={[
+                    styles.sideButton,
+                    styles.sideButtonDanger,
+                    {
+                      top: frameBottom - 44 - 12,
+                      left: onUploadPress ? frameLeft + 12 : frameRight - 44 - 12,
+                    },
+                  ]}
+                >
+                  <Trash2 size={19} color={Colors.white} strokeWidth={2} />
                 </Pressable>
               ) : null}
 
               <View style={[styles.controls, { top: frameBottom + 20 }]}>
+                {shutterHidden ? null : (
                 <Pressable
                   onPress={onShutterPress}
                   disabled={shutterBusy}
@@ -440,10 +536,11 @@ export function ScannerScreenLayout({
                     </View>
                   )}
                 </Pressable>
+                )}
 
                 {onCalculatePress ? (
                   <>
-                    <Text style={styles.orLabel}>OR</Text>
+                    {shutterHidden ? null : <Text style={styles.orLabel}>OR</Text>}
                     <Pressable
                       onPress={onCalculatePress}
                       disabled={calculateDisabled}
@@ -515,6 +612,36 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.35)',
     backgroundColor: '#1A1712',
+  },
+  // Each photo's own delete, on its lower-right corner.
+  capturedRemove: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#D9291F',
+  },
+  capturedPairRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    zIndex: 4,
+  },
+  capturedPairItem: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  capturedPairLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.85)',
   },
   capturedTick: {
     position: 'absolute',

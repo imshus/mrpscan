@@ -356,3 +356,42 @@ test('session: taken by the scan, the slot is empty; a failed open is retried', 
   assert.equal(slot.holds('Diamond', 0), false);
   assert.equal(count, 2);
 });
+
+test('delete only the back: the front stays, the back is asked for again', async () => {
+  const { flow } = recordingFlow();
+  press(flow, Promise.resolve('file://front.jpg'));
+  press(flow, Promise.resolve('file://back.jpg'));
+  await flush();
+
+  flow.removeSide('back');
+  let state = flow.getState();
+  assert.equal(state.step, 'second', 'still on the second side');
+  assert.ok(state.front, 'the front is kept');
+  assert.equal(state.back, null);
+  assert.deepEqual(await flow.whenReady(), { front: 'file://front.jpg', back: null, source: 'camera' });
+
+  press(flow, Promise.resolve('file://back-2.jpg'));
+  await flush();
+  state = flow.getState();
+  assert.equal((await flow.whenReady()).back, 'file://back-2.jpg', 'the new back takes its place');
+});
+
+test('delete only the front: the back stays, a new front keeps it', async () => {
+  const { flow } = recordingFlow();
+  press(flow, Promise.resolve('file://front.jpg'));
+  press(flow, Promise.resolve('file://back.jpg'));
+  await flush();
+
+  flow.removeSide('front');
+  let state = flow.getState();
+  assert.equal(state.step, 'first', 'the front is asked for again');
+  assert.equal(state.front, null);
+  assert.ok(state.back, 'the back is kept');
+  assert.equal(await flow.whenReady(), null, 'no front, nothing to calculate');
+
+  press(flow, Promise.resolve('file://front-2.jpg'));
+  await flush();
+  state = flow.getState();
+  assert.equal(state.step, 'second');
+  assert.deepEqual(await flow.whenReady(), { front: 'file://front-2.jpg', back: 'file://back.jpg', source: 'camera' });
+});

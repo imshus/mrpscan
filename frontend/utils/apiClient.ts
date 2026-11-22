@@ -40,9 +40,31 @@ export function isRequestAbortedError(error: unknown): boolean {
   return error instanceof ApiError && error.message === REQUEST_ABORTED_MESSAGE;
 }
 
-/** True when `error` is a request that ran out its timeout ("Request timed out after 45s"). */
+/**
+ * What a shop reads when the server cannot be reached, never a technical
+ * error: no internet on the phone, the server not answering, too slow, or
+ * down for a moment (502/503/504 from the proxy in front of it).
+ */
+export const NO_INTERNET_MESSAGE =
+  'No internet connection. Please check your mobile data or Wi-Fi and try again.';
+export const SERVER_UNREACHABLE_MESSAGE =
+  'MRPscan server is not reachable right now. Please try again in a few minutes.';
+export const REQUEST_TIMEOUT_MESSAGE =
+  'The server is taking too long to respond. Please check your internet connection and try again.';
+export const SERVER_UNAVAILABLE_MESSAGE =
+  'MRPscan server is temporarily unavailable. Please try again in a few minutes.';
+
+/** True when `error` is a request that ran out its timeout. */
 export function isRequestTimeoutError(error: unknown): boolean {
-  return error instanceof ApiError && error.message.startsWith('Request timed out after ');
+  return error instanceof ApiError && error.message === REQUEST_TIMEOUT_MESSAGE;
+}
+
+/** True when the request never got an answer: no internet, or the server unreachable. */
+export function isConnectionError(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    (error.message === NO_INTERNET_MESSAGE || error.message === SERVER_UNREACHABLE_MESSAGE)
+  );
 }
 
 /**
@@ -96,8 +118,22 @@ function toLoggableBody(
   return requestBody;
 }
 
-function getNetworkErrorMessage(): string {
-  return `Cannot reach the server (${API_BASE_URL}). If you are on a phone, set EXPO_PUBLIC_API_URL to your backend URL and make sure the backend is running.`;
+/**
+ * Why a request got no answer, in words a shop can act on: the phone has no
+ * internet, or it has and the server is not answering. Asking the phone
+ * fails safe: an unknown state reads as the server's side.
+ */
+async function getNetworkErrorMessage(): Promise<string> {
+  try {
+    // Loaded here, not at the top: the unit tests load this file in Node,
+    // where the native module is not there.
+    const Network = await import('expo-network');
+    const state = await Network.getNetworkStateAsync();
+    if (state.isConnected === false || state.isInternetReachable === false) return NO_INTERNET_MESSAGE;
+  } catch {
+    // The check itself failed; say what is certain.
+  }
+  return SERVER_UNREACHABLE_MESSAGE;
 }
 
 let refreshPromise: Promise<string | null> | null = null;
@@ -278,10 +314,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
         throw new ApiError(REQUEST_ABORTED_MESSAGE);
       }
       console.error('[API] Timeout', { url, ms });
-      throw new ApiError(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
+      throw new ApiError(REQUEST_TIMEOUT_MESSAGE);
     }
     console.error('[API] Network error', { url, ms, message: (error as Error)?.message });
-    throw new ApiError(getNetworkErrorMessage());
+    throw new ApiError(await getNetworkErrorMessage());
   } finally {
     clearTimeout(timeoutId);
     unlinkAbort();
@@ -363,9 +399,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
             if (externalSignal?.aborted) {
               throw new ApiError(REQUEST_ABORTED_MESSAGE);
             }
-            throw new ApiError(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
+            throw new ApiError(REQUEST_TIMEOUT_MESSAGE);
           }
-          throw new ApiError(getNetworkErrorMessage());
+          throw new ApiError(await getNetworkErrorMessage());
         }
       }
     }
@@ -378,6 +414,15 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
             ? (errorBody as { error: string }).error
             : `Request failed (${response.status})`
         : `Request failed (${response.status})`;
+    // The proxy's own answer when the server is down or restarting (an HTML
+    // page, never the server's message), or a 5xx with no message of its
+    // own: said plainly instead of "Request failed (502)".
+    if (
+      [502, 503, 504].includes(response.status) ||
+      (response.status >= 500 && message === `Request failed (${response.status})`)
+    ) {
+      throw new ApiError(SERVER_UNAVAILABLE_MESSAGE, response.status, errorBody);
+    }
     // iPhone sells nothing (utils/platformCommerce.ts), so a refusal that
     // says "Please add credits" or "Purchase application" is said there as
     // the account's position only. Android shows the server's words as ever.

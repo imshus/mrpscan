@@ -16,6 +16,7 @@ import Animated, {
 import { ReduxProvider } from '@/components/ReduxProvider';
 import { AnimatedSplash } from '@/components/splash/AnimatedSplash';
 import { AppUpdatePopup } from '@/components/ui/AppUpdatePopup';
+import { scheduleTipReminders } from '@/utils/localNotifications';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useEmployeeStore } from '@/store/employeeStore';
@@ -120,6 +121,12 @@ export default function RootLayout() {
   // No screen may read a persisted store until the build check has run — a new
   // APK must start with the previous install's cached data already gone.
   const [storageReady, setStorageReady] = useState(false);
+
+  // The MRPscan reminder every 12 hours, scheduled again from each start
+  // (asks for notification permission the first time).
+  useEffect(() => {
+    if (storageReady) void scheduleTipReminders();
+  }, [storageReady]);
 
   const contentStyle = useAnimatedStyle(() => ({
     opacity: contentIn.value,

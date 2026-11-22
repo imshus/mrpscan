@@ -68,7 +68,9 @@ export function createCaptureFlow<S>(handlers: CaptureFlowHandlers<S> = {}) {
   const isCurrent = (capture: SideCapture<S>): boolean => state[capture.side]?.id === capture.id;
 
   const hold = (capture: SideCapture<S>) => {
-    if (capture.side === 'front') set({ front: capture, back: null, step: 'second' });
+    // A front taken again after the shop deleted only the front keeps the
+    // back it already has; in every other case there is no back yet.
+    if (capture.side === 'front') set({ front: capture, step: 'second' });
     else set({ back: capture });
   };
 
@@ -176,6 +178,17 @@ export function createCaptureFlow<S>(handlers: CaptureFlowHandlers<S> = {}) {
       update(next);
       handlers.onReady?.(next);
       return next;
+    },
+
+    /**
+     * Deletes one side only, at the shop's asking, keeping the other: the
+     * back goes and the back is asked for again; the front goes and the
+     * front is asked for again, the back staying held. A cut still on its
+     * way for the deleted side is ignored (it is no longer current).
+     */
+    removeSide(side: CaptureSide): void {
+      if (side === 'back') set({ back: null });
+      else set({ front: null, step: 'first' });
     },
 
     /** Drops both sides; anything still on its way for them is ignored. */
