@@ -13,6 +13,7 @@ import { Redirect, useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Check, ChevronDown, ChevronLeft, ChevronUp } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CreditGstNote } from '@/components/settings/CreditGstNote';
 import { PaymentDonePopup, type PaidOrder } from '@/components/settings/PaymentDonePopup';
 import { PaymentEmailPopup } from '@/components/settings/PaymentEmailPopup';
 import { GradientView } from '@/components/ui/GradientView';
@@ -55,9 +56,8 @@ function getRazorpayCheckout(): RazorpayModule | null {
 }
 
 // A shop topping up mid-day wants fifty rupees of credits, not five hundred.
-// Any amount of 50 or more, or one of the packs (the Credits screen's).
 const MIN_RECHARGE = 50;
-const QUICK_AMOUNTS = [50, 100, 250, 500, 1000, 5000];
+const QUICK_AMOUNTS = [50, 100, 250, 500];
 
 function assertRazorpayReady(): void {
   if (Constants.appOwnership === 'expo') {
@@ -369,9 +369,11 @@ function PurchaseLicenseScreen() {
                     <Feature text="Life time access" tone="paid" />
                     <Feature text={`Free ${bonusCredits} Credits`} tone="paid" />
                     <Feature text="+ Everything in Free trial" tone="paid" />
-                    {/* No GST on screen (owner, 23 Nov 2026); Razorpay
-                        charges the price + 18% GST at payment. */}
-                    <Feature text={displayPrice} sub="(one time purchase)" tone="paid" />
+                    {/* GST is charged on top, so the figure says so rather
+                        than reading as the whole of what is due. */}
+                    {/* The price on its own line; "+ GST" moves down under it
+                        with the one-time note, at the shop's asking. */}
+                    <Feature text={displayPrice} note="Plus GST (18%)" sub="(one time purchase)" tone="paid" />
                   </View>
                   <Pressable
                     disabled={busyAction === 'purchase' || isPurchased}
@@ -448,10 +450,12 @@ function PurchaseLicenseScreen() {
                           rechargeValue === amount && styles.quickPillActive,
                         ]}
                       >
-                        <Text style={styles.quickPillText}>₹{amount.toLocaleString('en-IN')}</Text>
+                        <Text style={styles.quickPillText}>+₹{amount}</Text>
                       </Pressable>
                     ))}
                   </View>
+
+                  <CreditGstNote credits={rechargeValue} />
 
                   <Pressable
                     onPress={handleRecharge}
@@ -698,11 +702,9 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     padding: 0,
   },
-  // Six packs: two rows of three.
-  quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  quickRow: { flexDirection: 'row', gap: 8 },
   quickPill: {
-    flexGrow: 1,
-    flexBasis: '30%',
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     height: 36,

@@ -14,6 +14,7 @@ import { ArrowRight, BarChart3, ChevronLeft, Clock3, History, ShieldCheck, Walle
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
+import { CreditGstNote } from '@/components/settings/CreditGstNote';
 import { PaymentDonePopup, type PaidOrder } from '@/components/settings/PaymentDonePopup';
 import { PaymentEmailPopup } from '@/components/settings/PaymentEmailPopup';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
@@ -95,11 +96,10 @@ function currencyNoDecimal(value: number): string {
   })}`;
 }
 
-// Android: the packs as quick picks plus any amount typed (50 or more), paid
-// through Razorpay. iPhone sells the packs only (Apple allows no typed
-// amount), from utils/appleIap.ts.
+// What the design offers: a shop topping up mid-day wants fifty rupees of
+// credits, not five hundred.
 const MIN_RECHARGE = 50;
-const QUICK_AMOUNTS = [50, 100, 250, 500, 1000, 5000];
+const QUICK_AMOUNTS = [50, 100, 250, 500];
 
 const BOTTOM_NAV_HEIGHT = 70;
 const BOTTOM_NAV_OFFSET = -4;
@@ -133,8 +133,9 @@ export default function SubscriptionManagerScreen() {
   // The payment that just went through, with its invoice on offer.
   const [paid, setPaid] = useState<PaidOrder | null>(null);
   const [rechargeAmount, setRechargeAmount] = useState('');
-  const [selectedAmount, setSelectedAmount] = useState<number>(QUICK_AMOUNTS[0]);
+  const [selectedAmount, setSelectedAmount] = useState<number>(MIN_RECHARGE);
   const [usingCustomAmount, setUsingCustomAmount] = useState(false);
+  // iPhone: the credit pack chosen (Apple In-App Purchase, utils/appleIap.ts).
   const [appleSku, setAppleSku] = useState<string>(APPLE_CREDIT_PACKS[0].sku);
 
   // iPhone: this screen reports the account and sells nothing — no Recharge
@@ -142,7 +143,8 @@ export default function SubscriptionManagerScreen() {
   const canBuy = canPurchaseInApp();
   const canManagePayments = userRole === 'business' && canBuy;
   const screenTitle = canBuy ? 'Credits & Subscription' : ACCOUNT_STATUS_TITLE;
-  // iPhone sells through Apple In-App Purchase only (utils/appleIap.ts).
+  // iPhone sells through Apple In-App Purchase only (utils/appleIap.ts);
+  // everything Android shows stays as it was.
   const canManageApple = userRole === 'business' && canBuyWithApple();
 
   const loadData = useCallback(async () => {
@@ -163,7 +165,6 @@ export default function SubscriptionManagerScreen() {
       void loadData();
     }, [loadData]),
   );
-
 
   const runRazorpayCheckout = useCallback(async (order: {
     orderId: string;
@@ -250,6 +251,7 @@ export default function SubscriptionManagerScreen() {
       Alert.alert('Recharge Credits', `Minimum purchase of ₹${MIN_RECHARGE} credits is allowed.`);
       return;
     }
+
     setEmailFor({ kind: 'recharge', amount });
   };
 
@@ -292,9 +294,6 @@ export default function SubscriptionManagerScreen() {
     });
   };
 
-  // No price or GST on the iPhone cards (owner, 23 Nov 2026): a pack says
-  // its credits, and Apple's own payment sheet shows the amount charged
-  // (with GST). Apple does not allow showing less than it charges.
   // iPhone recharge: one of the packs, bought through Apple.
   const applePack = APPLE_CREDIT_PACKS.find((item) => item.sku === appleSku) ?? APPLE_CREDIT_PACKS[0];
 
@@ -375,7 +374,7 @@ export default function SubscriptionManagerScreen() {
   };
 
   const handleCustomAmountChange = (value: string) => {
-    const sanitized = value.replace(/[^0-9]/g, '');
+    const sanitized = value.replace(/[^0-9.]/g, '');
     setRechargeAmount(sanitized);
     const amount = Number(sanitized || 0);
     setSelectedAmount(Number.isFinite(amount) && amount > 0 ? amount : 0);
@@ -532,14 +531,16 @@ export default function SubscriptionManagerScreen() {
                         value={rechargeAmount}
                         onFocus={activateCustomAmount}
                         onChangeText={handleCustomAmountChange}
-                        keyboardType="number-pad"
+                        keyboardType="decimal-pad"
                         style={styles.amountInput}
                         accessibilityLabel="Custom amount"
                       />
                     </View>
 
-                    <Text style={styles.customHint}>Minimum ₹{MIN_RECHARGE}. Credits are added instantly after payment.</Text>
+                    <Text style={styles.customHint}>Credits are added instantly after successful payment.</Text>
                   </View>
+
+                  <CreditGstNote credits={selectedRechargeAmount} />
 
                   <Pressable disabled={busyAction !== null} onPress={handleRecharge} style={[styles.primaryBtn, busyAction === 'recharge' && styles.primaryBtnDisabled]}>
                     <Text style={styles.primaryBtnText}>{busyAction === 'recharge' ? 'Processing...' : rechargeButtonLabel}</Text>
@@ -555,7 +556,7 @@ export default function SubscriptionManagerScreen() {
                       <View>
                         <Text style={styles.linkTitle}>Purchase Application License</Text>
                         <Text style={styles.linkSubtitle}>
-                          {currencyNoDecimal(overview?.applicationPrice || 12000)} · one-time purchase
+                          {currencyNoDecimal(overview?.applicationPrice || 12000)} + GST (18%) · one-time purchase
                         </Text>
                       </View>
                     </View>
@@ -622,6 +623,7 @@ export default function SubscriptionManagerScreen() {
                   </Pressable>
                 </View>
               ) : null}
+
 
               <View style={styles.linkStack}>
                 <Pressable onPress={() => router.push('/dashboard/payment-history')} style={styles.linkCard}>
