@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 
 import { apiRequest } from '@/utils/apiClient';
 import { unwrapApiData } from '@/utils/apiResponse';
+import { appleAmountProblem, planAppleCredits } from '@/utils/appleCreditPlan';
 
 /**
  * Apple In-App Purchase on the iPhone app (StoreKit 2 through expo-iap).
@@ -138,20 +139,55 @@ export async function fetchApplePrices(): Promise<Record<string, string>> {
   return prices;
 }
 
-/** Buys one product and resolves once the server has granted it. */
-export async function buyWithApple(sku: string): Promise<AppleVerifyResult> {
+/**
+ * Buys one product (a credit pack `quantity` times, 1-10) and resolves once
+ * the server has granted it.
+ */
+export async function buyWithApple(sku: string, quantity = 1): Promise<AppleVerifyResult> {
   await ensureAppleStore();
   if (pending) throw new Error('Another purchase is still in progress.');
   const done = new Promise<AppleVerifyResult>((resolve, reject) => {
     pending = { sku, resolve, reject };
   });
   try {
-    await iap().requestPurchase({ request: { apple: { sku } }, type: 'in-app' });
+    await iap().requestPurchase({
+      request: { apple: quantity > 1 ? { sku, quantity } : { sku } },
+      type: 'in-app',
+    });
   } catch (error) {
     pending = null;
     throw error;
   }
   return done;
+}
+
+/**
+ * A typed number of credits, bought as packs x quantity: one Apple
+ * confirmation, or two for amounts no single pack covers (utils/
+ * appleCreditPlan.ts). Resolves with the credits added. When the second
+ * purchase does not go through, the first one's credits are already in the
+ * wallet, and the error says so.
+ */
+export async function buyAppleCredits(amount: number): Promise<number> {
+  const problem = appleAmountProblem(amount);
+  const plan = planAppleCredits(amount);
+  if (problem || !plan) throw new Error(problem ?? 'This amount cannot be bought on iPhone.');
+  let added = 0;
+  for (const step of plan) {
+    const pack = APPLE_CREDIT_PACKS.find((item) => item.credits === step.credits);
+    if (!pack) throw new Error('This amount cannot be bought on iPhone.');
+    try {
+      const result = await buyWithApple(pack.sku, step.quantity);
+      added += Number(result.creditsPurchased || step.credits * step.quantity);
+    } catch (error) {
+      if (added > 0) {
+        const reason = error instanceof Error ? error.message : 'The second purchase did not go through.';
+        throw new Error(`${added} credits were added. The rest was not bought: ${reason}`);
+      }
+      throw error;
+    }
+  }
+  return added;
 }
 
 /**

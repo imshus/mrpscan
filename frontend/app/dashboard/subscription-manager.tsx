@@ -43,11 +43,18 @@ import Constants from 'expo-constants';
 import {
   APPLE_CREDIT_PACKS,
   APPLE_LICENCE_SKU,
+  buyAppleCredits,
   buyWithApple,
   canBuyWithApple,
   fetchApplePrices,
   restoreApplePurchases,
 } from '@/utils/appleIap';
+import {
+  APPLE_MAX_CREDITS,
+  APPLE_MIN_CREDITS,
+  appleAmountProblem,
+  planAppleCredits,
+} from '@/utils/appleCreditPlan';
 
 type RazorpayModule = {
   open: (options: Record<string, unknown>) => Promise<unknown>;
@@ -138,7 +145,7 @@ export default function SubscriptionManagerScreen() {
   const [usingCustomAmount, setUsingCustomAmount] = useState(false);
   // iPhone: the App Store's own price per product, once it has answered.
   const [applePrices, setApplePrices] = useState<Record<string, string>>({});
-  const [appleSku, setAppleSku] = useState<string>(APPLE_CREDIT_PACKS[0].sku);
+  const [appleAmountText, setAppleAmountText] = useState<string>(String(APPLE_CREDIT_PACKS[0].credits));
 
   // iPhone: this screen reports the account and sells nothing — no Recharge
   // Credits, no licence price, no Purchase Now (utils/platformCommerce.ts).
@@ -306,12 +313,21 @@ export default function SubscriptionManagerScreen() {
 
   const applePrice = (sku: string, fallback: number) => applePrices[sku] ?? currencyNoDecimal(fallback);
 
+  // iPhone recharge: a pack tapped or any amount typed (50 to 5,000 in steps
+  // of 50), bought as packs x quantity (utils/appleCreditPlan.ts).
+  const appleCredits = Number(appleAmountText || 0);
+  const appleProblem = appleAmountText ? appleAmountProblem(appleCredits) : null;
+  const applePlan = appleProblem ? null : planAppleCredits(appleCredits);
+
   const handleAppleCredits = async () => {
-    const pack = APPLE_CREDIT_PACKS.find((item) => item.sku === appleSku);
-    if (!pack) return;
+    const problem = appleAmountProblem(appleCredits);
+    if (problem) {
+      Alert.alert('Recharge Credits', problem);
+      return;
+    }
     await runAction('recharge', async () => {
-      await buyWithApple(pack.sku);
-      Alert.alert('Credits Added', `${pack.credits} credits have been added to your wallet.`);
+      const added = await buyAppleCredits(appleCredits);
+      Alert.alert('Credits Added', `${added.toLocaleString('en-IN')} credits have been added to your wallet.`);
     });
   };
 
@@ -553,11 +569,11 @@ export default function SubscriptionManagerScreen() {
 
                   <View style={styles.quickAmountGrid}>
                     {APPLE_CREDIT_PACKS.map((pack) => {
-                      const isSelected = appleSku === pack.sku;
+                      const isSelected = appleCredits === pack.credits;
                       return (
                         <Pressable
                           key={pack.sku}
-                          onPress={() => setAppleSku(pack.sku)}
+                          onPress={() => setAppleAmountText(String(pack.credits))}
                           style={[styles.quickAmountCard, isSelected && styles.quickAmountCardSelected]}
                         >
                           <View style={styles.quickAmountTopRow}>
@@ -576,15 +592,37 @@ export default function SubscriptionManagerScreen() {
                     })}
                   </View>
 
+                  <View style={styles.customAmountCard}>
+                    <Text style={styles.customAmountTitle}>Enter credits</Text>
+                    <View style={[styles.customInputWrap, styles.customInputWrapActive]}>
+                      <TextInput
+                        value={appleAmountText}
+                        onChangeText={(value) => setAppleAmountText(value.replace(/[^0-9]/g, ''))}
+                        keyboardType="number-pad"
+                        style={styles.amountInput}
+                        accessibilityLabel="Number of credits"
+                        placeholder={`${APPLE_MIN_CREDITS} – ${APPLE_MAX_CREDITS.toLocaleString('en-IN')}`}
+                      />
+                    </View>
+                    <Text style={styles.customHint}>
+                      {appleProblem
+                        ?? (applePlan && applePlan.length > 1
+                          ? `Paid in 2 App Store steps: ${applePlan.map((step) => `${step.credits} × ${step.quantity}`).join(', then ')}.`
+                          : `Any amount from ${APPLE_MIN_CREDITS} to ${APPLE_MAX_CREDITS.toLocaleString('en-IN')}, in steps of 50. Price includes GST.`)}
+                    </Text>
+                  </View>
+
                   <Pressable
-                    disabled={busyAction !== null}
+                    disabled={busyAction !== null || !applePlan}
                     onPress={() => void handleAppleCredits()}
-                    style={[styles.primaryBtn, busyAction === 'recharge' && styles.primaryBtnDisabled]}
+                    style={[styles.primaryBtn, (busyAction === 'recharge' || !applePlan) && styles.primaryBtnDisabled]}
                   >
                     <Text style={styles.primaryBtnText}>
                       {busyAction === 'recharge'
                         ? 'Processing...'
-                        : `Buy ${APPLE_CREDIT_PACKS.find((pack) => pack.sku === appleSku)?.credits ?? ''} credits`}
+                        : applePlan
+                          ? `Buy ${appleCredits.toLocaleString('en-IN')} credits · ${currencyNoDecimal(appleCredits * 1.18)}`
+                          : 'Buy credits'}
                     </Text>
                   </Pressable>
                 </View>
