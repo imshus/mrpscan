@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "MRPscan",
-    "slug": "pratham",
-    "version": "1.0.388",
+    "slug": "mrpscan",
+    "version": "1.0.389",
     "orientation": "portrait",
     "icon": "./assets/images/ios-icon.png",
     "scheme": "pratham",
@@ -64,7 +64,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.amitaashitsolution",
-      "versionCode": 389
+      "versionCode": 391
     },
     "web": {
       "bundler": "metro",
@@ -74,6 +74,7 @@
     "plugins": [
       "expo-router",
       "./plugins/withPodsDeploymentTarget",
+      "./plugins/withOptionalHardwareFeatures",
       [
         "expo-splash-screen",
         {
@@ -143,9 +144,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "c94809e5-54d5-4df1-a888-a54aaaf1dd05"
+        "projectId": "55d7f3a2-1c48-42a5-87af-9345c068714e"
       }
     },
-    "owner": "prathamtest"
+    "owner": "imshu"
   }
 }
