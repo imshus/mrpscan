@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -94,9 +95,10 @@ function currencyNoDecimal(value: number): string {
   })}`;
 }
 
-// The packs on offer, the same on Android and iPhone (no typed amount since
-// 23 Nov 2026, the owner's call): a shop topping up mid-day wants fifty
-// credits, a busy one five thousand.
+// Android: the packs as quick picks plus any amount typed (50 or more), paid
+// through Razorpay. iPhone sells the packs only (Apple allows no typed
+// amount), from utils/appleIap.ts.
+const MIN_RECHARGE = 50;
 const QUICK_AMOUNTS = [50, 100, 250, 500, 1000, 5000];
 
 const BOTTOM_NAV_HEIGHT = 70;
@@ -130,7 +132,9 @@ export default function SubscriptionManagerScreen() {
   const [emailFor, setEmailFor] = useState<{ kind: 'purchase' } | { kind: 'recharge'; amount: number } | null>(null);
   // The payment that just went through, with its invoice on offer.
   const [paid, setPaid] = useState<PaidOrder | null>(null);
+  const [rechargeAmount, setRechargeAmount] = useState('');
   const [selectedAmount, setSelectedAmount] = useState<number>(QUICK_AMOUNTS[0]);
+  const [usingCustomAmount, setUsingCustomAmount] = useState(false);
   const [appleSku, setAppleSku] = useState<string>(APPLE_CREDIT_PACKS[0].sku);
 
   // iPhone: this screen reports the account and sells nothing — no Recharge
@@ -237,11 +241,16 @@ export default function SubscriptionManagerScreen() {
   };
 
   const handleRecharge = async () => {
-    if (!QUICK_AMOUNTS.includes(selectedAmount)) {
-      Alert.alert('Recharge Credits', 'Please choose a credit pack.');
+    const amount = usingCustomAmount ? Number(rechargeAmount || 0) : selectedAmount;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      Alert.alert('Recharge Credits', 'Please enter a valid recharge amount.');
       return;
     }
-    setEmailFor({ kind: 'recharge', amount: selectedAmount });
+    if (amount < MIN_RECHARGE) {
+      Alert.alert('Recharge Credits', `Minimum purchase of ₹${MIN_RECHARGE} credits is allowed.`);
+      return;
+    }
+    setEmailFor({ kind: 'recharge', amount });
   };
 
   const startRecharge = async (amount: number, email: string) => {
@@ -300,9 +309,11 @@ export default function SubscriptionManagerScreen() {
    * (the screen itself shows no GST, at the owner's asking).
    */
   const confirmFinalAmount = (what: string, amount: number, onContinue: () => void) => {
+    // The GST inside the amount at 18%: 12,000 holds 1,830.51.
+    const gstInside = Math.round((amount - amount / 1.18) * 100) / 100;
     Alert.alert(
       what,
-      `Final amount: ${currencyNoDecimal(amount)} (GST already inside)`,
+      `Final amount: ${currencyNoDecimal(amount)}\nIncluding GST (18%): ${currencyDisplay(gstInside)}`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Continue', onPress: onContinue },
@@ -350,14 +361,35 @@ export default function SubscriptionManagerScreen() {
   };
 
   const selectQuickAmount = (amount: number) => {
+    setUsingCustomAmount(false);
     setSelectedAmount(amount);
+    setRechargeAmount('');
+  };
+
+  const activateCustomAmount = () => {
+    if (usingCustomAmount) return;
+    setUsingCustomAmount(true);
+    setRechargeAmount('');
+    setSelectedAmount(0);
+  };
+
+  const handleCustomAmountChange = (value: string) => {
+    const sanitized = value.replace(/[^0-9]/g, '');
+    setRechargeAmount(sanitized);
+    const amount = Number(sanitized || 0);
+    setSelectedAmount(Number.isFinite(amount) && amount > 0 ? amount : 0);
   };
 
   const isTrialActive = overview?.status === 'FREE_TRIAL_LICENSE';
   const showStartTrial = overview?.status === 'NO_LICENSE' && !overview?.trialExpiredAt;
   const isPermanent = overview?.status === 'PERMANENT_LICENSE' || overview?.applicationPurchased;
-  const selectedRechargeAmount = selectedAmount;
-  const rechargeButtonLabel = `Recharge ${currencyNoDecimal(selectedRechargeAmount)}`;
+  const selectedRechargeAmount = Math.max(
+    0,
+    usingCustomAmount ? Number(rechargeAmount || 0) : selectedAmount,
+  );
+  const rechargeButtonLabel = selectedRechargeAmount > 0
+    ? `Recharge ${currencyNoDecimal(selectedRechargeAmount)}`
+    : 'Continue to Payment';
   const bottomNavTotalHeight = Math.max(0, BOTTOM_NAV_HEIGHT + BOTTOM_NAV_OFFSET + insets.bottom);
   const bottomContentSpacing = bottomNavTotalHeight + Spacing.xl;
   const trialTag = useMemo(() => {
@@ -451,7 +483,7 @@ export default function SubscriptionManagerScreen() {
 
                   <View style={styles.quickAmountGrid}>
                     {QUICK_AMOUNTS.map((amount) => {
-                      const isSelected = selectedAmount === amount;
+                      const isSelected = !usingCustomAmount && selectedAmount === amount;
                       const tierLabel = amount === 500
                         ? 'Starter'
                         : amount === 1000
@@ -482,6 +514,30 @@ export default function SubscriptionManagerScreen() {
                         </Pressable>
                       );
                     })}
+                  </View>
+
+                  <View style={styles.customAmountCard}>
+                    <View style={styles.customAmountHeader}>
+                      <Text style={styles.customAmountTitle}>Custom amount</Text>
+                      <Pressable onPress={activateCustomAmount} style={styles.customAmountAction}>
+                        <Text style={styles.customAmountActionText}>{usingCustomAmount ? 'Editing' : 'Use custom'}</Text>
+                        <ArrowRight size={13} color={Colors.primary} />
+                      </Pressable>
+                    </View>
+
+                    <View style={[styles.customInputWrap, usingCustomAmount && styles.customInputWrapActive]}>
+                      <Text style={styles.inputPrefix}>₹</Text>
+                      <TextInput
+                        value={rechargeAmount}
+                        onFocus={activateCustomAmount}
+                        onChangeText={handleCustomAmountChange}
+                        keyboardType="number-pad"
+                        style={styles.amountInput}
+                        accessibilityLabel="Custom amount"
+                      />
+                    </View>
+
+                    <Text style={styles.customHint}>Minimum ₹{MIN_RECHARGE}. Credits are added instantly after payment.</Text>
                   </View>
 
                   <Pressable disabled={busyAction !== null} onPress={handleRecharge} style={[styles.primaryBtn, busyAction === 'recharge' && styles.primaryBtnDisabled]}>

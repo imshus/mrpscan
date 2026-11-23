@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { Redirect, useFocusEffect, useRouter, type Href } from 'expo-router';
@@ -54,8 +55,8 @@ function getRazorpayCheckout(): RazorpayModule | null {
 }
 
 // A shop topping up mid-day wants fifty rupees of credits, not five hundred.
-// The credit packs, the same as the Credits screen (no typed amount since
-// 23 Nov 2026, the owner's call).
+// Any amount of 50 or more, or one of the packs (the Credits screen's).
+const MIN_RECHARGE = 50;
 const QUICK_AMOUNTS = [50, 100, 250, 500, 1000, 5000];
 
 function assertRazorpayReady(): void {
@@ -233,8 +234,9 @@ function PurchaseLicenseScreen() {
   // Credits, on the same screen as the comparison: a shop that decides against
   // the licence for now still needs a way to keep scanning.
   const [rechargeOpen, setRechargeOpen] = useState(true);
-  const [rechargeValue, setRechargeValue] = useState<number>(0);
-  const rechargeReady = QUICK_AMOUNTS.includes(rechargeValue);
+  const [rechargeAmount, setRechargeAmount] = useState('');
+  const rechargeValue = Number(rechargeAmount || 0);
+  const rechargeReady = Number.isFinite(rechargeValue) && rechargeValue >= MIN_RECHARGE;
 
   const handleRecharge = useCallback(() => {
     if (!canManagePayments) {
@@ -242,7 +244,7 @@ function PurchaseLicenseScreen() {
       return;
     }
     if (!rechargeReady) {
-      Alert.alert('Recharge Credits', 'Please choose a credit pack.');
+      Alert.alert('Recharge Credits', `Minimum purchase of ₹${MIN_RECHARGE} credits is allowed.`);
       return;
     }
     setEmailFor('recharge');
@@ -254,7 +256,7 @@ function PurchaseLicenseScreen() {
       assertRazorpayReady();
       const order = await createCreditRechargeOrder(rechargeValue, email);
       await runRazorpayCheckout(order, email);
-      setRechargeValue(0);
+      setRechargeAmount('');
       await loadOverview();
       setPaid({
         orderId: order.orderId,
@@ -418,14 +420,29 @@ function PurchaseLicenseScreen() {
 
               {rechargeOpen ? (
                 <View style={styles.rechargeBody}>
-                  <Text style={styles.rechargeLabel}>Choose credits</Text>
-                  <Text style={styles.rechargeHint}>Pick a credit pack</Text>
+                  <Text style={styles.rechargeLabel}>Enter Credit amount</Text>
+                  <Text style={styles.rechargeHint}>
+                    Minimum purchase of ₹{MIN_RECHARGE} credits is allowed
+                  </Text>
+
+                  <View style={styles.amountField}>
+                    <Text style={styles.amountPrefix}>₹</Text>
+                    <TextInput
+                      value={rechargeAmount}
+                      onChangeText={(text) => setRechargeAmount(text.replace(/[^0-9]/g, ''))}
+                      keyboardType="number-pad"
+                      maxLength={7}
+                      placeholderTextColor={Colors.placeholder}
+                      style={styles.amountInput}
+                      accessibilityLabel="Credit amount"
+                    />
+                  </View>
 
                   <View style={styles.quickRow}>
                     {QUICK_AMOUNTS.map((amount) => (
                       <Pressable
                         key={amount}
-                        onPress={() => setRechargeValue(amount)}
+                        onPress={() => setRechargeAmount(String(amount))}
                         style={[
                           styles.quickPill,
                           rechargeValue === amount && styles.quickPillActive,
