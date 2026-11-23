@@ -4,17 +4,16 @@ import { Platform } from 'react-native';
  * Selling inside the app, by platform.
  *
  * Android sells scan credits and the licence through Razorpay, as it always
- * has. The iPhone app sells nothing: Apple's rule 3.1.1 wants its own In-App
- * Purchase for digital goods bought in an iOS app, and the owner chose to go
- * in under 3.1.3(f) instead, as a free companion to the paid service. That
- * rule allows no purchasing in the app and no call to action to buy anywhere
- * else: no buy, recharge or upgrade button, no price on offer, nothing
- * pointing to a website, WhatsApp, a phone number or Android to pay. What
- * the account already has is shown as it stands: its credits, its licence,
- * the trial's end, its past payments.
+ * has. The iPhone app sells only through Apple In-App Purchase (rule 3.1.1),
+ * since Nov 2026: the licence and four credit packs, on the Credits screen
+ * alone (utils/appleIap.ts). Before that it sold nothing, under 3.1.3(f).
+ * Still never on iPhone: Razorpay, any-amount recharges, prices or ways to
+ * pay outside the App Store (a website, WhatsApp, a phone number, Android).
+ * So everything that is Razorpay's keeps asking canPurchaseInApp() (false on
+ * iPhone), and the server's and FAQ's buying words stay filtered there.
  *
- * Every screen asks canPurchaseInApp(); the rest is plain text work, loaded
- * as-is by utils/__tests__/platformCommerce.test.mjs.
+ * The rest is plain text work, loaded as-is by
+ * utils/__tests__/platformCommerce.test.mjs.
  */
 
 /** Whether a build for this OS may sell anything. Only the iPhone may not. */

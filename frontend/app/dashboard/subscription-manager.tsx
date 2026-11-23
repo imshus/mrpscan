@@ -40,6 +40,14 @@ import {
   canPurchaseInApp,
 } from '@/utils/platformCommerce';
 import Constants from 'expo-constants';
+import {
+  APPLE_CREDIT_PACKS,
+  APPLE_LICENCE_SKU,
+  buyWithApple,
+  canBuyWithApple,
+  fetchApplePrices,
+  restoreApplePurchases,
+} from '@/utils/appleIap';
 
 type RazorpayModule = {
   open: (options: Record<string, unknown>) => Promise<unknown>;
@@ -119,7 +127,7 @@ export default function SubscriptionManagerScreen() {
   const [loading, setLoading] = useState(true);
   // Which action is under way, so only its own button says so: a recharge
   // used to turn the Start Free Trial button into 'Please wait...' as well.
-  const [busyAction, setBusyAction] = useState<'trial' | 'recharge' | 'purchase' | null>(null);
+  const [busyAction, setBusyAction] = useState<'trial' | 'recharge' | 'purchase' | 'restore' | null>(null);
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null);
   // Which payment the email popup is open for; Continue starts that one.
   const [emailFor, setEmailFor] = useState<{ kind: 'purchase' } | { kind: 'recharge'; amount: number } | null>(null);
@@ -128,12 +136,17 @@ export default function SubscriptionManagerScreen() {
   const [rechargeAmount, setRechargeAmount] = useState('');
   const [selectedAmount, setSelectedAmount] = useState<number>(MIN_RECHARGE);
   const [usingCustomAmount, setUsingCustomAmount] = useState(false);
+  // iPhone: the App Store's own price per product, once it has answered.
+  const [applePrices, setApplePrices] = useState<Record<string, string>>({});
+  const [appleSku, setAppleSku] = useState<string>(APPLE_CREDIT_PACKS[0].sku);
 
   // iPhone: this screen reports the account and sells nothing — no Recharge
   // Credits, no licence price, no Purchase Now (utils/platformCommerce.ts).
   const canBuy = canPurchaseInApp();
   const canManagePayments = userRole === 'business' && canBuy;
   const screenTitle = canBuy ? 'Credits & Subscription' : ACCOUNT_STATUS_TITLE;
+  // iPhone sells through Apple In-App Purchase only (utils/appleIap.ts).
+  const canManageApple = userRole === 'business' && canBuyWithApple();
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -152,6 +165,15 @@ export default function SubscriptionManagerScreen() {
     useCallback(() => {
       void loadData();
     }, [loadData]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!canManageApple) return;
+      fetchApplePrices().then(setApplePrices).catch((error) => {
+        console.warn('App Store prices unavailable', error);
+      });
+    }, [canManageApple]),
   );
 
   const runRazorpayCheckout = useCallback(async (order: {
@@ -201,7 +223,7 @@ export default function SubscriptionManagerScreen() {
     await verifyPayment(order.orderId, payment.razorpay_payment_id, payment.razorpay_signature);
   }, []);
 
-  const runAction = async (kind: 'trial' | 'recharge' | 'purchase', action: () => Promise<void>) => {
+  const runAction = async (kind: 'trial' | 'recharge' | 'purchase' | 'restore', action: () => Promise<void>) => {
     setBusyAction(kind);
     try {
       await action();
@@ -279,6 +301,34 @@ export default function SubscriptionManagerScreen() {
         message: 'Your application license is active and bonus wallet credits have been added.',
         email,
       });
+    });
+  };
+
+  const applePrice = (sku: string, fallback: number) => applePrices[sku] ?? currencyNoDecimal(fallback);
+
+  const handleAppleCredits = async () => {
+    const pack = APPLE_CREDIT_PACKS.find((item) => item.sku === appleSku);
+    if (!pack) return;
+    await runAction('recharge', async () => {
+      await buyWithApple(pack.sku);
+      Alert.alert('Credits Added', `${pack.credits} credits have been added to your wallet.`);
+    });
+  };
+
+  const handleAppleLicence = async () => {
+    await runAction('purchase', async () => {
+      await buyWithApple(APPLE_LICENCE_SKU);
+      Alert.alert('License Activated', 'Your application license is active and bonus wallet credits have been added.');
+    });
+  };
+
+  const handleAppleRestore = async () => {
+    await runAction('restore', async () => {
+      const found = await restoreApplePurchases();
+      Alert.alert(
+        'Restore Purchases',
+        found ? 'Your application license has been restored.' : 'No earlier App Store purchase of the license was found.',
+      );
     });
   };
 
@@ -496,6 +546,69 @@ export default function SubscriptionManagerScreen() {
                 </Pressable>
               ) : null}
 
+              {canManageApple && isPermanent ? (
+                <View style={styles.actionCard}>
+                  <Text style={styles.cardTitle}>Recharge Credits</Text>
+                  <Text style={styles.cardHelper}>Add credits to your wallet</Text>
+
+                  <View style={styles.quickAmountGrid}>
+                    {APPLE_CREDIT_PACKS.map((pack) => {
+                      const isSelected = appleSku === pack.sku;
+                      return (
+                        <Pressable
+                          key={pack.sku}
+                          onPress={() => setAppleSku(pack.sku)}
+                          style={[styles.quickAmountCard, isSelected && styles.quickAmountCardSelected]}
+                        >
+                          <View style={styles.quickAmountTopRow}>
+                            <Text style={[styles.quickAmountBadge, isSelected && styles.quickAmountBadgeSelected]}>
+                              {pack.credits.toLocaleString('en-IN')} credits
+                            </Text>
+                          </View>
+                          <Text style={[styles.quickAmountTitle, isSelected && styles.quickAmountTitleSelected]}>
+                            {applePrice(pack.sku, pack.price)}
+                          </Text>
+                          <Text style={[styles.quickAmountSub, isSelected && styles.quickAmountSubSelected]}>
+                            Incl. GST, instant top-up
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  <Pressable
+                    disabled={busyAction !== null}
+                    onPress={() => void handleAppleCredits()}
+                    style={[styles.primaryBtn, busyAction === 'recharge' && styles.primaryBtnDisabled]}
+                  >
+                    <Text style={styles.primaryBtnText}>
+                      {busyAction === 'recharge'
+                        ? 'Processing...'
+                        : `Buy ${APPLE_CREDIT_PACKS.find((pack) => pack.sku === appleSku)?.credits ?? ''} credits`}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              {canManageApple && !isPermanent ? (
+                <View style={styles.actionCard}>
+                  <Text style={styles.cardTitle}>Application License</Text>
+                  <Text style={styles.cardHelper}>One-time purchase, includes bonus scan credits</Text>
+                  <Text style={styles.quickAmountTitle}>
+                    {applePrice(APPLE_LICENCE_SKU, Number(overview?.applicationPrice || 12000) * 1.18)}
+                  </Text>
+                  <Pressable
+                    disabled={busyAction !== null}
+                    onPress={() => void handleAppleLicence()}
+                    style={[styles.primaryBtn, busyAction === 'purchase' && styles.primaryBtnDisabled]}
+                  >
+                    <Text style={styles.primaryBtnText}>
+                      {busyAction === 'purchase' ? 'Processing...' : 'Purchase Now'}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
               <View style={styles.linkStack}>
                 <Pressable onPress={() => router.push('/dashboard/payment-history')} style={styles.linkCard}>
                   <View style={styles.linkRowBetween}>
@@ -533,6 +646,19 @@ export default function SubscriptionManagerScreen() {
                 >
                   <Text style={styles.purchaseNowText}>
                     {busyAction === 'purchase' ? 'Processing...' : 'Purchase Now'}
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {canManageApple ? (
+                <Pressable
+                  disabled={busyAction !== null}
+                  onPress={() => void handleAppleRestore()}
+                  accessibilityRole="button"
+                  style={styles.linkCard}
+                >
+                  <Text style={styles.linkTitle}>
+                    {busyAction === 'restore' ? 'Restoring...' : 'Restore Purchases'}
                   </Text>
                 </Pressable>
               ) : null}
