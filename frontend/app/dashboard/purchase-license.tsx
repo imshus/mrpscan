@@ -422,7 +422,7 @@ function PurchaseLicenseScreen() {
               {rechargeOpen ? (
                 <View style={styles.rechargeBody}>
                   <Text style={styles.rechargeLabel}>Choose credits</Text>
-                  <Text style={styles.rechargeHint}>Pick a pack; GST is added at checkout</Text>
+                  <Text style={styles.rechargeHint}>Pick a credit pack</Text>
 
                   <View style={styles.quickRow}>
                     {QUICK_AMOUNTS.map((amount) => (

@@ -517,7 +517,7 @@ export default function SubscriptionManagerScreen() {
                             {applePrice(pack.sku, pack.price)}
                           </Text>
                           <Text style={[styles.quickAmountSub, isSelected && styles.quickAmountSubSelected]}>
-                            Incl. GST, instant top-up
+                            Instant credit top-up
                           </Text>
                         </Pressable>
                       );
