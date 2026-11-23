@@ -289,18 +289,44 @@ export default function SubscriptionManagerScreen() {
   // iPhone recharge: one of the packs, bought through Apple.
   const applePack = APPLE_CREDIT_PACKS.find((item) => item.sku === appleSku) ?? APPLE_CREDIT_PACKS[0];
 
-  const handleAppleCredits = async () => {
-    await runAction('recharge', async () => {
-      const result = await buyWithApple(applePack.sku);
-      const added = Number(result.creditsPurchased || applePack.credits);
-      Alert.alert('Credits Added', `${added.toLocaleString('en-IN')} credits have been added to your wallet.`);
+  // iPhone licence: the App Store price is the licence price itself (Rs
+  // 12,000, GST inside; owner, 23 Nov 2026), so the card and the charge agree.
+  const appleLicencePrice = Number(overview?.applicationPrice || 12000);
+  const appleLicenceCharge = appleLicencePrice;
+
+  /**
+   * MRPscan's own step before Apple's payment sheet: the final amount, GST
+   * included, so the shop sees what it will pay before the App Store asks
+   * (the screen itself shows no GST, at the owner's asking).
+   */
+  const confirmFinalAmount = (what: string, amount: number, onContinue: () => void) => {
+    Alert.alert(
+      what,
+      `Final amount: ${currencyNoDecimal(amount)} (GST already inside)`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Continue', onPress: onContinue },
+      ],
+    );
+  };
+
+  const handleAppleCredits = () => {
+    const pack = applePack;
+    confirmFinalAmount(`${pack.credits.toLocaleString('en-IN')} credits`, pack.price, () => {
+      void runAction('recharge', async () => {
+        const result = await buyWithApple(pack.sku);
+        const added = Number(result.creditsPurchased || pack.credits);
+        Alert.alert('Credits Added', `${added.toLocaleString('en-IN')} credits have been added to your wallet.`);
+      });
     });
   };
 
-  const handleAppleLicence = async () => {
-    await runAction('purchase', async () => {
-      await buyWithApple(APPLE_LICENCE_SKU);
-      Alert.alert('License Activated', 'Your application license is active and bonus wallet credits have been added.');
+  const handleAppleLicence = () => {
+    confirmFinalAmount('Application License', appleLicenceCharge, () => {
+      void runAction('purchase', async () => {
+        await buyWithApple(APPLE_LICENCE_SKU);
+        Alert.alert('License Activated', 'Your application license is active and bonus wallet credits have been added.');
+      });
     });
   };
 
@@ -511,7 +537,7 @@ export default function SubscriptionManagerScreen() {
 
                   <Pressable
                     disabled={busyAction !== null}
-                    onPress={() => void handleAppleCredits()}
+                    onPress={handleAppleCredits}
                     style={[styles.primaryBtn, busyAction === 'recharge' && styles.primaryBtnDisabled]}
                   >
                     <Text style={styles.primaryBtnText}>
@@ -527,9 +553,10 @@ export default function SubscriptionManagerScreen() {
                 <View style={styles.actionCard}>
                   <Text style={styles.cardTitle}>Application License</Text>
                   <Text style={styles.cardHelper}>One-time purchase, includes bonus scan credits</Text>
+                  <Text style={[styles.quickAmountTitle, { marginTop: 8 }]}>{currencyNoDecimal(appleLicencePrice)}</Text>
                   <Pressable
                     disabled={busyAction !== null}
-                    onPress={() => void handleAppleLicence()}
+                    onPress={handleAppleLicence}
                     style={[styles.primaryBtn, busyAction === 'purchase' && styles.primaryBtnDisabled]}
                   >
                     <Text style={styles.primaryBtnText}>
