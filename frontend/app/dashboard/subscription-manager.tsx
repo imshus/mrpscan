@@ -298,10 +298,10 @@ export default function SubscriptionManagerScreen() {
   // iPhone recharge: one of the packs, bought through Apple.
   const applePack = APPLE_CREDIT_PACKS.find((item) => item.sku === appleSku) ?? APPLE_CREDIT_PACKS[0];
 
-  // iPhone licence: the App Store price is the licence price itself (Rs
-  // 12,000, GST inside; owner, 23 Nov 2026), so the card and the charge agree.
+  // iPhone licence: the card shows the price (Rs 12,000); the App Store
+  // charges it + 18% GST (Rs 14,160), which the final-amount step shows first.
   const appleLicencePrice = Number(overview?.applicationPrice || 12000);
-  const appleLicenceCharge = appleLicencePrice;
+  const appleLicenceCharge = Math.round(appleLicencePrice * 1.18);
 
   /**
    * MRPscan's own step before Apple's payment sheet: the final amount, GST
@@ -309,7 +309,7 @@ export default function SubscriptionManagerScreen() {
    * (the screen itself shows no GST, at the owner's asking).
    */
   const confirmFinalAmount = (what: string, amount: number, onContinue: () => void) => {
-    // The GST inside the amount at 18%: 12,000 = 10,169.49 + 1,830.51.
+    // The GST inside the total at 18%: 14,160 = 12,000 + 2,160.
     const gstInside = Math.round((amount - amount / 1.18) * 100) / 100;
     const price = Math.round((amount - gstInside) * 100) / 100;
     Alert.alert(
