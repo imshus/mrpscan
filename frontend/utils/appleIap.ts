@@ -14,20 +14,30 @@ import { unwrapApiData } from '@/utils/apiResponse';
  * was lost stays unfinished, and StoreKit hands it back on the next launch,
  * where the listener sends it again (the server applies each one once).
  *
- * The ids must match the products in App Store Connect and the server's list
- * (backend src/services/appleIap.service.js). `price` is the App Store price
- * to set and the price shown: a pack costs its credits in rupees, no GST on
- * iPhone (owner, 23 Nov 2026). The licence is Rs 12,000.
+ * These ids are the products approved in App Store Connect on 23 Nov 2026 and
+ * must be typed exactly: a product id cannot be renamed once it exists, so
+ * the licence really is spelled "lisence". The server's list
+ * (backend src/services/appleIap.service.js) must hold the same five.
+ *
+ * `price` is the rupee price shown while the App Store's own localized price
+ * is still loading: a pack costs its credits in rupees, no GST on iPhone
+ * (owner, 23 Nov 2026), and the licence is Rs 12,000. Apple is the authority
+ * on what is actually charged — never present this number as the final price
+ * in a storefront other than India.
  */
-export const APPLE_LICENCE_SKU = 'com.amitaashitsolution.licence';
+export const APPLE_LICENCE_SKU = 'com.mrpscan.lisence';
 
-export const APPLE_CREDIT_PACKS: { sku: string; credits: number; price: number }[] = [
-  { sku: 'com.amitaashitsolution.credits50', credits: 50, price: 50 },
-  { sku: 'com.amitaashitsolution.credits100', credits: 100, price: 100 },
-  { sku: 'com.amitaashitsolution.credits250', credits: 250, price: 250 },
-  { sku: 'com.amitaashitsolution.credits500', credits: 500, price: 500 },
-  { sku: 'com.amitaashitsolution.credits1000', credits: 1000, price: 1000 },
-  { sku: 'com.amitaashitsolution.credits5000', credits: 5000, price: 5000 },
+export const APPLE_CREDIT_PACKS: {
+  sku: string;
+  credits: number;
+  price: number;
+  /** Badge on the tile, so the four packs read as a ladder. */
+  tier: string;
+}[] = [
+  { sku: 'com.mrpscan.credits.200', credits: 200, price: 200, tier: 'Starter' },
+  { sku: 'com.mrpscan.credits.500', credits: 500, price: 500, tier: 'Basic' },
+  { sku: 'com.mrpscan.credits.1000', credits: 1000, price: 1000, tier: 'Popular' },
+  { sku: 'com.mrpscan.credits.5000', credits: 5000, price: 5000, tier: 'Business' },
 ];
 
 const ALL_SKUS = [APPLE_LICENCE_SKU, ...APPLE_CREDIT_PACKS.map((pack) => pack.sku)];
@@ -35,6 +45,34 @@ const ALL_SKUS = [APPLE_LICENCE_SKU, ...APPLE_CREDIT_PACKS.map((pack) => pack.sk
 /** True on iPhone, where buying goes through Apple. */
 export function canBuyWithApple(): boolean {
   return Platform.OS === 'ios';
+}
+
+/**
+ * What the App Store will actually charge, keyed by product id, already
+ * formatted in the shop's own storefront and currency ("₹200", "$2.99").
+ *
+ * Apple is the authority on price: the rupee figures in APPLE_CREDIT_PACKS
+ * are only a stand-in for the moment before this returns, and they are wrong
+ * outside India. A product missing from App Store Connect is simply absent
+ * here rather than an error, so one bad id cannot hide the rest.
+ */
+export async function fetchApplePrices(): Promise<Record<string, string>> {
+  if (!canBuyWithApple()) return {};
+  try {
+    await ensureAppleStore();
+    const products = (await iap().fetchProducts({
+      skus: ALL_SKUS,
+      type: 'in-app',
+    })) as unknown as { id: string; displayPrice?: string }[];
+    const prices: Record<string, string> = {};
+    for (const product of products ?? []) {
+      if (product?.id && product.displayPrice) prices[product.id] = product.displayPrice;
+    }
+    return prices;
+  } catch {
+    // The hardcoded rupee prices stand in; buying still works.
+    return {};
+  }
 }
 
 type IapPurchase = { productId: string; purchaseToken?: string | null; id: string };

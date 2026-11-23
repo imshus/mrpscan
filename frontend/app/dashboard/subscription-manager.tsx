@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -45,6 +45,7 @@ import {
   APPLE_LICENCE_SKU,
   buyWithApple,
   canBuyWithApple,
+  fetchApplePrices,
   restoreApplePurchases,
 } from '@/utils/appleIap';
 
@@ -137,6 +138,9 @@ export default function SubscriptionManagerScreen() {
   const [usingCustomAmount, setUsingCustomAmount] = useState(false);
   // iPhone: the credit pack chosen (Apple In-App Purchase, utils/appleIap.ts).
   const [appleSku, setAppleSku] = useState<string>(APPLE_CREDIT_PACKS[0].sku);
+  // What the App Store will really charge, in the shop's own currency. Empty
+  // until it answers; the rupee prices below stand in until then.
+  const [applePrices, setApplePrices] = useState<Record<string, string>>({});
 
   // iPhone: this screen reports the account and sells nothing — no Recharge
   // Credits, no licence price, no Purchase Now (utils/platformCommerce.ts).
@@ -146,6 +150,19 @@ export default function SubscriptionManagerScreen() {
   // iPhone sells through Apple In-App Purchase only (utils/appleIap.ts);
   // everything Android shows stays as it was.
   const canManageApple = userRole === 'business' && canBuyWithApple();
+
+  // Ask the App Store what it charges, once. Never block on it: if the store
+  // is slow or unreachable the screen still works on the fallback prices.
+  useEffect(() => {
+    if (!canManageApple) return;
+    let cancelled = false;
+    void fetchApplePrices().then((prices) => {
+      if (!cancelled && Object.keys(prices).length) setApplePrices(prices);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [canManageApple]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -301,6 +318,9 @@ export default function SubscriptionManagerScreen() {
   // credits in rupees and the licence its price (Rs 12,000), the same amounts
   // the App Store products are set to, so Apple's sheet opens straight away.
   const appleLicencePrice = Number(overview?.applicationPrice || 12000);
+  /** Apple's own price for a product, falling back to the rupee figure. */
+  const applePriceFor = (sku: string, fallback: number) =>
+    applePrices[sku] ?? currencyNoDecimal(fallback);
 
   const handleAppleCredits = () => {
     const pack = applePack;
@@ -558,11 +578,14 @@ export default function SubscriptionManagerScreen() {
                         >
                           <View style={styles.quickAmountTopRow}>
                             <Text style={[styles.quickAmountBadge, isSelected && styles.quickAmountBadgeSelected]}>
-                              {pack.credits.toLocaleString('en-IN')} credits
+                              {pack.tier}
+                            </Text>
+                            <Text style={[styles.quickAmountSubtle, isSelected && styles.quickAmountSubtleSelected]}>
+                              {pack.credits.toLocaleString('en-IN')} cr
                             </Text>
                           </View>
                           <Text style={[styles.quickAmountTitle, isSelected && styles.quickAmountTitleSelected]}>
-                            {currencyNoDecimal(pack.price)}
+                            {applePriceFor(pack.sku, pack.price)}
                           </Text>
                           <Text style={[styles.quickAmountSub, isSelected && styles.quickAmountSubSelected]}>
                             Instant credit top-up
@@ -580,7 +603,7 @@ export default function SubscriptionManagerScreen() {
                     <Text style={styles.primaryBtnText}>
                       {busyAction === 'recharge'
                         ? 'Processing...'
-                        : `Buy ${applePack.credits.toLocaleString('en-IN')} credits · ${currencyNoDecimal(applePack.price)}`}
+                        : `Buy ${applePack.credits.toLocaleString('en-IN')} credits · ${applePriceFor(applePack.sku, applePack.price)}`}
                     </Text>
                   </Pressable>
                 </View>
@@ -590,7 +613,9 @@ export default function SubscriptionManagerScreen() {
                 <View style={styles.actionCard}>
                   <Text style={styles.cardTitle}>Application License</Text>
                   <Text style={styles.cardHelper}>One-time purchase, includes bonus scan credits</Text>
-                  <Text style={[styles.quickAmountTitle, { marginTop: 8 }]}>{currencyNoDecimal(appleLicencePrice)}</Text>
+                  <Text style={[styles.quickAmountTitle, { marginTop: 8 }]}>
+                    {applePriceFor(APPLE_LICENCE_SKU, appleLicencePrice)}
+                  </Text>
                   <Pressable
                     disabled={busyAction !== null}
                     onPress={handleAppleLicence}
