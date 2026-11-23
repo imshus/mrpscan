@@ -309,11 +309,12 @@ export default function SubscriptionManagerScreen() {
    * (the screen itself shows no GST, at the owner's asking).
    */
   const confirmFinalAmount = (what: string, amount: number, onContinue: () => void) => {
-    // The GST inside the amount at 18%: 12,000 holds 1,830.51.
+    // The GST inside the amount at 18%: 12,000 = 10,169.49 + 1,830.51.
     const gstInside = Math.round((amount - amount / 1.18) * 100) / 100;
+    const price = Math.round((amount - gstInside) * 100) / 100;
     Alert.alert(
       what,
-      `Final amount: ${currencyNoDecimal(amount)}\nIncluding GST (18%): ${currencyDisplay(gstInside)}`,
+      `Price: ${currencyDisplay(price)}\nGST (18%): ${currencyDisplay(gstInside)}\nTotal (including GST): ${currencyDisplay(amount)}`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Continue', onPress: onContinue },
