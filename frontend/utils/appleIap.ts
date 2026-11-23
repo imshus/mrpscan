@@ -25,6 +25,8 @@ export const APPLE_CREDIT_PACKS: { sku: string; credits: number; price: number }
   { sku: 'com.amitaashitsolution.credits100', credits: 100, price: 118 },
   { sku: 'com.amitaashitsolution.credits250', credits: 250, price: 295 },
   { sku: 'com.amitaashitsolution.credits500', credits: 500, price: 590 },
+  { sku: 'com.amitaashitsolution.credits1000', credits: 1000, price: 1180 },
+  { sku: 'com.amitaashitsolution.credits5000', credits: 5000, price: 5900 },
 ];
 
 const ALL_SKUS = [APPLE_LICENCE_SKU, ...APPLE_CREDIT_PACKS.map((pack) => pack.sku)];

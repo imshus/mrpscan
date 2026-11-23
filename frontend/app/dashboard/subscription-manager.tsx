@@ -607,7 +607,7 @@ export default function SubscriptionManagerScreen() {
                     <Text style={styles.customHint}>
                       {appleProblem
                         ?? (applePlan && applePlan.length > 1
-                          ? `Paid in 2 App Store steps: ${applePlan.map((step) => `${step.credits} × ${step.quantity}`).join(', then ')}.`
+                          ? `Paid in ${applePlan.length} App Store steps: ${applePlan.map((step) => `${step.credits.toLocaleString('en-IN')} × ${step.quantity}`).join(', then ')}.`
                           : `Any amount from ${APPLE_MIN_CREDITS} to ${APPLE_MAX_CREDITS.toLocaleString('en-IN')}, in steps of 50. Price includes GST.`)}
                     </Text>
                   </View>

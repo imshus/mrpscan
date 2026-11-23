@@ -3,29 +3,37 @@
  * (node loads this very file in utils/__tests__/appleCreditPlan.test.mjs).
  *
  * Apple only sells products made in App Store Connect, so a typed amount is
- * bought as credit packs: one pack (50/100/250/500) times a quantity of up
- * to 10 per purchase, StoreKit's limit. The fewest purchases win: 2,000 is
- * one (500 x 4), 2,350 is two (500 x 4, then 50 x 7). Each purchase is one
- * Apple confirmation, so at most two are allowed.
+ * bought as credit packs: one pack (50/100/250/500/1,000/5,000) times a
+ * quantity of up to 10 per purchase, StoreKit's limit. The fewest purchases
+ * win: 2,000 is one (500 x 4), 2,350 is two (500 x 4, then 50 x 7). Each
+ * purchase is one Apple confirmation; up to three cover every step of 50
+ * from 50 to 50,000.
  */
 
-export const APPLE_PACK_CREDITS = [500, 250, 100, 50] as const;
+export const APPLE_PACK_CREDITS = [5000, 1000, 500, 250, 100, 50] as const;
 export const APPLE_MAX_QUANTITY = 10;
 export const APPLE_MIN_CREDITS = 50;
 export const APPLE_STEP_CREDITS = 50;
-/**
- * The 500 pack x 10. Every step of 50 up to here takes at most two
- * purchases; above it some would take three. More can be bought again.
- */
-export const APPLE_MAX_CREDITS = 500 * APPLE_MAX_QUANTITY;
+/** The 5,000 pack x 10. */
+export const APPLE_MAX_CREDITS = 5000 * APPLE_MAX_QUANTITY;
+export const APPLE_MAX_PURCHASES = 3;
 
 export type ApplePurchaseStep = { credits: number; quantity: number };
 
-/** One pack x quantity covering exactly `amount`, the biggest pack first. */
-function single(amount: number): ApplePurchaseStep | null {
+/** Exactly `amount` in `count` purchases, the biggest packs first; null if none. */
+function exactly(amount: number, count: number): ApplePurchaseStep[] | null {
   for (const credits of APPLE_PACK_CREDITS) {
-    if (amount % credits === 0 && amount / credits <= APPLE_MAX_QUANTITY) {
-      return { credits, quantity: amount / credits };
+    if (count === 1) {
+      if (amount % credits === 0 && amount / credits <= APPLE_MAX_QUANTITY) {
+        return [{ credits, quantity: amount / credits }];
+      }
+      continue;
+    }
+    for (let quantity = APPLE_MAX_QUANTITY; quantity >= 1; quantity -= 1) {
+      const rest = amount - credits * quantity;
+      if (rest <= 0) continue;
+      const others = exactly(rest, count - 1);
+      if (others) return [{ credits, quantity }, ...others];
     }
   }
   return null;
@@ -41,20 +49,14 @@ export function appleAmountProblem(amount: number): string | null {
 }
 
 /**
- * The purchases that buy exactly `amount` credits: one when a single pack x
- * quantity covers it, otherwise two. Null when the amount is not buyable.
+ * The purchases that buy exactly `amount` credits, as few as possible (one,
+ * two or three). Null when the amount is not buyable.
  */
 export function planAppleCredits(amount: number): ApplePurchaseStep[] | null {
   if (appleAmountProblem(amount)) return null;
-  const one = single(amount);
-  if (one) return [one];
-  for (const credits of APPLE_PACK_CREDITS) {
-    for (let quantity = APPLE_MAX_QUANTITY; quantity >= 1; quantity -= 1) {
-      const rest = amount - credits * quantity;
-      if (rest <= 0) continue;
-      const second = single(rest);
-      if (second) return [{ credits, quantity }, second];
-    }
+  for (let count = 1; count <= APPLE_MAX_PURCHASES; count += 1) {
+    const plan = exactly(amount, count);
+    if (plan) return plan;
   }
   return null;
 }
