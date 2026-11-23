@@ -297,47 +297,24 @@ export default function SubscriptionManagerScreen() {
   // iPhone recharge: one of the packs, bought through Apple.
   const applePack = APPLE_CREDIT_PACKS.find((item) => item.sku === appleSku) ?? APPLE_CREDIT_PACKS[0];
 
-  // iPhone licence: the card shows the price (Rs 12,000); the App Store
-  // charges it + 18% GST (Rs 14,160), which the final-amount step shows first.
+  // iPhone prices carry no GST (owner, 23 Nov 2026): a pack costs its
+  // credits in rupees and the licence its price (Rs 12,000), the same amounts
+  // the App Store products are set to, so Apple's sheet opens straight away.
   const appleLicencePrice = Number(overview?.applicationPrice || 12000);
-  const appleLicenceCharge = Math.round(appleLicencePrice * 1.18);
-
-  /**
-   * MRPscan's own step before Apple's payment sheet: the final amount, GST
-   * included, so the shop sees what it will pay before the App Store asks
-   * (the screen itself shows no GST, at the owner's asking).
-   */
-  const confirmFinalAmount = (what: string, amount: number, onContinue: () => void) => {
-    // The GST inside the total at 18%: 14,160 = 12,000 + 2,160.
-    const gstInside = Math.round((amount - amount / 1.18) * 100) / 100;
-    const price = Math.round((amount - gstInside) * 100) / 100;
-    Alert.alert(
-      what,
-      `Price: ${currencyDisplay(price)}\nGST (18%): ${currencyDisplay(gstInside)}\nTotal (including GST): ${currencyDisplay(amount)}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Continue', onPress: onContinue },
-      ],
-    );
-  };
 
   const handleAppleCredits = () => {
     const pack = applePack;
-    confirmFinalAmount(`${pack.credits.toLocaleString('en-IN')} credits`, pack.price, () => {
-      void runAction('recharge', async () => {
-        const result = await buyWithApple(pack.sku);
-        const added = Number(result.creditsPurchased || pack.credits);
-        Alert.alert('Credits Added', `${added.toLocaleString('en-IN')} credits have been added to your wallet.`);
-      });
+    void runAction('recharge', async () => {
+      const result = await buyWithApple(pack.sku);
+      const added = Number(result.creditsPurchased || pack.credits);
+      Alert.alert('Credits Added', `${added.toLocaleString('en-IN')} credits have been added to your wallet.`);
     });
   };
 
   const handleAppleLicence = () => {
-    confirmFinalAmount('Application License', appleLicenceCharge, () => {
-      void runAction('purchase', async () => {
-        await buyWithApple(APPLE_LICENCE_SKU);
-        Alert.alert('License Activated', 'Your application license is active and bonus wallet credits have been added.');
-      });
+    void runAction('purchase', async () => {
+      await buyWithApple(APPLE_LICENCE_SKU);
+      Alert.alert('License Activated', 'Your application license is active and bonus wallet credits have been added.');
     });
   };
 
@@ -579,11 +556,13 @@ export default function SubscriptionManagerScreen() {
                           onPress={() => setAppleSku(pack.sku)}
                           style={[styles.quickAmountCard, isSelected && styles.quickAmountCardSelected]}
                         >
+                          <View style={styles.quickAmountTopRow}>
+                            <Text style={[styles.quickAmountBadge, isSelected && styles.quickAmountBadgeSelected]}>
+                              {pack.credits.toLocaleString('en-IN')} credits
+                            </Text>
+                          </View>
                           <Text style={[styles.quickAmountTitle, isSelected && styles.quickAmountTitleSelected]}>
-                            {pack.credits.toLocaleString('en-IN')}
-                          </Text>
-                          <Text style={[styles.quickAmountSub, isSelected && styles.quickAmountSubSelected]}>
-                            credits
+                            {currencyNoDecimal(pack.price)}
                           </Text>
                           <Text style={[styles.quickAmountSub, isSelected && styles.quickAmountSubSelected]}>
                             Instant credit top-up
@@ -601,7 +580,7 @@ export default function SubscriptionManagerScreen() {
                     <Text style={styles.primaryBtnText}>
                       {busyAction === 'recharge'
                         ? 'Processing...'
-                        : `Buy ${applePack.credits.toLocaleString('en-IN')} credits`}
+                        : `Buy ${applePack.credits.toLocaleString('en-IN')} credits · ${currencyNoDecimal(applePack.price)}`}
                     </Text>
                   </Pressable>
                 </View>
