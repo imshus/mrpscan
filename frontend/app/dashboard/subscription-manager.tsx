@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -43,18 +42,11 @@ import Constants from 'expo-constants';
 import {
   APPLE_CREDIT_PACKS,
   APPLE_LICENCE_SKU,
-  buyAppleCredits,
   buyWithApple,
   canBuyWithApple,
   fetchApplePrices,
   restoreApplePurchases,
 } from '@/utils/appleIap';
-import {
-  APPLE_MAX_CREDITS,
-  APPLE_MIN_CREDITS,
-  appleAmountProblem,
-  planAppleCredits,
-} from '@/utils/appleCreditPlan';
 
 type RazorpayModule = {
   open: (options: Record<string, unknown>) => Promise<unknown>;
@@ -104,10 +96,10 @@ function currencyNoDecimal(value: number): string {
   })}`;
 }
 
-// What the design offers: a shop topping up mid-day wants fifty rupees of
-// credits, not five hundred.
-const MIN_RECHARGE = 50;
-const QUICK_AMOUNTS = [50, 100, 250, 500];
+// The packs on offer, the same on Android and iPhone (no typed amount since
+// 23 Nov 2026, the owner's call): a shop topping up mid-day wants fifty
+// credits, a busy one five thousand.
+const QUICK_AMOUNTS = [50, 100, 250, 500, 1000, 5000];
 
 const BOTTOM_NAV_HEIGHT = 70;
 const BOTTOM_NAV_OFFSET = -4;
@@ -140,12 +132,10 @@ export default function SubscriptionManagerScreen() {
   const [emailFor, setEmailFor] = useState<{ kind: 'purchase' } | { kind: 'recharge'; amount: number } | null>(null);
   // The payment that just went through, with its invoice on offer.
   const [paid, setPaid] = useState<PaidOrder | null>(null);
-  const [rechargeAmount, setRechargeAmount] = useState('');
-  const [selectedAmount, setSelectedAmount] = useState<number>(MIN_RECHARGE);
-  const [usingCustomAmount, setUsingCustomAmount] = useState(false);
+  const [selectedAmount, setSelectedAmount] = useState<number>(QUICK_AMOUNTS[0]);
   // iPhone: the App Store's own price per product, once it has answered.
   const [applePrices, setApplePrices] = useState<Record<string, string>>({});
-  const [appleAmountText, setAppleAmountText] = useState<string>(String(APPLE_CREDIT_PACKS[0].credits));
+  const [appleSku, setAppleSku] = useState<string>(APPLE_CREDIT_PACKS[0].sku);
 
   // iPhone: this screen reports the account and sells nothing — no Recharge
   // Credits, no licence price, no Purchase Now (utils/platformCommerce.ts).
@@ -259,17 +249,11 @@ export default function SubscriptionManagerScreen() {
   };
 
   const handleRecharge = async () => {
-    const amount = usingCustomAmount ? Number(rechargeAmount || 0) : selectedAmount;
-    if (!Number.isFinite(amount) || amount <= 0) {
-      Alert.alert('Recharge Credits', 'Please enter a valid recharge amount.');
+    if (!QUICK_AMOUNTS.includes(selectedAmount)) {
+      Alert.alert('Recharge Credits', 'Please choose a credit pack.');
       return;
     }
-    if (amount < MIN_RECHARGE) {
-      Alert.alert('Recharge Credits', `Minimum purchase of ₹${MIN_RECHARGE} credits is allowed.`);
-      return;
-    }
-
-    setEmailFor({ kind: 'recharge', amount });
+    setEmailFor({ kind: 'recharge', amount: selectedAmount });
   };
 
   const startRecharge = async (amount: number, email: string) => {
@@ -313,20 +297,13 @@ export default function SubscriptionManagerScreen() {
 
   const applePrice = (sku: string, fallback: number) => applePrices[sku] ?? currencyNoDecimal(fallback);
 
-  // iPhone recharge: a pack tapped or any amount typed (50 to 5,000 in steps
-  // of 50), bought as packs x quantity (utils/appleCreditPlan.ts).
-  const appleCredits = Number(appleAmountText || 0);
-  const appleProblem = appleAmountText ? appleAmountProblem(appleCredits) : null;
-  const applePlan = appleProblem ? null : planAppleCredits(appleCredits);
+  // iPhone recharge: one of the packs, bought through Apple.
+  const applePack = APPLE_CREDIT_PACKS.find((item) => item.sku === appleSku) ?? APPLE_CREDIT_PACKS[0];
 
   const handleAppleCredits = async () => {
-    const problem = appleAmountProblem(appleCredits);
-    if (problem) {
-      Alert.alert('Recharge Credits', problem);
-      return;
-    }
     await runAction('recharge', async () => {
-      const added = await buyAppleCredits(appleCredits);
+      const result = await buyWithApple(applePack.sku);
+      const added = Number(result.creditsPurchased || applePack.credits);
       Alert.alert('Credits Added', `${added.toLocaleString('en-IN')} credits have been added to your wallet.`);
     });
   };
@@ -358,35 +335,14 @@ export default function SubscriptionManagerScreen() {
   };
 
   const selectQuickAmount = (amount: number) => {
-    setUsingCustomAmount(false);
     setSelectedAmount(amount);
-    setRechargeAmount('');
-  };
-
-  const activateCustomAmount = () => {
-    if (usingCustomAmount) return;
-    setUsingCustomAmount(true);
-    setRechargeAmount('');
-    setSelectedAmount(0);
-  };
-
-  const handleCustomAmountChange = (value: string) => {
-    const sanitized = value.replace(/[^0-9.]/g, '');
-    setRechargeAmount(sanitized);
-    const amount = Number(sanitized || 0);
-    setSelectedAmount(Number.isFinite(amount) && amount > 0 ? amount : 0);
   };
 
   const isTrialActive = overview?.status === 'FREE_TRIAL_LICENSE';
   const showStartTrial = overview?.status === 'NO_LICENSE' && !overview?.trialExpiredAt;
   const isPermanent = overview?.status === 'PERMANENT_LICENSE' || overview?.applicationPurchased;
-  const selectedRechargeAmount = Math.max(
-    0,
-    usingCustomAmount ? Number(rechargeAmount || 0) : selectedAmount,
-  );
-  const rechargeButtonLabel = selectedRechargeAmount > 0
-    ? `Recharge ${currencyNoDecimal(selectedRechargeAmount)}`
-    : 'Continue to Payment';
+  const selectedRechargeAmount = selectedAmount;
+  const rechargeButtonLabel = `Recharge ${currencyNoDecimal(selectedRechargeAmount)}`;
   const bottomNavTotalHeight = Math.max(0, BOTTOM_NAV_HEIGHT + BOTTOM_NAV_OFFSET + insets.bottom);
   const bottomContentSpacing = bottomNavTotalHeight + Spacing.xl;
   const trialTag = useMemo(() => {
@@ -480,7 +436,7 @@ export default function SubscriptionManagerScreen() {
 
                   <View style={styles.quickAmountGrid}>
                     {QUICK_AMOUNTS.map((amount) => {
-                      const isSelected = !usingCustomAmount && selectedAmount === amount;
+                      const isSelected = selectedAmount === amount;
                       const tierLabel = amount === 500
                         ? 'Starter'
                         : amount === 1000
@@ -511,30 +467,6 @@ export default function SubscriptionManagerScreen() {
                         </Pressable>
                       );
                     })}
-                  </View>
-
-                  <View style={styles.customAmountCard}>
-                    <View style={styles.customAmountHeader}>
-                      <Text style={styles.customAmountTitle}>Custom amount</Text>
-                      <Pressable onPress={activateCustomAmount} style={styles.customAmountAction}>
-                        <Text style={styles.customAmountActionText}>{usingCustomAmount ? 'Editing' : 'Use custom'}</Text>
-                        <ArrowRight size={13} color={Colors.primary} />
-                      </Pressable>
-                    </View>
-
-                    <View style={[styles.customInputWrap, usingCustomAmount && styles.customInputWrapActive]}>
-                      <Text style={styles.inputPrefix}>₹</Text>
-                      <TextInput
-                        value={rechargeAmount}
-                        onFocus={activateCustomAmount}
-                        onChangeText={handleCustomAmountChange}
-                        keyboardType="decimal-pad"
-                        style={styles.amountInput}
-                        accessibilityLabel="Custom amount"
-                      />
-                    </View>
-
-                    <Text style={styles.customHint}>Credits are added instantly after successful payment.</Text>
                   </View>
 
                   <CreditGstNote credits={selectedRechargeAmount} />
@@ -569,11 +501,11 @@ export default function SubscriptionManagerScreen() {
 
                   <View style={styles.quickAmountGrid}>
                     {APPLE_CREDIT_PACKS.map((pack) => {
-                      const isSelected = appleCredits === pack.credits;
+                      const isSelected = appleSku === pack.sku;
                       return (
                         <Pressable
                           key={pack.sku}
-                          onPress={() => setAppleAmountText(String(pack.credits))}
+                          onPress={() => setAppleSku(pack.sku)}
                           style={[styles.quickAmountCard, isSelected && styles.quickAmountCardSelected]}
                         >
                           <View style={styles.quickAmountTopRow}>
@@ -592,37 +524,15 @@ export default function SubscriptionManagerScreen() {
                     })}
                   </View>
 
-                  <View style={styles.customAmountCard}>
-                    <Text style={styles.customAmountTitle}>Enter credits</Text>
-                    <View style={[styles.customInputWrap, styles.customInputWrapActive]}>
-                      <TextInput
-                        value={appleAmountText}
-                        onChangeText={(value) => setAppleAmountText(value.replace(/[^0-9]/g, ''))}
-                        keyboardType="number-pad"
-                        style={styles.amountInput}
-                        accessibilityLabel="Number of credits"
-                        placeholder={`${APPLE_MIN_CREDITS} – ${APPLE_MAX_CREDITS.toLocaleString('en-IN')}`}
-                      />
-                    </View>
-                    <Text style={styles.customHint}>
-                      {appleProblem
-                        ?? (applePlan && applePlan.length > 1
-                          ? `Paid in ${applePlan.length} App Store steps: ${applePlan.map((step) => `${step.credits.toLocaleString('en-IN')} × ${step.quantity}`).join(', then ')}.`
-                          : `Any amount from ${APPLE_MIN_CREDITS} to ${APPLE_MAX_CREDITS.toLocaleString('en-IN')}, in steps of 50. Price includes GST.`)}
-                    </Text>
-                  </View>
-
                   <Pressable
-                    disabled={busyAction !== null || !applePlan}
+                    disabled={busyAction !== null}
                     onPress={() => void handleAppleCredits()}
-                    style={[styles.primaryBtn, (busyAction === 'recharge' || !applePlan) && styles.primaryBtnDisabled]}
+                    style={[styles.primaryBtn, busyAction === 'recharge' && styles.primaryBtnDisabled]}
                   >
                     <Text style={styles.primaryBtnText}>
                       {busyAction === 'recharge'
                         ? 'Processing...'
-                        : applePlan
-                          ? `Buy ${appleCredits.toLocaleString('en-IN')} credits · ${currencyNoDecimal(appleCredits * 1.18)}`
-                          : 'Buy credits'}
+                        : `Buy ${applePack.credits.toLocaleString('en-IN')} credits · ${applePrice(applePack.sku, applePack.price)}`}
                     </Text>
                   </Pressable>
                 </View>
