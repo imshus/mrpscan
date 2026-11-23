@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "MRPscan",
-    "slug": "pratham",
+    "slug": "mrpscan",
     "version": "1.0.389",
     "orientation": "portrait",
     "icon": "./assets/images/ios-icon.png",
@@ -144,7 +144,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "3865c2a2-f6ce-43bf-ad57-ea260e427d5d"
+        "projectId": "55d7f3a2-1c48-42a5-87af-9345c068714e"
       }
     },
     "owner": "imshu"
