@@ -15,18 +15,19 @@ import { unwrapApiData } from '@/utils/apiResponse';
  * where the listener sends it again (the server applies each one once).
  *
  * The ids must match the products in App Store Connect and the server's list
- * (backend src/services/appleIap.service.js). A pack costs its credits in
- * rupees (50 credits = Rs 50); no GST is shown on iPhone (owner, 23 Nov 2026).
+ * (backend src/services/appleIap.service.js). `price` is the App Store price
+ * to set: credits + 18% GST, as Android charges. The screen shows no price or
+ * GST (owner, 23 Nov 2026); Apple's payment sheet shows the amount.
  */
 export const APPLE_LICENCE_SKU = 'com.amitaashitsolution.licence';
 
 export const APPLE_CREDIT_PACKS: { sku: string; credits: number; price: number }[] = [
-  { sku: 'com.amitaashitsolution.credits50', credits: 50, price: 50 },
-  { sku: 'com.amitaashitsolution.credits100', credits: 100, price: 100 },
-  { sku: 'com.amitaashitsolution.credits250', credits: 250, price: 250 },
-  { sku: 'com.amitaashitsolution.credits500', credits: 500, price: 500 },
-  { sku: 'com.amitaashitsolution.credits1000', credits: 1000, price: 1000 },
-  { sku: 'com.amitaashitsolution.credits5000', credits: 5000, price: 5000 },
+  { sku: 'com.amitaashitsolution.credits50', credits: 50, price: 59 },
+  { sku: 'com.amitaashitsolution.credits100', credits: 100, price: 118 },
+  { sku: 'com.amitaashitsolution.credits250', credits: 250, price: 295 },
+  { sku: 'com.amitaashitsolution.credits500', credits: 500, price: 590 },
+  { sku: 'com.amitaashitsolution.credits1000', credits: 1000, price: 1180 },
+  { sku: 'com.amitaashitsolution.credits5000', credits: 5000, price: 5900 },
 ];
 
 const ALL_SKUS = [APPLE_LICENCE_SKU, ...APPLE_CREDIT_PACKS.map((pack) => pack.sku)];
@@ -128,17 +129,6 @@ export function ensureAppleStore(): Promise<void> {
     });
   }
   return connecting;
-}
-
-/** The App Store's own price for each product (what Apple will charge). */
-export async function fetchApplePrices(): Promise<Record<string, string>> {
-  await ensureAppleStore();
-  const products = await iap().fetchProducts({ skus: ALL_SKUS, type: 'in-app' });
-  const prices: Record<string, string> = {};
-  for (const product of (products ?? []) as { id: string; displayPrice?: string }[]) {
-    if (product.displayPrice) prices[product.id] = product.displayPrice;
-  }
-  return prices;
 }
 
 /**

@@ -13,7 +13,6 @@ import { ArrowRight, BarChart3, ChevronLeft, Clock3, History, ShieldCheck, Walle
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomNav } from '@/components/dashboard/BottomNav';
-import { CreditGstNote } from '@/components/settings/CreditGstNote';
 import { PaymentDonePopup, type PaidOrder } from '@/components/settings/PaymentDonePopup';
 import { PaymentEmailPopup } from '@/components/settings/PaymentEmailPopup';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
@@ -44,7 +43,6 @@ import {
   APPLE_LICENCE_SKU,
   buyWithApple,
   canBuyWithApple,
-  fetchApplePrices,
   restoreApplePurchases,
 } from '@/utils/appleIap';
 
@@ -133,8 +131,6 @@ export default function SubscriptionManagerScreen() {
   // The payment that just went through, with its invoice on offer.
   const [paid, setPaid] = useState<PaidOrder | null>(null);
   const [selectedAmount, setSelectedAmount] = useState<number>(QUICK_AMOUNTS[0]);
-  // iPhone: the App Store's own price per product, once it has answered.
-  const [applePrices, setApplePrices] = useState<Record<string, string>>({});
   const [appleSku, setAppleSku] = useState<string>(APPLE_CREDIT_PACKS[0].sku);
 
   // iPhone: this screen reports the account and sells nothing — no Recharge
@@ -164,14 +160,6 @@ export default function SubscriptionManagerScreen() {
     }, [loadData]),
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!canManageApple) return;
-      fetchApplePrices().then(setApplePrices).catch((error) => {
-        console.warn('App Store prices unavailable', error);
-      });
-    }, [canManageApple]),
-  );
 
   const runRazorpayCheckout = useCallback(async (order: {
     orderId: string;
@@ -295,8 +283,9 @@ export default function SubscriptionManagerScreen() {
     });
   };
 
-  const applePrice = (sku: string, fallback: number) => applePrices[sku] ?? currencyNoDecimal(fallback);
-
+  // No price or GST on the iPhone cards (owner, 23 Nov 2026): a pack says
+  // its credits, and Apple's own payment sheet shows the amount charged
+  // (with GST). Apple does not allow showing less than it charges.
   // iPhone recharge: one of the packs, bought through Apple.
   const applePack = APPLE_CREDIT_PACKS.find((item) => item.sku === appleSku) ?? APPLE_CREDIT_PACKS[0];
 
@@ -469,8 +458,6 @@ export default function SubscriptionManagerScreen() {
                     })}
                   </View>
 
-                  <CreditGstNote credits={selectedRechargeAmount} />
-
                   <Pressable disabled={busyAction !== null} onPress={handleRecharge} style={[styles.primaryBtn, busyAction === 'recharge' && styles.primaryBtnDisabled]}>
                     <Text style={styles.primaryBtnText}>{busyAction === 'recharge' ? 'Processing...' : rechargeButtonLabel}</Text>
                   </Pressable>
@@ -485,7 +472,7 @@ export default function SubscriptionManagerScreen() {
                       <View>
                         <Text style={styles.linkTitle}>Purchase Application License</Text>
                         <Text style={styles.linkSubtitle}>
-                          {currencyNoDecimal(overview?.applicationPrice || 12000)} + GST (18%) · one-time purchase
+                          {currencyNoDecimal(overview?.applicationPrice || 12000)} · one-time purchase
                         </Text>
                       </View>
                     </View>
@@ -508,13 +495,11 @@ export default function SubscriptionManagerScreen() {
                           onPress={() => setAppleSku(pack.sku)}
                           style={[styles.quickAmountCard, isSelected && styles.quickAmountCardSelected]}
                         >
-                          <View style={styles.quickAmountTopRow}>
-                            <Text style={[styles.quickAmountBadge, isSelected && styles.quickAmountBadgeSelected]}>
-                              {pack.credits.toLocaleString('en-IN')} credits
-                            </Text>
-                          </View>
                           <Text style={[styles.quickAmountTitle, isSelected && styles.quickAmountTitleSelected]}>
-                            {applePrice(pack.sku, pack.price)}
+                            {pack.credits.toLocaleString('en-IN')}
+                          </Text>
+                          <Text style={[styles.quickAmountSub, isSelected && styles.quickAmountSubSelected]}>
+                            credits
                           </Text>
                           <Text style={[styles.quickAmountSub, isSelected && styles.quickAmountSubSelected]}>
                             Instant credit top-up
@@ -532,7 +517,7 @@ export default function SubscriptionManagerScreen() {
                     <Text style={styles.primaryBtnText}>
                       {busyAction === 'recharge'
                         ? 'Processing...'
-                        : `Buy ${applePack.credits.toLocaleString('en-IN')} credits · ${applePrice(applePack.sku, applePack.price)}`}
+                        : `Buy ${applePack.credits.toLocaleString('en-IN')} credits`}
                     </Text>
                   </Pressable>
                 </View>
@@ -542,9 +527,6 @@ export default function SubscriptionManagerScreen() {
                 <View style={styles.actionCard}>
                   <Text style={styles.cardTitle}>Application License</Text>
                   <Text style={styles.cardHelper}>One-time purchase, includes bonus scan credits</Text>
-                  <Text style={styles.quickAmountTitle}>
-                    {applePrice(APPLE_LICENCE_SKU, Number(overview?.applicationPrice || 12000) * 1.18)}
-                  </Text>
                   <Pressable
                     disabled={busyAction !== null}
                     onPress={() => void handleAppleLicence()}

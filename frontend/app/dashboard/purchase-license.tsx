@@ -12,7 +12,6 @@ import { Redirect, useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Check, ChevronDown, ChevronLeft, ChevronUp } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CreditGstNote } from '@/components/settings/CreditGstNote';
 import { PaymentDonePopup, type PaidOrder } from '@/components/settings/PaymentDonePopup';
 import { PaymentEmailPopup } from '@/components/settings/PaymentEmailPopup';
 import { GradientView } from '@/components/ui/GradientView';
@@ -368,11 +367,9 @@ function PurchaseLicenseScreen() {
                     <Feature text="Life time access" tone="paid" />
                     <Feature text={`Free ${bonusCredits} Credits`} tone="paid" />
                     <Feature text="+ Everything in Free trial" tone="paid" />
-                    {/* GST is charged on top, so the figure says so rather
-                        than reading as the whole of what is due. */}
-                    {/* The price on its own line; "+ GST" moves down under it
-                        with the one-time note, at the shop's asking. */}
-                    <Feature text={displayPrice} note="Plus GST (18%)" sub="(one time purchase)" tone="paid" />
+                    {/* No GST on screen (owner, 23 Nov 2026); Razorpay
+                        charges the price + 18% GST at payment. */}
+                    <Feature text={displayPrice} sub="(one time purchase)" tone="paid" />
                   </View>
                   <Pressable
                     disabled={busyAction === 'purchase' || isPurchased}
@@ -438,8 +435,6 @@ function PurchaseLicenseScreen() {
                       </Pressable>
                     ))}
                   </View>
-
-                  <CreditGstNote credits={rechargeValue} />
 
                   <Pressable
                     onPress={handleRecharge}
