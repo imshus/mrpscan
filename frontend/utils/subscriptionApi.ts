@@ -156,6 +156,7 @@ function toOverview(raw: Record<string, unknown>): SubscriptionOverview {
     todayScanCost: Number(raw.todayScanCost || 0),
     currentMonthCost: Number(raw.currentMonthCost || 0),
     applicationPrice: Number(raw.applicationPrice || 15000),
+    applicationPriceApple: Number(raw.applicationPriceApple || 17500),
     freeTrialCreditsConfigured: Number(raw.freeTrialCreditsConfigured || 100),
     purchasedBonusCreditsConfigured: Number(raw.purchasedBonusCreditsConfigured || 1000),
     trialDaysConfigured: Number(raw.trialDaysConfigured || 7),

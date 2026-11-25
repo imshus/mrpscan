@@ -317,7 +317,9 @@ export default function SubscriptionManagerScreen() {
   // iPhone prices carry no GST (owner, 23 Nov 2026): a pack costs its
   // credits in rupees and the licence its price (Rs 15,000), the same amounts
   // the App Store products are set to, so Apple's sheet opens straight away.
-  const appleLicencePrice = Number(overview?.applicationPrice || 15000);
+  // Apple is its own price, charged flat: Apple keeps a commission and pays
+  // the tax from its sale, so it is not the Android base plus GST.
+  const appleLicencePrice = Number(overview?.applicationPriceApple || 17500);
   /** Apple's own price for a product, falling back to the rupee figure. */
   const applePriceFor = (sku: string, fallback: number) =>
     applePrices[sku] ?? currencyNoDecimal(fallback);
