@@ -41,8 +41,6 @@ export interface SubscriptionOverview {
   todayScanCost?: number;
   currentMonthCost?: number;
   applicationPrice?: number;
-  /** The licence on iPhone, charged flat (no GST). */
-  applicationPriceApple?: number;
   freeTrialCreditsConfigured?: number;
   purchasedBonusCreditsConfigured?: number;
   trialDaysConfigured?: number;

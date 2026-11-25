@@ -314,12 +314,11 @@ export default function SubscriptionManagerScreen() {
   // iPhone recharge: one of the packs, bought through Apple.
   const applePack = APPLE_CREDIT_PACKS.find((item) => item.sku === appleSku) ?? APPLE_CREDIT_PACKS[0];
 
-  // iPhone prices carry no GST (owner, 23 Nov 2026): a pack costs its
-  // credits in rupees and the licence its price (Rs 15,000), the same amounts
-  // the App Store products are set to, so Apple's sheet opens straight away.
-  // Apple is its own price, charged flat: Apple keeps a commission and pays
-  // the tax from its sale, so it is not the Android base plus GST.
-  const appleLicencePrice = Number(overview?.applicationPriceApple || 17500);
+  // A pack costs its credits in rupees, no GST line (owner, 23 Nov 2026). The
+  // licence reads as on Android, Rs 15,000 + GST (18%) (owner, 25 Nov 2026);
+  // Apple's sheet then shows the total, Rs 17,700, which is what the App Store
+  // product com.mrpscan.lisence must be priced at.
+  const appleLicencePrice = Number(overview?.applicationPrice || 15000);
   /** Apple's own price for a product, falling back to the rupee figure. */
   const applePriceFor = (sku: string, fallback: number) =>
     applePrices[sku] ?? currencyNoDecimal(fallback);
@@ -616,7 +615,7 @@ export default function SubscriptionManagerScreen() {
                   <Text style={styles.cardTitle}>Application License</Text>
                   <Text style={styles.cardHelper}>One-time purchase, includes bonus scan credits</Text>
                   <Text style={[styles.quickAmountTitle, { marginTop: 8 }]}>
-                    {applePriceFor(APPLE_LICENCE_SKU, appleLicencePrice)}
+                    {currencyNoDecimal(appleLicencePrice)} + GST (18%)
                   </Text>
                   <Pressable
                     disabled={busyAction !== null}
