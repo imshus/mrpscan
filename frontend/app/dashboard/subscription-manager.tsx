@@ -315,9 +315,9 @@ export default function SubscriptionManagerScreen() {
   const applePack = APPLE_CREDIT_PACKS.find((item) => item.sku === appleSku) ?? APPLE_CREDIT_PACKS[0];
 
   // iPhone prices carry no GST (owner, 23 Nov 2026): a pack costs its
-  // credits in rupees and the licence its price (Rs 12,000), the same amounts
+  // credits in rupees and the licence its price (Rs 15,000), the same amounts
   // the App Store products are set to, so Apple's sheet opens straight away.
-  const appleLicencePrice = Number(overview?.applicationPrice || 12000);
+  const appleLicencePrice = Number(overview?.applicationPrice || 15000);
   /** Apple's own price for a product, falling back to the rupee figure. */
   const applePriceFor = (sku: string, fallback: number) =>
     applePrices[sku] ?? currencyNoDecimal(fallback);
@@ -553,7 +553,7 @@ export default function SubscriptionManagerScreen() {
                       <View>
                         <Text style={styles.linkTitle}>Purchase Application License</Text>
                         <Text style={styles.linkSubtitle}>
-                          {currencyNoDecimal(overview?.applicationPrice || 12000)} + GST (18%) · one-time purchase
+                          {currencyNoDecimal(overview?.applicationPrice || 15000)} + GST (18%) · one-time purchase
                         </Text>
                       </View>
                     </View>

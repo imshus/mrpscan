@@ -286,7 +286,7 @@ function PurchaseLicenseScreen() {
   }, [emailFor, startPurchase, startRecharge]);
 
   const purchaseState = useMemo(() => toPurchaseState(overview), [overview]);
-  const displayPrice = rupees(overview?.applicationPrice || 12000);
+  const displayPrice = rupees(overview?.applicationPrice || 15000);
   const bonusCredits = overview?.purchasedBonusCreditsConfigured || 1000;
   const trialDays = overview?.trialDaysConfigured || 7;
   const trialCredits = overview?.freeTrialCreditsConfigured || overview?.trialCredits || 10;
