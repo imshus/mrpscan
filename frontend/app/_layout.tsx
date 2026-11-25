@@ -17,6 +17,8 @@ import { ReduxProvider } from '@/components/ReduxProvider';
 import { AnimatedSplash } from '@/components/splash/AnimatedSplash';
 import { AppUpdatePopup } from '@/components/ui/AppUpdatePopup';
 import { scheduleTipReminders } from '@/utils/localNotifications';
+// Defines the background "new version" check before anything else runs.
+import { registerUpdateBackgroundCheck } from '@/utils/updateBackgroundCheck';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useEmployeeStore } from '@/store/employeeStore';
@@ -125,7 +127,10 @@ export default function RootLayout() {
   // The MRPscan reminder every 12 hours, scheduled again from each start
   // (asks for notification permission the first time).
   useEffect(() => {
-    if (storageReady) void scheduleTipReminders();
+    if (storageReady) {
+      void scheduleTipReminders();
+      void registerUpdateBackgroundCheck();
+    }
   }, [storageReady]);
 
   const contentStyle = useAnimatedStyle(() => ({

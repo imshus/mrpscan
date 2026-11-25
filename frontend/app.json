@@ -136,7 +136,8 @@
         {
           "color": "#A81F17"
         }
-      ]
+      ],
+      "expo-background-task"
     ],
     "experiments": {
       "typedRoutes": true

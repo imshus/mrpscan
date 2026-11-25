@@ -398,7 +398,7 @@ test('FAQ: iPhone leaves out the questions about prices and paying; Android show
         {
           section: { en: 'Pricing & Payment', hi: 'कीमत' },
           items: [
-            item('How much does MRPscan cost?', '₹12,000 + GST, paid one time for each GST.'),
+            item('How much does MRPscan cost?', '₹15,000 + GST, paid one time for each GST.'),
             item('How do I recharge my credits?', 'Settings → Credits & Subscription → Purchase Now.'),
             item('Which payment methods can I use?', 'Razorpay supports UPI, cards and net banking.'),
           ],

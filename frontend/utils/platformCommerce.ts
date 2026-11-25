@@ -157,7 +157,7 @@ export function notificationWithoutPurchaseCallToAction<T extends { text: string
 /**
  * An FAQ question or answer about buying: what MRPscan costs, how to pay or
  * recharge. On iPhone the FAQ leaves these out whole, since an answer like
- * "₹12,000 + GST … Purchase Now on Razorpay" is a price on offer and a way
+ * "₹15,000 + GST … Purchase Now on Razorpay" is a price on offer and a way
  * to pay outside the App Store.
  */
 const BUYING_TOPIC =

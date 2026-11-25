@@ -21,7 +21,7 @@ import { unwrapApiData } from '@/utils/apiResponse';
  *
  * `price` is the rupee price shown while the App Store's own localized price
  * is still loading: a pack costs its credits in rupees, no GST on iPhone
- * (owner, 23 Nov 2026), and the licence is Rs 12,000. Apple is the authority
+ * (owner, 25 Nov 2026), and the licence is Rs 15,000. Apple is the authority
  * on what is actually charged — never present this number as the final price
  * in a storefront other than India.
  */
