@@ -15,7 +15,9 @@ import type { PlayUpdate } from '@/utils/appUpdate.types';
  *   the front, when Play is asked again and the popup returns.
  * - Once the new version is installed Play reports nothing newer, so the
  *   popup never shows again.
- * Test builds not installed from Play never see it.
+ * An APK installed directly (Play never reports to it) asks MRPscan's server
+ * instead (GET /app-config `android`, set from the server's .env per
+ * release); then Update Now opens the server's download link.
  *
  * Android only, by file name: the iPhone gets AppUpdatePopup.tsx, which
  * renders nothing. Updating through Google Play is not an iOS concern, and an
@@ -73,8 +75,9 @@ export function AppUpdatePopup({ enabled }: { enabled: boolean }) {
           </View>
           <Text style={styles.title}>New version available</Text>
           <Text style={styles.message}>
-            A new version of MRPscan is available on Google Play. Update now to get the latest features
-            and fixes.
+            {update.downloadUrl
+              ? 'A new version of MRPscan is available. Update now to get the latest features and fixes.'
+              : 'A new version of MRPscan is available on Google Play. Update now to get the latest features and fixes.'}
           </Text>
           {/* Plain styles, not ({ pressed }) functions: under NativeWind the
               function form loses the background (see PopupCloseButton). */}
