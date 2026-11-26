@@ -73,6 +73,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-video",
       "./plugins/withPodsDeploymentTarget",
       "./plugins/withOptionalHardwareFeatures",
       [

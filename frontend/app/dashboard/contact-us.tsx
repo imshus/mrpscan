@@ -6,7 +6,13 @@ import { BottomNav } from '@/components/dashboard/BottomNav';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { screenStyles } from '@/constants/screenLayout';
-import { SUPPORT_EMAIL, openSupportEmail, talkToAgent } from '@/constants/support';
+import {
+  SUPPORT_EMAIL,
+  SUPPORT_PHONE,
+  callHelpline,
+  openSupportEmail,
+  talkToAgent,
+} from '@/constants/support';
 import { Colors } from '@/constants/theme';
 
 interface ContactRow {
@@ -24,6 +30,12 @@ export default function ContactUsScreen() {
       title: 'Email Us',
       subtitle: SUPPORT_EMAIL,
       onPress: () => void openSupportEmail(),
+    },
+    {
+      id: 'helpline',
+      title: 'Helpline Number',
+      subtitle: SUPPORT_PHONE,
+      onPress: () => void callHelpline(),
     },
     {
       id: 'call',
