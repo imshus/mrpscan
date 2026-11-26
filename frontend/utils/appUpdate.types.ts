@@ -8,4 +8,10 @@ export interface PlayUpdate {
   storeVersion: string;
   immediateAllowed: boolean;
   flexibleAllowed: boolean;
+  /**
+   * Set when the update came from MRPscan's server rather than Google Play
+   * (an APK installed directly, which Play never reports to): Update Now
+   * opens this download link.
+   */
+  downloadUrl?: string;
 }

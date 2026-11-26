@@ -20,12 +20,15 @@ import { unwrapApiData } from '@/utils/apiResponse';
  * (backend src/services/appleIap.service.js) must hold the same five.
  *
  * `price` is the rupee price shown while the App Store's own localized price
- * is still loading: a pack costs its credits in rupees, no GST on iPhone
- * (owner, 25 Nov 2026), and the licence is Rs 15,000. Apple is the authority
- * on what is actually charged — never present this number as the final price
- * in a storefront other than India.
+ * is still loading: a pack costs its credits in rupees, and the licence a flat
+ * Rs 17,500 — no GST line anywhere on iPhone (owner, 26 Nov 2026). Apple is
+ * the authority on what is actually charged, so never present these numbers as
+ * the final price in a storefront other than India.
  */
 export const APPLE_LICENCE_SKU = 'com.mrpscan.lisence';
+
+/** The iPhone licence price, flat (owner, 26 Nov 2026) — not Android's + GST. */
+export const APPLE_LICENCE_PRICE = 17500;
 
 export const APPLE_CREDIT_PACKS: {
   sku: string;

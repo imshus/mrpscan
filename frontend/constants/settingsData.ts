@@ -10,6 +10,7 @@ import {
   IdCard,
   LayoutGrid,
   LogOut,
+  PlayCircle,
   ShieldCheck,
   Sigma,
   Trash2,
@@ -84,6 +85,13 @@ export const SETTINGS_MENU_ITEMS: SettingsMenuItem[] = [
     title: 'FAQs',
     icon: HelpCircle,
     route: '/dashboard/faqs',
+  },
+  // Right under the FAQs: the same help, shown rather than written.
+  {
+    id: 'video-tutorial',
+    title: 'Video Tutorial',
+    icon: PlayCircle,
+    route: '/dashboard/video-tutorial',
   },
   // The App Store wants the privacy policy reachable inside the app
   // (guideline 5.1.1(i)), for owners and employees alike.

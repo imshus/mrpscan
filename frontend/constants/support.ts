@@ -5,6 +5,14 @@ import { Alert, Linking } from 'react-native';
 export const SUPPORT_EMAIL =
   (process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? '').trim() || 'info@mrpscan.com';
 
+/**
+ * The helpline the "Helpline Number" row dials; EXPO_PUBLIC_SUPPORT_PHONE
+ * overrides it. Stored in full international form so a tap dials from any
+ * network, and shown as the owner writes it.
+ */
+export const SUPPORT_PHONE =
+  (process.env.EXPO_PUBLIC_SUPPORT_PHONE ?? '').trim() || '+918796332440';
+
 /** Subject line the support email opens with. */
 export const SUPPORT_EMAIL_SUBJECT = 'MRPscan:Amitaash IT Solutions Private Limited';
 
@@ -29,6 +37,15 @@ export async function openSupportEmail(): Promise<void> {
     await Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}`);
   } catch {
     Alert.alert('No email app', 'Set up an email app on this phone, then try again.');
+  }
+}
+
+/** Opens the phone's dialler on the helpline, with the number already in it. */
+export async function callHelpline(): Promise<void> {
+  try {
+    await Linking.openURL(`tel:${SUPPORT_PHONE}`);
+  } catch {
+    Alert.alert('Cannot dial', `Call ${SUPPORT_PHONE} from your phone.`);
   }
 }
 

@@ -13,6 +13,13 @@ export interface FaqText {
 export interface FaqItem {
   q: FaqText;
   a: FaqText;
+  /**
+   * The answer the iPhone shows instead of `a`, where the two platforms
+   * differ — prices, above all: Apple charges its own amount with no GST
+   * line. An item that carries one is written for the App Store, so it is
+   * kept on iPhone rather than filtered out as a price on offer.
+   */
+  aApple?: FaqText;
 }
 
 export interface FaqSection {
@@ -39,8 +46,16 @@ export async function fetchFaqs(): Promise<FaqSection[]> {
       if (!isText(row.section) || !Array.isArray(row.items)) return null;
       const items = row.items
         .filter((item): item is FaqItem => isText(item?.q) && isText(item?.a))
-        // Nothing about prices or paying on iPhone (utils/platformCommerce.ts).
-        .filter((item) => canPurchaseInApp() || !faqAboutBuying(item.q.en, item.a.en, item.q.hi, item.a.hi));
+        // On iPhone an item with an `aApple` answer is shown with that answer,
+        // written for the App Store; everything else about prices or paying is
+        // left out (utils/platformCommerce.ts).
+        .map((item) => (canPurchaseInApp() || !isText(item.aApple) ? item : { ...item, a: item.aApple }))
+        .filter(
+          (item) =>
+            canPurchaseInApp()
+            || isText(item.aApple)
+            || !faqAboutBuying(item.q.en, item.a.en, item.q.hi, item.a.hi),
+        );
       if (!items.length) return null;
       return { section: row.section, items };
     })
