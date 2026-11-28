@@ -44,7 +44,7 @@ export default function ScannerScreen() {
   const trialExpired =
     isOwner && Boolean(overview && !overview.scannerEnabled && trialUsed);
   // "No credits left" as soon as the wallet cannot pay for one more scan
-  // (0.74 unless the server says otherwise), not only at 0: a scan is billed
+  // (0.94 unless the server says otherwise), not only at 0: a scan is billed
   // once it is done and only if the wallet covers the whole charge, so a
   // wallet of 0.51 used to run scans it could never pay for.
   const creditsLow = Boolean(

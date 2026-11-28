@@ -15,7 +15,7 @@ import { unwrapApiData } from '@/utils/apiResponse';
  * about 0.68 and is billed only if the wallet covers all of it. The server
  * sends its own figure (billing config minScanBalance); this is the fallback.
  */
-export const MIN_SCAN_BALANCE = 0.74;
+export const MIN_SCAN_BALANCE = 0.94;
 
 type ApiEnvelope<T extends Record<string, unknown>> = T & {
   success?: boolean;
@@ -530,6 +530,13 @@ export async function fetchScanBilling(limit: number = 20): Promise<ScanBillingR
       const row = (item || {}) as Record<string, unknown>;
       return {
         scanId: String(row.scanId || ''),
+        model: String(row.model || ''),
+        promptTokens: Number(row.promptTokens || 0),
+        completionTokens: Number(row.completionTokens || 0),
+        totalTokens: Number(row.totalTokens || 0),
+        costUsd: Number(row.costUsd || 0),
+        costInr: Number(row.costInr || 0),
+        marginMultiplier: Number(row.marginMultiplier || 0),
         totalScanCharge: Number(row.totalScanCharge || 0),
         balanceBefore: Number(row.balanceBefore || 0),
         balanceAfter: Number(row.balanceAfter || 0),

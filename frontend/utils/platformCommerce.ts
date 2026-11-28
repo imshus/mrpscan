@@ -40,7 +40,7 @@ export const TRIAL_ENDED_LINE = 'Your free trial has ended.';
 export const LICENCE_EXPIRED_LINE = 'Your licence has expired.';
 
 /** The same fallback the scanner uses when the server names no minimum. */
-const DEFAULT_MIN_SCAN_BALANCE = 0.74;
+const DEFAULT_MIN_SCAN_BALANCE = 0.94;
 
 /** None left at all, or some but not a scan's worth. */
 export function creditsLine(creditBalance: number): string {
