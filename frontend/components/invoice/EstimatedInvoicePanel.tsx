@@ -92,11 +92,23 @@ export function EstimatedInvoicePanel({ rows, title, shopName }: EstimatedInvoic
     Alert.alert('Downloaded', `${fileName} has been saved to the folder you chose.`);
   });
 
-  // WhatsApp: the breakdown as text, straight into WhatsApp; without it, the share sheet.
+  // WhatsApp: the estimate as the same PDF everything else sends (owner,
+  // 28 Nov 2026), through the share sheet, where WhatsApp is one of the
+  // choices. A file cannot ride on whatsapp://send, which carries text only,
+  // so the sheet is the only way to hand WhatsApp the document itself.
+  // With no sheet on the phone, the breakdown still goes as text.
   const whatsapp = () => run('whatsapp', async () => {
-    const url = `whatsapp://send?text=${encodeURIComponent(text)}`;
+    const uri = await makePdf();
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: `Send ${fileName}`,
+        UTI: 'com.adobe.pdf',
+      });
+      return;
+    }
     try {
-      await Linking.openURL(url);
+      await Linking.openURL(`whatsapp://send?text=${encodeURIComponent(text)}`);
     } catch {
       await Share.share({ message: text });
     }
