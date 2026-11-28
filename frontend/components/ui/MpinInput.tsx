@@ -3,6 +3,7 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import { Eye, EyeOff } from 'lucide-react-native';
 
 import { Colors, Radius } from '@/constants/theme';
+import { BlinkingCaret } from './BlinkingCaret';
 import { ErrorText } from './ErrorText';
 
 export const MPIN_LENGTH = 4;
@@ -90,6 +91,7 @@ export const MpinInput = forwardRef<MpinInputHandle, MpinInputProps>(function Mp
                   ]}
                 >
                   <Text style={styles.digit}>{filled ? (revealed ? digit : '•') : ''}</Text>
+                  {active ? <BlinkingCaret height={22} /> : null}
                 </View>
               );
             })}

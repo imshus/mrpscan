@@ -4,6 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 
 import { extractClipboardOtp } from '@/components/auth/OtpBox';
 import { Colors } from '@/constants/theme';
+import { BlinkingCaret } from './BlinkingCaret';
 import { ErrorText } from './ErrorText';
 
 interface OtpInputProps {
@@ -69,6 +70,7 @@ export function OtpInput({ value, onChange, error }: OtpInputProps) {
                 <Text className="text-lg font-bold text-text-primary">
                   {digit.trim() ? digit : ''}
                 </Text>
+                {isActive ? <BlinkingCaret height={22} /> : null}
               </View>
             );
           })}
