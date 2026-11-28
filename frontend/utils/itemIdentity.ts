@@ -25,3 +25,11 @@ export function formatItemIdentity(identity: ItemIdentity): string {
   if (identity.name && identity.number) return `${identity.name} · ${identity.number}`;
   return identity.name || identity.number || '';
 }
+
+/**
+ * The code a priced or saved piece is shown by: the shop's matched item code,
+ * else the number the tag was printed with. Empty when neither is known.
+ */
+export function displayItemCode(scanData: Pick<ScanItemData, 'itemCode' | 'sku'> | undefined): string {
+  return scanData?.itemCode?.trim() || scanData?.sku?.trim() || '';
+}

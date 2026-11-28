@@ -53,12 +53,17 @@ export function RawMaterialGoldSectionInteractive({
   pricing,
   onKaratChange,
 }: RawMaterialGoldSectionProps) {
+  // "75.0 purity", as the design has it; an override still says so.
+  const purityValue = Number(pricing.effectivePurityPercent);
+  const purityText = Number.isFinite(purityValue)
+    ? (Number.isInteger(purityValue * 10) ? purityValue.toFixed(1) : String(Number(purityValue.toFixed(2))))
+    : String(pricing.effectivePurityPercent);
   const purityNote =
     pricing.puritySource === 'labourOverride'
-      ? `${pricing.effectivePurityPercent} (custom purity)`
+      ? `${purityText} purity (custom)`
       : pricing.puritySource === 'tunchOverride'
-        ? `${pricing.effectivePurityPercent} (admin override)`
-        : `${pricing.effectivePurityPercent} from backend`;
+        ? `${purityText} purity (admin override)`
+        : `${purityText} purity`;
 
   return (
     <MetalTile title="Gold" tone="gold">

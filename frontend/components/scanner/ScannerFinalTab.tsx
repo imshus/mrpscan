@@ -368,7 +368,13 @@ export const ScannerFinalTab = memo(function ScannerFinalTab({
         />
         </View>
       ) : (
-        <LabourChargeResultSection pricing={pricing} />
+        <LabourChargeResultSection
+          pricing={pricing}
+          labourCode={scanData.labourCode}
+          labourChargeAmount={scanData.labourChargeAmount}
+          labourChargeUnit={scanData.labourChargeUnit}
+          labourWeightBasis={scanData.labourWeightBasis}
+        />
       )}
 
       {/* Under labour, as the design orders them: the two charges on top of

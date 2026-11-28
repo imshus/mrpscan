@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import {
+  FinRow,
   MetalFieldSlot,
   MetalGrid,
   MetalInput,
@@ -142,6 +143,18 @@ export function WastageSection({
   const shownCode = selectedCode || code || '—';
   const weightLabel =
     WASTAGE_WEIGHT_OPTIONS.find((option) => option.value === weightBasis)?.label ?? '—';
+
+  // The results view lists it as rows, as the design's result view does.
+  if (!editable) {
+    return (
+      <MetalTile title="Wastage" tone="wastage">
+        <FinRow label="Wastage Code" value={shownCode} />
+        <FinRow label="Weight Used" value={weightLabel} />
+        <FinRow label="Wastage %" value={`${percent}%`} />
+        <FinRow label="Wastage Amount" value={amountDisplay || '—'} amount />
+      </MetalTile>
+    );
+  }
 
   return (
     <MetalTile title="Wastage" tone="wastage">

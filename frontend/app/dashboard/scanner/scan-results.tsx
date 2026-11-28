@@ -24,6 +24,7 @@ import { useWishlistStore } from '@/store/wishlistStore';
 import { cartPieceFromWishlistItem, isBillablePiece } from '@/utils/cartInvoice';
 import { resolveScannedKarat } from '@/utils/formulaUtils';
 import { buildWishlistItem, buildTagCode } from '@/utils/wishlistUtils';
+import { displayItemCode } from '@/utils/itemIdentity';
 import { KeyboardAwareScrollView } from '@/components/ui/KeyboardAwareScrollView';
 import { parseStoneArraysFromStructuredData } from '@/utils/stoneSequenceUtils';
 
@@ -188,6 +189,21 @@ export default function ScanResultsScreen() {
               />
               {/* No price to bill (refused inputs, no live rate): said here,
                   and nothing is invoiced or saved at a price the card lost. */}
+              {/* Item Name and Item Code under the MRP, as the design's result view. */}
+              <View style={styles.itemRow}>
+                <View style={styles.itemTile}>
+                  <Text style={styles.itemTileLabel}>Item Name</Text>
+                  <Text style={styles.itemTileValue} numberOfLines={1}>
+                    {activeScanData.itemName?.trim() || '—'}
+                  </Text>
+                </View>
+                <View style={styles.itemTile}>
+                  <Text style={styles.itemTileLabel}>Item Code</Text>
+                  <Text style={styles.itemTileValue} numberOfLines={1}>
+                    {displayItemCode(activeScanData) || '—'}
+                  </Text>
+                </View>
+              </View>
               {activePricing.pricingError ? (
                 <Text style={styles.pricingError}>{activePricing.pricingError}</Text>
               ) : null}
@@ -251,6 +267,27 @@ const styles = StyleSheet.create({
   mrpCard: {
     marginBottom: 0,
   },
+  // The review card's item tiles, the same look.
+  itemRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  itemTile: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+    backgroundColor: Colors.backgroundAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  itemTileLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    color: Colors.textMuted,
+  },
+  itemTileValue: { fontSize: 13.5, fontWeight: '800', color: Colors.textPrimary },
   scroll: {
     flex: 1,
   },
