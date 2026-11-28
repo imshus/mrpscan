@@ -194,3 +194,12 @@ export function wishlistAddPayload(item: WishlistItem): AddWishlistPayload {
     ...(itemName ? { itemName } : {}),
   };
 }
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "24 May 2024": the day, in the phone's own time zone. */
+export function formatWishlistDate(iso: string): string {
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return '—';
+  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+}

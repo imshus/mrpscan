@@ -6,19 +6,23 @@ export const SUPPORT_EMAIL =
   (process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? '').trim() || 'info@mrpscan.com';
 
 /**
- * The helpline the "Helpline Number" row dials; EXPO_PUBLIC_SUPPORT_PHONE
+ * The number the "Mobile Number (Owner)" row dials; EXPO_PUBLIC_SUPPORT_PHONE
  * overrides it. Stored in full international form so a tap dials from any
  * network, and shown as the owner writes it.
  */
 export const SUPPORT_PHONE =
   (process.env.EXPO_PUBLIC_SUPPORT_PHONE ?? '').trim() || '+918796332440';
 
+/**
+ * The voice agent's own web page, which "Request for Custom Feature" opens;
+ * EXPO_PUBLIC_VOICE_AGENT_URL overrides it. Moved to prathamai.mrpscan.com
+ * (owner, 28 Nov 2026).
+ */
+export const VOICE_AGENT_URL =
+  (process.env.EXPO_PUBLIC_VOICE_AGENT_URL ?? '').trim() || 'https://prathamai.mrpscan.com/';
+
 /** Subject line the support email opens with. */
 export const SUPPORT_EMAIL_SUBJECT = 'MRPscan:Amitaash IT Solutions Private Limited';
-
-/** The browser voice agent a customer talks to; EXPO_PUBLIC_VOICE_AGENT_URL overrides it. */
-export const VOICE_AGENT_URL =
-  (process.env.EXPO_PUBLIC_VOICE_AGENT_URL ?? '').trim() || 'https://voice.amitaash.com';
 
 const INVITE_URL = 'https://mrpscan.com';
 
@@ -40,7 +44,7 @@ export async function openSupportEmail(): Promise<void> {
   }
 }
 
-/** Opens the phone's dialler on the helpline, with the number already in it. */
+/** Opens the phone's dialler on the owner's number, already filled in. */
 export async function callHelpline(): Promise<void> {
   try {
     await Linking.openURL(`tel:${SUPPORT_PHONE}`);

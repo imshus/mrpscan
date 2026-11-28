@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 
+import { BlinkingCaret } from '@/components/ui/BlinkingCaret';
 import { Colors } from '@/constants/theme';
 
 const OTP_LENGTH = 6;
@@ -145,6 +146,7 @@ export function OtpBox({
                 ]}
               >
                 <Text style={styles.digitText}>{filled ? digit : ''}</Text>
+                {isActive ? <BlinkingCaret height={22} /> : null}
               </View>
             );
           })}

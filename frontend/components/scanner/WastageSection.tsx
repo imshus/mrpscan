@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import {
+  FinRow,
   MetalFieldSlot,
   MetalGrid,
   MetalInput,
   MetalTile,
   MetalValueBox,
 } from '@/components/scanner/ReviewCardKit';
-import { WeightDropdown } from '@/components/scanner/LaborSection';
 import { SearchableSelectDropdown } from '@/components/scanner/SearchableSelectDropdown';
 import {
   DEFAULT_WASTAGE_WEIGHT_BASIS,
   WASTAGE_WEIGHT_OPTIONS,
+  isWastageWeightBasis,
   type WastageWeightBasis,
 } from '@/constants/wastage';
 import { registerScopeResetCallback } from '@/utils/userScopedStorage';
@@ -143,6 +144,18 @@ export function WastageSection({
   const weightLabel =
     WASTAGE_WEIGHT_OPTIONS.find((option) => option.value === weightBasis)?.label ?? '—';
 
+  // The results view lists it as rows, as the design's result view does.
+  if (!editable) {
+    return (
+      <MetalTile title="Wastage" tone="wastage">
+        <FinRow label="Wastage Code" value={shownCode} />
+        <FinRow label="Weight Used" value={weightLabel} />
+        <FinRow label="Wastage %" value={`${percent}%`} />
+        <FinRow label="Wastage Amount" value={amountDisplay || '—'} amount />
+      </MetalTile>
+    );
+  }
+
   return (
     <MetalTile title="Wastage" tone="wastage">
       <MetalGrid>
@@ -168,9 +181,14 @@ export function WastageSection({
         )}
         {editable ? (
           <MetalFieldSlot label="Weight Used">
-            <WeightDropdown
+            {/* Gross Wt, Net Wt or Gold + DMD; the same floating popup as Labour's. */}
+            <SearchableSelectDropdown
+              compact
+              anchored
               value={weightBasis}
-              onChange={(basis) => onWeightBasisChange?.(basis)}
+              options={WASTAGE_WEIGHT_OPTIONS}
+              onChange={(next) => { if (isWastageWeightBasis(next)) onWeightBasisChange?.(next); }}
+              containerClassName="w-full"
             />
           </MetalFieldSlot>
         ) : (

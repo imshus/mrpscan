@@ -178,8 +178,9 @@ function rateModeText(value: unknown): string | null {
 /** Labour's and Wastage's Weight Used, as the review card names it. */
 function basisText(value: unknown): string | null {
   const raw = text(value).toLowerCase();
-  if (raw === 'gross') return 'Gross wt';
-  if (raw === 'net') return 'Net wt';
+  if (raw === 'gross') return 'Gross Wt';
+  if (raw === 'net') return 'Net Wt';
+  if (raw === 'gold_diamond') return 'Gold + DMD';
   return null;
 }
 

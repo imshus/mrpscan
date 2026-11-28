@@ -33,7 +33,7 @@ export default function ContactUsScreen() {
     },
     {
       id: 'helpline',
-      title: 'Helpline Number',
+      title: 'Mobile Number (Owner)',
       subtitle: SUPPORT_PHONE,
       onPress: () => void callHelpline(),
     },

@@ -6,8 +6,19 @@ import { LABOUR_WEIGHT_OPTIONS, type LabourWeightBasis } from '@/constants/labou
  * same two choices as Labour's Weight Used, and gross falls back to net when
  * the tag gives no gross weight, as the server does.
  */
-export type WastageWeightBasis = LabourWeightBasis;
+export type WastageWeightBasis = LabourWeightBasis | 'gold_diamond';
 
 export const DEFAULT_WASTAGE_WEIGHT_BASIS: WastageWeightBasis = 'net';
 
-export const WASTAGE_WEIGHT_OPTIONS = LABOUR_WEIGHT_OPTIONS;
+/**
+ * Gross Wt, Net Wt, and Gold + DMD (owner, 28 Nov 2026): the percent of the
+ * gold amount plus the diamond amount, as the server prices it.
+ */
+export const WASTAGE_WEIGHT_OPTIONS: Array<{ value: WastageWeightBasis; label: string }> = [
+  ...LABOUR_WEIGHT_OPTIONS,
+  { value: 'gold_diamond', label: 'Gold + DMD' },
+];
+
+export function isWastageWeightBasis(value: unknown): value is WastageWeightBasis {
+  return value === 'gross' || value === 'net' || value === 'gold_diamond';
+}

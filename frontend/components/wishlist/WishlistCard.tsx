@@ -5,7 +5,8 @@ import { GradientView } from '@/components/ui/GradientView';
 import { Colors, Gradients } from '@/constants/theme';
 import type { WishlistItem } from '@/types/wishlist';
 import { roundHalfUp } from '@/utils/moneyMath';
-import { formatWishlistAge } from '@/utils/wishlistUtils';
+import { displayItemCode } from '@/utils/itemIdentity';
+import { formatWishlistDate } from '@/utils/wishlistUtils';
 
 function formatWishlistAmount(amount: number) {
   return `₹ ${roundHalfUp(amount).toLocaleString('en-IN')}`;
@@ -22,14 +23,16 @@ interface WishlistCardProps {
 
 /**
  * Wishlist row as the mockup's slim card has it, all on one line: the tick
- * circle, the piece's name over how long ago it was saved, and the red price
+ * circle, the piece's item code over the day it was scanned, and the red price
  * pill. Removing goes through the ticks and the bin in the title row, so the
  * card has no delete of its own. Tapping anywhere but the circle opens the
  * item.
  */
 export function WishlistCard({ item, onPress, selected = false, onToggleSelect }: WishlistCardProps) {
-  const title = item.title || item.tagCode || 'Saved item';
-  const age = formatWishlistAge(item.scanTimestamp || item.addedAt);
+  // The item code on top and the exact day under it (owner, 28 Nov 2026);
+  // a piece with no code at all still shows its name.
+  const title = displayItemCode(item.snapshot?.scanData) || item.title || 'Saved item';
+  const age = formatWishlistDate(item.scanTimestamp || item.addedAt);
   // An employee's save, seen by the owner, still says whose it was.
   const sub = item.savedBy ? `${age} · Saved by ${item.savedBy}` : age;
 
