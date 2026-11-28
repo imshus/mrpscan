@@ -53,6 +53,16 @@ export interface SubscriptionOverview {
 export interface ScanBillingRow {
   id?: string;
   scanId: string;
+  /** The reader that priced the tag, e.g. gpt-6-luna. */
+  model?: string;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  /** What those tokens cost us, in dollars and in rupees. */
+  costUsd?: number;
+  costInr?: number;
+  /** What the shop pays per rupee of that cost; 2 is double. */
+  marginMultiplier?: number;
   totalScanCharge: number;
   balanceBefore: number;
   balanceAfter: number;
