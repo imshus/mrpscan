@@ -1,3 +1,4 @@
+import { isWastageWeightBasis } from '@/constants/wastage';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import type { GoldRate } from '@/types/rates';
 import type { JewelleryType, ScanItemData, StructuredScanData, CalculateMrpPayload, CalculateMrpResponse } from '@/types/scanner';
@@ -396,7 +397,7 @@ export function useFinalTabPricing({
           wastagePercent: Number(res.breakdown.wastagePercent) || 0,
           wastageWeightGrams: Number(res.breakdown.wastageWeightGrams) || 0,
           wastageWeightBasis:
-            wastageWeightBasis === 'gross' || wastageWeightBasis === 'net'
+            isWastageWeightBasis(wastageWeightBasis)
               ? wastageWeightBasis
               : undefined,
           wastageRatePerGram:

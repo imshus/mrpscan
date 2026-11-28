@@ -8,11 +8,11 @@ import {
   MetalTile,
   MetalValueBox,
 } from '@/components/scanner/ReviewCardKit';
-import { WeightDropdown } from '@/components/scanner/LaborSection';
 import { SearchableSelectDropdown } from '@/components/scanner/SearchableSelectDropdown';
 import {
   DEFAULT_WASTAGE_WEIGHT_BASIS,
   WASTAGE_WEIGHT_OPTIONS,
+  isWastageWeightBasis,
   type WastageWeightBasis,
 } from '@/constants/wastage';
 import { registerScopeResetCallback } from '@/utils/userScopedStorage';
@@ -181,9 +181,14 @@ export function WastageSection({
         )}
         {editable ? (
           <MetalFieldSlot label="Weight Used">
-            <WeightDropdown
+            {/* Gross Wt, Net Wt or Gold + DMD; the same floating popup as Labour's. */}
+            <SearchableSelectDropdown
+              compact
+              anchored
               value={weightBasis}
-              onChange={(basis) => onWeightBasisChange?.(basis)}
+              options={WASTAGE_WEIGHT_OPTIONS}
+              onChange={(next) => { if (isWastageWeightBasis(next)) onWeightBasisChange?.(next); }}
+              containerClassName="w-full"
             />
           </MetalFieldSlot>
         ) : (

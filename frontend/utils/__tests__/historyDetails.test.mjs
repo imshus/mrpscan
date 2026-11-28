@@ -128,10 +128,10 @@ test('priced scan (server answer): every tile as priced, the breakdown, the MRP'
       'CS Rate: ₹2,000 /ct',
       'CS Amount: ₹200 *',
     ],
-    'labour Labour Charge (labour)': ['Labour Rate: ₹850', 'Weight Used: Net wt', 'Labour Amount: ₹8,500 *'],
+    'labour Labour Charge (labour)': ['Labour Rate: ₹850', 'Weight Used: Net Wt', 'Labour Amount: ₹8,500 *'],
     'wastage Wastage (wastage)': [
       'Wastage %: 8%',
-      'Weight Used: Gross wt',
+      'Weight Used: Gross Wt',
       'Wastage Weight: 0.84 g',
       'Wastage Rate: ₹11,816 /g',
       'Wastage Amount: ₹9,926 *',
@@ -304,11 +304,11 @@ test('wishlist add: the snapshot read into the same tiles and breakdown', () => 
       'Current Gold Rate: ₹91,600 /10gm',
       'Gold Amount: ₹38,472 *',
     ],
-    'labour Labour Charge (labour)': ['Labour Rate: ₹650', 'Weight Used: Gross wt', 'Labour Amount: ₹2,925 *'],
+    'labour Labour Charge (labour)': ['Labour Rate: ₹650', 'Weight Used: Gross Wt', 'Labour Amount: ₹2,925 *'],
     'wastage Wastage (wastage)': [
       'Wastage Code: WS-08',
       'Wastage %: 8%',
-      'Weight Used: Net wt',
+      'Weight Used: Net Wt',
       'Wastage Weight: 0.336 g',
       'Wastage Rate: ₹9,160 /g',
       'Wastage Amount: ₹3,078 *',
@@ -440,7 +440,7 @@ test('Labour Code: a scan shows the code its price recorded; a wishlist add the 
   assert.deepEqual(tilesOf(scanDetailView(pricedWithCode, NOW))['labour Labour Charge (labour)'], [
     'Labour Code: LB-03',
     'Labour Rate: ₹850',
-    'Weight Used: Net wt',
+    'Weight Used: Net Wt',
     'Labour Amount: ₹8,500 *',
   ]);
   // A blank code (none matched) shows no Labour Code line.
@@ -453,7 +453,7 @@ test('Labour Code: a scan shows the code its price recorded; a wishlist add the 
   };
   assert.deepEqual(tilesOf(scanDetailView(blank, NOW))['labour Labour Charge (labour)'], [
     'Labour Rate: ₹850',
-    'Weight Used: Net wt',
+    'Weight Used: Net Wt',
     'Labour Amount: ₹8,500 *',
   ]);
 
@@ -464,7 +464,7 @@ test('Labour Code: a scan shows the code its price recorded; a wishlist add the 
   assert.deepEqual(tilesOf(wishlistDetailView(saved, NOW))['labour Labour Charge (labour)'], [
     'Labour Code: LB-02',
     'Labour Rate: ₹650',
-    'Weight Used: Gross wt',
+    'Weight Used: Gross Wt',
     'Labour Amount: ₹2,925 *',
   ]);
   // Saved before the price named one: the code picked on the card.

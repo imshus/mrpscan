@@ -1,3 +1,4 @@
+import { isWastageWeightBasis } from '@/constants/wastage';
 import type {
   CalculateMrpPayload,
   CalculateMrpResponse,
@@ -71,9 +72,9 @@ export function derivePricingInput(
     // The Masters -> Wastage code picked on the card, which the server then
     // prices (when no % is typed) and records, ahead of the tag's own.
     ...(scanData.wastageCode?.trim() ? { wastageCode: scanData.wastageCode.trim() } : {}),
-    // Always one of the two: the server refuses anything else, and a scan
+    // Always one of the three: the server refuses anything else, and a scan
     // made before the tile had the choice is on the net weight.
-    wastageWeightBasis: scanData.wastageWeightBasis === 'gross' ? 'gross' : 'net',
+    wastageWeightBasis: isWastageWeightBasis(scanData.wastageWeightBasis) ? scanData.wastageWeightBasis : 'net',
     // Each stone's unit as printed: a weight in grams is priced as 5 ct a
     // gram, as the server prices the reading; without it the card priced
     // "0.40 g" as 0.40 ct, a fifth of the analysis's price.
