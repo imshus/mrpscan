@@ -6,7 +6,7 @@ export const SUPPORT_EMAIL =
   (process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? '').trim() || 'info@mrpscan.com';
 
 /**
- * The number the "Mobile Number (owner)" row dials; EXPO_PUBLIC_SUPPORT_PHONE
+ * The number the "Mobile Number (Owner)" row dials; EXPO_PUBLIC_SUPPORT_PHONE
  * overrides it. Stored in full international form so a tap dials from any
  * network, and shown as the owner writes it.
  */
